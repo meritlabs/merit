@@ -1644,7 +1644,6 @@ static const CRPCCommand commands[] =
     { "blockchain",         "gettxoutsetinfo",        &gettxoutsetinfo,        true,  {} },
     { "blockchain",         "pruneblockchain",        &pruneblockchain,        true,  {"height"} },
     { "blockchain",         "verifychain",            &verifychain,            true,  {"checklevel","nblocks"} },
-    { "blockchain",         "getspentinfo",           &getspentinfo,           false },
 
     { "blockchain",         "preciousblock",          &preciousblock,          true,  {"blockhash"} },
 
