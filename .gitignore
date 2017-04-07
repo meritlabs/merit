@@ -105,6 +105,7 @@ qa/pull-tester/tests_config.py
 qa/cache/*
 
 !src/leveldb*/Makefile
+!build_docker/Makefile
 
 /doc/doxygen/
 
