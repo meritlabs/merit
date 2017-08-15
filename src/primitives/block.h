@@ -7,6 +7,7 @@
 #define BITCOIN_PRIMITIVES_BLOCK_H
 
 #include "primitives/transaction.h"
+#include "primitives/referral.h"
 #include "serialize.h"
 #include "uint256.h"
 
@@ -74,6 +75,7 @@ class CBlock : public CBlockHeader
 public:
     // network and disk
     std::vector<CTransactionRef> vtx;
+    std::vector<CReferralRef> vref;
 
     // memory only
     mutable bool fChecked;
