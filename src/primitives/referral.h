@@ -12,6 +12,8 @@
 #include "script/script.h"
 #include "serialize.h"
 #include "uint256.h"
+#include "net.h"
+#include "util.h"
 
 struct CMutableReferral;
 
@@ -97,6 +99,8 @@ public:
      * @return Total transaction size in bytes
      */
     unsigned int GetTotalSize() const;
+
+    bool RelayWalletTransaction(CConnman* connman);
 
     friend bool operator==(const CReferral& a, const CReferral& b)
     {

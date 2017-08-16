@@ -113,6 +113,23 @@ public:
     void operator()(const CNoDestination &none) {}
 };
 
+
+bool CReferralTx::RelayWalletTransaction(CConnman *connman)
+{
+	LogPrintf("Relaying referral %s\n", GetHash().ToString());
+	if (connman) {
+		CInv inv(MSG_REFERRAL, GetHash());
+		connman->ForEachNode([&inv](CNode* pnode)
+		{
+			pnode->PushInventory(inv);
+		});
+		return true;
+	}
+
+	return false;
+}
+
+
 const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
 {
     LOCK(cs_wallet);
