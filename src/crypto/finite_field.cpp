@@ -1,34 +1,33 @@
-#include <boost/multiprecision/cpp_int.hpp>
-#include <vector>
-#include <iostream>
-#include "finite_field.h"
+#include "crypto/finite_field.h"
 
-namespace finite_field {
+#include <numeric>
 
-    // mersenne prime
-    const unsigned POWER(521);
-    const BigInt R(PowerOf2(POWER));
-    const BigInt P(R - 1);
+namespace finite_field
+{
 
-    BigInt PowerOf2(const unsigned& n) {
-        BigInt one(1);
+    BigInt PowerOf2(const unsigned& n)
+    {
+        BigInt one = 1;
         return one << n;
     }
 
-    BigInt ModPowerOf2(const BigInt& x, const unsigned& n) {
+    BigInt ModPowerOf2(const BigInt& x, const unsigned& n)
+    {
         return x & (PowerOf2(n) - 1);
     }
 
-    BigInt ModR(const BigInt& x) {
-        return ModPowerOf2(x, POWER);
+    BigInt ModR(const BigInt& x)
+    {
+        return ModPowerOf2(x, POWER_BITS);
     }
 
     // montgomery modular multiplication
     // note: r = 1 (mod p) and p = -1 (mod r)
     //       so we can simplify this operation greatly
-    BigInt redc(const BigInt& x) {
+    BigInt redc(const BigInt& x)
+    {
         auto m = ModR(x);
-        auto t = (x + m * P) >> POWER;
+        auto t = (x + m * P) >> POWER_BITS;
         if(t < P) {
             return t;
         } else {
@@ -36,24 +35,29 @@ namespace finite_field {
         }
     }
 
-    BigInt AddModP(const BigInt& left, const BigInt& right) {
+    BigInt AddModP(const BigInt& left, const BigInt& right)
+    {
         return redc(redc(left) + redc(right));
     }
 
-    BigInt MultModP(const BigInt& left, const BigInt& right) {
+    BigInt MultModP(const BigInt& left, const BigInt& right)
+    {
         return redc(redc(left) * redc(right));
     }
 
-    BigInt MinusModP(const BigInt& left, const BigInt& right) {
+    BigInt MinusModP(const BigInt& left, const BigInt& right)
+    {
         return AddModP(left, -right);
     }
 
-    BigInt Negative(const BigInt& x) {
+    BigInt Negative(const BigInt& x)
+    {
         return MinusModP(0, x);
     }
 
     // exponentiation by squaring
-    BigInt ExpBySquare(const BigInt& acc, const BigInt& base, const BigInt& exponent) {
+    BigInt ExpBySquare(const BigInt& acc, const BigInt& base, const BigInt& exponent)
+    {
         if(exponent < 0) {
             return ExpBySquare(acc, base, exponent + P - 1);
         } else if(exponent >= P) {
@@ -69,25 +73,62 @@ namespace finite_field {
         }
     }
 
-    BigInt ExpModP(const BigInt& base, const BigInt& exponent) {
+    BigInt ExpModP(const BigInt& base, const BigInt& exponent)
+    {
         return ExpBySquare(1, base, exponent);
     }
 
-    BigInt InverseModP(const BigInt& x) {
+    BigInt InverseModP(const BigInt& x)
+    {
         return ExpModP(x, -1);
     }
 
-    BigInt DivModP(const BigInt& numer, const BigInt& denom) {
+    BigInt DivModP(const BigInt& numer, const BigInt& denom)
+    {
         return MultModP(numer, InverseModP(denom));
     }
 
     // coefs are ordered such that the polynomial f(x) = sum (coefs[i] * x^i)
-    BigInt EvalPolynomial(const BigInt& x, const std::vector<BigInt>& coefs) {
-        BigInt res(0);
-        for(auto it = coefs.crbegin(); it < coefs.crend(); it++){
-            res = MultModP(res, x) + *it;
-        }
-        return res;
+    Element EvalPolynomial(const Element& x, const std::vector<Element>& coefs)
+    {
+        return std::accumulate(coefs.crbegin(), coefs.crend(), Element{},
+            [&x](const Element& acc, const Element& coef)
+            {
+                return (acc * x) + coef;
+            });
     }
 
-}
+    Element::Element(BigInt val) : value{val}
+    {
+    }
+
+    Element::Element() : value(0)
+    {
+    }
+
+    bool Element::operator ==(const Element& right) const
+    {
+        return value == right.value;
+    }
+
+    Element Element::operator +(const Element& right) const
+    {
+        return Element(AddModP(value, right.value));
+    }
+
+    Element Element::operator -(const Element& right) const
+    {
+        return Element(MinusModP(value, right.value));
+    }
+
+    Element Element::operator *(const Element& right) const
+    {
+        return Element(MultModP(value, right.value));
+    }
+
+    Element Element::operator /(const Element& right) const
+    {
+        return Element(DivModP(value, right.value));
+    }
+
+} // namespace finite_field

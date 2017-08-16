@@ -1,14 +1,16 @@
 #ifndef LEGENDRE_H
 
+#include "finite_field.h"
 #include "field_point.h"
 
 #include <vector>
 
 namespace legendre {
-  finite_field::Element LegendrePolyAtZero(const std::vector<FieldPoint>&);
-  finite_field::Element NumerTerm(const FieldPoint&, const std::vector<FieldPoint>&);
-  finite_field::Element DenomTerm(const FieldPoint&, const std::vector<FieldPoint>&);
-}
+    namespace ff = finite_field;
+    ff::Element LegendrePolyAtZero(const std::vector<ff::FieldPoint>&);
+    ff::Element NumerTerm(const ff::FieldPoint&, const std::vector<ff::FieldPoint>&);
+    ff::Element DenomTerm(const ff::FieldPoint&, const std::vector<ff::FieldPoint>&);
+} // namespace legendre
 
 #define LEGENDRE_H
 #endif

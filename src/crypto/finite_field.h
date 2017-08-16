@@ -7,9 +7,26 @@
 
 namespace finite_field
 {
+    const unsigned POWER_BITS = 521;
+    const unsigned POWER_BYTES = POWER_BITS / 8;
+
     namespace bm = boost::multiprecision;
-    using SecureCPPIntBackend = bm::cpp_int_backend<0, 0, bm::signed_magnitude, bm::unchecked, secure_allocator<bm::limb_type>>;
+    using SecureCPPIntBackend = bm::cpp_int_backend<521, 521, bm::signed_magnitude, bm::unchecked, secure_allocator<bm::limb_type>>;
     using BigInt = bm::number<SecureCPPIntBackend>;
+
+    class Element
+    {
+    public:
+        BigInt value;
+        Element(BigInt);
+        Element();
+        bool operator ==(const Element& right) const;
+        Element operator +(const Element& right) const;
+        Element operator -(const Element& right) const;
+        Element operator *(const Element& right) const;
+        Element operator /(const Element& right) const;
+    };
+
     BigInt PowerOf2(const unsigned&);
     BigInt ModPowerOf2(const BigInt&, const unsigned&);
     BigInt ModR(const BigInt&);
@@ -20,42 +37,14 @@ namespace finite_field
     BigInt Negative(const BigInt&);
     BigInt ExpModP(const BigInt&, const BigInt&);
     BigInt InverseModP(const BigInt&);
-    BigInt EvalPolynomial(const BigInt&, const std::vector<BigInt>&);
 
-    class Element
-    {
-    public:
-        BigInt value;
-        Element(BigInt val) : value{val}
-        {
-        }
+    const BigInt R = PowerOf2(POWER_BITS);
+    // mersenne prime
+    const BigInt P = R - 1;
 
-        Element() : value(0)
-        {
-        }
-        friend bool operator ==(const Element& left, const Element& right)
-        {
-            return left.value == right.value;
-        }
-        friend Element operator +(const Element& left, const Element& right)
-        {
-            return Element(AddModP(left.value, right.value));
-        }
-        friend Element operator -(const Element& left, const Element& right)
-        {
-            return Element(MinusModP(left.value, right.value));
-        }
-        friend Element operator *(const Element& left, const Element& right)
-        {
-            return Element(MultModP(left.value, right.value));
-        }
-        friend Element operator /(const Element& left, const Element& right)
-        {
-            return Element(DivModP(left.value, right.value));
-        }
-    };
+    Element EvalPolynomial(const Element&, const std::vector<Element>&);
 
-}
+} // namespace finite_field
 
 #define FINITE_FIELD_H
 #endif

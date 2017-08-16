@@ -3,20 +3,20 @@
 
 namespace legendre
 {
-using namespace finite_field;
+namespace ff = finite_field;
 
-Element LegendrePolyAtZero(const std::vector<FieldPoint>& points)
+ff::Element LegendrePolyAtZero(const std::vector<ff::FieldPoint>& points)
 {
-    Element sum(0);
+    ff::Element sum(0);
     for(const auto& point : points) {
         sum = sum + (NumerTerm(point, points) / DenomTerm(point, points));
     }
     return sum;
 }
 
-Element NumerTerm(const FieldPoint& term, const std::vector<FieldPoint>& points)
+ff::Element NumerTerm(const ff::FieldPoint& term, const std::vector<ff::FieldPoint>& points)
 {
-    Element prod(term.m_y_element.value);
+    ff::Element prod(term.m_y_element.value);
     for(const auto& point : points) {
         if(point.m_x_element.value != term.m_x_element.value) {
             prod = prod * point.m_x_element;
@@ -25,9 +25,9 @@ Element NumerTerm(const FieldPoint& term, const std::vector<FieldPoint>& points)
     return prod;
 }
 
-Element DenomTerm(const FieldPoint& term, const std::vector<FieldPoint>& points)
+ff::Element DenomTerm(const ff::FieldPoint& term, const std::vector<ff::FieldPoint>& points)
 {
-    Element prod(1);
+    ff::Element prod(1);
     for(const auto& point : points) {
         if(point.m_x_element.value != term.m_x_element.value) {
             prod = prod * (point.m_x_element - term.m_x_element);
@@ -35,4 +35,4 @@ Element DenomTerm(const FieldPoint& term, const std::vector<FieldPoint>& points)
     }
     return prod;
 }
-}
+} // namespace legendre
