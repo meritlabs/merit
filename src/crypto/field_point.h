@@ -3,8 +3,8 @@
 
 struct FieldPoint
 {
-    BigInt x_value;
-    BigInt y_value;
+    finite_field::Element m_x_element;
+    finite_field::Element m_y_element;
 };
 
 #define FIELD_POINT_H
