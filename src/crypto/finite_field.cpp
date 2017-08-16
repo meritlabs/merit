@@ -6,7 +6,6 @@
 namespace finite_field {
 
     // mersenne prime
-    // const unsigned POWER(2281);
     const unsigned POWER(521);
     const BigInt R(PowerOf2(POWER));
     const BigInt P(R - 1);
