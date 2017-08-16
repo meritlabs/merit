@@ -1,8 +1,9 @@
 #ifndef FINITE_FIELD_H
 
+#include "support/allocators/secure.h"
+
 #include <vector>
 #include <boost/multiprecision/cpp_int.hpp>
-#include "support/allocators/secure.h"
 
 namespace finite_field
 {
@@ -20,6 +21,40 @@ namespace finite_field
     BigInt ExpModP(const BigInt&, const BigInt&);
     BigInt InverseModP(const BigInt&);
     BigInt EvalPolynomial(const BigInt&, const std::vector<BigInt>&);
+
+    class Element
+    {
+    public:
+        BigInt value;
+        Element(BigInt val) : value{val}
+        {
+        }
+
+        Element() : value(0)
+        {
+        }
+        friend bool operator ==(const Element& left, const Element& right)
+        {
+            return left.value == right.value;
+        }
+        friend Element operator +(const Element& left, const Element& right)
+        {
+            return Element(AddModP(left.value, right.value));
+        }
+        friend Element operator -(const Element& left, const Element& right)
+        {
+            return Element(MinusModP(left.value, right.value));
+        }
+        friend Element operator *(const Element& left, const Element& right)
+        {
+            return Element(MultModP(left.value, right.value));
+        }
+        friend Element operator /(const Element& left, const Element& right)
+        {
+            return Element(DivModP(left.value, right.value));
+        }
+    };
+
 }
 
 #define FINITE_FIELD_H
