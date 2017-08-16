@@ -1777,6 +1777,10 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         connman.PushMessage(pfrom, msgMaker.Make(NetMsgType::HEADERS, vHeaders));
     }
 
+    else if (strCommand == NetMsgType::REF) {
+    		LogPrint(BCLog::NET, "Received referral message");
+    }
+
 
     else if (strCommand == NetMsgType::TX)
     {
@@ -3071,6 +3075,19 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                 }
             }
             pto->vInventoryBlockToSend.clear();
+
+
+            vInv.reserve(pto->setInventoryReferralToSend.size());
+
+            // Add referrals
+            for (const uint256& hash : pto->setInventoryReferralToSend) {
+                vInv.push_back(CInv(MSG_REFERRAL, hash));
+                if (vInv.size() == MAX_INV_SZ) {
+                    connman.PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
+                    vInv.clear();
+                }
+            }
+            pto->setInventoryReferralToSend.clear();
 
             // Check whether periodic sends should happen
             bool fSendTrickle = pto->fWhitelisted;
