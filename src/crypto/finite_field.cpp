@@ -4,6 +4,20 @@
 
 namespace finite_field
 {
+    BigInt PowerOf2(const unsigned&);
+    BigInt ModPowerOf2(const BigInt&, const unsigned&);
+    BigInt ModR(const BigInt&);
+    BigInt AddModP(const BigInt&, const BigInt&);
+    BigInt MultModP(const BigInt&, const BigInt&);
+    BigInt DivModP(const BigInt&, const BigInt&);
+    BigInt MinusModP(const BigInt&, const BigInt&);
+    BigInt Negative(const BigInt&);
+    BigInt ExpModP(const BigInt&, const BigInt&);
+    BigInt InverseModP(const BigInt&);
+
+    const BigInt R = PowerOf2(POWER_BITS);
+    // mersenne prime
+    const BigInt P = R - 1;
 
     BigInt PowerOf2(const unsigned& n)
     {
@@ -98,13 +112,9 @@ namespace finite_field
             });
     }
 
-    Element::Element(BigInt val) : value{val}
-    {
-    }
+    Element::Element(BigInt val) : value{val} {}
 
-    Element::Element() : value(0)
-    {
-    }
+    Element::Element() : value(0) {}
 
     bool Element::operator ==(const Element& right) const
     {
@@ -113,22 +123,22 @@ namespace finite_field
 
     Element Element::operator +(const Element& right) const
     {
-        return Element(AddModP(value, right.value));
+        return AddModP(value, right.value);
     }
 
     Element Element::operator -(const Element& right) const
     {
-        return Element(MinusModP(value, right.value));
+        return MinusModP(value, right.value);
     }
 
     Element Element::operator *(const Element& right) const
     {
-        return Element(MultModP(value, right.value));
+        return MultModP(value, right.value);
     }
 
     Element Element::operator /(const Element& right) const
     {
-        return Element(DivModP(value, right.value));
+        return DivModP(value, right.value);
     }
 
 } // namespace finite_field
