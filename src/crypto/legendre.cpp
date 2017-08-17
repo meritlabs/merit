@@ -5,7 +5,7 @@ namespace legendre
 {
 namespace ff = finite_field;
 
-ff::Element LegendrePolyAtZero(const std::vector<ff::FieldPoint>& points)
+ff::Element LegendrePolyAtZero(const std::vector<FieldPoint>& points)
 {
     ff::Element sum(0);
     for(const auto& point : points) {
@@ -14,7 +14,7 @@ ff::Element LegendrePolyAtZero(const std::vector<ff::FieldPoint>& points)
     return sum;
 }
 
-ff::Element NumerTerm(const ff::FieldPoint& term, const std::vector<ff::FieldPoint>& points)
+ff::Element NumerTerm(const FieldPoint& term, const std::vector<FieldPoint>& points)
 {
     ff::Element prod(term.m_y_element.value);
     for(const auto& point : points) {
@@ -25,7 +25,7 @@ ff::Element NumerTerm(const ff::FieldPoint& term, const std::vector<ff::FieldPoi
     return prod;
 }
 
-ff::Element DenomTerm(const ff::FieldPoint& term, const std::vector<ff::FieldPoint>& points)
+ff::Element DenomTerm(const FieldPoint& term, const std::vector<FieldPoint>& points)
 {
     ff::Element prod(1);
     for(const auto& point : points) {
