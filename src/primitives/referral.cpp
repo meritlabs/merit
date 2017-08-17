@@ -55,21 +55,6 @@ unsigned int CReferral::GetTotalSize() const
     return ::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION);
 }
 
-bool CReferral::RelayWalletTransaction(CConnman *connman)
-{
-	LogPrintf("Relaying referral %s\n", GetHash().ToString());
-	if (connman) {
-		CInv inv(MSG_REFERRAL, GetHash());
-		connman->ForEachNode([&inv](CNode* pnode)
-		{
-			pnode->PushInventory(inv);
-		});
-		return true;
-	}
-
-	return false;
-}
-
 std::string CReferral::ToString() const
 {
     std::string str;

@@ -18,6 +18,7 @@
 #include "wallet/crypter.h"
 #include "wallet/walletdb.h"
 #include "wallet/rpcwallet.h"
+#include "primitives/referral.h"
 
 #include <algorithm>
 #include <atomic>
@@ -99,6 +100,7 @@ enum WalletFeature
     FEATURE_LATEST = FEATURE_COMPRPUBKEY // HD is optional, use FEATURE_COMPRPUBKEY as latest version
 };
 
+bool SendReferralTx(CConnman *connman);
 
 /** A key pool entry */
 class CKeyPool
@@ -182,6 +184,22 @@ struct COutputEntry
     CTxDestination destination;
     CAmount amount;
     int vout;
+};
+
+class CReferralTx {
+private:
+//	const CWallet* pwallet;
+	const CReferral* pReferral;
+public:
+	CReferralTx(const CReferral* pReferralIn) : pReferral(pReferralIn)
+	{
+		assert(pReferralIn != nullptr);
+	}
+
+//	CReferralTx(const CWallet* pwalletIn) : pwallet(pwalletIn) {}
+
+
+    bool RelayReferralTransaction(CConnman* connman);
 };
 
 /** A transaction with a merkle branch linking it to the block chain. */
