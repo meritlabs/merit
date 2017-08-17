@@ -112,3 +112,8 @@ contrib/devtools/split-debug.sh
 
 # IDEs
 .idea/
+/Default/
+.cproject
+.project
+.pydevproject
+.settings
