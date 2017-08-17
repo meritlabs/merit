@@ -113,22 +113,28 @@ public:
     void operator()(const CNoDestination &none) {}
 };
 
-
-bool CReferralTx::RelayWalletTransaction(CConnman *connman)
+bool CReferralTx::RelayReferralTransaction(CConnman *connman)
 {
-	LogPrintf("Relaying referral %s\n", GetHash().ToString());
 	if (connman) {
-		CInv inv(MSG_REFERRAL, GetHash());
+		CInv inv(MSG_REFERRAL, pReferral->GetHash());
+		LogPrint(BCLog::NET, "Relaying referral %s\n", pReferral->GetHash().ToString());
 		connman->ForEachNode([&inv](CNode* pnode)
 		{
 			pnode->PushInventory(inv);
 		});
+
 		return true;
 	}
 
 	return false;
 }
 
+bool SendReferralTx(CConnman *connman) {
+	CReferral referral;
+	CReferralTx rtx(&referral);
+
+	return rtx.RelayReferralTransaction(connman);
+}
 
 const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
 {

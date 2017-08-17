@@ -3132,6 +3132,34 @@ UniValue generate(const JSONRPCRequest& request)
     return generateBlocks(coinbase_script, num_generate, max_tries, true);
 }
 
+UniValue generatereferralcode(const JSONRPCRequest& request) {
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 0) {
+        throw std::runtime_error(
+            "Generate referral code for the wallet\n"
+            "\nResult:\n"
+            "\"referral\"    (string) The new referral code\n"
+            "\nExamples:\n"
+            "\nGenerate referral code for default wallet\n"
+            + HelpExampleCli("generatereferralcode", "")
+        );
+    }
+
+    if (!g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
+
+    UniValue result(UniValue::VBOOL);
+    result.push_back(SendReferralTx(g_connman.get()));
+
+    return result;
+}
+
 extern UniValue abortrescan(const JSONRPCRequest& request); // in rpcdump.cpp
 extern UniValue dumpprivkey(const JSONRPCRequest& request); // in rpcdump.cpp
 extern UniValue importprivkey(const JSONRPCRequest& request);
@@ -3198,6 +3226,10 @@ static const CRPCCommand commands[] =
     { "wallet",             "removeprunedfunds",        &removeprunedfunds,        true,   {"txid"} },
 
     { "generating",         "generate",                 &generate,                 true,   {"nblocks","maxtries"} },
+
+    // merit specific commands
+
+    { "referral",           "generatereferralcode",     &generatereferralcode,     true,   {} }
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)
