@@ -245,8 +245,7 @@ public:
     }
 };
 
-bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
-             CWalletScanState &wss, std::string& strType, std::string& strErr)
+bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CWalletScanState& wss, std::string& strType, std::string& strErr)
 {
     try {
         // Unserialize
@@ -506,13 +505,15 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
                 return false;
             }
         } else if (strType == "ref") {
-        	CReferral referral;
-        	ssValue >> referral;
+            ReferralTx rtx;
+            ssValue >> rtx;
 
-        	if (!pwallet->SetReferral(referral)) {
-                strErr = "Error reading wallet database: setReferral failed";
+            LogPrintf("--------  Successfully got rtx from db ---------\n%s\n", rtx.GetHash().ToString());
+
+            if (!pwallet->SetReferralTx(rtx)) {
+                strErr = "Error reading wallet database: setReferralTx failed";
                 return false;
-        	}
+            }
         }
     } catch (...)
     {
@@ -871,7 +872,8 @@ bool CWalletDB::WriteVersion(int nVersion)
     return batch.WriteVersion(nVersion);
 }
 
-bool CWalletDB::WriteReferral(const CReferral& referral)
+bool CWalletDB::WriteReferralTx(const ReferralTx& rtx)
 {
-    return WriteIC(std::make_pair(std::string("ref"), referral.GetHash()), referral);
+    LogPrintf("+++++ Writing referral to database ++++++n");
+    return WriteIC(std::make_pair(std::string("ref"), rtx.GetHash()), rtx);
 }
