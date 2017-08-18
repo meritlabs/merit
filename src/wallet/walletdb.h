@@ -8,6 +8,7 @@
 
 #include "amount.h"
 #include "primitives/transaction.h"
+#include "primitives/referral.h"
 #include "wallet/db.h"
 #include "key.h"
 
@@ -243,6 +244,9 @@ public:
     bool ReadVersion(int& nVersion);
     //! Write wallet version
     bool WriteVersion(int nVersion);
+
+    //! Write referral
+    bool WriteReferral(const CReferral& referral);
 private:
     CDB batch;
     CWalletDBWrapper& m_dbw;

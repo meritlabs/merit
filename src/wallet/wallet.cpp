@@ -1488,6 +1488,25 @@ bool CWallet::IsHDEnabled() const
     return !hdChain.masterKeyID.IsNull();
 }
 
+CReferralTx CWallet::GenerateNewReferral(CWalletDB& walletdb)
+{
+    CReferral ref;
+    CReferralTx rtx(&ref);
+
+    rtx.BindWallet(&this);
+
+    walletdb.WriteReferral(rtx);
+    SetReferral(rtx);
+
+    return rtx;
+}
+
+bool CWallet::SetReferral(const CReferral& referral) {
+    setReferralPool.insert(std::make_pair(referral.GetHash(), referral));
+
+    return true;
+}
+
 int64_t CWalletTx::GetTxTime() const
 {
     int64_t n = nTimeSmart;
