@@ -113,11 +113,11 @@ public:
     void operator()(const CNoDestination &none) {}
 };
 
-bool CReferralTx::RelayReferralTransaction(CConnman *connman)
+bool ReferralTx::RelayReferralTransaction(CConnman *connman)
 {
 	if (connman) {
-		CInv inv(MSG_REFERRAL, pReferral->GetHash());
-		LogPrint(BCLog::NET, "Relaying referral %s\n", pReferral->GetHash().ToString());
+		CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
+		LogPrint(BCLog::NET, "Relaying referral %s\n", m_pReferral->GetHash().ToString());
 		connman->ForEachNode([&inv](CNode* pnode)
 		{
 			pnode->PushInventory(inv);
@@ -130,8 +130,7 @@ bool CReferralTx::RelayReferralTransaction(CConnman *connman)
 }
 
 bool SendReferralTx(CConnman *connman) {
-	CReferral referral;
-	CReferralTx rtx(&referral);
+	ReferralTx rtx(MakeReferralRef());
 
 	return rtx.RelayReferralTransaction(connman);
 }
@@ -1488,21 +1487,21 @@ bool CWallet::IsHDEnabled() const
     return !hdChain.masterKeyID.IsNull();
 }
 
-CReferralTx CWallet::GenerateNewReferral(CWalletDB& walletdb)
+ReferralTx CWallet::GenerateNewReferral(CWalletDB& walletdb)
 {
-    CReferral ref;
-    CReferralTx rtx(&ref);
+    ReferralTx rtx(MakeReferralRef());
 
-    rtx.BindWallet(&this);
+    rtx.BindWallet(this);
 
-    walletdb.WriteReferral(rtx);
-    SetReferral(rtx);
+    walletdb.WriteReferralTx(rtx);
+    SetReferralTx(rtx);
 
     return rtx;
 }
 
-bool CWallet::SetReferral(const CReferral& referral) {
-    setReferralPool.insert(std::make_pair(referral.GetHash(), referral));
+bool CWallet::SetReferralTx(const ReferralTx& rtx)
+{
+    m_referralTx = rtx;
 
     return true;
 }
@@ -3141,7 +3140,9 @@ CAmount CWallet::GetMinimumFee(unsigned int nTxBytes, const CCoinControl& coin_c
 DBErrors CWallet::LoadWallet(bool& fFirstRunRet)
 {
     fFirstRunRet = false;
-    DBErrors nLoadWalletRet = CWalletDB(*dbw,"cr+").LoadWallet(this);
+    CWalletDB wdb(*dbw,"cr+");
+
+    DBErrors nLoadWalletRet = wdb.LoadWallet(this);
     if (nLoadWalletRet == DB_NEED_REWRITE)
     {
         if (dbw->Rewrite("\x04pool"))
@@ -3159,6 +3160,8 @@ DBErrors CWallet::LoadWallet(bool& fFirstRunRet)
     if (nLoadWalletRet != DB_LOAD_OK)
         return nLoadWalletRet;
     fFirstRunRet = !vchDefaultKey.IsValid();
+
+    GenerateNewReferral(wdb);
 
     uiInterface.LoadWallet(this);
 

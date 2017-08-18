@@ -186,25 +186,41 @@ struct COutputEntry
     int vout;
 };
 
-class CReferralTx {
+class ReferralTx {
 private:
-	const CWallet* m_pWallet;
-	const CReferral* m_pReferral;
+    ReferralRef m_pReferral;
+    const CWallet* m_pWallet;
+
 public:
-	CReferralTx(const CReferral* pReferralIn) : m_pReferral(pReferralIn)
-	{
-		assert(pReferralIn != nullptr);
+    ReferralTx() {};
+
+    ReferralTx(ReferralRef pReferralIn)
+    {
+        SetReferral(pReferralIn);
 	}
 
-//	CReferralTx(const CWallet* pwalletIn) : pwallet(pwalletIn) {}
-
-
-    void BindWallet(CWallet *pwalletIn)
+    void SetReferral(ReferralRef arg)
     {
-        m_pWallet = pwalletIn;
+        m_pReferral = std::move(arg);
+    }
+
+    void BindWallet(CWallet *pWalletIn)
+    {
+        m_pWallet = pWalletIn;
+    }
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(m_pReferral);
     }
 
     bool RelayReferralTransaction(CConnman* connman);
+
+    const uint256& GetHash() const {
+        return m_pReferral->GetHash();
+    }
 };
 
 /** A transaction with a merkle branch linking it to the block chain. */
@@ -285,7 +301,7 @@ public:
     bool IsCoinBase() const { return tx->IsCoinBase(); }
 };
 
-/** 
+/**
  * A transaction with a bunch of additional info that only the owner cares about.
  * It includes any unrecorded transactions needed to link it back to the block chain.
  */
@@ -670,7 +686,7 @@ private:
 };
 
 
-/** 
+/**
  * A CWallet is an extension of a keystore, which also maintains a set of transactions and balances,
  * and provides the ability to create new transactions.
  */
@@ -723,7 +739,7 @@ private:
     CHDChain hdChain;
 
     /* HD derive new child key (on internal or external chain) */
-    void DeriveNewChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKey& secret, bool internal = false);
+    void DeriveNewChildKey(CWalletDB& walletdb, CKeyMetadata& metadata, CKey& secret, bool internal = false);
 
     std::set<int64_t> setInternalKeyPool;
     std::set<int64_t> setExternalKeyPool;
@@ -732,7 +748,7 @@ private:
 
     int64_t nTimeFirstKey;
 
-    std::map<uint256, CReferral> mapReferral;
+    ReferralTx m_referralTx;
 
     /**
      * Private version of AddWatchOnly method which does not accept a
@@ -929,7 +945,7 @@ public:
     void GetKeyBirthTimes(std::map<CTxDestination, int64_t> &mapKeyBirth) const;
     unsigned int ComputeTimeSmart(const CWalletTx& wtx) const;
 
-    /** 
+    /**
      * Increment the next transaction order id
      * @return next transaction order id
      */
@@ -1058,7 +1074,7 @@ public:
     }
 
     void GetScriptForMining(std::shared_ptr<CReserveScript> &script);
-    
+
     unsigned int GetKeyPoolSize()
     {
         AssertLockHeld(cs_wallet); // set{Ex,In}ternalKeyPool
@@ -1089,8 +1105,8 @@ public:
     //  This function will perform salvage on the wallet if requested, as long as only one wallet is
     //  being loaded (CWallet::ParameterInteraction forbids -salvagewallet, -zapwallettxes or -upgradewallet with multiwallet).
     static bool Verify();
-    
-    /** 
+
+    /**
      * Address book entry changed.
      * @note called with lock cs_wallet held.
      */
@@ -1099,7 +1115,7 @@ public:
             const std::string &purpose,
             ChangeType status)> NotifyAddressBookChanged;
 
-    /** 
+    /**
      * Wallet transaction added, removed or updated.
      * @note called with lock cs_wallet held.
      */
@@ -1153,15 +1169,15 @@ public:
 
     /* Generates a new HD master key (will not be activated) */
     CPubKey GenerateNewHDMasterKey();
-    
+
     /* Set the current HD master key (will reset the chain child index counters)
        Sets the master key's version based on the current wallet version (so the
        caller must ensure the current wallet version is correct before calling
        this function). */
     bool SetHDMasterKey(const CPubKey& key);
 
-    bool SetReferral(const CReferral& referral);
-    CReferral GenerateNewReferral(CWalletDB& walletdb);
+    bool SetReferralTx(const ReferralTx& rtx);
+    ReferralTx GenerateNewReferral(CWalletDB& walletdb);
 };
 
 /** A key allocated from the key pool. */
@@ -1196,7 +1212,7 @@ public:
 };
 
 
-/** 
+/**
  * Account information.
  * Stored in wallet with key "acc"+string account name.
  */
