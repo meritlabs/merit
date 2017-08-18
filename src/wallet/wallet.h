@@ -188,16 +188,21 @@ struct COutputEntry
 
 class CReferralTx {
 private:
-//	const CWallet* pwallet;
-	const CReferral* pReferral;
+	const CWallet* m_pWallet;
+	const CReferral* m_pReferral;
 public:
-	CReferralTx(const CReferral* pReferralIn) : pReferral(pReferralIn)
+	CReferralTx(const CReferral* pReferralIn) : m_pReferral(pReferralIn)
 	{
 		assert(pReferralIn != nullptr);
 	}
 
 //	CReferralTx(const CWallet* pwalletIn) : pwallet(pwalletIn) {}
 
+
+    void BindWallet(CWallet *pwalletIn)
+    {
+        m_pWallet = pwalletIn;
+    }
 
     bool RelayReferralTransaction(CConnman* connman);
 };
@@ -727,6 +732,8 @@ private:
 
     int64_t nTimeFirstKey;
 
+    std::map<uint256, CReferral> mapReferral;
+
     /**
      * Private version of AddWatchOnly method which does not accept a
      * timestamp, and which will reset the wallet's nTimeFirstKey value to 1 if
@@ -1152,6 +1159,9 @@ public:
        caller must ensure the current wallet version is correct before calling
        this function). */
     bool SetHDMasterKey(const CPubKey& key);
+
+    bool SetReferral(const CReferral& referral);
+    CReferral GenerateNewReferral(CWalletDB& walletdb);
 };
 
 /** A key allocated from the key pool. */

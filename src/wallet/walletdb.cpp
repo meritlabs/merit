@@ -245,8 +245,7 @@ public:
     }
 };
 
-bool
-ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
+bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
              CWalletScanState &wss, std::string& strType, std::string& strErr)
 {
     try {
@@ -506,6 +505,14 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
                 strErr = "Error reading wallet database: SetHDChain failed";
                 return false;
             }
+        } else if (strType == "ref") {
+        	CReferral referral;
+        	ssValue >> referral;
+
+        	if (!pwallet->SetReferral(referral)) {
+                strErr = "Error reading wallet database: setReferral failed";
+                return false;
+        	}
         }
     } catch (...)
     {
@@ -862,4 +869,9 @@ bool CWalletDB::ReadVersion(int& nVersion)
 bool CWalletDB::WriteVersion(int nVersion)
 {
     return batch.WriteVersion(nVersion);
+}
+
+bool CWalletDB::WriteReferral(const CReferral& referral)
+{
+    return WriteIC(std::make_pair(std::string("ref"), referral.GetHash()), referral);
 }
