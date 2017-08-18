@@ -265,7 +265,13 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/sha256.cpp \
   crypto/sha256.h \
   crypto/sha512.cpp \
-  crypto/sha512.h
+  crypto/sha512.h \
+  crypto/legendre.cpp \
+  crypto/legendre.h \
+  crypto/shamir.cpp \
+  crypto/shamir.h \
+  crypto/finite_field.cpp \
+  crypto/finite_field.h
 
 if EXPERIMENTAL_ASM
 crypto_libbitcoin_crypto_a_SOURCES += crypto/sha256_sse4.cpp
@@ -442,7 +448,7 @@ if GLIBC_BACK_COMPAT
 endif
 
 libbitcoinconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
-libbitcoinconsensus_la_LIBADD = $(LIBSECP256K1)
+libbitcoinconsensus_la_LIBADD = $(LIBBITCOIN_UTIL) $(LIBSECP256K1) $(SSL_LIBS) $(CRYPTO_LIBS) $(BOOST_LIBS)
 libbitcoinconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_BITCOIN_INTERNAL
 libbitcoinconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
