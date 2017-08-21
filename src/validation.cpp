@@ -24,6 +24,7 @@
 #include "pow.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
+#include "primitives/referral.h"
 #include "random.h"
 #include "reverse_iterator.h"
 #include "script/script.h"
@@ -86,6 +87,7 @@ CAmount maxTxFee = DEFAULT_TRANSACTION_MAXFEE;
 
 CBlockPolicyEstimator feeEstimator;
 CTxMemPool mempool(&feeEstimator);
+ReferralTxMemPool mempoolReferral;
 
 static void CheckBlockIndex(const Consensus::Params& consensusParams);
 
@@ -435,6 +437,16 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
     }
 
     return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata);
+}
+
+bool AcceptToReferralMemoryPool(ReferralTxMemPool& pool, const ReferralRef& referral)
+{
+    LOCK(pool.cs);
+
+    // TODO: check mempool(and maybe not only pool) for referral consistency
+    pool.AddUnchecked(referral->GetHash(), referral);
+
+    return true;
 }
 
 static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool& pool, CValidationState& state, const CTransactionRef& ptx, bool fLimitFree,

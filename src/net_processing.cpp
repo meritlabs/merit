@@ -1123,6 +1123,13 @@ void static ProcessGetData(CNode* pfrom, const Consensus::Params& consensusParam
                 if (!push) {
                     vNotFound.push_back(inv);
                 }
+            } else if (inv.type == MSG_REFERRAL) {
+                auto it = mempoolReferral.mapRTx.find(inv.hash);
+                int nSendFlags = 0;
+
+                if (it != mempoolReferral.mapRTx.end()) {
+                    connman.PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::REF, *it->second));
+                }
             }
 
             // Track requests for our stuff.
@@ -1556,7 +1563,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             bool fAlreadyHave = AlreadyHave(inv);
             LogPrint(BCLog::NET, "got inv: %s  %s peer=%d\n", inv.ToString(), fAlreadyHave ? "have" : "new", pfrom->GetId());
 
-            if (inv.type == MSG_TX) {
+            if (inv.type == MSG_TX || inv.type == MSG_REFERRAL) {
                 inv.type |= nFetchFlags;
             }
 
@@ -1779,6 +1786,11 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
     else if (strCommand == NetMsgType::REF) {
         LogPrint(BCLog::NET, "Received referral message");
+
+        ReferralRef rtx;
+        vRecv >> rtx;
+
+        AcceptToReferralMemoryPool(mempoolReferral, rtx);
     }
 
 
