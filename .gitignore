@@ -116,3 +116,4 @@ contrib/devtools/split-debug.sh
 .cproject
 .settings
 .tags*
+.vscode

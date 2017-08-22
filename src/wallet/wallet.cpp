@@ -115,22 +115,36 @@ public:
 
 bool ReferralTx::RelayReferralTransaction(CConnman *connman)
 {
-	if (connman) {
-		CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
-		LogPrint(BCLog::NET, "Relaying referral %s\n", m_pReferral->GetHash().ToString());
-		connman->ForEachNode([&inv](CNode* pnode)
-		{
-			pnode->PushInventory(inv);
-		});
+    if (InMempool() || AcceptToMemoryPool(m_pReferral)) {
+        if (connman) {
+            CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
 
-		return true;
-	}
+            LogPrint(BCLog::NET, "Relaying referral %s\n", m_pReferral->GetHash().ToString());
+            connman->ForEachNode([&inv](CNode* pnode)
+            {
+                pnode->PushInventory(inv);
+            });
+
+            return true;
+        }
+    }
 
 	return false;
 }
 
+bool ReferralTx::InMempool() const
+{
+    LOCK(mempoolReferral.cs);
+    return mempoolReferral.mapRTx.count(GetHash());
+}
+
+bool ReferralTx::AcceptToMemoryPool(const ReferralRef& referral) {
+    return ::AcceptToReferralMemoryPool(mempoolReferral, referral);
+}
+
 bool SendReferralTx(CConnman *connman) {
-	ReferralTx rtx(MakeReferralRef());
+    ReferralRef referral = MakeReferralRef(MutableReferral());
+	ReferralTx rtx(referral);
 
 	return rtx.RelayReferralTransaction(connman);
 }

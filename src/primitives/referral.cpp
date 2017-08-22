@@ -9,17 +9,19 @@
 #include "hash.h"
 #include "tinyformat.h"
 #include "utilstrencodings.h"
-#include "net.h"
-#include "util.h"
+#include "random.h"
 
 MutableReferral::MutableReferral() :
-    nVersion(Referral::CURRENT_VERSION),
-    previousReferral(),
-    scriptSig() {}
+    nVersion{Referral::CURRENT_VERSION},
+    previousReferral{},
+    scriptSig{},
+    code{GetRandHash()} {}
+
 MutableReferral::MutableReferral(const Referral& ref) :
-    nVersion(ref.nVersion),
-    previousReferral(ref.previousReferral),
-    scriptSig(ref.scriptSig) {}
+    nVersion{ref.nVersion},
+    previousReferral{ref.previousReferral},
+    scriptSig{ref.scriptSig},
+    code{ref.code} {}
 
 uint256 MutableReferral::GetHash() const
 {
@@ -33,22 +35,32 @@ uint256 Referral::ComputeHash() const
 
 /* For backward compatibility, the hash is initialized to 0. TODO: remove the need for this default constructor entirely. */
 Referral::Referral() :
-    nVersion(Referral::CURRENT_VERSION),
-    previousReferral(),
-    scriptSig(),
-    hash() {}
+    nVersion{Referral::CURRENT_VERSION},
+    previousReferral{},
+    scriptSig{},
+    code{GetRandHash()},
+    hash{} {}
+
+Referral::Referral(const uint256 codeIn) :
+    nVersion{Referral::CURRENT_VERSION},
+    previousReferral{},
+    scriptSig{},
+    code{codeIn},
+    hash{} {}
 
 Referral::Referral(const MutableReferral &ref) :
-    nVersion(ref.nVersion),
-    previousReferral(ref.previousReferral),
-    scriptSig(ref.scriptSig),
-    hash(ComputeHash()) {}
+    nVersion{ref.nVersion},
+    previousReferral{ref.previousReferral},
+    scriptSig{ref.scriptSig},
+    code{ref.code},
+    hash{ComputeHash()} {}
 
 Referral::Referral(MutableReferral &&ref) :
-    nVersion(ref.nVersion),
-    previousReferral(std::move(ref.previousReferral)),
-    scriptSig(std::move(ref.scriptSig)),
-    hash(ComputeHash()) {}
+    nVersion{ref.nVersion},
+    previousReferral{std::move(ref.previousReferral)},
+    scriptSig{std::move(ref.scriptSig)},
+    code{ref.code},
+    hash{ComputeHash()} {}
 
 unsigned int Referral::GetTotalSize() const
 {
