@@ -13,6 +13,7 @@
 #include <assert.h>
 
 #include "chainparamsseeds.h"
+#include <iostream>
 
 static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
@@ -120,7 +121,6 @@ public:
 
         genesis = CreateGenesisBlock(1503202604, 3344603463, 0x1d00ffff, 1, 20000000 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        printf("HashGenesisBlock =%s", consensus.hashGenesisBlock);
         assert(consensus.hashGenesisBlock == uint256S("000000007383558748f6a855e683dd45a877a65d2b0976a5bb921f45f7ef4c3f"));
         assert(genesis.hashMerkleRoot == uint256S("5731febf76c3c07d0eae6fe60cb37c827f0631a8d3a0b0fff91f19755e2917cf"));
 
@@ -196,7 +196,7 @@ public:
         consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000002830dab7f76dbb7d63");
 
         // By default assume that the signatures in ancestors of this block are valid.
-        consensus.defaultAssumeValid = uint256S("0x0000000002e9e7b00e1f6dc5123a04aad68dd0f0968d8c7aa45f6640795c37b1"); //1135275
+        consensus.defaultAssumeValid = uint256S("14933df1e491d761a3972449bc88f3525f2081060af8534f8e54ad8d793f61b0"); //1135275
 
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
@@ -205,10 +205,14 @@ public:
         nDefaultPort = 18333;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503202604, 3344603463, 0x1d00ffff, 1, 20000000 * COIN);
+        genesis = CreateGenesisBlock(1503202604, 3344603463, 0x1d00ffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("000000007383558748f6a855e683dd45a877a65d2b0976a5bb921f45f7ef4c3f"));
-        assert(genesis.hashMerkleRoot == uint256S("5731febf76c3c07d0eae6fe60cb37c827f0631a8d3a0b0fff91f19755e2917cf"));
+        std::cerr << "Show me the hash!" << std::endl;
+        std::cerr << consensus.hashGenesisBlock.ToString() << std::endl;
+        std::cerr << "Show me the merkle!" << std::endl;
+        std::cerr << genesis.hashMerkleRoot.ToString() << std::endl;
+        assert(consensus.hashGenesisBlock == uint256S("14933df1e491d761a3972449bc88f3525f2081060af8534f8e54ad8d793f61b0"));
+        assert(genesis.hashMerkleRoot == uint256S("7cf21429690da78865d6c9c974400ead624331ea23fe50e0fa7eedf4bb5d8117"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -233,7 +237,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("000000007383558748f6a855e683dd45a877a65d2b0976a5bb921f45f7ef4c3f")},
+                {0, uint256S("14933df1e491d761a3972449bc88f3525f2081060af8534f8e54ad8d793f61b0")},
             }
         };
 
