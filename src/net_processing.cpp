@@ -905,6 +905,8 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_BLOCK:
     case MSG_WITNESS_BLOCK:
         return mapBlockIndex.count(inv.hash);
+    case MSG_REFERRAL:
+        return false;
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -1533,7 +1535,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         }
     }
 
-
     else if (strCommand == NetMsgType::INV)
     {
         std::vector<CInv> vInv;
@@ -1563,7 +1564,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             bool fAlreadyHave = AlreadyHave(inv);
             LogPrint(BCLog::NET, "got inv: %s  %s peer=%d\n", inv.ToString(), fAlreadyHave ? "have" : "new", pfrom->GetId());
 
-            if (inv.type == MSG_TX || inv.type == MSG_REFERRAL) {
+            if (inv.type == MSG_TX) {
                 inv.type |= nFetchFlags;
             }
 
@@ -1785,10 +1786,11 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
     }
 
     else if (strCommand == NetMsgType::REF) {
-        LogPrint(BCLog::NET, "Received referral message");
 
         ReferralRef rtx;
         vRecv >> rtx;
+
+        LogPrintf("Referral message received\n");
 
         AcceptToReferralMemoryPool(mempoolReferral, rtx);
     }
@@ -3303,9 +3305,11 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
         //
         while (!pto->mapAskFor.empty() && (*pto->mapAskFor.begin()).first <= nNow)
         {
+            LogPrintf("mapAskFor IS NOT EMPTY\n");
             const CInv& inv = (*pto->mapAskFor.begin()).second;
             if (!AlreadyHave(inv))
             {
+                LogPrintf("not AlreadyHave\n");
                 LogPrint(BCLog::NET, "Requesting %s peer=%d\n", inv.ToString(), pto->GetId());
                 vGetData.push_back(inv);
                 if (vGetData.size() >= 1000)

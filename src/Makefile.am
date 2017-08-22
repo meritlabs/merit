@@ -37,6 +37,8 @@ if ENABLE_ZMQ
 LIBBITCOIN_ZMQ=libbitcoin_zmq.a
 endif
 if BUILD_BITCOIN_LIBS
+LIBBITCOINCRYPTO=libbitcoincrypto.la
+LIBBITCOINUTIL=libbitcoinutil.la
 LIBBITCOINCONSENSUS=libbitcoinconsensus.la
 endif
 if ENABLE_WALLET
@@ -58,7 +60,7 @@ EXTRA_LIBRARIES += \
   $(LIBBITCOIN_WALLET) \
   $(LIBBITCOIN_ZMQ)
 
-lib_LTLIBRARIES = $(LIBBITCOINCONSENSUS)
+lib_LTLIBRARIES = $(LIBBITCOINCRYPTO) $(LIBBITCOINUTIL) $(LIBBITCOINCONSENSUS)
 
 bin_PROGRAMS =
 noinst_PROGRAMS =
@@ -290,7 +292,6 @@ libbitcoin_consensus_a_SOURCES = \
   primitives/transaction.cpp \
   primitives/transaction.h \
   primitives/referral.cpp \
-  primitives/referral.h \
   pubkey.cpp \
   pubkey.h \
   script/bitcoinconsensus.cpp \
@@ -306,7 +307,8 @@ libbitcoin_consensus_a_SOURCES = \
   uint256.h \
   utilstrencodings.cpp \
   utilstrencodings.h \
-  version.h
+  version.h \
+  $(BITCOIN_CORE_H)
 
 # common: shared between bitcoind, and bitcoin-qt and non-server tools
 libbitcoin_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
@@ -437,14 +439,28 @@ bitcoin_tx_LDADD += $(BOOST_LIBS) $(CRYPTO_LIBS)
 # bitcoinconsensus library #
 if BUILD_BITCOIN_LIBS
 include_HEADERS = script/bitcoinconsensus.h
-libbitcoinconsensus_la_SOURCES = $(crypto_libbitcoin_crypto_a_SOURCES) $(libbitcoin_consensus_a_SOURCES)
+
+libbitcoincrypto_la_SOURCES = $(crypto_libbitcoin_crypto_a_SOURCES)
+libbitcoincrypto_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
+libbitcoincrypto_la_LIBADD = $(LIBUNIVALUE) $(CRYPTO_LIBS) $(SSL_LIBS) $(BOOST_LIBS)
+libbitcoincrypto_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj $(UNIVALUE_CFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
+libbitcoincrypto_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+
+
+libbitcoinutil_la_SOURCES = $(libbitcoin_util_a_SOURCES)
+libbitcoinutil_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
+libbitcoinutil_la_LIBADD = $(LIBBITCOINCRYPTO) $(LIBUNIVALUE) $(CRYPTO_LIBS) $(SSL_LIBS) $(BOOST_LIBS)
+libbitcoinutil_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj $(UNIVALUE_CFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
+libbitcoinutil_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+
+libbitcoinconsensus_la_SOURCES = $(libbitcoin_consensus_a_SOURCES)
 
 if GLIBC_BACK_COMPAT
   libbitcoinconsensus_la_SOURCES += compat/glibc_compat.cpp
 endif
 
 libbitcoinconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
-libbitcoinconsensus_la_LIBADD = $(LIBSECP256K1) $(BOOST_LIBS)
+libbitcoinconsensus_la_LIBADD = $(LIBSECP256K1) $(LIBBITCOINCRYPTO) $(LIBBITCOINUTIL) $(BOOST_LIBS)
 libbitcoinconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_BITCOIN_INTERNAL
 libbitcoinconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 

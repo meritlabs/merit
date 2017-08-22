@@ -217,6 +217,8 @@ public:
     }
 
     bool RelayReferralTransaction(CConnman* connman);
+    bool InMempool() const;
+    bool AcceptToMemoryPool(const ReferralRef& referral);
 
     const uint256& GetHash() const {
         return m_pReferral->GetHash();

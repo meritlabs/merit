@@ -8,7 +8,6 @@
 #define BITCOIN_PRIMITIVES_REFERRAL_H
 
 #include <stdint.h>
-#include "amount.h"
 #include "script/script.h"
 #include "serialize.h"
 #include "uint256.h"
@@ -27,6 +26,7 @@ inline void UnserializeReferral(TxType& ref, Stream& s) {
     s >> ref.nVersion;
     s >> ref.previousReferral;
     s >> ref.scriptSig;
+    s >> ref.code;
 }
 
 template<typename Stream, typename TxType>
@@ -34,6 +34,7 @@ inline void SerializeReferral(const TxType& ref, Stream& s) {
     s << ref.nVersion;
     s << ref.previousReferral;
     s << ref.scriptSig;
+    s << ref.code;
 }
 
 
@@ -59,6 +60,9 @@ public:
     // Signed signature of previousReferral + nVersion
     CScript scriptSig;
 
+    // Referral code that is used as a referrence to a wallet
+    const uint256 code;
+
 private:
     /** Memory only. */
     const uint256 hash;
@@ -68,6 +72,8 @@ private:
 public:
     /** Construct a Referral that qualifies as IsNull() */
     Referral();
+
+    Referral(const uint256 codeIn);
 
     /** Convert a MutableReferral into a Referral. */
     Referral(const MutableReferral &ref);
@@ -116,6 +122,7 @@ struct MutableReferral
     int32_t nVersion;
     uint256 previousReferral;
     CScript scriptSig;
+    uint256 code;
 
     MutableReferral();
     MutableReferral(const Referral& ref);
