@@ -112,3 +112,4 @@ contrib/devtools/split-debug.sh
 
 # IDEs
 .idea/
+.vscode
