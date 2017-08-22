@@ -265,14 +265,8 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/sha256.cpp \
   crypto/sha256.h \
   crypto/sha512.cpp \
-  crypto/sha512.h \
-  crypto/legendre.cpp \
-  crypto/legendre.h \
-  crypto/shamir.cpp \
-  crypto/shamir.h \
-  crypto/finite_field.cpp \
-  crypto/finite_field.h
-
+  crypto/sha512.h 
+  
 if EXPERIMENTAL_ASM
 crypto_libbitcoin_crypto_a_SOURCES += crypto/sha256_sse4.cpp
 endif
