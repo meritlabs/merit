@@ -25,7 +25,12 @@
 #include "utilstrencodings.h"
 #include "validationinterface.h"
 #include "warnings.h"
+#include "chainparams.h"
 
+#include <thread>
+#include <functional>
+#include <future>
+#include <limits>
 #include <memory>
 #include <stdint.h>
 
@@ -151,6 +156,44 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
         }
     }
     return blockHashes;
+}
+
+CBlock findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, std::atomic_bool &stopSearching) {
+    CBlock genBlock = CreateGenesisBlock(1503422445, fromNonce, 0x1d00ffff, 1, 50 * COIN);    
+    for (; fromNonce < toNonce && !CheckProofOfWork(genBlock.GetHash(), genBlock.nBits, Params().GetConsensus()); fromNonce++) {
+        if (stopSearching) {
+            genBlock.nNonce = toNonce;
+            return genBlock;    
+        }    
+        if (fromNonce % 1000 == 0) 
+            std::cerr << "Current Nonce:" << fromNonce << std::endl;
+        genBlock.nNonce = fromNonce;
+    }
+    if (genBlock.nNonce != toNonce) 
+        stopSearching = true;
+    return genBlock;
+}
+
+
+UniValue generateGenesisBlock(int numThreads)
+{
+    std::atomic_bool stopSearching(false);
+    auto stepSize = std::numeric_limits<uint32_t>::max() / numThreads;
+    std::vector<std::future<CBlock>> nonces;
+
+    int fromNonce = 0;
+    for (int i = 0; i < numThreads; i++, fromNonce += stepSize) {
+        nonces.push_back(std::async(std::launch::async, findGenesisBlock, fromNonce, fromNonce + stepSize, std::ref(stopSearching)));
+    }
+    
+    fromNonce = 0;
+    for (int i = 0; i < numThreads; i++, fromNonce += stepSize) {
+        auto result = nonces[i].get();
+        if (result.nNonce != (fromNonce + stepSize)) {
+            return result.ToString();
+        }
+    }
+    return "";
 }
 
 UniValue generatetoaddress(const JSONRPCRequest& request)

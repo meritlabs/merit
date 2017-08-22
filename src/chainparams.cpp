@@ -15,7 +15,7 @@
 #include "chainparamsseeds.h"
 #include <iostream>
 
-static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
     CMutableTransaction txNew;
     txNew.nVersion = 1;
@@ -47,9 +47,9 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
  *     CTxOut(nValue=50.00000000, scriptPubKey=0x5F1DF16B2B704C8A578D0B)
  *   vMerkleTree: 4a5e1e
  */
-static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
-    const char* pszTimestamp = "Financial Times 17/Aug/2017 Republican politicians recoil from Trump remarks";
+    const char* pszTimestamp = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
     const CScript genesisOutputScript = CScript() << ParseHex("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f") << OP_CHECKSIG;
     return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
 }
@@ -198,6 +198,13 @@ public:
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("14933df1e491d761a3972449bc88f3525f2081060af8534f8e54ad8d793f61b0"); //1135275
 
+        // The best chain should have at least this much work.
+        //consensus.nMinimumChainWork = uint256S("0x00");
+                
+        // By default assume that the signatures in ancestors of this block are valid.
+        //consensus.defaultAssumeValid = uint256S("0x00");
+        
+
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
         pchMessageStart[2] = 0x09;
@@ -205,14 +212,20 @@ public:
         nDefaultPort = 18333;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503202604, 3344603463, 0x1d00ffff, 1, 50 * COIN);
+        //ours
+        //genesis = CreateGenesisBlock(1503422445, 238117321, 0x1d00ffff, 1, 50 * COIN);
+
+        //original
+        genesis = CreateGenesisBlock(1296688602, 414098458, 0x1d00ffff, 1, 50 * COIN);        
         consensus.hashGenesisBlock = genesis.GetHash();
         std::cerr << "Show me the hash!" << std::endl;
         std::cerr << consensus.hashGenesisBlock.ToString() << std::endl;
         std::cerr << "Show me the merkle!" << std::endl;
         std::cerr << genesis.hashMerkleRoot.ToString() << std::endl;
-        assert(consensus.hashGenesisBlock == uint256S("14933df1e491d761a3972449bc88f3525f2081060af8534f8e54ad8d793f61b0"));
-        assert(genesis.hashMerkleRoot == uint256S("7cf21429690da78865d6c9c974400ead624331ea23fe50e0fa7eedf4bb5d8117"));
+        std::cerr << "Show me the genesis!" << std::endl;
+        std::cerr << genesis.ToString() << std::endl;
+        //assert(consensus.hashGenesisBlock == uint256S("0x000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"));
+        //assert(genesis.hashMerkleRoot == uint256S("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -237,7 +250,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("14933df1e491d761a3972449bc88f3525f2081060af8534f8e54ad8d793f61b0")},
+                {0, uint256S("0x000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943")},
             }
         };
 
@@ -292,7 +305,7 @@ public:
         nDefaultPort = 18444;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503352716, 337, 0x207fffff, 1, 20000000 * COIN);
+        genesis = CreateGenesisBlock(1503352716, 337, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
         assert(consensus.hashGenesisBlock == uint256S("0b2ecdb504815d9cd6ee91c9b0093ff2ccc84428b4c2957f7270d0ada3c2c905"));
         assert(genesis.hashMerkleRoot == uint256S("5731febf76c3c07d0eae6fe60cb37c827f0631a8d3a0b0fff91f19755e2917cf"));

@@ -26,6 +26,7 @@
 #include "wallet/feebumper.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
+#include <boost/lexical_cast.hpp>
 
 #include <stdint.h>
 
@@ -3132,6 +3133,21 @@ UniValue generate(const JSONRPCRequest& request)
     return generateBlocks(coinbase_script, num_generate, max_tries, true);
 }
 
+UniValue generateGenesis(const JSONRPCRequest& request) {
+    std::cerr << "Params:" << request.params[0].get_str() << std::endl;
+    int numThreads = boost::lexical_cast<int>(request.params[0].get_str());
+    UniValue foundGenesis;
+    try {
+        foundGenesis = generateGenesisBlock(numThreads);
+        std::cerr << "GENESIS HASH FOUND:" << foundGenesis.get_str() << std::endl; 
+    } catch (...) {
+        std::cerr << "Donkey ass donkey." << std::endl;
+        throw;
+    } 
+    return foundGenesis;
+}
+
+
 extern UniValue abortrescan(const JSONRPCRequest& request); // in rpcdump.cpp
 extern UniValue dumpprivkey(const JSONRPCRequest& request); // in rpcdump.cpp
 extern UniValue importprivkey(const JSONRPCRequest& request);
@@ -3198,6 +3214,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "removeprunedfunds",        &removeprunedfunds,        true,   {"txid"} },
 
     { "generating",         "generate",                 &generate,                 true,   {"nblocks","maxtries"} },
+    { "generating",         "generateGenesis",          &generateGenesis,     true,   {"numThreads"} },
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)
