@@ -508,8 +508,6 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             ReferralTx rtx;
             ssValue >> rtx;
 
-            LogPrintf("--------  Successfully got rtx from db ---------\n%s\n", rtx.GetHash().ToString());
-
             if (!pwallet->SetReferralTx(rtx)) {
                 strErr = "Error reading wallet database: setReferralTx failed";
                 return false;
@@ -874,6 +872,5 @@ bool CWalletDB::WriteVersion(int nVersion)
 
 bool CWalletDB::WriteReferralTx(const ReferralTx& rtx)
 {
-    LogPrintf("+++++ Writing referral to database ++++++n");
     return WriteIC(std::make_pair(std::string("ref"), rtx.GetHash()), rtx);
 }
