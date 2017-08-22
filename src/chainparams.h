@@ -121,6 +121,6 @@ void SelectParams(const std::string& chain);
 void UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout);
 
 // GenesisBlockCreator 
-CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward);
+CBlock CreateNewGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward);
 
 #endif // BITCOIN_CHAINPARAMS_H
