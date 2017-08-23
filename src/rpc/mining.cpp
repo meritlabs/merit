@@ -165,7 +165,7 @@ std::shared_ptr<CBlock> findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, s
     for (; fromNonce < toNonce && !CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus()); fromNonce++) {
         if (stopSearching) {
             genBlock->nNonce = toNonce; // Signalling that this thread did not find the winning nonce.  
-            std::cerr << "Losing Nonce at StopSearching Signal:" << genBlock->nNonce.ToString() <<  std::endl;
+            std::cerr << "Losing Nonce at StopSearching Signal:" << genBlock->nNonce <<  std::endl;
             return genBlock;    
         }    
         if (fromNonce % 1000000 == 0) {
@@ -175,7 +175,7 @@ std::shared_ptr<CBlock> findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, s
     }
     if (genBlock->nNonce < toNonce && !CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus())) 
         stopSearching = true;
-    std::cerr << "Winning Nonce at StopSearching Signal:" << genBlock->nNonce.ToString() <<  std::endl;    
+    std::cerr << "Winning Nonce at StopSearching Signal:" << genBlock->nNonce <<  std::endl;    
     return genBlock;
 }
 
@@ -194,7 +194,7 @@ UniValue generateGenesisBlock(int numThreads)
     }
     
     uint32_t fromNonce2 = 0;
-    for (int i = 0; i < blocks.size; i++, fromNonce2 += stepSize) {
+    for (int i = 0; i < blocks.size(); i++, fromNonce2 += stepSize) {
         auto result = blocks[i].get();
         if (result->nNonce < (fromNonce2 + stepSize) && !CheckProofOfWork(result->GetHash(), result->nBits, Params().GetConsensus())) {
             auto stop = std::time(nullptr);
