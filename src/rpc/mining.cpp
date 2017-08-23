@@ -184,7 +184,7 @@ UniValue generateGenesisBlock(int numThreads)
     auto stepSize = std::numeric_limits<uint32_t>::max() / numThreads;
     std::vector<std::future<std::shared_ptr<CBlock>>> blocks;
 
-    int fromNonce = 0;
+    uint32_t fromNonce = 0;
     for (int i = 0; i < numThreads; i++, fromNonce += stepSize) {
         blocks.push_back(std::async(std::launch::async, findGenesisBlock, fromNonce, fromNonce + stepSize, std::ref(stopSearching)));
     }
