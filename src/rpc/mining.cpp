@@ -160,17 +160,18 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
 }
 
 std::shared_ptr<CBlock> findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, bool &stopSearching) {
+    assert(toNonce > fromNonce);
     auto genBlock = std::make_shared<CBlock>(CreateNewGenesisBlock(1503444726, fromNonce, 0x1d00ffff, 1, 50 * COIN));    
     for (; fromNonce < toNonce && !CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus()); fromNonce++) {
         if (stopSearching) {
-            genBlock->nNonce = toNonce;
+            genBlock->nNonce = toNonce; // Signalling that this thread did not find the winning nonce.  
             return genBlock;    
         }    
         if (fromNonce % 1000000 == 0) 
             std::cerr << "Current Nonce:" << fromNonce << std::endl;
         genBlock->nNonce = fromNonce;
     }
-    if (genBlock->nNonce != toNonce) 
+    if (genBlock->nNonce < toNonce) 
         stopSearching = true;
     return genBlock;
 }
@@ -191,7 +192,7 @@ UniValue generateGenesisBlock(int numThreads)
     fromNonce = 0;
     for (int i = 0; i < numThreads; i++, fromNonce += stepSize) {
         auto result = blocks[i].get();
-        if (result->nNonce != (fromNonce + stepSize)) {
+        if (result->nNonce < (fromNonce + stepSize)) {
             auto stop = std::time(nullptr);
             std::cerr << "Time elapsed:" << stop - start << " seconds" << std::endl;
             return result->ToString();
