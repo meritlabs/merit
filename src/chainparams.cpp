@@ -80,7 +80,7 @@ public:
         consensus.BIP34Hash = uint256S("0x000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8");
         consensus.BIP65Height = 388381; // 000000000000000004c2b624ed5d7756c508d90fd0da2c7c679febfa6c4735f0
         consensus.BIP66Height = 363725; // 00000000000000000379eaa19dce8c9b722d46ae6a57c2f1a988119488b50931
-        consensus.powLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
         consensus.nPowTargetSpacing = 10 * 60;
         consensus.fPowAllowMinDifficultyBlocks = false;
@@ -119,10 +119,10 @@ public:
         nDefaultPort = 8333;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1503202604, 3344603463, 0x1d00ffff, 1, 20000000 * COIN);
+        genesis = CreateGenesisBlock(1503515697, 0, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("000000007383558748f6a855e683dd45a877a65d2b0976a5bb921f45f7ef4c3f"));
-        assert(genesis.hashMerkleRoot == uint256S("5731febf76c3c07d0eae6fe60cb37c827f0631a8d3a0b0fff91f19755e2917cf"));
+        assert(consensus.hashGenesisBlock == uint256S("3491065cd95d4367a2b5705fc61bce89639b02fce8d551a9e45b985dd6e2f72b"));
+        assert(genesis.hashMerkleRoot == uint256S("b1c4626a9b876698ea607a9e1e77b28283d65e1d538c6c79a57f34d9ad4166ad"));
 
         // Note that of those with the service bits flag, most only support a subset of possible options
         /*vSeeds.emplace_back("seed.bitcoin.sipa.be", true); // Pieter Wuille, only supports x1, x5, x9, and xd
@@ -146,7 +146,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("000000007383558748f6a855e683dd45a877a65d2b0976a5bb921f45f7ef4c3f")},
+                {0, uint256S("3491065cd95d4367a2b5705fc61bce89639b02fce8d551a9e45b985dd6e2f72b")},
             }
         };
 
