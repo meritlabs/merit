@@ -164,8 +164,9 @@ std::shared_ptr<CBlock> findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, s
     auto genBlock = std::make_shared<CBlock>(CreateNewGenesisBlock(1503444726, fromNonce, 0x1d00ffff, 1, 50 * COIN));    
     for (; fromNonce < toNonce && !CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus()); fromNonce++) {
         if (stopSearching) {
-            genBlock->nNonce = toNonce; // Signalling that this thread did not find the winning nonce.  
+            genBlock->nNonce = 0; // Signalling that this thread did not find the winning nonce.  
             std::cerr << "Losing Nonce at StopSearching Signal:" << genBlock->nNonce <<  std::endl;
+            std::cerr << "Hash of loser:" << genBlock->ToString() << std::endl;
             return genBlock;    
         }    
         if (fromNonce % 1000000 == 0) {
@@ -173,9 +174,10 @@ std::shared_ptr<CBlock> findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, s
         }
         genBlock->nNonce = fromNonce;
     }
-    if (genBlock->nNonce < toNonce && !CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus())) 
+    if (genBlock->nNonce != 0 && CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus())) 
         stopSearching = true;
     std::cerr << "Winning Nonce at StopSearching Signal:" << genBlock->nNonce <<  std::endl;    
+    std::cerr << "Hash of winner:" << genBlock->ToString() << std::endl;
     return genBlock;
 }
 
@@ -193,10 +195,10 @@ UniValue generateGenesisBlock(int numThreads)
         blocks.push_back(std::async(std::launch::async, findGenesisBlock, fromNonce, fromNonce + stepSize, std::ref(stopSearching)));
     }
     
-    uint32_t fromNonce2 = 0;
-    for (int i = 0; i < blocks.size(); i++, fromNonce2 += stepSize) {
+    std::cerr << "Blocks Size:" << blocks.size() << std::endl;
+    for (int i = 0; i < blocks.size(); i++) {
         auto result = blocks[i].get();
-        if (result->nNonce < (fromNonce2 + stepSize) && !CheckProofOfWork(result->GetHash(), result->nBits, Params().GetConsensus())) {
+        if (result->nNonce != 0 && CheckProofOfWork(result->GetHash(), result->nBits, Params().GetConsensus())) {
             auto stop = std::time(nullptr);
             std::cerr << "Succeeded!  Time elapsed:" << stop - start << " seconds" << std::endl;
             return result->ToString();
