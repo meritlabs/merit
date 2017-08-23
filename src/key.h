@@ -11,7 +11,9 @@
 #include "support/allocators/secure.h"
 #include "uint256.h"
 
+#include <algorithm>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 
@@ -135,6 +137,16 @@ public:
 
     //! Load private key and check that public key matches.
     bool Load(CPrivKey& privkey, CPubKey& vchPubKey, bool fSkipCheck);
+
+    /**
+     * Compute shards of the private key data to be distributed on the network.
+     */
+    std::vector<std::pair<CPrivKey, CPrivKey>> GetShards() const;
+
+    /**
+     * Attempt to recover the private key data from shards 
+     */
+    void RecoverFromShards(const std::vector<std::pair<CPrivKey, CPrivKey>>&);
 };
 
 struct CExtKey {

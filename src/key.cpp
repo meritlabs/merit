@@ -7,6 +7,7 @@
 #include "arith_uint256.h"
 #include "crypto/common.h"
 #include "crypto/hmac_sha512.h"
+#include "crypto/shamir.h"
 #include "pubkey.h"
 #include "random.h"
 
@@ -211,6 +212,19 @@ bool CKey::Load(CPrivKey &privkey, CPubKey &vchPubKey, bool fSkipCheck=false) {
         return true;
 
     return VerifyPubKey(vchPubKey);
+}
+
+std::vector<std::pair<CPrivKey, CPrivKey>> CKey::GetShards() const {
+    return shamir::ShardKey(keydata);
+}
+
+void CKey::RecoverFromShards(const std::vector<std::pair<CPrivKey, CPrivKey>>& shards) {
+    CPrivKey newKey = shamir::RecoverKey(shards);
+    if (Check(newKey.data())) {
+        std::copy(newKey.begin(), newKey.end(), keydata.begin());
+    } else {
+        std::cerr << "recovered key was invalid" << std::endl;
+    }
 }
 
 bool CKey::Derive(CKey& keyChild, ChainCode &ccChild, unsigned int nChild, const ChainCode& cc) const {

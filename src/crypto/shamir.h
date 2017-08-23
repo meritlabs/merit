@@ -8,7 +8,7 @@
 
 namespace shamir
 {
-std::vector<legendre::FieldPoint> ShardElement(const ff::Element&);
+std::vector<legendre::FieldPoint> ShardElement(const finite_field::Element&);
 std::vector<std::pair<CPrivKey, CPrivKey>> ShardKey(const CPrivKey&);
 CPrivKey RecoverKey(const std::vector<std::pair<CPrivKey, CPrivKey>>&);
 } // namespace shamir
