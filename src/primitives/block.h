@@ -75,7 +75,7 @@ class CBlock : public CBlockHeader
 public:
     // network and disk
     std::vector<CTransactionRef> vtx;
-    std::vector<ReferralRef> vref;
+    std::vector<ReferralRef> m_vRef;
 
     // memory only
     mutable bool fChecked;
@@ -97,7 +97,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
-        // READWRITE(vref);
+        READWRITE(m_vRef);
     }
 
     void SetNull()

@@ -147,6 +147,7 @@ private:
     uint64_t nBlockWeight;
     uint64_t nBlockSize;
     uint64_t nBlockTx;
+    uint64_t nBlockRef;
     uint64_t nBlockSigOpsCost;
     CAmount nFees;
     CTxMemPool::setEntries inBlock;
@@ -182,6 +183,9 @@ private:
       * Increments nPackagesSelected / nDescendantsUpdated with corresponding
       * statistics from the package selection (for logging statistics). */
     void addPackageTxs(int &nPackagesSelected, int &nDescendantsUpdated);
+
+    // Add referrals to block from mempoolReferral
+    void AddReferrals();
 
     // helper functions for addPackageTxs()
     /** Remove confirmed (inBlock) entries from given set */
