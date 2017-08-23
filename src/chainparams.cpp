@@ -50,7 +50,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
 static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
     const char* pszTimestamp = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
-    const CScript genesisOutputScript = CScript() << ParseHex("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f") << OP_CHECKSIG;
+    const CScript genesisOutputScript = CScript() << ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35") << OP_CHECKSIG;
     return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
 }
 
@@ -171,7 +171,7 @@ public:
         consensus.BIP34Hash = uint256S("0x0000000023b3a96d3484e5abb3755c413e7d41500f8e2a5c3f0dd01299cd8ef8");
         consensus.BIP65Height = 581885; // 00000000007f6655f22f98e72ed80d8b06dc761d5da09df0fa1dc4be4f861eb6
         consensus.BIP66Height = 330776; // 000000002104c8c45e99a8853285a3b592602a3ccde2b832481da85e9e4ba182
-        consensus.powLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
         consensus.nPowTargetSpacing = 10 * 60;
         consensus.fPowAllowMinDifficultyBlocks = true;
@@ -205,14 +205,10 @@ public:
         nDefaultPort = 18333;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 1073741822, 0x1d00ffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1503444726, 4, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        std::cerr << "Show me the hash!" << std::endl;
-        std::cerr << consensus.hashGenesisBlock.ToString() << std::endl;
-        std::cerr << "Show me the merkle!" << std::endl;
-        std::cerr << genesis.hashMerkleRoot.ToString() << std::endl;
-        assert(consensus.hashGenesisBlock == uint256S("de3d842be0f740113aaee2b0d180f39595d9d6236f08cb37d1a5dbdefaf3b004"));
-        assert(genesis.hashMerkleRoot == uint256S("e26d668e806f95d236989c411c76cb11f4c26cb2ce5a2f38f59fcaa0a79033d4"));
+        assert(consensus.hashGenesisBlock == uint256S("0afdcb530b089c0c56694ded88a3f878529bfb745ddeaba69c82092bcdcae960"));
+        assert(genesis.hashMerkleRoot == uint256S("b1c4626a9b876698ea607a9e1e77b28283d65e1d538c6c79a57f34d9ad4166ad"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -237,7 +233,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("de3d842be0f740113aaee2b0d180f39595d9d6236f08cb37d1a5dbdefaf3b004")},
+                {0, uint256S("0afdcb530b089c0c56694ded88a3f878529bfb745ddeaba69c82092bcdcae960")},
             }
         };
 
