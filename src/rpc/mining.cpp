@@ -159,7 +159,7 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
     return blockHashes;
 }
 
-std::shared_ptr<CBlock> findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, std::atomic_bool &stopSearching) {
+std::shared_ptr<CBlock> findGenesisBlock(uint64_t fromNonce, uint64_t toNonce, std::atomic_bool &stopSearching) {
     assert(toNonce > fromNonce);
     auto genBlock = std::make_shared<CBlock>(CreateNewGenesisBlock(1503444726, fromNonce, 0x1d00ffff, 1, 50 * COIN));    
     for (; fromNonce < toNonce && !CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus()); fromNonce++) {
@@ -189,11 +189,11 @@ UniValue generateGenesisBlock(int numThreads)
 {
     auto start = std::time(nullptr);
     std::atomic_bool stopSearching(false);
-    auto stepSize = std::numeric_limits<uint32_t>::max() / numThreads;
+    auto stepSize = std::numeric_limits<uint64_t>::max() / numThreads;
     std::cerr << "StepSize:" << stepSize << std::endl;
     std::vector<std::future<std::shared_ptr<CBlock>>> blocks;
 
-    uint32_t fromNonce = 0;
+    uint64_t fromNonce = 0;
     for (int i = 0; i < numThreads; i++, fromNonce += stepSize) {
         blocks.push_back(std::async(std::launch::async, findGenesisBlock, fromNonce, fromNonce + stepSize, std::ref(stopSearching)));
     }
