@@ -41,8 +41,7 @@ class BumpFeeTest(BitcoinTestFramework):
         self.nodes = self.start_nodes(self.num_nodes, self.options.tmpdir, extra_args)
 
         # Encrypt wallet for test_locked_wallet_fails test
-        self.nodes[1].encryptwallet(WALLET_PASSPHRASE)
-        self.bitcoind_processes[1].wait()
+        self.nodes[1].node_encrypt_wallet(WALLET_PASSPHRASE)
         self.nodes[1] = self.start_node(1, self.options.tmpdir, extra_args[1])
         self.nodes[1].walletpassphrase(WALLET_PASSPHRASE, WALLET_PASSPHRASE_TIMEOUT)
 
@@ -90,7 +89,7 @@ def test_simple_bumpfee_succeeds(rbf_node, peer_node, dest_address):
     bumped_tx = rbf_node.bumpfee(rbfid)
     assert_equal(bumped_tx["errors"], [])
     assert bumped_tx["fee"] - abs(rbftx["fee"]) > 0
-    # check that bumped_tx propogates, original tx was evicted and has a wallet conflict
+    # check that bumped_tx propagates, original tx was evicted and has a wallet conflict
     sync_mempools((rbf_node, peer_node))
     assert bumped_tx["txid"] in rbf_node.getrawmempool()
     assert bumped_tx["txid"] in peer_node.getrawmempool()
