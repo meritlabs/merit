@@ -159,7 +159,7 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
     return blockHashes;
 }
 
-std::shared_ptr<CBlock> findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, bool &stopSearching) {
+std::shared_ptr<CBlock> findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, std::atomic_bool &stopSearching) {
     assert(toNonce > fromNonce);
     auto genBlock = std::make_shared<CBlock>(CreateNewGenesisBlock(1503444726, fromNonce, 0x1d00ffff, 1, 50 * COIN));    
     for (; fromNonce < toNonce && !CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus()); fromNonce++) {
@@ -180,7 +180,7 @@ std::shared_ptr<CBlock> findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, b
 UniValue generateGenesisBlock(int numThreads)
 {
     auto start = std::time(nullptr);
-    bool stopSearching = false;
+    std::atomic_bool stopSearching(false);
     auto stepSize = std::numeric_limits<uint32_t>::max() / numThreads;
     std::vector<std::future<std::shared_ptr<CBlock>>> blocks;
 
@@ -194,12 +194,12 @@ UniValue generateGenesisBlock(int numThreads)
         auto result = blocks[i].get();
         if (result->nNonce < (fromNonce + stepSize)) {
             auto stop = std::time(nullptr);
-            std::cerr << "Time elapsed:" << stop - start << " seconds" << std::endl;
+            std::cerr << "Succeeded!  Time elapsed:" << stop - start << " seconds" << std::endl;
             return result->ToString();
         }
     }
     auto stop = std::time(nullptr);
-    std::cerr << "Time elapsed:" << stop - start << " seconds" << std::endl;
+    std::cerr << "Failed! Time elapsed:" << stop - start << " seconds" << std::endl;
     return "";
 }
 
