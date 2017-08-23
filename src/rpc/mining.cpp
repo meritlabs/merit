@@ -174,10 +174,13 @@ std::shared_ptr<CBlock> findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, s
         }
         genBlock->nNonce = fromNonce;
     }
-    if (genBlock->nNonce != 0 && CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus())) 
+    if (genBlock->nNonce != 0 && CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus())) {
         stopSearching = true;
-    std::cerr << "Winning Nonce at StopSearching Signal:" << genBlock->nNonce <<  std::endl;    
-    std::cerr << "Hash of winner:" << genBlock->ToString() << std::endl;
+        std::cerr << "Winning Nonce at StopSearching Signal:" << genBlock->nNonce <<  std::endl;    
+        std::cerr << "Hash of winner:" << genBlock->ToString() << std::endl;
+    } else {
+        std::cerr << "FindGenesis Thread Completed (Without Passing Pow):" << toNonce << std::endl;
+    }
     return genBlock;
 }
 
