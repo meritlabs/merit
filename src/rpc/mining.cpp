@@ -164,7 +164,7 @@ std::shared_ptr<CBlock> findGenesisBlock(uint64_t fromNonce, uint64_t toNonce, s
     auto genBlock = std::make_shared<CBlock>(CreateNewGenesisBlock(1503515697, fromNonce, 0x207fffff, 1, 50 * COIN));    
     for (; fromNonce < toNonce && !CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus()); fromNonce++) {
         if (stopSearching) {
-            genBlock->nNonce = 0; // Signalling that this thread did not find the winning nonce.  
+            genBlock->nNonce = -1; // Signalling that this thread did not find the winning nonce.  
             std::cerr << "Losing Nonce at StopSearching Signal:" << genBlock->nNonce <<  std::endl;
             std::cerr << "Hash of loser:" << genBlock->ToString() << std::endl;
             return genBlock;    
@@ -174,7 +174,7 @@ std::shared_ptr<CBlock> findGenesisBlock(uint64_t fromNonce, uint64_t toNonce, s
         }
         genBlock->nNonce = fromNonce;
     }
-    if (genBlock->nNonce != 0 && CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus())) {
+    if (genBlock->nNonce != -1 && CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus())) {
         stopSearching = true;
         std::cerr << "Winning Nonce at StopSearching Signal:" << genBlock->nNonce <<  std::endl;    
         std::cerr << "Hash of winner:" << genBlock->ToString() << std::endl;
@@ -201,7 +201,7 @@ UniValue generateGenesisBlock(int numThreads)
     std::cerr << "Blocks Size:" << blocks.size() << std::endl;
     for (int i = 0; i < blocks.size(); i++) {
         auto result = blocks[i].get();
-        if (result->nNonce != 0 && CheckProofOfWork(result->GetHash(), result->nBits, Params().GetConsensus())) {
+        if (result->nNonce != -1 && CheckProofOfWork(result->GetHash(), result->nBits, Params().GetConsensus())) {
             auto stop = std::time(nullptr);
             std::cerr << "Succeeded!  Time elapsed:" << stop - start << " seconds" << std::endl;
             return result->ToString();
