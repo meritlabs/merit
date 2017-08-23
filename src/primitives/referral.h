@@ -25,7 +25,6 @@ static const int SERIALIZE_REFERRAL = 0x40000000;
 template<typename Stream, typename TxType>
 inline void UnserializeReferral(TxType& ref, Stream& s) {
     s >> ref.nVersion;
-    unsigned char flags = 0;
     s >> ref.previousReferral;
     s >> ref.scriptSig;
 }
