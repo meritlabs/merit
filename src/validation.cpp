@@ -4385,6 +4385,93 @@ void DumpMempool(void)
     }
 }
 
+bool LoadReferralMempool()
+{
+    FILE* filestr = fsbridge::fopen(GetDataDir() / "mempool_referral.dat", "rb");
+    CAutoFile file(filestr, SER_DISK, CLIENT_VERSION);
+    if (file.IsNull()) {
+        LogPrintf("Failed to open referral mempool file from disk. Continuing anyway.\n");
+        return false;
+    }
+
+    int64_t count = 0;
+    int64_t failed = 0;
+
+    try {
+        uint64_t version;
+        file >> version;
+        if (version != MEMPOOL_DUMP_VERSION) {
+            return false;
+        }
+        uint64_t num;
+        file >> num;
+        while (num--) {
+            ReferralRef ref;
+            file >> ref;
+
+            LOCK(cs_main);
+            AcceptToReferralMemoryPool(mempoolReferral, ref);
+            if (ref != nullptr) {
+                ++count;
+            } else {
+                ++failed;
+            }
+
+            if (ShutdownRequested())
+                return false;
+        }
+    } catch (const std::exception& e) {
+        LogPrintf("Failed to deserialize referral mempool data on disk: %s. Continuing anyway.\n", e.what());
+        return false;
+    }
+
+    LogPrintf("Imported mempool referrals from disk: %i successes, %i failed\n", count, failed);
+    return true;
+}
+
+void DumpReferralMempool()
+{
+    int64_t start = GetTimeMicros();
+
+    std::vector<ReferralRef> vReferral;
+
+    {
+        LOCK(mempool.cs);
+        auto map = &mempoolReferral.mapRTx;
+
+        for(auto it = map->begin(); it != map->end(); ++it ) {
+            vReferral.push_back(it->second);
+        }
+    }
+
+    int64_t mid = GetTimeMicros();
+
+    try {
+        FILE* filestr = fsbridge::fopen(GetDataDir() / "mempool_referral.dat.new", "wb");
+        if (!filestr) {
+            return;
+        }
+
+        CAutoFile file(filestr, SER_DISK, CLIENT_VERSION);
+
+        uint64_t version = MEMPOOL_DUMP_VERSION;
+        file << version;
+
+        file << (uint64_t)vReferral.size();
+        for (const auto& i : vReferral) {
+            file << i;
+        }
+
+        FileCommit(file.Get());
+        file.fclose();
+        RenameOver(GetDataDir() / "mempool_referral.dat.new", GetDataDir() / "mempool_referral.dat");
+        int64_t last = GetTimeMicros();
+        LogPrintf("Dumped referral mempool: %gs to copy, %gs to dump\n", (mid-start)*0.000001, (last-mid)*0.000001);
+    } catch (const std::exception& e) {
+        LogPrintf("Failed to dump referral mempool: %s. Continuing anyway.\n", e.what());
+    }
+}
+
 //! Guess how far we are in the verification process at the given block index
 double GuessVerificationProgress(const ChainTxData& data, CBlockIndex *pindex) {
     if (pindex == nullptr)

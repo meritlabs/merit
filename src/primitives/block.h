@@ -97,6 +97,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
+        // READWRITE(vref);
     }
 
     void SetNull()
