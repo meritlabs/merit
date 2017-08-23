@@ -159,7 +159,7 @@ uint256 BlockMerkleRoot(const CBlock& block, bool* mutated)
 {
     std::vector<uint256> leaves;
 
-    auto aggregateSize = block.vtx.size() + block.vref.size();
+    auto aggregateSize = block.vtx.size() + block.m_vRef.size();
     leaves.resize(aggregateSize);
 
     for (size_t s = 0; s < block.vtx.size(); s++) {
@@ -167,7 +167,7 @@ uint256 BlockMerkleRoot(const CBlock& block, bool* mutated)
     }
 
     for (size_t s = block.vtx.size(); s < aggregateSize; s++) {
-        leaves[s] = block.vref[s]->GetHash();
+        leaves[s] = block.m_vRef[s]->GetHash();
     }
 
     return ComputeMerkleRoot(leaves, mutated);
