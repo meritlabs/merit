@@ -159,18 +159,18 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
     return blockHashes;
 }
 
-CBlock findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, bool &stopSearching) {
-    CBlock genBlock = CreateNewGenesisBlock(1503444726, fromNonce, 0x1d00ffff, 1, 50 * COIN);    
-    for (; fromNonce < toNonce && !CheckProofOfWork(genBlock.GetHash(), genBlock.nBits, Params().GetConsensus()); fromNonce++) {
+std::shared_ptr<CBlock> findGenesisBlock(uint32_t fromNonce, uint32_t toNonce, bool &stopSearching) {
+    auto genBlock = std::make_shared<CBlock>(CreateNewGenesisBlock(1503444726, fromNonce, 0x1d00ffff, 1, 50 * COIN));    
+    for (; fromNonce < toNonce && !CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus()); fromNonce++) {
         if (stopSearching) {
-            genBlock.nNonce = toNonce;
+            genBlock->nNonce = toNonce;
             return genBlock;    
         }    
         if (fromNonce % 1000000 == 0) 
             std::cerr << "Current Nonce:" << fromNonce << std::endl;
-        genBlock.nNonce = fromNonce;
+        genBlock->nNonce = fromNonce;
     }
-    if (genBlock.nNonce != toNonce) 
+    if (genBlock->nNonce != toNonce) 
         stopSearching = true;
     return genBlock;
 }
@@ -181,20 +181,20 @@ UniValue generateGenesisBlock(int numThreads)
     auto start = std::time(nullptr);
     bool stopSearching = false;
     auto stepSize = std::numeric_limits<uint32_t>::max() / numThreads;
-    std::vector<std::future<CBlock>> nonces;
+    std::vector<std::future<std::shared_ptr<CBlock>>> blocks;
 
     int fromNonce = 0;
     for (int i = 0; i < numThreads; i++, fromNonce += stepSize) {
-        nonces.push_back(std::async(std::launch::async, findGenesisBlock, fromNonce, fromNonce + stepSize, std::ref(stopSearching)));
+        blocks.push_back(std::async(std::launch::async, findGenesisBlock, fromNonce, fromNonce + stepSize, std::ref(stopSearching)));
     }
     
     fromNonce = 0;
     for (int i = 0; i < numThreads; i++, fromNonce += stepSize) {
-        auto result = nonces[i].get();
-        if (result.nNonce != (fromNonce + stepSize)) {
+        auto result = blocks[i].get();
+        if (result->nNonce != (fromNonce + stepSize)) {
             auto stop = std::time(nullptr);
             std::cerr << "Time elapsed:" << stop - start << " seconds" << std::endl;
-            return result.ToString();
+            return result->ToString();
         }
     }
     auto stop = std::time(nullptr);
