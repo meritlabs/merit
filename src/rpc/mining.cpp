@@ -189,10 +189,10 @@ UniValue generateGenesisBlock(int numThreads)
         blocks.push_back(std::async(std::launch::async, findGenesisBlock, fromNonce, fromNonce + stepSize, std::ref(stopSearching)));
     }
     
-    fromNonce = 0;
-    for (int i = 0; i < numThreads; i++, fromNonce += stepSize) {
+    uint32_t fromNonce2 = 0;
+    for (int i = 0; i < blocks.size; i++, fromNonce2 += stepSize) {
         auto result = blocks[i].get();
-        if (result->nNonce < (fromNonce + stepSize)) {
+        if (result->nNonce < (fromNonce2 + stepSize)) {
             auto stop = std::time(nullptr);
             std::cerr << "Succeeded!  Time elapsed:" << stop - start << " seconds" << std::endl;
             return result->ToString();
