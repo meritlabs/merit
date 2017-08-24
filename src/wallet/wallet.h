@@ -1180,6 +1180,8 @@ public:
 
     bool SetReferralTx(const ReferralTx& rtx);
     ReferralTx GenerateNewReferral(CWalletDB& walletdb);
+
+    bool IsReferred() const;
 };
 
 /** A key allocated from the key pool. */
