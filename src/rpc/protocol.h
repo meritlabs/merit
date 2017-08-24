@@ -87,6 +87,7 @@ enum RPCErrorCode
 
     // Referral engine errors
     RPC_REFEREE_IS_SET              = -100, //!< Wallet already has referal code and referree set
+    RPC_REFEREE_IS_NOT_SET          = -101, //!< Wallet does not have referal code and referree set
 };
 
 UniValue JSONRPCRequestObj(const std::string& strMethod, const UniValue& params, const UniValue& id);
