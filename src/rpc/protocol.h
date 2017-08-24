@@ -86,8 +86,8 @@ enum RPCErrorCode
     RPC_WALLET_NOT_SPECIFIED        = -19, //!< No wallet specified (error when there are multiple wallets loaded)
 
     // Referral engine errors
-    RPC_REFEREE_IS_SET              = -100, //!< Wallet already has referal code and referree set
-    RPC_REFEREE_IS_NOT_SET          = -101, //!< Wallet does not have referal code and referree set
+    RPC_REFERRER_IS_SET              = -100, //!< Wallet already has referal code and referrer set
+    RPC_REFERRER_IS_NOT_SET          = -101, //!< Wallet does not have referal code and referrer set
 };
 
 UniValue JSONRPCRequestObj(const std::string& strMethod, const UniValue& params, const UniValue& id);
