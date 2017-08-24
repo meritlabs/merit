@@ -1520,6 +1520,11 @@ bool CWallet::SetReferralTx(const ReferralTx& rtx)
     return true;
 }
 
+bool CWallet::IsReferred() const
+{
+    return !m_referralTx.GetHash().IsNull();
+}
+
 int64_t CWalletTx::GetTxTime() const
 {
     int64_t n = nTimeSmart;

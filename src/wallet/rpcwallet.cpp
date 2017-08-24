@@ -3207,6 +3207,10 @@ UniValue setreferralcode(const JSONRPCRequest& request)
         );
     }
 
+    if (pwallet->IsReferred()) {
+        throw JSONRPCError(RPC_REFEREE_IS_SET, "Error: Referee is already set for the wallet.");
+    }
+
     LOCK2(cs_main, pwallet->cs_wallet);
 
     auto code = request.params[0].get_str();
