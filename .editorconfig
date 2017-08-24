@@ -1,0 +1,23 @@
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = "utf-8"
+trim_trailing_whitespace = true
+insert_final_newline = true
+max_line_length = 120
+
+# C and C++ files
+[*.{c|cpp|h|hpp}]
+indent_style = space
+indent_size = 4
+
+# Makefiles
+[{Makefile, Makefile.am, Makefile.in}]
+indent_style = tab
+
+# Python
+[*.py]
+indent_style = space
+indent_size = 4
