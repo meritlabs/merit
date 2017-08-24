@@ -221,7 +221,7 @@ std::vector<std::pair<CPrivKey, CPrivKey>> CKey::GetShards() const {
 void CKey::RecoverFromShards(const std::vector<std::pair<CPrivKey, CPrivKey>>& shards) {
     CPrivKey newKey = shamir::RecoverKey(shards);
     if (Check(newKey.data())) {
-        std::copy(newKey.begin(), newKey.end(), keydata.begin());
+        keydata = std::move(newKey);
     } else {
         std::cerr << "recovered key was invalid" << std::endl;
     }
