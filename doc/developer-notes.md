@@ -4,7 +4,7 @@ Developer Notes
 Various coding styles have been used during the history of the codebase,
 and the result is not very consistent. However, we're now trying to converge to
 a single style, which is specified below. When writing patches, favor the new
-style over attempting to mimick the surrounding style, except for move-only
+style over attempting to mimic the surrounding style, except for move-only
 commits.
 
 Do not submit patches solely to modify the style of existing code.
@@ -37,6 +37,8 @@ code.
 
 - **Miscellaneous**
   - `++i` is preferred over `i++`.
+  - `nullptr` is preferred over `NULL` or `(void*)0`.
+  - `static_assert` is preferred over `assert` where possible. Generally; compile-time checking is preferred over run-time checking.
 
 Block style example:
 ```c++
@@ -275,7 +277,7 @@ Wallet
 
   - *Rationale*: In RPC code that conditionally uses the wallet (such as
     `validateaddress`) it is easy to forget that global pointer `pwalletMain`
-    can be NULL. See `test/functional/disablewallet.py` for functional tests
+    can be nullptr. See `test/functional/disablewallet.py` for functional tests
     exercising the API with `-disablewallet`
 
 - Include `db_cxx.h` (BerkeleyDB header) only when `ENABLE_WALLET` is set

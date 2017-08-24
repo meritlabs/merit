@@ -40,7 +40,7 @@
 static const size_t MAX_HEADERS_SIZE = 8192;
 
 /** HTTP request work item */
-class HTTPWorkItem : public HTTPClosure
+class HTTPWorkItem final : public HTTPClosure
 {
 public:
     HTTPWorkItem(std::unique_ptr<HTTPRequest> _req, const std::string &_path, const HTTPRequestHandler& _func):
@@ -79,7 +79,7 @@ private:
     {
     public:
         WorkQueue &wq;
-        ThreadCounter(WorkQueue &w): wq(w)
+        explicit ThreadCounter(WorkQueue &w): wq(w)
         {
             std::lock_guard<std::mutex> lock(wq.cs);
             wq.numThreads += 1;
@@ -93,7 +93,7 @@ private:
     };
 
 public:
-    WorkQueue(size_t _maxDepth) : running(true),
+    explicit WorkQueue(size_t _maxDepth) : running(true),
                                  maxDepth(_maxDepth),
                                  numThreads(0)
     {
@@ -164,13 +164,13 @@ struct HTTPPathHandler
 /** HTTP module state */
 
 //! libevent event loop
-static struct event_base* eventBase = 0;
+static struct event_base* eventBase = nullptr;
 //! HTTP server
-struct evhttp* eventHTTP = 0;
+struct evhttp* eventHTTP = nullptr;
 //! List of subnets to allow RPC connections from
 static std::vector<CSubNet> rpc_allow_subnets;
 //! Work queue for handling longer requests off the event loop thread
-static WorkQueue<HTTPClosure>* workQueue = 0;
+static WorkQueue<HTTPClosure>* workQueue = nullptr;
 //! Handlers for (sub)paths
 std::vector<HTTPPathHandler> pathHandlers;
 //! Bound listening sockets
@@ -416,7 +416,7 @@ bool InitHTTPServer()
     LogPrintf("HTTP: creating work queue of depth %d\n", workQueueDepth);
 
     workQueue = new WorkQueue<HTTPClosure>(workQueueDepth);
-    // tranfer ownership to eventBase/HTTP via .release()
+    // transfer ownership to eventBase/HTTP via .release()
     eventBase = base_ctr.release();
     eventHTTP = http_ctr.release();
     return true;
@@ -495,11 +495,11 @@ void StopHTTPServer()
     }
     if (eventHTTP) {
         evhttp_free(eventHTTP);
-        eventHTTP = 0;
+        eventHTTP = nullptr;
     }
     if (eventBase) {
         event_base_free(eventBase);
-        eventBase = 0;
+        eventBase = nullptr;
     }
     LogPrint(BCLog::HTTP, "Stopped HTTP server\n");
 }
@@ -601,9 +601,9 @@ void HTTPRequest::WriteReply(int nStatus, const std::string& strReply)
     evbuffer_add(evb, strReply.data(), strReply.size());
     HTTPEvent* ev = new HTTPEvent(eventBase, true,
         std::bind(evhttp_send_reply, req, nStatus, (const char*)nullptr, (struct evbuffer *)nullptr));
-    ev->trigger(0);
+    ev->trigger(nullptr);
     replySent = true;
-    req = 0; // transferred back to main thread
+    req = nullptr; // transferred back to main thread
 }
 
 CService HTTPRequest::GetPeer()
