@@ -3363,7 +3363,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize)
     {
         LOCK(cs_wallet);
 
-        if (IsLocked())
+        if (IsLocked() || !IsReferred())
             return false;
 
         // Top up key pool
@@ -3420,7 +3420,7 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRe
     {
         LOCK(cs_wallet);
 
-        if (!IsLocked())
+        if (!IsLocked() || IsReferred())
             TopUpKeyPool();
 
         bool fReturningInternal = IsHDEnabled() && CanSupportFeature(FEATURE_HD_SPLIT) && fRequestedInternal;
@@ -3483,7 +3483,7 @@ bool CWallet::GetKeyFromPool(CPubKey& result, bool internal)
         ReserveKeyFromKeyPool(nIndex, keypool, internal);
         if (nIndex == -1)
         {
-            if (IsLocked()) return false;
+            if (IsLocked() || IsReferred()) return false;
             CWalletDB walletdb(*dbw);
             result = GenerateNewKey(walletdb, internal);
             return true;

@@ -77,6 +77,10 @@ void EnsureWalletIsUnlocked(CWallet * const pwallet)
     if (pwallet->IsLocked()) {
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
     }
+
+    if (!pwallet->IsReferred()) {
+        throw JSONRPCError(RPC_REFEREE_IS_NOT_SET, "Error: Referee must be set in the wallet. Use referral code to unlock first.");
+    }
 }
 
 void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
