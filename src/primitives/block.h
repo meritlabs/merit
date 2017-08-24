@@ -104,6 +104,7 @@ public:
     {
         CBlockHeader::SetNull();
         vtx.clear();
+        m_vRef.clear();
         fChecked = false;
     }
 

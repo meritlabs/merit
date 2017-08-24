@@ -166,9 +166,9 @@ uint256 BlockMerkleRoot(const CBlock& block, bool* mutated)
         leaves[s] = block.vtx[s]->GetHash();
     }
 
-    for (size_t s = block.vtx.size(); s < aggregateSize; s++) {
-        leaves[s] = block.m_vRef[s]->GetHash();
-    }
+    for (size_t s = 0; s < block.m_vRef.size(); s++) {
+        leaves[block.vtx.size() + s] = block.m_vRef[s]->GetHash();
+    };
 
     return ComputeMerkleRoot(leaves, mutated);
 }
