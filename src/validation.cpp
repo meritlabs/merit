@@ -4439,9 +4439,8 @@ void DumpReferralMempool()
         LOCK(mempool.cs);
         auto map = &mempoolReferral.mapRTx;
 
-        for(auto it = map->begin(); it != map->end(); ++it ) {
-            vReferral.push_back(it->second);
-        }
+        for(const auto& it: *map)
+            vReferral.push_back(it.second);
     }
 
     int64_t mid = GetTimeMicros();
