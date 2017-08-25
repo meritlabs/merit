@@ -290,6 +290,10 @@ public:
 
         genesis = CreateGenesisBlock(1503352716, 337, 0x207fffff, 1, 20000000 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
+        std::cout << consensus.hashGenesisBlock.ToString() << std::endl;
+        std::cout << uint256S("0b2ecdb504815d9cd6ee91c9b0093ff2ccc84428b4c2957f7270d0ada3c2c905").ToString() << std::endl;
+        std::cout << genesis.hashMerkleRoot.ToString() << std::endl;
+        std::cout << uint256S("5731febf76c3c07d0eae6fe60cb37c827f0631a8d3a0b0fff91f19755e2917cf").ToString() << std::endl;
         assert(consensus.hashGenesisBlock == uint256S("0b2ecdb504815d9cd6ee91c9b0093ff2ccc84428b4c2957f7270d0ada3c2c905"));
         assert(genesis.hashMerkleRoot == uint256S("5731febf76c3c07d0eae6fe60cb37c827f0631a8d3a0b0fff91f19755e2917cf"));
 

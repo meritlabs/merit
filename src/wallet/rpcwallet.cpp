@@ -3223,6 +3223,17 @@ UniValue setreferralcode(const JSONRPCRequest& request)
 
     std::cout << "Called setreferral with code: " << code << std::endl;
 
+    if (!g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
+
+    // TODO: how to wire code and transaction?
+    auto success = SendReferralTx(g_connman.get());
+
+    if (!success) {
+        throw JSONRPCError(RPC_REFERRER_ERROR, "Error: Referral transaction is not issued");
+    }
+
     UniValue obj(UniValue::VOBJ);
     
     size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
