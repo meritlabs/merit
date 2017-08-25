@@ -13,6 +13,7 @@
 #include "consensus/consensus.h"
 #include "consensus/merkle.h"
 #include "consensus/tx_verify.h"
+#include "consensus/ref_verify.h"
 #include "consensus/validation.h"
 #include "cuckoocache.h"
 #include "fs.h"
@@ -1812,6 +1813,14 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
+
+    //Validate Referrals before connecting block
+    //TODO: Validate referrals
+    for(const auto& ref : block.m_vRef)
+    {
+        assert(false && "Validate referrals here");
+    }
+
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime3 - nTime2), 0.001 * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * 0.000001);
 
@@ -2830,6 +2839,12 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
         if (!CheckTransaction(*tx, state, false))
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
                                  strprintf("Transaction check failed (tx hash %s) %s", tx->GetHash().ToString(), state.GetDebugMessage()));
+
+    // Check Referrals
+    for (const auto& ref : block.m_vRef)
+        if (!Consensus::CheckReferral(*ref, state))
+            return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
+                                 strprintf("Referral check failed (ref hash %s) %s", ref->GetHash().ToString(), state.GetDebugMessage()));
 
     unsigned int nSigOps = 0;
     for (const auto& tx : block.vtx)
