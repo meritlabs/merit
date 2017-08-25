@@ -278,7 +278,6 @@ UniValue getrawtransaction(const JSONRPCRequest& request)
         return EncodeHexTx(*tx, RPCSerializationFlags());
 
     UniValue result(UniValue::VOBJ);
-    result.push_back(Pair("hex", strHex));
     TxToJSONExpanded(*tx, hashBlock, result, nHeight, nConfirmations, nBlockTime);
 
     return result;
