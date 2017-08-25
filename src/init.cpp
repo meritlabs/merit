@@ -1372,8 +1372,8 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     bool fReindexChainState = gArgs.GetBoolArg("-reindex-chainstate", false);
 
     // block tree db settings
-    int dbMaxOpenFiles = GetArg("-dbmaxopenfiles", DEFAULT_DB_MAX_OPEN_FILES);
-    bool dbCompression = GetBoolArg("-dbcompression", DEFAULT_DB_COMPRESSION);
+    int dbMaxOpenFiles = gArgs.GetArg("-dbmaxopenfiles", DEFAULT_DB_MAX_OPEN_FILES);
+    bool dbCompression = gArgs.GetBoolArg("-dbcompression", DEFAULT_DB_COMPRESSION);
 
     LogPrintf("Block index database configuration:\n");
     LogPrintf("* Using %d max open files\n", dbMaxOpenFiles);
@@ -1384,11 +1384,11 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     nTotalCache = std::max(nTotalCache, nMinDbCache << 20); // total cache cannot be less than nMinDbCache
     nTotalCache = std::min(nTotalCache, nMaxDbCache << 20); // total cache cannot be greater than nMaxDbcache
     int64_t nBlockTreeDBCache = nTotalCache / 8;
-    if (GetBoolArg("-addressindex", DEFAULT_ADDRESSINDEX) || GetBoolArg("-spentindex", DEFAULT_SPENTINDEX)) {
+    if (gArgs.GetBoolArg("-addressindex", DEFAULT_ADDRESSINDEX) || gArgs.GetBoolArg("-spentindex", DEFAULT_SPENTINDEX)) {
         // enable 3/4 of the cache if addressindex and/or spentindex is enabled
         nBlockTreeDBCache = nTotalCache * 3 / 4;
     } else {
-        nBlockTreeDBCache = std::min(nBlockTreeDBCache, (GetBoolArg("-txindex", DEFAULT_TXINDEX) ? nMaxBlockDBAndTxIndexCache : nMaxBlockDBCache) << 20);
+        nBlockTreeDBCache = std::min(nBlockTreeDBCache, (gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX) ? nMaxBlockDBAndTxIndexCache : nMaxBlockDBCache) << 20);
     }
     nTotalCache -= nBlockTreeDBCache;
     int64_t nCoinDBCache = std::min(nTotalCache / 2, (nTotalCache / 4) + (1 << 23)); // use 25%-50% of the remainder for disk cache
@@ -1451,19 +1451,19 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                 }
 
                 // Check for changed -addressindex state
-                if (fAddressIndex != GetBoolArg("-addressindex", DEFAULT_ADDRESSINDEX)) {
+                if (fAddressIndex != gArgs.GetBoolArg("-addressindex", DEFAULT_ADDRESSINDEX)) {
                     strLoadError = _("You need to rebuild the database using -reindex-chainstate to change -addressindex");
                     break;
                 }
 
                 // Check for changed -spentindex state
-                if (fSpentIndex != GetBoolArg("-spentindex", DEFAULT_SPENTINDEX)) {
+                if (fSpentIndex != gArgs.GetBoolArg("-spentindex", DEFAULT_SPENTINDEX)) {
                     strLoadError = _("You need to rebuild the database using -reindex-chainstate to change -spentindex");
                     break;
                 }
 
                 // Check for changed -timestampindex state
-                if (fTimestampIndex != GetBoolArg("-timestampindex", DEFAULT_TIMESTAMPINDEX)) {
+                if (fTimestampIndex != gArgs.GetBoolArg("-timestampindex", DEFAULT_TIMESTAMPINDEX)) {
                     strLoadError = _("You need to rebuild the database using -reindex-chainstate to change -timestampindex");
                     break;
                 }
