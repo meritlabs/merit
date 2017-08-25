@@ -808,7 +808,7 @@ public:
         } else if (inv.type == MSG_BLOCK) {
             vInventoryBlockToSend.push_back(inv.hash);
         } else if (inv.type == MSG_REFERRAL) {
-        		setInventoryReferralToSend.insert(inv.hash);
+            setInventoryReferralToSend.insert(inv.hash);
         }
     }
 
