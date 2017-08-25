@@ -8,13 +8,38 @@
 #define BITCOIN_PRIMITIVES_REFERRAL_H
 
 #include <stdint.h>
+#include <string>
 #include "script/script.h"
 #include "serialize.h"
 #include "uint256.h"
 
-struct MutableReferral;
+class ReferralCode
+{
+private:
+    std::string m_code;
+    uint256 m_hash;
+public:
+    ReferralCode();
+    ReferralCode(std::string& code);
 
-static const int SERIALIZE_REFERRAL = 0x40000000;
+    std::string GetCode() const;
+    uint256 GetHash() const;
+
+    std::string ToString() const;
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        // do no serialize bare code no to store it in the blockchain
+        READWRITE(m_hash);
+    }
+
+    inline bool operator==(ReferralCode& ref)
+    {
+        return m_hash == ref.GetHash();
+    }
+};
 
 /**
  * Basic referral serialization format:
@@ -37,6 +62,7 @@ inline void SerializeReferral(const TxType& ref, Stream& s) {
     s << ref.code;
 }
 
+struct MutableReferral;
 
 /** The basic referral that is broadcast on the network and contained in
  * blocks. A referral references a previous referral which helps construct the
@@ -61,7 +87,7 @@ public:
     CScript scriptSig;
 
     // Referral code that is used as a referrence to a wallet
-    const uint256 code;
+    const ReferralCode code;
 
 private:
     /** Memory only. */
@@ -73,7 +99,7 @@ public:
     /** Construct a Referral that qualifies as IsNull() */
     Referral();
 
-    Referral(const uint256 codeIn);
+    Referral(const ReferralCode codeIn);
 
     /** Convert a MutableReferral into a Referral. */
     Referral(const MutableReferral &ref);
@@ -122,7 +148,7 @@ struct MutableReferral
     int32_t nVersion;
     uint256 previousReferral;
     CScript scriptSig;
-    uint256 code;
+    ReferralCode code;
 
     MutableReferral();
     MutableReferral(const Referral& ref);

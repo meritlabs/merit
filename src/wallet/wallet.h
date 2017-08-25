@@ -186,6 +186,24 @@ struct COutputEntry
     int vout;
 };
 
+class WalletReferral
+{
+private:
+    ReferralCode m_referralCode;
+
+public:
+    WalletReferral(ReferralCode& referralCode): m_referralCode(referralCode) {}
+
+    ADD_SERIALIZE_METHODS;
+
+        template <typename Stream, typename Operation>
+        inline void SerializationOp(Stream& s, Operation ser_action) {
+            // do no serialize bare code no to store it in the blockchain
+            READWRITE(m_referralCode.GetHash());
+            READWRITE(m_referralCode.GetCode());
+        }
+};
+
 class ReferralTx {
 private:
     ReferralRef m_pReferral;

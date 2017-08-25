@@ -11,11 +11,36 @@
 #include "utilstrencodings.h"
 #include "random.h"
 
+ReferralCode::ReferralCode() {
+    m_code = GetRandHash().ToString().substr(0, 10);
+    m_hash = uint256S(m_code);
+}
+
+ReferralCode::ReferralCode(std::string& code): m_code(code)
+{
+    m_hash = uint256S(code);
+}
+
+std::string ReferralCode::GetCode() const
+{
+    return m_code;
+}
+
+uint256 ReferralCode::GetHash() const
+{
+    return m_hash;
+}
+
+std::string ReferralCode::ToString() const
+{
+    return strprintf("ReferralCode(code=%s, hash=%s\n", m_code, m_hash.ToString());
+}
+
 MutableReferral::MutableReferral() :
     nVersion{Referral::CURRENT_VERSION},
     previousReferral{},
     scriptSig{},
-    code{GetRandHash()} {}
+    code{ReferralCode()} {}
 
 MutableReferral::MutableReferral(const Referral& ref) :
     nVersion{ref.nVersion},
@@ -38,10 +63,10 @@ Referral::Referral() :
     nVersion{Referral::CURRENT_VERSION},
     previousReferral{},
     scriptSig{},
-    code{GetRandHash()},
+    code{ReferralCode()},
     hash{} {}
 
-Referral::Referral(const uint256 codeIn) :
+Referral::Referral(const ReferralCode codeIn) :
     nVersion{Referral::CURRENT_VERSION},
     previousReferral{},
     scriptSig{},
