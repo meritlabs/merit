@@ -486,6 +486,10 @@
         <translation>%1 cliente</translation>
     </message>
     <message>
+        <source>Connecting to peers...</source>
+        <translation>Conectando a pares...</translation>
+    </message>
+    <message>
         <source>Catching up...</source>
         <translation>Actualizando...</translation>
     </message>
@@ -1348,7 +1352,11 @@
         <source>NodeId</source>
         <translation>NodeId</translation>
     </message>
-    </context>
+    <message>
+        <source>Ping</source>
+        <translation>Ping</translation>
+    </message>
+</context>
 <context>
     <name>QObject</name>
     <message>
@@ -1770,6 +1778,10 @@
     <message>
         <source>Remove</source>
         <translation>Eliminar</translation>
+    </message>
+    <message>
+        <source>Copy URI</source>
+        <translation>Copiar URL</translation>
     </message>
     <message>
         <source>Copy label</source>

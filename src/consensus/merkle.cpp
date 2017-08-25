@@ -132,13 +132,13 @@ static void MerkleComputation(const std::vector<uint256>& leaves, uint256* proot
 
 uint256 ComputeMerkleRoot(const std::vector<uint256>& leaves, bool* mutated) {
     uint256 hash;
-    MerkleComputation(leaves, &hash, mutated, -1, NULL);
+    MerkleComputation(leaves, &hash, mutated, -1, nullptr);
     return hash;
 }
 
 std::vector<uint256> ComputeMerkleBranch(const std::vector<uint256>& leaves, uint32_t position) {
     std::vector<uint256> ret;
-    MerkleComputation(leaves, NULL, NULL, position, &ret);
+    MerkleComputation(leaves, nullptr, nullptr, position, &ret);
     return ret;
 }
 
@@ -158,10 +158,18 @@ uint256 ComputeMerkleRootFromBranch(const uint256& leaf, const std::vector<uint2
 uint256 BlockMerkleRoot(const CBlock& block, bool* mutated)
 {
     std::vector<uint256> leaves;
-    leaves.resize(block.vtx.size());
+
+    auto aggregateSize = block.vtx.size() + block.vref.size();
+    leaves.resize(aggregateSize);
+
     for (size_t s = 0; s < block.vtx.size(); s++) {
         leaves[s] = block.vtx[s]->GetHash();
     }
+
+    for (size_t s = block.vtx.size(); s < aggregateSize; s++) {
+        leaves[s] = block.vref[s]->GetHash();
+    }
+
     return ComputeMerkleRoot(leaves, mutated);
 }
 
