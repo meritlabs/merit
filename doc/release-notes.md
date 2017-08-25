@@ -13,22 +13,9 @@ To receive security and update notifications, please subscribe to:
 
   <https://bitcoincore.org/en/list/announcements/join/>
 
-Compatibility
+How to Upgrade
 ==============
 
-Bitcoin Core is extensively tested on multiple operating systems using
-the Linux kernel, macOS 10.8+, and Windows Vista and later.
-
-Microsoft ended support for Windows XP on [April 8th, 2014](https://www.microsoft.com/en-us/WindowsForBusiness/end-of-xp-support),
-No attempt is made to prevent installing or running the software on Windows XP, you
-can still do so at your own risk but be aware that there are known instabilities and issues.
-Please do not report issues about Windows XP to the issue tracker.
-
-Bitcoin Core should also work on most other Unix-like systems but is not
-frequently tested on them.
-
-Notable changes
-===============
 
 RPC changes
 -----------
@@ -79,45 +66,43 @@ here:
 
 0.14.1 Change log
 =================
+=======
+If you are running an older version, shut it down. Wait until it has completely
+shut down (which might take a few minutes for older versions), then run the 
+installer (on Windows) or just copy over /Applications/Bitcoin-Qt (on Mac)
+or `bitcoind`/`bitcoin-qt` (on Linux).
 
-Detailed release notes follow. This overview includes changes that affect
-behavior, not code moves, refactors and string updates. For convenience in locating
-the code changes and accompanying discussion, both the pull request and
-git merge commit are mentioned.
+The first time you run version 0.15.0, your chainstate database will be converted to a
+new format, which will take anywhere from a few minutes to half an hour,
+depending on the speed of your machine.
 
-### RPC and other APIs
-- #10084 `142fbb2` Rename first named arg of createrawtransaction (MarcoFalke)
-- #10139 `f15268d` Remove auth cookie on shutdown (practicalswift)
-- #10146 `2fea10a` Better error handling for submitblock (rawodb, gmaxwell)
-- #10144 `d947afc` Prioritisetransaction wasn't always updating ancestor fee (sdaftuar)
-- #10204 `3c79602` Rename disconnectnode argument (jnewbery)
+Note that the block database format also changed in version 0.8.0 and there is no
+automatic upgrade code from before version 0.8 to version 0.15.0. Upgrading
+directly from 0.7.x and earlier without redownloading the blockchain is not supported.
+However, as usual, old wallet versions are still supported.
 
-### Block and transaction handling
-- #10126 `0b5e162` Compensate for memory peak at flush time (sipa)
-- #9912 `fc3d7db` Optimize GetWitnessHash() for non-segwit transactions (sdaftuar)
-- #10133 `ab864d3` Clean up calculations of pcoinsTip memory usage (morcos)
+Downgrading warning
+-------------------
 
-### P2P protocol and network code
-- #9953/#10013 `d2548a4` Fix shutdown hang with >= 8 -addnodes set (TheBlueMatt)
-- #10176 `30fa231` net: gracefully handle NodeId wrapping (theuni)
+The chainstate database for this release is not compatible with previous
+releases, so if you run 0.15 and then decide to switch back to any
+older version, you will need to run the old release with the `-reindex-chainstate`
+option to rebuild the chainstate data structures in the old format.
 
-### Build system
-- #9973 `e9611d1` depends: fix zlib build on osx (theuni)
+If your node has pruning enabled, this will entail re-downloading and
+processing the entire blockchain.
 
-### GUI
-- #10060 `ddc2dd1` Ensure an item exists on the rpcconsole stack before adding (achow101)
+Compatibility
+==============
 
-### Mining
-- #9955/#10006 `569596c` Don't require segwit in getblocktemplate for segwit signalling or mining (sdaftuar)
-- #9959/#10127 `b5c3440` Prevent slowdown in CreateNewBlock on large mempools (sdaftuar)
+Bitcoin Core is extensively tested on multiple operating systems using
+the Linux kernel, macOS 10.8+, and Windows Vista and later. Windows XP is not supported.
 
-### Tests and QA
-- #10157 `55f641c` Fix the `mempool_packages.py` test (sdaftuar)
+Bitcoin Core should also work on most other Unix-like systems but is not
+frequently tested on them.
 
-### Miscellaneous
-- #10037 `4d8e660` Trivial: Fix typo in help getrawtransaction RPC (keystrike)
-- #10120 `e4c9a90` util: Work around (virtual) memory exhaustion on 32-bit w/ glibc (laanwj)
-- #10130 `ecc5232` bitcoin-tx input verification (awemany, jnewbery)
+Notable changes
+===============
 
 Credits
 =======
