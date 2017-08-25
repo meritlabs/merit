@@ -161,7 +161,7 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
 
 std::shared_ptr<CBlock> findGenesisBlock(uint64_t fromNonce, uint64_t toNonce, std::atomic_bool &stopSearching) {
     assert(toNonce > fromNonce);
-    auto genBlock = std::make_shared<CBlock>(CreateNewGenesisBlock(1503515697, fromNonce, 0x207fffff, 1, 50 * COIN));    
+    auto genBlock = std::make_shared<CBlock>(CreateNewGenesisBlock(1503670484, fromNonce, 0x207fffff, 1, 50 * COIN));    
     for (; fromNonce < toNonce && !CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus()); fromNonce++) {
         if (stopSearching) {
             genBlock->nNonce = -1; // Signalling that this thread did not find the winning nonce.  
