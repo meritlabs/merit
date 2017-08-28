@@ -45,13 +45,19 @@ uint64_t CBlockHeaderAndShortTxIDs::GetShortID(const uint256& txhash) const {
 
 
 
-ReadStatus PartiallyDownloadedBlock::InitData(const CBlockHeaderAndShortTxIDs& cmpctblock, const std::vector<std::pair<uint256, CTransactionRef>>& extra_txn) {
+ReadStatus PartiallyDownloadedBlock::InitData(
+        const CBlockHeaderAndShortTxIDs& cmpctblock, 
+        const ExtraTransactions& extra_txn,
+        const ExtraReferrals& extra_ref) {
+
     if (cmpctblock.header.IsNull() || (cmpctblock.shorttxids.empty() && cmpctblock.prefilledtxn.empty()))
         return READ_STATUS_INVALID;
     if (cmpctblock.shorttxids.size() + cmpctblock.prefilledtxn.size() > MAX_BLOCK_WEIGHT / MIN_SERIALIZABLE_TRANSACTION_WEIGHT)
         return READ_STATUS_INVALID;
 
     assert(header.IsNull() && txn_available.empty());
+    assert(header.IsNull() && ref_available.empty());
+
     header = cmpctblock.header;
     txn_available.resize(cmpctblock.BlockTxCount());
 
