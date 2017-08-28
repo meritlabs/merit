@@ -912,13 +912,24 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     return true;
 }
 
-static void RelayTransaction(const CTransaction& tx, CConnman& connman)
+static void RelayInventory(const CInv& inv, CConnman& connman)
 {
-    CInv inv(MSG_TX, tx.GetHash());
     connman.ForEachNode([&inv](CNode* pnode)
     {
         pnode->PushInventory(inv);
     });
+}
+
+static void RelayTransaction(const CTransaction& tx, CConnman& connman)
+{
+    CInv inv(MSG_TX, tx.GetHash());
+    RelayInventory(inv, connman);
+}
+
+static void RelayReferral(const Referral& rtx, CConnman& connman)
+{
+    CInv inv(MSG_REFERRAL, rtx.GetHash());
+    RelayInventory(inv, connman);
 }
 
 static void RelayAddress(const CAddress& addr, bool fReachable, CConnman& connman)
@@ -1179,6 +1190,15 @@ inline void static SendBlockTransactions(const CBlock& block, const BlockTransac
     const CNetMsgMaker msgMaker(pfrom->GetSendVersion());
     int nSendFlags = State(pfrom->GetId())->fWantsCmpctWitness ? 0 : SERIALIZE_TRANSACTION_NO_WITNESS;
     connman.PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::BLOCKTXN, resp));
+}
+
+void MarkGotInventoryFrom(CNode* pfrom, const CInv& inv)
+{
+    assert(pfrom);
+
+    pfrom->AddInventoryKnown(inv);
+    pfrom->setAskFor.erase(inv.hash);
+    mapAlreadyAskedFor.erase(inv.hash);
 }
 
 bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, int64_t nTimeReceived, const CChainParams& chainparams, CConnman& connman, const std::atomic<bool>& interruptMsgProc)
@@ -1785,16 +1805,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         connman.PushMessage(pfrom, msgMaker.Make(NetMsgType::HEADERS, vHeaders));
     }
 
-    else if (strCommand == NetMsgType::REF) {
-        ReferralRef rtx;
-        vRecv >> rtx;
-
-        LogPrintf("Referral message received\n");
-
-        AcceptToReferralMemoryPool(mempoolReferral, rtx);
-    }
-
-
     else if (strCommand == NetMsgType::TX)
     {
         // Stop processing the transaction early if
@@ -1812,15 +1822,13 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         const CTransaction& tx = *ptx;
 
         CInv inv(MSG_TX, tx.GetHash());
-        pfrom->AddInventoryKnown(inv);
 
         LOCK(cs_main);
 
         bool fMissingInputs = false;
         CValidationState state;
 
-        pfrom->setAskFor.erase(inv.hash);
-        mapAlreadyAskedFor.erase(inv.hash);
+        MarkGotInventoryFrom(pfrom, inv);
 
         std::list<CTransactionRef> lRemovedTxn;
 
@@ -1980,6 +1988,39 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         }
     }
 
+    else if (strCommand == NetMsgType::REF) {
+        // Similar to transactions, don't recieve transactions if in block only mode, or peer isn't whitelisted and
+        // whitelist parameter is used.
+        if (!fRelayTxes && (!pfrom->fWhitelisted || !gArgs.GetBoolArg("-whitelistrelay", DEFAULT_WHITELISTRELAY)))
+        {
+            LogPrint(BCLog::NET, "referral sent in violation of protocol peer=%d\n", pfrom->GetId());
+            return true;
+        }
+
+        ReferralRef prtx;
+        vRecv >> prtx;
+
+        if(prtx == nullptr)
+        {
+            LogPrint(BCLog::NET, "unable to decode referral =%d\n", pfrom->GetId());
+            return true;
+        }
+
+        const Referral& rtx = *prtx;
+
+        LogPrintf("Referral message received\n");
+
+        LOCK(cs_main);
+
+        // mark that we got the referral from pfrom 
+        // and make sure not to ask again.
+        CInv inv(MSG_REFERRAL, rtx.GetHash());
+        MarkGotInventoryFrom(pfrom, inv);
+
+        if (!AlreadyHave(inv) && AcceptToReferralMemoryPool(mempoolReferral, prtx)) {
+            RelayReferral(rtx, connman);
+        }
+    }
 
     else if (strCommand == NetMsgType::CMPCTBLOCK && !fImporting && !fReindex) // Ignore blocks received while importing
     {
