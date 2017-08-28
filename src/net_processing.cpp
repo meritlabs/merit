@@ -1186,6 +1186,16 @@ inline void static SendBlockTransactions(const CBlock& block, const BlockTransac
         }
         resp.txn[i] = block.vtx[req.m_transaction_indices[i]];
     }
+
+    for (size_t i = 0; i < req.m_referral_indices.size(); i++) {
+        if (req.m_referral_indices[i] >= block.m_vRef.size()) {
+            LOCK(cs_main);
+            Misbehaving(pfrom->GetId(), 100);
+            LogPrintf("Peer %d sent us a getblocktxn with out-of-bounds referral indices", pfrom->GetId());
+            return;
+        }
+        resp.ref[i] = block.m_vRef[req.m_referral_indices[i]];
+    }
     LOCK(cs_main);
     const CNetMsgMaker msgMaker(pfrom->GetSendVersion());
     int nSendFlags = State(pfrom->GetId())->fWantsCmpctWitness ? 0 : SERIALIZE_TRANSACTION_NO_WITNESS;
