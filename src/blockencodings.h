@@ -26,44 +26,70 @@ public:
     }
 };
 
+template <typename Stream, typename Operation>
+void ReadCompressedIndices(Stream& s, Operation ser_action, uint64_t size, std::vector<uint16_t>& decompressed)
+{
+    decompressed.resize(size);
+
+    //read in deltas
+    for (auto& index : decompressed) {
+        uint64_t index64 = 0;
+        READWRITE(COMPACTSIZE(index64));
+        if (index64 > std::numeric_limits<uint16_t>::max())
+            throw std::ios_base::failure("index overflowed 16 bits");
+        index = index64;
+    }
+
+    //de-delta
+    uint16_t offset = 0;
+    for (auto& index : decompressed) {
+        if (static_cast<uint64_t>(index) + static_cast<uint64_t>(offset) > std::numeric_limits<uint16_t>::max())
+            throw std::ios_base::failure("index overflowed 16 bits");
+        index = index + offset;
+        offset = index + 1;
+    }
+}
+
+template <typename Stream, typename Operation>
+void WriteCompressedIndices(Stream& s, Operation ser_action, const std::vector<uint16_t>& indices)
+{
+    if(indices.empty()) return;
+
+    READWRITE(COMPACTSIZE(static_cast<uint64_t>(indices[0])));
+
+    uint16_t expected = 1;
+    for (size_t i = 1; i < indices.size(); i++) {
+        uint64_t index = indices[i] - expected;
+        READWRITE(COMPACTSIZE(index));
+        expected = indices[i] + 1;
+    }
+}
+
 class BlockTransactionsRequest {
 public:
     // A BlockTransactionsRequest message
     uint256 blockhash;
-    std::vector<uint16_t> indexes;
+    std::vector<uint16_t> m_transaction_indices;
+    std::vector<uint16_t> m_referral_indices;
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(blockhash);
-        uint64_t indexes_size = (uint64_t)indexes.size();
-        READWRITE(COMPACTSIZE(indexes_size));
-        if (ser_action.ForRead()) {
-            size_t i = 0;
-            while (indexes.size() < indexes_size) {
-                indexes.resize(std::min((uint64_t)(1000 + indexes.size()), indexes_size));
-                for (; i < indexes.size(); i++) {
-                    uint64_t index = 0;
-                    READWRITE(COMPACTSIZE(index));
-                    if (index > std::numeric_limits<uint16_t>::max())
-                        throw std::ios_base::failure("index overflowed 16 bits");
-                    indexes[i] = index;
-                }
-            }
 
-            uint16_t offset = 0;
-            for (size_t j = 0; j < indexes.size(); j++) {
-                if (uint64_t(indexes[j]) + uint64_t(offset) > std::numeric_limits<uint16_t>::max())
-                    throw std::ios_base::failure("indexes overflowed 16 bits");
-                indexes[j] = indexes[j] + offset;
-                offset = indexes[j] + 1;
-            }
+        uint64_t m_transaction_indices_size = static_cast<uint64_t>(m_transaction_indices.size());
+        READWRITE(COMPACTSIZE(m_transaction_indices_size));
+
+        uint64_t m_referral_indices_size = static_cast<uint64_t>(m_referral_indices.size());
+        READWRITE(COMPACTSIZE(m_referral_indices_size));
+
+        if (ser_action.ForRead()) {
+            ReadCompressedIndices(s, ser_action, m_transaction_indices_size, m_transaction_indices);
+            ReadCompressedIndices(s, ser_action, m_referral_indices_size, m_referral_indices);
         } else {
-            for (size_t i = 0; i < indexes.size(); i++) {
-                uint64_t index = indexes[i] - (i == 0 ? 0 : (indexes[i - 1] + 1));
-                READWRITE(COMPACTSIZE(index));
-            }
+            WriteCompressedIndices(s, ser_action, m_transaction_indices);
+            WriteCompressedIndices(s, ser_action, m_referral_indices);
         }
     }
 };
@@ -76,7 +102,7 @@ public:
 
     BlockTransactions() {}
     explicit BlockTransactions(const BlockTransactionsRequest& req) :
-        blockhash(req.blockhash), txn(req.indexes.size()) {}
+        blockhash(req.blockhash), txn(req.m_transaction_indices.size()) {}
 
     ADD_SERIALIZE_METHODS;
 
