@@ -11,7 +11,7 @@
 class Referral;
 class CValidationState;
 
-namespace Consensus 
+namespace consensus 
 {
     // Context Independent referral validity checks
     bool CheckReferral(const Referral& tx, CValidationState& state);

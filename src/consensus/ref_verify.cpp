@@ -9,7 +9,7 @@
 
 // TODO remove the following dependencies
 #include "chain.h"
-namespace Consensus 
+namespace consensus 
 {
     namespace
     {

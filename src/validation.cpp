@@ -2842,7 +2842,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 
     // Check Referrals
     for (const auto& ref : block.m_vRef)
-        if (!Consensus::CheckReferral(*ref, state))
+        if (!consensus::CheckReferral(*ref, state))
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
                                  strprintf("Referral check failed (ref hash %s) %s", ref->GetHash().ToString(), state.GetDebugMessage()));
 
