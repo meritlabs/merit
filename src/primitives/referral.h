@@ -8,12 +8,11 @@
 #define BITCOIN_PRIMITIVES_REFERRAL_H
 
 #include <stdint.h>
-#include "amount.h"
 #include "script/script.h"
 #include "serialize.h"
 #include "uint256.h"
 
-struct CMutableReferral;
+struct MutableReferral;
 
 static const int SERIALIZE_REFERRAL = 0x40000000;
 
@@ -27,6 +26,7 @@ inline void UnserializeReferral(TxType& ref, Stream& s) {
     s >> ref.nVersion;
     s >> ref.previousReferral;
     s >> ref.scriptSig;
+    s >> ref.code;
 }
 
 template<typename Stream, typename TxType>
@@ -34,6 +34,7 @@ inline void SerializeReferral(const TxType& ref, Stream& s) {
     s << ref.nVersion;
     s << ref.previousReferral;
     s << ref.scriptSig;
+    s << ref.code;
 }
 
 
@@ -41,7 +42,7 @@ inline void SerializeReferral(const TxType& ref, Stream& s) {
  * blocks. A referral references a previous referral which helps construct the
  * referral tree.
  */
-class CReferral
+class Referral
 {
 public:
     // Default referral version.
@@ -59,6 +60,9 @@ public:
     // Signed signature of previousReferral + nVersion
     CScript scriptSig;
 
+    // Referral code that is used as a referrence to a wallet
+    const uint256 code;
+
 private:
     /** Memory only. */
     const uint256 hash;
@@ -66,12 +70,14 @@ private:
     uint256 ComputeHash() const;
 
 public:
-    /** Construct a CReferral that qualifies as IsNull() */
-    CReferral();
+    /** Construct a Referral that qualifies as IsNull() */
+    Referral();
 
-    /** Convert a CMutableReferral into a CReferral. */
-    CReferral(const CMutableReferral &ref);
-    CReferral(CMutableReferral &&ref);
+    Referral(const uint256 codeIn);
+
+    /** Convert a MutableReferral into a Referral. */
+    Referral(const MutableReferral &ref);
+    Referral(MutableReferral &&ref);
 
     template <typename Stream>
     inline void Serialize(Stream& s) const {
@@ -81,7 +87,7 @@ public:
     /** This deserializing constructor is provided instead of an Unserialize method.
      *  Unserialize is not possible, since it would require overwriting const fields. */
     template <typename Stream>
-    CReferral(deserialize_type, Stream& s) : CReferral(CMutableReferral(deserialize, s)) {}
+    Referral(deserialize_type, Stream& s) : Referral(MutableReferral(deserialize, s)) {}
 
     const uint256& GetHash() const {
         return hash;
@@ -97,12 +103,12 @@ public:
      */
     unsigned int GetTotalSize() const;
 
-    friend bool operator==(const CReferral& a, const CReferral& b)
+    friend bool operator==(const Referral& a, const Referral& b)
     {
         return a.hash == b.hash;
     }
 
-    friend bool operator!=(const CReferral& a, const CReferral& b)
+    friend bool operator!=(const Referral& a, const Referral& b)
     {
         return a.hash != b.hash;
     }
@@ -110,15 +116,16 @@ public:
     std::string ToString() const;
 };
 
-/** A mutable version of CReferral. */
-struct CMutableReferral
+/** A mutable version of Referral. */
+struct MutableReferral
 {
-    const int32_t nVersion;
+    int32_t nVersion;
     uint256 previousReferral;
     CScript scriptSig;
+    uint256 code;
 
-    CMutableReferral();
-    CMutableReferral(const CReferral& ref);
+    MutableReferral();
+    MutableReferral(const Referral& ref);
 
     template <typename Stream>
     inline void Serialize(Stream& s) const {
@@ -132,23 +139,23 @@ struct CMutableReferral
     }
 
     template <typename Stream>
-    CMutableReferral(deserialize_type, Stream& s) {
+    MutableReferral(deserialize_type, Stream& s) {
         Unserialize(s);
     }
 
-    /** Compute the hash of this CMutableReferral. This is computed on the
-     * fly, as opposed to GetHash() in CReferral, which uses a cached result.
+    /** Compute the hash of this MutableReferral. This is computed on the
+     * fly, as opposed to GetHash() in Referral, which uses a cached result.
      */
     uint256 GetHash() const;
 
-    friend bool operator==(const CMutableReferral& a, const CMutableReferral& b)
+    friend bool operator==(const MutableReferral& a, const MutableReferral& b)
     {
         return a.GetHash() == b.GetHash();
     }
 };
 
-typedef std::shared_ptr<const CReferral> CReferralRef;
-static inline CReferralRef MakeReferralRef() { return std::make_shared<const CReferral>(); }
-template <typename Ref> static inline CReferralRef MakeReferralRef(Ref&& previousRef) { return std::make_shared<const CReferral>(std::forward<Ref>(previousRef)); }
+typedef std::shared_ptr<const Referral> ReferralRef;
+static inline ReferralRef MakeReferralRef() { return std::make_shared<const Referral>(); }
+template <typename Ref> static inline ReferralRef MakeReferralRef(Ref&& previousRef) { return std::make_shared<const Referral>(std::forward<Ref>(previousRef)); }
 
 #endif // BITCOIN_PRIMITIVES_REFERRAL_H

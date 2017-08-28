@@ -7,9 +7,9 @@
 #define BITCOIN_WALLET_WALLETDB_H
 
 #include "amount.h"
+#include "key.h"
 #include "primitives/transaction.h"
 #include "wallet/db.h"
-#include "key.h"
 
 #include <list>
 #include <stdint.h>
@@ -42,6 +42,7 @@ class CMasterKey;
 class CScript;
 class CWallet;
 class CWalletTx;
+class ReferralTx;
 class uint160;
 class uint256;
 
@@ -241,6 +242,10 @@ public:
     bool ReadVersion(int& nVersion);
     //! Write wallet version
     bool WriteVersion(int nVersion);
+
+    //! Write referral
+    bool WriteReferralTx(const ReferralTx& rtx);
+
 private:
     CDB batch;
     CWalletDBWrapper& m_dbw;

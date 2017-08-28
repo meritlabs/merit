@@ -905,6 +905,8 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_BLOCK:
     case MSG_WITNESS_BLOCK:
         return mapBlockIndex.count(inv.hash);
+    case MSG_REFERRAL:
+        return false;
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -1122,6 +1124,13 @@ void static ProcessGetData(CNode* pfrom, const Consensus::Params& consensusParam
                 }
                 if (!push) {
                     vNotFound.push_back(inv);
+                }
+            } else if (inv.type == MSG_REFERRAL) {
+                auto it = mempoolReferral.mapRTx.find(inv.hash);
+                int nSendFlags = 0;
+
+                if (it != mempoolReferral.mapRTx.end()) {
+                    connman.PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::REF, *it->second));
                 }
             }
 
@@ -1526,7 +1535,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         }
     }
 
-
     else if (strCommand == NetMsgType::INV)
     {
         std::vector<CInv> vInv;
@@ -1775,6 +1783,15 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         // in the SendMessages logic.
         nodestate->pindexBestHeaderSent = pindex ? pindex : chainActive.Tip();
         connman.PushMessage(pfrom, msgMaker.Make(NetMsgType::HEADERS, vHeaders));
+    }
+
+    else if (strCommand == NetMsgType::REF) {
+        ReferralRef rtx;
+        vRecv >> rtx;
+
+        LogPrintf("Referral message received\n");
+
+        AcceptToReferralMemoryPool(mempoolReferral, rtx);
     }
 
 
@@ -2659,6 +2676,26 @@ static bool SendRejectsAndCheckIfBanned(CNode* pnode, CConnman& connman)
     return false;
 }
 
+void SendInventoryReferralsRequest(CNode* pto, CConnman& connman, const CNetMsgMaker& msgMaker)
+{
+    std::vector<CInv> vInv;
+
+    vInv.reserve(std::max<size_t>(pto->setInventoryReferralToSend.size(), INVENTORY_BROADCAST_MAX));
+
+    for (const uint256& hash: pto->setInventoryReferralToSend) {
+        vInv.push_back(CInv(MSG_REFERRAL, hash));
+        if (vInv.size() == MAX_INV_SZ) {
+            connman.PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
+            vInv.clear();
+        }
+    }
+
+    pto->setInventoryReferralToSend.clear();
+
+    if (!vInv.empty())
+        connman.PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
+}
+
 bool ProcessMessages(CNode* pfrom, CConnman& connman, const std::atomic<bool>& interruptMsgProc)
 {
     const CChainParams& chainparams = Params();
@@ -3071,6 +3108,9 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                 }
             }
             pto->vInventoryBlockToSend.clear();
+
+            // Add referrals
+            SendInventoryReferralsRequest(pto, connman, msgMaker);
 
             // Check whether periodic sends should happen
             bool fSendTrickle = pto->fWhitelisted;
