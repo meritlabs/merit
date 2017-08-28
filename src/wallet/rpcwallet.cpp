@@ -77,6 +77,10 @@ void EnsureWalletIsUnlocked(CWallet * const pwallet)
     if (pwallet->IsLocked()) {
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
     }
+
+    if (!pwallet->IsReferred()) {
+        throw JSONRPCError(RPC_REFERRER_IS_NOT_SET, "Error: Referee must be set in the wallet. Use referral code to unlock first.");
+    }
 }
 
 void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
@@ -3134,6 +3138,118 @@ UniValue generate(const JSONRPCRequest& request)
     return generateBlocks(coinbase_script, num_generate, max_tries, true);
 }
 
+UniValue generatereferralcode(const JSONRPCRequest& request) 
+{
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 0) {
+        throw std::runtime_error(
+            "Generate referral code for the wallet\n"
+            "\nResult:\n"
+            "\"referral\"    (string) The new referral code\n"
+            "\nExamples:\n"
+            "\nGenerate referral code for default wallet\n"
+            + HelpExampleCli("generatereferralcode", "")
+        );
+    }
+
+    if (!g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
+
+    UniValue result(UniValue::VBOOL);
+    result.push_back(SendReferralTx(g_connman.get()));
+
+    return result;
+}
+
+UniValue validatereferralcode(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 0) {
+        throw std::runtime_error(
+            "Validate referral code\n"
+            + HelpExampleCli("validatereferralcode", "")
+        );
+    }
+
+    UniValue result(UniValue::VOBJ);
+    return result;
+}
+
+UniValue setreferralcode(const JSONRPCRequest& request) 
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 1 || request.params[0].get_str().empty()) {
+        throw std::runtime_error(
+            "setreferralcode\n"
+            "Updates the wallet with referral code and unlocks the wallet.\n"
+            "Returns an object containing various wallet state info.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"walletname\": xxxxx,             (string) the wallet name\n"
+            "  \"walletversion\": xxxxx,          (numeric) the wallet version\n"
+            "  \"balance\": xxxxxxx,              (numeric) the total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
+            "  \"unconfirmed_balance\": xxx,      (numeric) the total unconfirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
+            "  \"immature_balance\": xxxxxx,      (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
+            "  \"txcount\": xxxxxxx,              (numeric) the total number of transactions in the wallet\n"
+            "  \"keypoololdest\": xxxxxx,         (numeric) the timestamp (seconds since Unix epoch) of the oldest pre-generated key in the key pool\n"
+            "  \"keypoolsize\": xxxx,             (numeric) how many new keys are pre-generated (only counts external keys)\n"
+            "  \"keypoolsize_hd_internal\": xxxx, (numeric) how many new keys are pre-generated for internal use (used for change outputs, only appears if the wallet is using this feature, otherwise external keys are used)\n"
+            "  \"unlocked_until\": ttt,           (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
+            "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
+            "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("setreferralcode", "\"referralcode\"")
+            + HelpExampleRpc("setreferralcode", "\"referralcode\"")
+        );
+    }
+
+    if (pwallet->IsReferred()) {
+        throw JSONRPCError(RPC_REFERRER_IS_SET, "Error: Referee is already set for the wallet.");
+    }
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    auto code = request.params[0].get_str();
+
+    std::cout << "Called setreferral with code: " << code << std::endl;
+
+    UniValue obj(UniValue::VOBJ);
+    
+    size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
+    obj.push_back(Pair("walletname", pwallet->GetName()));
+    obj.push_back(Pair("walletversion", pwallet->GetVersion()));
+    obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
+    obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
+    obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
+    obj.push_back(Pair("txcount",       (int)pwallet->mapWallet.size()));
+    obj.push_back(Pair("keypoololdest", pwallet->GetOldestKeyPoolTime()));
+    obj.push_back(Pair("keypoolsize", (int64_t)kpExternalSize));
+    CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
+    
+    if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT)) 
+        obj.push_back(Pair("keypoolsize_hd_internal",   (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
+
+    if (pwallet->IsCrypted()) 
+        obj.push_back(Pair("unlocked_until", pwallet->nRelockTime));
+    
+    obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
+    
+    if (!masterKeyID.IsNull())
+        obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
+    
+    return obj;
+}
+
 extern UniValue abortrescan(const JSONRPCRequest& request); // in rpcdump.cpp
 extern UniValue dumpprivkey(const JSONRPCRequest& request); // in rpcdump.cpp
 extern UniValue importprivkey(const JSONRPCRequest& request);
@@ -3200,6 +3316,12 @@ static const CRPCCommand commands[] =
     { "wallet",             "removeprunedfunds",        &removeprunedfunds,        true,   {"txid"} },
 
     { "generating",         "generate",                 &generate,                 true,   {"nblocks","maxtries"} },
+
+    // merit specific commands
+
+    { "referral",           "generatereferralcode",     &generatereferralcode,     true,   {} },
+    { "referral",           "validatereferralcode",     &validatereferralcode,     true,   {} },
+    { "referral",           "setreferralcode",          &setreferralcode,          false,  {} }
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)

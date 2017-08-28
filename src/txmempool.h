@@ -48,7 +48,16 @@ struct LockPoints
     LockPoints() : height(0), time(0), maxInputBlock(nullptr) { }
 };
 
-class CTxMemPool;
+class ReferralTxMemPool
+{
+public:
+    std::map<uint256, ReferralRef> mapRTx;
+    mutable CCriticalSection cs;
+
+    ReferralTxMemPool() {};
+
+    bool AddUnchecked(const uint256& hash, const ReferralRef entry);
+};
 
 /** \class CTxMemPoolEntry
  *
@@ -61,7 +70,6 @@ class CTxMemPool;
  * all ancestors of the newly added transaction.
  *
  */
-
 class CTxMemPoolEntry
 {
 private:
@@ -666,7 +674,7 @@ private:
     void removeUnchecked(txiter entry, MemPoolRemovalReason reason = MemPoolRemovalReason::UNKNOWN);
 };
 
-/** 
+/**
  * CCoinsView that brings transactions from a memorypool into view.
  * It does not check for spendings by memory pool transactions.
  * Instead, it provides access to all Coins which are either unspent in the
