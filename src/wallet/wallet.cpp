@@ -144,7 +144,7 @@ bool ReferralTx::AcceptToMemoryPool(const ReferralRef& referral) {
 
 bool SendReferralTx(CConnman *connman) {
     ReferralRef referral = MakeReferralRef(MutableReferral());
-	ReferralTx rtx(referral);
+    ReferralTx rtx(referral);
 
 	return rtx.RelayReferralTransaction(connman);
 }

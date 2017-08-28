@@ -253,7 +253,7 @@ class CRegTestParams : public CChainParams {
 public:
     CRegTestParams() {
         strNetworkID = "regtest";
-        consensus.nSubsidyHalvingInterval = 150;
+        consensus.nSubsidyHalvingInterval = 15000;
         consensus.BIP34Height = 100000000; // BIP34 has not activated on regtest (far in the future so block v1 are not rejected in tests)
         consensus.BIP34Hash = uint256();
         consensus.BIP65Height = 1351; // BIP65 activated on regtest (Used in rpc activation tests)
@@ -288,10 +288,10 @@ public:
         nDefaultPort = 18556;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503352716, 337, 0x207fffff, 1, 20000000 * COIN);
+        genesis = CreateGenesisBlock(1503670484, 1, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0b2ecdb504815d9cd6ee91c9b0093ff2ccc84428b4c2957f7270d0ada3c2c905"));
-        assert(genesis.hashMerkleRoot == uint256S("5731febf76c3c07d0eae6fe60cb37c827f0631a8d3a0b0fff91f19755e2917cf"));
+        assert(consensus.hashGenesisBlock == uint256S("192b040df53511a4a3f63a4b9c66e85f19f5963b345a2ac4fada7b58907ef272"));
+        assert(genesis.hashMerkleRoot == uint256S("b1c4626a9b876698ea607a9e1e77b28283d65e1d538c6c79a57f34d9ad4166ad"));
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
@@ -302,7 +302,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("0b2ecdb504815d9cd6ee91c9b0093ff2ccc84428b4c2957f7270d0ada3c2c905")},
+                {0, uint256S("192b040df53511a4a3f63a4b9c66e85f19f5963b345a2ac4fada7b58907ef272")},
             }
         };
 

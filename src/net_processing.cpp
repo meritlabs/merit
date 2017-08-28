@@ -1786,7 +1786,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
     }
 
     else if (strCommand == NetMsgType::REF) {
-
         ReferralRef rtx;
         vRecv >> rtx;
 
@@ -2677,6 +2676,26 @@ static bool SendRejectsAndCheckIfBanned(CNode* pnode, CConnman& connman)
     return false;
 }
 
+void SendInventoryReferralsRequest(CNode* pto, CConnman& connman, const CNetMsgMaker& msgMaker)
+{
+    std::vector<CInv> vInv;
+
+    vInv.reserve(std::max<size_t>(pto->setInventoryReferralToSend.size(), INVENTORY_BROADCAST_MAX));
+
+    for (const uint256& hash: pto->setInventoryReferralToSend) {
+        vInv.push_back(CInv(MSG_REFERRAL, hash));
+        if (vInv.size() == MAX_INV_SZ) {
+            connman.PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
+            vInv.clear();
+        }
+    }
+
+    pto->setInventoryReferralToSend.clear();
+
+    if (!vInv.empty())
+        connman.PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
+}
+
 bool ProcessMessages(CNode* pfrom, CConnman& connman, const std::atomic<bool>& interruptMsgProc)
 {
     const CChainParams& chainparams = Params();
@@ -3090,18 +3109,8 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
             }
             pto->vInventoryBlockToSend.clear();
 
-
-            vInv.reserve(pto->setInventoryReferralToSend.size());
-
             // Add referrals
-            for (const uint256& hash : pto->setInventoryReferralToSend) {
-                vInv.push_back(CInv(MSG_REFERRAL, hash));
-                if (vInv.size() == MAX_INV_SZ) {
-                    connman.PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
-                    vInv.clear();
-                }
-            }
-            pto->setInventoryReferralToSend.clear();
+            SendInventoryReferralsRequest(pto, connman, msgMaker);
 
             // Check whether periodic sends should happen
             bool fSendTrickle = pto->fWhitelisted;
@@ -3305,11 +3314,9 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
         //
         while (!pto->mapAskFor.empty() && (*pto->mapAskFor.begin()).first <= nNow)
         {
-            LogPrintf("mapAskFor IS NOT EMPTY\n");
             const CInv& inv = (*pto->mapAskFor.begin()).second;
             if (!AlreadyHave(inv))
             {
-                LogPrintf("not AlreadyHave\n");
                 LogPrint(BCLog::NET, "Requesting %s peer=%d\n", inv.ToString(), pto->GetId());
                 vGetData.push_back(inv);
                 if (vGetData.size() >= 1000)
