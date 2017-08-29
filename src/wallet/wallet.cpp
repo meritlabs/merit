@@ -149,8 +149,6 @@ std::string GenerateAndSendReferralTx(CConnman* connman)
 
     bool sent = rtx.RelayReferralTransaction(connman);
 
-    LogPrintf("Generated referral. hash: %s, code: %s", referral->GetHash().ToString(), referral->code.ToString());
-
     if (!sent) {
         throw std::runtime_error(std::string(__func__) + ": relaying referral transaction failed");
     }
