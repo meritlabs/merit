@@ -100,7 +100,7 @@ enum WalletFeature
     FEATURE_LATEST = FEATURE_COMPRPUBKEY // HD is optional, use FEATURE_COMPRPUBKEY as latest version
 };
 
-bool SendReferralTx(CConnman *connman);
+std::string GenerateAndSendReferralTx(CConnman *connman);
 
 /** A key pool entry */
 class CKeyPool

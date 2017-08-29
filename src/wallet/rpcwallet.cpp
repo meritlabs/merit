@@ -3138,7 +3138,7 @@ UniValue generate(const JSONRPCRequest& request)
     return generateBlocks(coinbase_script, num_generate, max_tries, true);
 }
 
-UniValue generatereferralcode(const JSONRPCRequest& request) 
+UniValue generatereferralcode(const JSONRPCRequest& request)
 {
     CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
 
@@ -3161,8 +3161,7 @@ UniValue generatereferralcode(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
     }
 
-    UniValue result(UniValue::VBOOL);
-    result.push_back(SendReferralTx(g_connman.get()));
+    UniValue result(GenerateAndSendReferralTx(g_connman.get()));
 
     return result;
 }
@@ -3180,7 +3179,7 @@ UniValue validatereferralcode(const JSONRPCRequest& request)
     return result;
 }
 
-UniValue setreferralcode(const JSONRPCRequest& request) 
+UniValue setreferralcode(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
@@ -3224,7 +3223,7 @@ UniValue setreferralcode(const JSONRPCRequest& request)
     std::cout << "Called setreferral with code: " << code << std::endl;
 
     UniValue obj(UniValue::VOBJ);
-    
+
     size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
@@ -3235,18 +3234,18 @@ UniValue setreferralcode(const JSONRPCRequest& request)
     obj.push_back(Pair("keypoololdest", pwallet->GetOldestKeyPoolTime()));
     obj.push_back(Pair("keypoolsize", (int64_t)kpExternalSize));
     CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
-    
-    if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT)) 
+
+    if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT))
         obj.push_back(Pair("keypoolsize_hd_internal",   (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
 
-    if (pwallet->IsCrypted()) 
+    if (pwallet->IsCrypted())
         obj.push_back(Pair("unlocked_until", pwallet->nRelockTime));
-    
+
     obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
-    
+
     if (!masterKeyID.IsNull())
         obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
-    
+
     return obj;
 }
 
