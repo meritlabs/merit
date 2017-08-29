@@ -113,4 +113,8 @@ contrib/devtools/split-debug.sh
 
 # IDEs
 .idea/
+.project
+.cproject
+.settings
+.tags*
 .vscode

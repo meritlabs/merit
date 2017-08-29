@@ -9,54 +9,68 @@
 #include "hash.h"
 #include "tinyformat.h"
 #include "utilstrencodings.h"
+#include "random.h"
 
-CMutableReferral::CMutableReferral() : 
-    nVersion(CReferral::CURRENT_VERSION),
-    previousReferral(),
-    scriptSig() {}
-CMutableReferral::CMutableReferral(const CReferral& ref) : 
-    nVersion(ref.nVersion),
-    previousReferral(ref.previousReferral),
-    scriptSig(ref.scriptSig) {}
+MutableReferral::MutableReferral() :
+    nVersion{Referral::CURRENT_VERSION},
+    previousReferral{},
+    scriptSig{},
+    code{GetRandHash()} {}
 
-uint256 CMutableReferral::GetHash() const
+MutableReferral::MutableReferral(const Referral& ref) :
+    nVersion{ref.nVersion},
+    previousReferral{ref.previousReferral},
+    scriptSig{ref.scriptSig},
+    code{ref.code} {}
+
+uint256 MutableReferral::GetHash() const
 {
     return SerializeHash(*this, SER_GETHASH);
 }
 
-uint256 CReferral::ComputeHash() const
+uint256 Referral::ComputeHash() const
 {
     return SerializeHash(*this, SER_GETHASH);
 }
 
 /* For backward compatibility, the hash is initialized to 0. TODO: remove the need for this default constructor entirely. */
-CReferral::CReferral() : 
-    nVersion(CReferral::CURRENT_VERSION),
-    previousReferral(),
-    scriptSig(),
-    hash() {}
+Referral::Referral() :
+    nVersion{Referral::CURRENT_VERSION},
+    previousReferral{},
+    scriptSig{},
+    code{GetRandHash()},
+    hash{} {}
 
-CReferral::CReferral(const CMutableReferral &ref) : 
-    nVersion(ref.nVersion),
-    previousReferral(ref.previousReferral),
-    scriptSig(ref.scriptSig),
-    hash(ComputeHash()) {}
+Referral::Referral(const uint256 codeIn) :
+    nVersion{Referral::CURRENT_VERSION},
+    previousReferral{},
+    scriptSig{},
+    code{codeIn},
+    hash{} {}
 
-CReferral::CReferral(CMutableReferral &&ref) : 
-    nVersion(ref.nVersion),
-    previousReferral(std::move(ref.previousReferral)),
-    scriptSig(std::move(ref.scriptSig)),
-    hash(ComputeHash()) {}
+Referral::Referral(const MutableReferral &ref) :
+    nVersion{ref.nVersion},
+    previousReferral{ref.previousReferral},
+    scriptSig{ref.scriptSig},
+    code{ref.code},
+    hash{ComputeHash()} {}
 
-unsigned int CReferral::GetTotalSize() const
+Referral::Referral(MutableReferral &&ref) :
+    nVersion{ref.nVersion},
+    previousReferral{std::move(ref.previousReferral)},
+    scriptSig{std::move(ref.scriptSig)},
+    code{ref.code},
+    hash{ComputeHash()} {}
+
+unsigned int Referral::GetTotalSize() const
 {
     return ::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION);
 }
 
-std::string CReferral::ToString() const
+std::string Referral::ToString() const
 {
     std::string str;
-    str += strprintf("CReferral(hash=%s, ver=%d, previousReferral=%s, scriptSig=%s)\n",
+    str += strprintf("Referral(hash=%s, ver=%d, previousReferral=%s, scriptSig=%s)\n",
         GetHash().ToString().substr(0,10),
         nVersion,
         HexStr(previousReferral),
