@@ -18,6 +18,18 @@
 #include "utilmoneystr.h"
 #include "utiltime.h"
 
+
+bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const ReferralRef referral)
+{
+    LOCK(cs);
+
+    if (mapRTx.count(hash) == 0) {
+        mapRTx.insert(std::make_pair(hash, referral));
+    }
+
+    return true;
+}
+
 CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
                                  int64_t _nTime, unsigned int _entryHeight,
                                  bool _spendsCoinbase, int64_t _sigOpsCost, LockPoints lp):
@@ -289,7 +301,7 @@ void CTxMemPool::UpdateForRemoveFromMempool(const setEntries &entriesToRemove, b
         // should be a bit faster.
         // However, if we happen to be in the middle of processing a reorg, then
         // the mempool can be in an inconsistent state.  In this case, the set
-        // of ancestors reachable via mapLinks will be the same as the set of 
+        // of ancestors reachable via mapLinks will be the same as the set of
         // ancestors whose packages include this transaction, because when we
         // add a new transaction to the mempool in addUnchecked(), we assume it
         // has no children, and in the case of a reorg where that assumption is

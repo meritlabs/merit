@@ -113,6 +113,49 @@ public:
     void operator()(const CNoDestination &none) {}
 };
 
+bool ReferralTx::RelayReferralTransaction(CConnman *connman)
+{
+    if (InMempool() || AcceptToMemoryPool(m_pReferral)) {
+        if (connman) {
+            CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
+
+            LogPrint(BCLog::NET, "Relaying referral %s\n", m_pReferral->GetHash().ToString());
+            connman->ForEachNode([&inv](CNode* pnode)
+            {
+                pnode->PushInventory(inv);
+            });
+
+            return true;
+        }
+    }
+
+	return false;
+}
+
+bool ReferralTx::InMempool() const
+{
+    LOCK(mempoolReferral.cs);
+    return mempoolReferral.mapRTx.count(GetHash());
+}
+
+bool ReferralTx::AcceptToMemoryPool(const ReferralRef& referral) {
+    return ::AcceptToReferralMemoryPool(mempoolReferral, referral);
+}
+
+std::string GenerateAndSendReferralTx(CConnman* connman)
+{
+    ReferralRef referral = MakeReferralRef(MutableReferral());
+    ReferralTx rtx(referral);
+
+    bool sent = rtx.RelayReferralTransaction(connman);
+
+    if (!sent) {
+        throw std::runtime_error(std::string(__func__) + ": relaying referral transaction failed");
+    }
+
+    return referral->code.ToString();
+}
+
 const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
 {
     LOCK(cs_wallet);
@@ -1472,6 +1515,30 @@ bool CWallet::SetHDChain(const CHDChain& chain, bool memonly)
 bool CWallet::IsHDEnabled() const
 {
     return !hdChain.masterKeyID.IsNull();
+}
+
+ReferralTx CWallet::GenerateNewReferral(CWalletDB& walletdb)
+{
+    ReferralTx rtx(MakeReferralRef());
+
+    rtx.BindWallet(this);
+
+    walletdb.WriteReferralTx(rtx);
+    SetReferralTx(rtx);
+
+    return rtx;
+}
+
+bool CWallet::SetReferralTx(const ReferralTx& rtx)
+{
+    m_referralTx = rtx;
+
+    return true;
+}
+
+bool CWallet::IsReferred() const
+{
+    return !m_referralTx.GetHash().IsNull();
 }
 
 int64_t CWalletTx::GetTxTime() const
@@ -3108,7 +3175,9 @@ CAmount CWallet::GetMinimumFee(unsigned int nTxBytes, const CCoinControl& coin_c
 DBErrors CWallet::LoadWallet(bool& fFirstRunRet)
 {
     fFirstRunRet = false;
-    DBErrors nLoadWalletRet = CWalletDB(*dbw,"cr+").LoadWallet(this);
+    CWalletDB wdb(*dbw,"cr+");
+
+    DBErrors nLoadWalletRet = wdb.LoadWallet(this);
     if (nLoadWalletRet == DB_NEED_REWRITE)
     {
         if (dbw->Rewrite("\x04pool"))
@@ -3128,6 +3197,8 @@ DBErrors CWallet::LoadWallet(bool& fFirstRunRet)
 
     if (nLoadWalletRet != DB_LOAD_OK)
         return nLoadWalletRet;
+
+    GenerateNewReferral(wdb);
 
     uiInterface.LoadWallet(this);
 
@@ -3357,7 +3428,7 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRe
     {
         LOCK(cs_wallet);
 
-        if (!IsLocked())
+        if (!IsLocked() || IsReferred())
             TopUpKeyPool();
 
         bool fReturningInternal = IsHDEnabled() && CanSupportFeature(FEATURE_HD_SPLIT) && fRequestedInternal;
@@ -3420,7 +3491,7 @@ bool CWallet::GetKeyFromPool(CPubKey& result, bool internal)
         ReserveKeyFromKeyPool(nIndex, keypool, internal);
         if (nIndex == -1)
         {
-            if (IsLocked()) return false;
+            if (IsLocked() || IsReferred()) return false;
             CWalletDB walletdb(*dbw);
             result = GenerateNewKey(walletdb, internal);
             return true;

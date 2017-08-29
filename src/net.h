@@ -659,6 +659,7 @@ public:
     // Set of transaction ids we still have to announce.
     // They are sorted by the mempool before relay, so the order is not important.
     std::set<uint256> setInventoryTxToSend;
+    std::set<uint256> setInventoryReferralToSend;
     // List of block ids we still have announce.
     // There is no final sorting before sending, as they are always sent immediately
     // and in the order requested.
@@ -806,6 +807,8 @@ public:
             }
         } else if (inv.type == MSG_BLOCK) {
             vInventoryBlockToSend.push_back(inv.hash);
+        } else if (inv.type == MSG_REFERRAL) {
+            setInventoryReferralToSend.insert(inv.hash);
         }
     }
 
