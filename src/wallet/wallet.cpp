@@ -142,11 +142,20 @@ bool ReferralTx::AcceptToMemoryPool(const ReferralRef& referral) {
     return ::AcceptToReferralMemoryPool(mempoolReferral, referral);
 }
 
-bool SendReferralTx(CConnman *connman) {
+std::string GenerateAndSendReferralTx(CConnman* connman)
+{
     ReferralRef referral = MakeReferralRef(MutableReferral());
     ReferralTx rtx(referral);
 
-	return rtx.RelayReferralTransaction(connman);
+    bool sent = rtx.RelayReferralTransaction(connman);
+
+    LogPrintf("Generated referral. hash: %s, code: %s", referral->GetHash().ToString(), referral->code.ToString());
+
+    if (!sent) {
+        throw std::runtime_error(std::string(__func__) + ": relaying referral transaction failed");
+    }
+
+    return referral->code.ToString();
 }
 
 const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
@@ -3364,7 +3373,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize)
     {
         LOCK(cs_wallet);
 
-        if (IsLocked() || !IsReferred())
+        if (IsLocked())
             return false;
 
         // Top up key pool
