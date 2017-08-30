@@ -4,6 +4,7 @@
 #include "crypto/legendre.h"
 #include "key.h"
 #include <algorithm>
+#include <utility>
 #include <vector>
 
 namespace shamir

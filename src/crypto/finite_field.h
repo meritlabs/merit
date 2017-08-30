@@ -11,7 +11,7 @@ namespace finite_field
     const unsigned POWER_BYTES = POWER_BITS / 8;
 
     namespace bm = boost::multiprecision;
-    using SecureCPPIntBackend = bm::cpp_int_backend<POWER_BITS, POWER_BITS, bm::signed_magnitude, bm::unchecked, secure_allocator<bm::limb_type>>;
+    using SecureCPPIntBackend = bm::cpp_int_backend<0, 0, bm::signed_magnitude, bm::unchecked, secure_allocator<bm::limb_type>>;
     using BigInt = bm::number<SecureCPPIntBackend>;
 
     extern const BigInt R;

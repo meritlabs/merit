@@ -33,8 +33,8 @@ ff::BigInt KeyToBigInt(const CPrivKey& key)
 
 ff::Element RandomElement()
 {
-    CPrivKey buffer(ff::POWER_BYTES);
-    GetStrongRandBytes(buffer.data(), ff::POWER_BYTES);
+    CPrivKey buffer(KEY_SIZE);
+    GetStrongRandBytes(buffer.data(), KEY_SIZE);
     return KeyToBigInt(buffer);
 }
 
@@ -88,7 +88,9 @@ CPrivKey RecoverKey(const std::vector<std::pair<CPrivKey, CPrivKey>>& shards)
     std::vector<legendre::FieldPoint> points(shards.size());
     std::transform(shards.begin(), shards.end(), points.begin(),
         [](const std::pair<CPrivKey, CPrivKey>& shard) {
-            return legendre::FieldPoint{pair.first, pair.second};
+            return legendre::FieldPoint{
+                KeyToBigInt(shard.first),
+                KeyToBigInt(shard.second)};
         });
 
     auto secret = legendre::LegendrePolyAtZero(points).value;
