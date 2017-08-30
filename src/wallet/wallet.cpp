@@ -166,6 +166,35 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
     return &(it->second);
 }
 
+bool CWallet::Unlock(std::string referralCodeIn)
+{
+    uint256 codeHash = uint256S(referralCodeIn);
+
+    CKeyPool keypool;
+    int64_t nIndex = 0;
+
+    CWalletDB walletdb(*dbw);
+    bool internal = true;
+    CPubKey pubkey(GenerateNewKey(walletdb, internal));
+    if (!walletdb.WritePool(nIndex, CKeyPool(pubkey, internal, true))) {
+        throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
+    }
+
+    ReferralRef referral = GenerateNewReferral(pubkey, codeHash, walletdb);
+    if (!walletdb.WriteReferral(nIndex, *referral)) {
+        throw std::runtime_error(std::string(__func__) + ": writing generated referral failed");
+    }
+
+    LogPrintf("Generated new referral. Code: %s\n", referral->m_code);
+
+    setInternalKeyPool.insert(nIndex);
+    m_setReferralKeyPool.insert(nIndex);
+
+    m_pool_key_to_index[pubkey.GetID()] = nIndex;
+
+    return true;
+}
+
 CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb, bool internal)
 {
     AssertLockHeld(cs_wallet); // mapKeyMetadata
@@ -3394,8 +3423,9 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
 {
     {
         LOCK(cs_wallet);
-        if (IsLocked() || !IsReferred())
+        if (IsLocked() || !IsReferred()) {
             return false;
+        }
 
         CWalletDB walletdb(*dbw);
         std::shared_ptr<uint256> currentTopReferral;
@@ -3498,7 +3528,7 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRe
     {
         LOCK(cs_wallet);
 
-        if (!IsLocked() || IsReferred())
+        if (!IsLocked() && IsReferred())
             TopUpKeyPool();
 
         bool fReturningInternal = IsHDEnabled() && CanSupportFeature(FEATURE_HD_SPLIT) && fRequestedInternal;
@@ -4158,8 +4188,8 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
 
         // Top up the keypool
         // if (!walletInstance->TopUpKeyPool()) {
-            // InitError(_("Unable to generate initial keys") += "\n");
-            // return NULL;
+        //     InitError(_("Unable to generate initial keys") += "\n");
+        //     return NULL;
         // }
 
         walletInstance->SetBestChain(chainActive.GetLocator());
