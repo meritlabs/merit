@@ -161,14 +161,14 @@ struct MutableReferral
 
 typedef std::shared_ptr<const Referral> ReferralRef;
 
-static inline ReferralRef MakeReferralRef(CKeyID& addressIn, uint256 referralIn)
+static inline ReferralRef MakeReferralRef(CKeyID& addressIn, uint256 referralCodeHashIn)
 {
-    return std::make_shared<const Referral>(addressIn, referralIn);
+    return std::make_shared<const Referral>(addressIn, referralCodeHashIn);
 }
 
-template <typename Ref> static inline ReferralRef MakeReferralRef(Ref&& previousRef)
+template <typename Ref> static inline ReferralRef MakeReferralRef(Ref&& referralIn)
 {
-     return std::make_shared<const Referral>(std::forward<Ref>(previousRef));
+     return std::make_shared<const Referral>(std::forward<Ref>(referralIn));
 }
 
 #endif // BITCOIN_PRIMITIVES_REFERRAL_H

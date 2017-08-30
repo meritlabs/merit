@@ -3185,7 +3185,7 @@ UniValue validatereferralcode(const JSONRPCRequest& request)
     return result;
 }
 
-UniValue setreferralcode(const JSONRPCRequest& request)
+UniValue unlockwallet(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
@@ -3194,9 +3194,11 @@ UniValue setreferralcode(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() != 1 || request.params[0].get_str().empty()) {
         throw std::runtime_error(
-            "setreferralcode\n"
-            "Updates the wallet with referral code and unlocks the wallet.\n"
+            "unlockwallet\n"
+            "Updates the wallet with referral code and beacons first key with associated referral.\n"
             "Returns an object containing various wallet state info.\n"
+            "\nArguments:\n"
+            "1. code      (string, required) Referral code needed to unlock the wallet.\n"
             "\nResult:\n"
             "{\n"
             "  \"walletname\": xxxxx,             (string) the wallet name\n"
@@ -3213,8 +3215,8 @@ UniValue setreferralcode(const JSONRPCRequest& request)
             "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("setreferralcode", "\"referralcode\"")
-            + HelpExampleRpc("setreferralcode", "\"referralcode\"")
+            + HelpExampleCli("unlockwallet", "\"referralcode\"")
+            + HelpExampleRpc("unlockwallet", "\"referralcode\"")
         );
     }
 
@@ -3224,9 +3226,9 @@ UniValue setreferralcode(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    auto code = request.params[0].get_str();
+    std::string code = request.params[0].get_str();
 
-    std::cout << "Called setreferral with code: " << code << std::endl;
+    pwallet->Unlock(code);
 
     UniValue obj(UniValue::VOBJ);
 
@@ -3326,7 +3328,7 @@ static const CRPCCommand commands[] =
 
     { "referral",           "generatereferralcode",     &generatereferralcode,     true,   {} },
     { "referral",           "validatereferralcode",     &validatereferralcode,     true,   {} },
-    { "referral",           "setreferralcode",          &setreferralcode,          false,  {} }
+    { "referral",           "unlockwallet",             &unlockwallet,             false,  {} }
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)
