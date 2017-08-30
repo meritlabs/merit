@@ -10,6 +10,7 @@
 #include <memory>
 
 class CTxMemPool;
+class ReferralTxMemPool;
 
 // Dumb helper to handle CTransaction compression at serialize-time
 struct TransactionCompressor {
@@ -141,26 +142,27 @@ public:
             }
 
             for(auto& ref : refs) {
-                READWRITE(REF(ReferralCompressor(tx)));
+                READWRITE(REF(ReferralCompressor(ref)));
             }
         } else {
-            for(const auto& tx : txn) {
+            for(auto& tx : txn) {
                 READWRITE(REF(TransactionCompressor(tx)));
             }
 
-            for(const auto& ref : refs) {
-                READWRITE(REF(ReferralCompressor(refs)));
+            for(auto& ref : refs) {
+                READWRITE(REF(ReferralCompressor(ref)));
             }
         }
     }
 };
 
-// Dumb serialization/storage-helper for CBlockHeaderAndShortIDs and PartiallyDownloadedBlock
-struct PrefilledTransaction {
-    // Used as an offset since last prefilled tx in CBlockHeaderAndShortIDs,
+// Dumb serialization/storage-helper for BlockHeaderAndShortIDs and PartiallyDownloadedBlock
+template <typename IndexValue, typename CompressorType>
+struct Prefilled {
+    // Used as an offset since last prefilled tx in BlockHeaderAndShortIDs,
     // as a proper transaction-in-block-index in PartiallyDownloadedBlock
     uint16_t index;
-    CTransactionRef tx;
+    IndexValue value;
 
     ADD_SERIALIZE_METHODS;
 
@@ -171,28 +173,12 @@ struct PrefilledTransaction {
         if (idx > std::numeric_limits<uint16_t>::max())
             throw std::ios_base::failure("transaction index overflowed 16-bits");
         index = idx;
-        READWRITE(REF(TransactionCompressor(tx)));
+        READWRITE(REF(CompressorType(value)));
     }
 };
 
-// Helper for serializing referrals in partially downloaded blocks
-// Based on PrefilledTransaction
-struct PrefilledReferral {
-    uint16_t index;
-    ReferralRef ref;
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        uint64_t idx = index;
-        READWRITE(COMPACTSIZE(idx));
-        if (idx > std::numeric_limits<uint16_t>::max())
-            throw std::ios_base::failure("referral index overflowed 16-bits");
-        index = idx;
-        READWRITE(REF(ReferralCompressor(ref)));
-    }
-};
+using PrefilledTransaction = Prefilled<CTransactionRef, TransactionCompressor>;
+using PrefilledReferral = Prefilled<ReferralRef, ReferralCompressor>;
 
 typedef enum ReadStatus_t
 {
@@ -229,12 +215,12 @@ void WriteShortIds(Stream& s, Operation ser_action, const ShortIds& ids) {
 }
 
 
-class CBlockHeaderAndShorIDs {
+class BlockHeaderAndShortIDs {
 private:
-    mutable uint64_t m_shorttxidk0, m_shorttxidk1;
+    mutable uint64_t m_short_idk0, m_short_idk1;
     uint64_t m_nonce;
 
-    void FillShortTxIDSelector() const;
+    void FillShortIDSelector() const;
 
     friend class PartiallyDownloadedBlock;
 
@@ -242,62 +228,60 @@ protected:
     ShortIds m_short_tx_ids;
     ShortIds m_short_ref_ids;
     std::vector<PrefilledTransaction> m_prefilled_txn;
-    std::vector<PrefilledReferral> m_prefilled_ref;
 
 public:
-    CBlockHeader m_header;
+    CBlockHeader header;
 
     // Dummy for deserialization
-    CBlockHeaderAndShortIDs() {}
+    BlockHeaderAndShortIDs() {}
 
-    CBlockHeaderAndShortIDs(const CBlock& block, bool fUseWTXID);
-
-    uint64_t GetShortID(const uint256& txhash) const;
+    BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTXID);
 
     size_t BlockTxCount() const { return m_short_tx_ids.size() + m_prefilled_txn.size(); }
-    size_t BlockRefCount() const { return m_short_ref_ids.size() + m_prefilled_ref.size(); }
+    size_t BlockRefCount() const { return m_short_ref_ids.size(); }
+
+    uint64_t GetShortID(const uint256& hash) const;
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(m_header);
+        READWRITE(header);
         READWRITE(m_nonce);
 
         uint64_t short_tx_ids_size = m_short_tx_ids.size();
-        READWRITE(COMPACTSIZE(m_short_tx_ids_size));
+        READWRITE(COMPACTSIZE(short_tx_ids_size));
 
         uint64_t short_ref_ids_size = m_short_ref_ids.size();
-        READWRITE(COMPACTSIZE(m_short_ref_ids_size));
+        READWRITE(COMPACTSIZE(short_ref_ids_size));
 
         if (ser_action.ForRead()) {
-            ReadShortIds(s, ser_action, short_tx_ids_sizd, m_short_tx_ids);
-            ReadShortIds(s, ser_action, short_ref_ids_sizd, m_short_ref_ids);
+            ReadShortIds(s, ser_action, short_tx_ids_size, m_short_tx_ids);
+            ReadShortIds(s, ser_action, short_ref_ids_size, m_short_ref_ids);
         } else {
             WriteShortIds(s, ser_action, m_short_tx_ids);
             WriteShortIds(s, ser_action, m_short_ref_ids);
         }
 
         READWRITE(m_prefilled_txn);
-        READWRITE(m_prefilled_ref);
 
         if (ser_action.ForRead())
-            FillShortTxIDSelector();
+            FillShortIDSelector();
     }
 };
 
 using MissingTransactions = std::vector<CTransactionRef>;
 using MissingReferrals = std::vector<ReferralRef>;
-using ExtraTransactions = std::vector<std::pair<uint256, CTransactionRef>>
-using ExtraReferrals = std::vector<std::pair<uint256, ReferralRef>>
+using ExtraTransactions = std::vector<std::pair<uint256, CTransactionRef>>;
+using ExtraReferrals = std::vector<std::pair<uint256, ReferralRef>>;
 
 class PartiallyDownloadedBlock {
 protected:
-    std::vector<CTransactionRef> n_txn_available;
-    std::vector<ReferralRef> m_ref_available;
+    std::vector<CTransactionRef> m_txn_available;
+    std::vector<ReferralRef> m_refs_available;
 
     size_t m_prefilled_txn_count = 0, m_mempool_txn_count = 0, m_extra_txn_count = 0;
-    size_t m_prefilled_ref_count = 0, m_mempool_ref_count = 0, m_extra_ref_count = 0;
+    size_t m_mempool_ref_count = 0, m_extra_ref_count = 0;
 
     CTxMemPool* m_txn_pool;
     ReferralTxMemPool* m_ref_pool;
@@ -305,14 +289,14 @@ protected:
 public:
     CBlockHeader header;
     explicit PartiallyDownloadedBlock(CTxMemPool* txn_pool_in, ReferralTxMemPool* ref_pool_in) : 
-        m_txn_pool{poolIn}, m_ref_pool{ref_pool_in} 
+        m_txn_pool{txn_pool_in}, m_ref_pool{ref_pool_in} 
     {
-        assert(m_txt_pool);
+        assert(m_txn_pool);
         assert(m_ref_pool);
     }
 
     // extra_txn is a list of extra transactions to look at, in <witness hash, reference> form
-    ReadStatus InitData(const CBlockHeaderAndShortIDs& cmpctblock, 
+    ReadStatus InitData(const BlockHeaderAndShortIDs& cmpctblock, 
             const ExtraTransactions& extra_txn,
             const ExtraReferrals& extra_ref);
 

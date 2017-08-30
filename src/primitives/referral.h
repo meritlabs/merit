@@ -35,7 +35,6 @@ inline void SerializeReferral(const TxType& ref, Stream& s) {
     s << ref.code;
 }
 
-
 /** The basic referral that is broadcast on the network and contained in
  * blocks. A referral references a previous referral which helps construct the
  * referral tree.
