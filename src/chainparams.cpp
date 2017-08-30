@@ -15,15 +15,20 @@
 #include "chainparamsseeds.h"
 #include <iostream>
 
-static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward, uint256 genesisRef)
 {
+    auto cscript = CScript() << 486604799 << CScriptNum(4) << std::vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
     CMutableTransaction txNew;
     txNew.nVersion = 1;
     txNew.vin.resize(1);
     txNew.vout.resize(1);
-    txNew.vin[0].scriptSig = CScript() << 486604799 << CScriptNum(4) << std::vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
+    txNew.vin[0].scriptSig = cscript;
     txNew.vout[0].nValue = genesisReward;
     txNew.vout[0].scriptPubKey = genesisOutputScript;
+
+    MutableReferral refTx;
+    refTx.scriptSig = cscript;
+    refTx.code = genesisRef;
 
     CBlock genesis;
     genesis.nTime    = nTime;
@@ -31,6 +36,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     genesis.nNonce   = nNonce;
     genesis.nVersion = nVersion;
     genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
+    genesis.m_vRef.push_back(MakeReferralRef(std::move(refTx)));
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
     return genesis;
@@ -47,11 +53,11 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
  *     CTxOut(nValue=50.00000000, scriptPubKey=0x5F1DF16B2B704C8A578D0B)
  *   vMerkleTree: 4a5e1e
  */
-static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward, uint256 genesisRef)
 {
     const char* pszTimestamp = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
     const CScript genesisOutputScript = CScript() << ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35") << OP_CHECKSIG;
-    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
+    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward, genesisRef);
 }
 
 void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout)
@@ -107,6 +113,8 @@ public:
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("0x0000000000000000003b9ce759c2a087d52abc4266f8f4ebd6d768b89defa50a"); //477890
 
+        uint256 genesisRef = uint256S("3491065cd95d4367a2b5705fc61bce89639b02fce8d551a9e45b985dd6e2f72b");
+
         /**
          * The message start string is designed to be unlikely to occur in normal data.
          * The characters are rarely used upper ASCII, not valid as UTF-8, and produce
@@ -119,7 +127,7 @@ public:
         nDefaultPort = 8445;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1503515697, 0, 0x207fffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1503515697, 0, 0x207fffff, 1, 50 * COIN, genesisRef);
         consensus.hashGenesisBlock = genesis.GetHash();
         assert(consensus.hashGenesisBlock == uint256S("3491065cd95d4367a2b5705fc61bce89639b02fce8d551a9e45b985dd6e2f72b"));
         assert(genesis.hashMerkleRoot == uint256S("b1c4626a9b876698ea607a9e1e77b28283d65e1d538c6c79a57f34d9ad4166ad"));
@@ -198,6 +206,8 @@ public:
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("14933df1e491d761a3972449bc88f3525f2081060af8534f8e54ad8d793f61b0"); //1135275
 
+        uint256 genesisRef = uint256S("3491065cd95d4367a2b5705fc61bce89639b02fce8d551a9e45b985dd6e2f72b");
+
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
         pchMessageStart[2] = 0x09;
@@ -205,7 +215,7 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 4, 0x207fffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1503444726, 4, 0x207fffff, 1, 50 * COIN, genesisRef);
         consensus.hashGenesisBlock = genesis.GetHash();
         assert(consensus.hashGenesisBlock == uint256S("0afdcb530b089c0c56694ded88a3f878529bfb745ddeaba69c82092bcdcae960"));
         assert(genesis.hashMerkleRoot == uint256S("b1c4626a9b876698ea607a9e1e77b28283d65e1d538c6c79a57f34d9ad4166ad"));
@@ -281,6 +291,9 @@ public:
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("0x00");
 
+        uint256 genesisRef = uint256S("3491065cd95d4367a2b5705fc61bce89639b02fce8d551a9e45b985dd6e2f72b");
+
+
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;
         pchMessageStart[2] = 0xb5;
@@ -288,7 +301,7 @@ public:
         nDefaultPort = 18556;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503670484, 1, 0x207fffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1503670484, 1, 0x207fffff, 1, 50 * COIN, genesisRef);
         consensus.hashGenesisBlock = genesis.GetHash();
         assert(consensus.hashGenesisBlock == uint256S("192b040df53511a4a3f63a4b9c66e85f19f5963b345a2ac4fada7b58907ef272"));
         assert(genesis.hashMerkleRoot == uint256S("b1c4626a9b876698ea607a9e1e77b28283d65e1d538c6c79a57f34d9ad4166ad"));
