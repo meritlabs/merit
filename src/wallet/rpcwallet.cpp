@@ -3161,7 +3161,13 @@ UniValue generatereferralcode(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
     }
 
-    UniValue result(GenerateAndSendReferralTx(g_connman.get()));
+    // Generate a new key that is added to wallet
+    CPubKey newKey;
+    if (!pwallet->GetKeyFromPool(newKey)) {
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+    }
+
+    UniValue result(GenerateAndSendReferralTx(newKey, uint256(), g_connman.get()));
 
     return result;
 }
