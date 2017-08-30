@@ -142,9 +142,10 @@ bool ReferralTx::AcceptToMemoryPool(const ReferralRef& referral) {
     return ::AcceptToReferralMemoryPool(mempoolReferral, referral);
 }
 
-std::string GenerateAndSendReferralTx(CConnman* connman)
+std::string GenerateAndSendReferralTx(CPubKey& pubkey, uint256 referredBy, CConnman* connman)
 {
-    ReferralRef referral = MakeReferralRef(MutableReferral());
+    CKeyID keyID = pubkey.GetID();
+    ReferralRef referral = MakeReferralRef(MutableReferral(keyID, referredBy));
     ReferralTx rtx(referral);
 
     bool sent = rtx.RelayReferralTransaction(connman);
@@ -153,7 +154,7 @@ std::string GenerateAndSendReferralTx(CConnman* connman)
         throw std::runtime_error(std::string(__func__) + ": relaying referral transaction failed");
     }
 
-    return referral->code.ToString();
+    return referral->m_code;
 }
 
 const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
@@ -1517,16 +1518,24 @@ bool CWallet::IsHDEnabled() const
     return !hdChain.masterKeyID.IsNull();
 }
 
-ReferralTx CWallet::GenerateNewReferral(CWalletDB& walletdb)
+ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy, CWalletDB& walletdb)
 {
-    ReferralTx rtx(MakeReferralRef());
+    CKeyID keyID = pubkey.GetID();
+    // generate referral for given public key
+    ReferralRef referral = MakeReferralRef(MutableReferral(keyID, referredBy));
+
+    // generate referral tx and bind it to this wallet
+    ReferralTx rtx(referral);
 
     rtx.BindWallet(this);
 
     walletdb.WriteReferralTx(rtx);
-    SetReferralTx(rtx);
 
-    return rtx;
+    rtx.RelayReferralTransaction(g_connman.get());
+
+    // SetReferralTx(rtx);
+
+    return referral;
 }
 
 bool CWallet::SetReferralTx(const ReferralTx& rtx)
@@ -1538,7 +1547,7 @@ bool CWallet::SetReferralTx(const ReferralTx& rtx)
 
 bool CWallet::IsReferred() const
 {
-    return !m_referralTx.GetHash().IsNull();
+    return !m_referralTx.IsNull();
 }
 
 int64_t CWalletTx::GetTxTime() const
@@ -3185,6 +3194,7 @@ DBErrors CWallet::LoadWallet(bool& fFirstRunRet)
             LOCK(cs_wallet);
             setInternalKeyPool.clear();
             setExternalKeyPool.clear();
+            m_setReferralKeyPool.clear();
             m_pool_key_to_index.clear();
             // Note: can't top-up keypool here, because wallet is locked.
             // User will be prompted to unlock wallet the next operation
@@ -3197,8 +3207,6 @@ DBErrors CWallet::LoadWallet(bool& fFirstRunRet)
 
     if (nLoadWalletRet != DB_LOAD_OK)
         return nLoadWalletRet;
-
-    GenerateNewReferral(wdb);
 
     uiInterface.LoadWallet(this);
 
@@ -3218,6 +3226,7 @@ DBErrors CWallet::ZapSelectTx(std::vector<uint256>& vHashIn, std::vector<uint256
         {
             setInternalKeyPool.clear();
             setExternalKeyPool.clear();
+            m_setReferralKeyPool.clear();
             m_pool_key_to_index.clear();
             // Note: can't top-up keypool here, because wallet is locked.
             // User will be prompted to unlock wallet the next operation
@@ -3244,6 +3253,7 @@ DBErrors CWallet::ZapWalletTx(std::vector<CWalletTx>& vWtx)
             LOCK(cs_wallet);
             setInternalKeyPool.clear();
             setExternalKeyPool.clear();
+            m_setReferralKeyPool.clear();
             m_pool_key_to_index.clear();
             // Note: can't top-up keypool here, because wallet is locked.
             // User will be prompted to unlock wallet the next operation
@@ -3331,6 +3341,11 @@ bool CWallet::NewKeyPool()
         }
         setExternalKeyPool.clear();
 
+        for (int64_t nIndex : m_setReferralKeyPool) {
+            walletdb.EraseReferral(nIndex);
+        }
+        m_setReferralKeyPool.clear();
+
         m_pool_key_to_index.clear();
 
         if (!TopUpKeyPool()) {
@@ -3366,13 +3381,46 @@ void CWallet::LoadKeyPool(int64_t nIndex, const CKeyPool &keypool)
         mapKeyMetadata[keyid] = CKeyMetadata(keypool.nTime);
 }
 
-bool CWallet::TopUpKeyPool(unsigned int kpSize)
+void CWallet::LoadReferral(int64_t nIndex, const Referral& referral)
+{
+    AssertLockHeld(cs_wallet);
+
+    m_setReferralKeyPool.insert(nIndex);
+
+    CKeyID keyID = referral.m_pubKeyId;
+}
+
+bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referredBy, bool outReferral)
 {
     {
         LOCK(cs_wallet);
-
-        if (IsLocked())
+        if (IsLocked() || !IsReferred())
             return false;
+
+        CWalletDB walletdb(*dbw);
+        std::shared_ptr<uint256> currentTopReferral;
+
+        if (referredBy != nullptr) {
+            currentTopReferral = std::move(referredBy);
+        } else {
+            LogPrintf("referredBy code hash not provided. Looking for root referral pubkey");
+
+            if (m_setRootReferralKeys.empty()) {
+                throw std::runtime_error(std::string(__func__) + ": Referral is not set and no root referral pubkey found");
+            }
+
+            CKeyPool keypool;
+            if (!walletdb.ReadPool(*m_setRootReferralKeys.begin(), keypool)) {
+                throw std::runtime_error(std::string(__func__) + ": faild reading root referral pubkey");
+            }
+
+            ReferralRef referral;
+            if (!walletdb.ReadReferral(*m_setRootReferralKeys.begin(), referral)) {
+                throw std::runtime_error(std::string(__func__) + ": failed reading referral for root referral pubkey");
+            }
+
+            currentTopReferral = std::make_shared<uint256>(referral->m_codeHash);
+        }
 
         // Top up key pool
         unsigned int nTargetSize;
@@ -3392,7 +3440,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize)
             missingInternal = 0;
         }
         bool internal = false;
-        CWalletDB walletdb(*dbw);
+
         for (int64_t i = missingInternal + missingExternal; i--;)
         {
             if (i < missingInternal) {
@@ -3403,8 +3451,23 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize)
             int64_t index = ++m_max_keypool_index;
 
             CPubKey pubkey(GenerateNewKey(walletdb, internal));
-            if (!walletdb.WritePool(index, CKeyPool(pubkey, internal))) {
+            if (!walletdb.WritePool(index, CKeyPool(pubkey, internal, outReferral))) {
                 throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
+            }
+
+            if (currentTopReferral == nullptr) {
+                currentTopReferral = std::move(referredBy);
+                LogPrintf("No root referral found. Setting top referral to currentTopReferral %s", currentTopReferral->ToString());
+            }
+
+            ReferralRef referral = GenerateNewReferral(pubkey, *currentTopReferral, walletdb);
+            walletdb.WriteReferral(index, *referral);
+
+            LogPrintf("Generated new referral. Code: %s\n", referral->m_code);
+
+            if (outReferral) {
+                currentTopReferral = std::make_shared<uint256>(referral->m_codeHash);
+                LogPrintf("Setting top referral to %s", referral->m_code);
             }
 
             if (internal) {
@@ -3412,10 +3475,17 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize)
             } else {
                 setExternalKeyPool.insert(index);
             }
+            m_setReferralKeyPool.insert(index);
+
             m_pool_key_to_index[pubkey.GetID()] = index;
         }
         if (missingInternal + missingExternal > 0) {
-            LogPrintf("keypool added %d keys (%d internal), size=%u (%u internal)\n", missingInternal + missingExternal, missingInternal, setInternalKeyPool.size() + setExternalKeyPool.size(), setInternalKeyPool.size());
+            LogPrintf("keypool added %d keys (%d internal), size=%u (%u internal), %d referrals\n",
+                missingInternal + missingExternal,
+                missingInternal,
+                setInternalKeyPool.size() + setExternalKeyPool.size(),
+                setInternalKeyPool.size(),
+                m_setReferralKeyPool.size());
         }
     }
     return true;
@@ -3491,7 +3561,7 @@ bool CWallet::GetKeyFromPool(CPubKey& result, bool internal)
         ReserveKeyFromKeyPool(nIndex, keypool, internal);
         if (nIndex == -1)
         {
-            if (IsLocked() || IsReferred()) return false;
+            if (IsLocked() || !IsReferred()) return false;
             CWalletDB walletdb(*dbw);
             result = GenerateNewKey(walletdb, internal);
             return true;
@@ -4069,6 +4139,7 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
         walletInstance->SetMaxVersion(nMaxVersion);
     }
 
+
     if (fFirstRun)
     {
         // Create new keyUser and set as default key
@@ -4083,11 +4154,13 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
                 throw std::runtime_error(std::string(__func__) + ": Storing master key failed");
         }
 
+        walletInstance->TopUpKeyPool();
+
         // Top up the keypool
-        if (!walletInstance->TopUpKeyPool()) {
-            InitError(_("Unable to generate initial keys") += "\n");
-            return NULL;
-        }
+        // if (!walletInstance->TopUpKeyPool()) {
+            // InitError(_("Unable to generate initial keys") += "\n");
+            // return NULL;
+        // }
 
         walletInstance->SetBestChain(chainActive.GetLocator());
     }
@@ -4348,13 +4421,15 @@ CKeyPool::CKeyPool()
 {
     nTime = GetTime();
     fInternal = false;
+    m_rootReferralKey = false;
 }
 
-CKeyPool::CKeyPool(const CPubKey& vchPubKeyIn, bool internalIn)
+CKeyPool::CKeyPool(const CPubKey& vchPubKeyIn, bool internalIn, bool rootReferralKeyIn)
 {
     nTime = GetTime();
     vchPubKey = vchPubKeyIn;
     fInternal = internalIn;
+    m_rootReferralKey = rootReferralKeyIn;
 }
 
 CWalletKey::CWalletKey(int64_t nExpires)
