@@ -1,5 +1,3 @@
-// Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2016 The Bitcoin Core developers
 // Copyright (c) 2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -36,7 +34,6 @@ inline void SerializeReferral(const TxType& ref, Stream& s) {
     s << ref.scriptSig;
     s << ref.code;
 }
-
 
 /** The basic referral that is broadcast on the network and contained in
  * blocks. A referral references a previous referral which helps construct the
