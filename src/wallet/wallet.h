@@ -195,15 +195,9 @@ private:
 public:
     ReferralTx() {};
 
-    ReferralTx(ReferralRef pReferralIn)
-    {
-        SetReferral(pReferralIn);
-	}
+    ReferralTx(ReferralRef pReferralIn) : m_pReferral{pReferralIn} { }
 
-    void SetReferral(ReferralRef arg)
-    {
-        m_pReferral = std::move(arg);
-    }
+    ReferralTx(const CWallet* pWalletIn, ReferralRef pReferralIn) : m_pReferral{pReferralIn}, m_pWallet{pWalletIn} { }
 
     void BindWallet(CWallet *pWalletIn)
     {
@@ -847,6 +841,7 @@ public:
     }
 
     std::map<uint256, CWalletTx> mapWallet;
+    std::map<uint256, ReferralTx> mapWalletRTx;
     std::list<CAccountingEntry> laccentries;
 
     typedef std::pair<CWalletTx*, CAccountingEntry*> TxPair;
@@ -968,11 +963,13 @@ public:
 
     void MarkDirty();
     bool AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose=true);
+    bool AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose=true);
     bool LoadToWallet(const CWalletTx& wtxIn);
     void TransactionAddedToMempool(const CTransactionRef& tx) override;
     void BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) override;
     void BlockDisconnected(const std::shared_ptr<const CBlock>& pblock) override;
     bool AddToWalletIfInvolvingMe(const CTransactionRef& tx, const CBlockIndex* pIndex, int posInBlock, bool fUpdate);
+    bool AddToWalletIfInvolvingMe(const ReferralRef& rtx);
     int64_t RescanFromTime(int64_t startTime, bool update);
     CBlockIndex* ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate = false);
     void ReacceptWalletTransactions();
@@ -1044,6 +1041,8 @@ public:
     std::set<CTxDestination> GetAccountAddresses(const std::string& strAccount) const;
 
     isminetype IsMine(const CTxIn& txin) const;
+    isminetype IsMineRef(const Referral& ref) const;
+
     /**
      * Returns amount of debit if the input matches the
      * filter, otherwise returns 0
