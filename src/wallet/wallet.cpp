@@ -1353,7 +1353,7 @@ void CWallet::BlockDisconnected(const std::shared_ptr<const CBlock>& pblock) {
         SyncTransaction(ptx);
     }
     for (const ReferralRef& pref : pblock->m_vRef) {
-        SyncRefTransaction(ptx);
+        SyncRefTransaction(pref);
     }
 }
 
@@ -1761,7 +1761,7 @@ CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool f
                 for (size_t posInBlock = 0; posInBlock < block.vtx.size(); ++posInBlock) {
                     AddToWalletIfInvolvingMe(block.vtx[posInBlock], pindex, posInBlock, fUpdate);
                 }
-                for (size_t posInBlock = 0; pisInBlock < block.m_vRef.size(); ++posInBlock) {
+                for (size_t posInBlock = 0; posInBlock < block.m_vRef.size(); ++posInBlock) {
                     // Add referral transaction to map
                 }
             } else {
@@ -3433,8 +3433,6 @@ void CWallet::LoadReferral(int64_t nIndex, const Referral& referral)
     AssertLockHeld(cs_wallet);
 
     m_setReferralKeyPool.insert(nIndex);
-
-    CKeyID keyID = referral.m_pubKeyId;
 }
 
 bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referredBy, bool outReferral)
