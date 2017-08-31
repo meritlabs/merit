@@ -1093,6 +1093,10 @@ bool CWallet::AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose)
         return false;
     }
 
+    if (!IsReferred()) {
+        SetUnlockReferralTx(rtx);
+    }
+
     // Notify UI of new or updated transaction
     NotifyTransactionChanged(this, hash, CT_NEW);
 
@@ -1126,6 +1130,17 @@ bool CWallet::LoadToWallet(const CWalletTx& wtxIn)
             }
         }
     }
+
+    return true;
+}
+
+bool CWallet::LoadToWallet(const ReferralTx& rtxIn)
+{
+    uint256 hash = rtxIn.GetHash();
+
+    mapWalletRTx[hash] = rtxIn;
+    ReferralTx& rtx = mapWalletRTx[hash];
+    rtx.BindWallet(this);
 
     return true;
 }
@@ -1378,9 +1393,7 @@ void CWallet::TransactionAddedToMempool(const CTransactionRef& ptx) {
 void CWallet::SyncRefTransaction(const ReferralRef& pref, const CBlockIndex *pindex, int posInBlock) {
     const Referral& ref = *pref;
 
-    if (!AddToWalletIfInvolvingMe(pref)) {
-        return;
-    }
+    AddToWalletIfInvolvingMe(pref);
 }
 
 // void CWallet::ReferralAddedToMempool(const ReferralRef& pref) {
@@ -1651,21 +1664,23 @@ ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy, CW
 
     rtx.RelayReferralTransaction(g_connman.get());
 
-    // SetReferralTx(rtx);
-
     return referral;
 }
 
-bool CWallet::SetReferralTx(const ReferralTx& rtx)
+bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx)
 {
-    m_referralTx = rtx;
+    if (IsReferred()) {
+        return false;
+    }
+
+    m_unlockReferralTx = rtx;
 
     return true;
 }
 
 bool CWallet::IsReferred() const
 {
-    return !m_referralTx.IsNull();
+    return !m_unlockReferralTx.IsNull();
 }
 
 int64_t CWalletTx::GetTxTime() const
@@ -3508,7 +3523,7 @@ void CWallet::LoadReferral(int64_t nIndex, const Referral& referral)
 
     m_setReferralKeyPool.insert(nIndex);
 
-    CKeyID keyID = referral.m_pubKeyId;
+    // TODO: figure out if we need to set referral to CKeyMetadata and update mapKeyMetadata here
 }
 
 bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referredBy, bool outReferral)
