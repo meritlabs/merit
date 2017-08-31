@@ -1316,6 +1316,15 @@ void CWallet::TransactionAddedToMempool(const CTransactionRef& ptx) {
     SyncTransaction(ptx);
 }
 
+void CWallet::SyncRefTransaction(const ReferralRef& pref, const CBlockIndex *pindex, int posInBlock) {
+    // add referral transaction to map
+}
+
+void CWallet::ReferralAddedToMempool(const ReferralRef& pref) {
+    LOCK2(cs_main, cs_wallet);
+    SyncRefTransaction(pref);
+}
+
 void CWallet::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) {
     LOCK2(cs_main, cs_wallet);
     // TODO: Temporarily ensure that mempool removals are notified before
@@ -1332,6 +1341,9 @@ void CWallet::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const 
     for (size_t i = 0; i < pblock->vtx.size(); i++) {
         SyncTransaction(pblock->vtx[i], pindex, i);
     }
+    for (size_t i = 0; i < pblock->m_vRef.size(); i++) {
+        SyncRefTransaction(pblock->m_vRef[i], pindex, i);
+    }
 }
 
 void CWallet::BlockDisconnected(const std::shared_ptr<const CBlock>& pblock) {
@@ -1339,6 +1351,9 @@ void CWallet::BlockDisconnected(const std::shared_ptr<const CBlock>& pblock) {
 
     for (const CTransactionRef& ptx : pblock->vtx) {
         SyncTransaction(ptx);
+    }
+    for (const ReferralRef& pref : pblock->m_vRef) {
+        SyncRefTransaction(ptx);
     }
 }
 
@@ -1745,6 +1760,9 @@ CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool f
             if (ReadBlockFromDisk(block, pindex, Params().GetConsensus())) {
                 for (size_t posInBlock = 0; posInBlock < block.vtx.size(); ++posInBlock) {
                     AddToWalletIfInvolvingMe(block.vtx[posInBlock], pindex, posInBlock, fUpdate);
+                }
+                for (size_t posInBlock = 0; pisInBlock < block.m_vRef.size(); ++posInBlock) {
+                    // Add referral transaction to map
                 }
             } else {
                 ret = pindex;
