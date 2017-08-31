@@ -752,7 +752,7 @@ private:
 
     int64_t nTimeFirstKey;
 
-    ReferralTx m_referralTx;
+    ReferralTx m_unlockReferralTx;
 
     /**
      * Private version of AddWatchOnly method which does not accept a
@@ -965,6 +965,7 @@ public:
     bool AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose=true);
     bool AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose=true);
     bool LoadToWallet(const CWalletTx& wtxIn);
+    bool LoadToWallet(const ReferralTx& rtxIn);
     void TransactionAddedToMempool(const CTransactionRef& tx) override;
     void BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) override;
     void BlockDisconnected(const std::shared_ptr<const CBlock>& pblock) override;
@@ -1183,7 +1184,7 @@ public:
        this function). */
     bool SetHDMasterKey(const CPubKey& key);
 
-    bool SetReferralTx(const ReferralTx& rtx);
+    bool SetUnlockReferralTx(const ReferralTx& rtx);
     ReferralRef GenerateNewReferral(CPubKey& pubkey, uint256 referredBy, CWalletDB& walletdb);
 
     bool IsReferred() const;

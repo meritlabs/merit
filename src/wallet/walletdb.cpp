@@ -309,6 +309,13 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
 
             pwallet->LoadToWallet(wtx);
         }
+        else if (strType == "rtx") {
+            ReferralTx rtx;
+            ssValue >> rtx;
+
+            pwallet->SetUnlockReferralTx(rtx);
+            pwallet->LoadToWallet(rtx);
+        }
         else if (strType == "acentry")
         {
             std::string strAccount;
@@ -528,14 +535,6 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             if (!pwallet->SetHDChain(chain, true))
             {
                 strErr = "Error reading wallet database: SetHDChain failed";
-                return false;
-            }
-        } else if (strType == "rtx") {
-            ReferralTx rtx;
-            ssValue >> rtx;
-
-            if (!pwallet->SetReferralTx(rtx)) {
-                strErr = "Error reading wallet database: setReferralTx failed";
                 return false;
             }
         }
