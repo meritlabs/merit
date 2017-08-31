@@ -67,4 +67,15 @@ std::string HelpMessage(HelpMessageMode mode);
 /** Returns licensing information (for -version) */
 std::string LicenseInfo();
 
+/** Flags **/
+namespace flags
+{
+    const std::string txindex = "-txindex";
+    const std::string timestampindex = "-timestampindex";
+    const std::string addressindex = "-addressindex";
+    const std::string spentindex = "-spentindex";
+    const std::string referralindex = "-referralindex";
+}
+
+
 #endif // BITCOIN_INIT_H
