@@ -1071,6 +1071,43 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose)
     return true;
 }
 
+
+bool CWallet::AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose)
+{
+    LOCK(cs_wallet);
+
+    CWalletDB walletdb(*dbw, "r+", fFlushOnClose);
+
+    uint256 hash = rtxIn.GetHash();
+
+    // Inserts only if not already there, returns tx inserted or tx found
+    std::pair<std::map<uint256, ReferralTx>::iterator, bool> ret = mapWalletRTx.insert(std::make_pair(hash, rtxIn));
+    ReferralTx& rtx = (*ret.first).second;
+    rtx.BindWallet(this);
+
+    //// debug print
+    LogPrintf("AddToWallet referral %s\n", rtxIn.GetHash().ToString());
+
+    // Write to disk
+    if (!walletdb.WriteReferralTx(rtx)) {
+        return false;
+    }
+
+    // Notify UI of new or updated transaction
+    NotifyTransactionChanged(this, hash, CT_NEW);
+
+    // notify an external script when a wallet transaction comes in or is updated
+    std::string strCmd = gArgs.GetArg("-walletnotify", "");
+
+    if ( !strCmd.empty())
+    {
+        boost::replace_all(strCmd, "%s", rtx.GetHash().GetHex());
+        boost::thread t(runCommand, strCmd); // thread runs free
+    }
+
+    return true;
+}
+
 bool CWallet::LoadToWallet(const CWalletTx& wtxIn)
 {
     uint256 hash = wtxIn.GetHash();
@@ -1160,6 +1197,28 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const CBlockI
                 wtx.SetMerkleBranch(pIndex, posInBlock);
 
             return AddToWallet(wtx, false);
+        }
+    }
+    return false;
+}
+
+bool CWallet::AddToWalletIfInvolvingMe(const ReferralRef& pref)
+{
+    const Referral& ref = *pref;
+    {
+        AssertLockHeld(cs_wallet);
+
+        bool fExisted = mapWalletRTx.count(ref.GetHash()) != 0;
+
+        if (fExisted) {
+            return false;
+        }
+
+        if (fExisted || IsMineRef(ref)/* || IsFromMe(tx)*/)
+        {
+            ReferralTx rtx(this, pref);
+
+            return AddToWallet(rtx);
         }
     }
     return false;
@@ -1317,13 +1376,17 @@ void CWallet::TransactionAddedToMempool(const CTransactionRef& ptx) {
 }
 
 void CWallet::SyncRefTransaction(const ReferralRef& pref, const CBlockIndex *pindex, int posInBlock) {
-    // add referral transaction to map
+    const Referral& ref = *pref;
+
+    if (!AddToWalletIfInvolvingMe(pref)) {
+        return;
+    }
 }
 
-void CWallet::ReferralAddedToMempool(const ReferralRef& pref) {
-    LOCK2(cs_main, cs_wallet);
-    SyncRefTransaction(pref);
-}
+// void CWallet::ReferralAddedToMempool(const ReferralRef& pref) {
+//     LOCK2(cs_main, cs_wallet);
+//     SyncRefTransaction(pref);
+// }
 
 void CWallet::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) {
     LOCK2(cs_main, cs_wallet);
@@ -1353,11 +1416,9 @@ void CWallet::BlockDisconnected(const std::shared_ptr<const CBlock>& pblock) {
         SyncTransaction(ptx);
     }
     for (const ReferralRef& pref : pblock->m_vRef) {
-        SyncRefTransaction(ptx);
+        SyncRefTransaction(pref);
     }
 }
-
-
 
 isminetype CWallet::IsMine(const CTxIn &txin) const
 {
@@ -1371,6 +1432,19 @@ isminetype CWallet::IsMine(const CTxIn &txin) const
                 return IsMine(prev.tx->vout[txin.prevout.n]);
         }
     }
+    return ISMINE_NO;
+}
+
+isminetype CWallet::IsMineRef(const Referral& ref) const
+{
+    {
+        LOCK(cs_wallet);
+        std::map<uint256, ReferralTx>::const_iterator mi = mapWalletRTx.find(ref.GetHash());
+        if (mi != mapWalletRTx.end()) {
+            return ISMINE_ALL;
+        }
+    }
+
     return ISMINE_NO;
 }
 
@@ -1761,7 +1835,7 @@ CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool f
                 for (size_t posInBlock = 0; posInBlock < block.vtx.size(); ++posInBlock) {
                     AddToWalletIfInvolvingMe(block.vtx[posInBlock], pindex, posInBlock, fUpdate);
                 }
-                for (size_t posInBlock = 0; pisInBlock < block.m_vRef.size(); ++posInBlock) {
+                for (size_t posInBlock = 0; posInBlock < block.m_vRef.size(); ++posInBlock) {
                     // Add referral transaction to map
                 }
             } else {
