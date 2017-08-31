@@ -1186,6 +1186,7 @@ public:
 
     bool SetReferralTx(const ReferralTx& rtx);
     ReferralRef GenerateNewReferral(CPubKey& pubkey, uint256 referredBy, CWalletDB& walletdb);
+    void ReferralAddedToMempool(const ReferralRef& pref);
 
     bool IsReferred() const;
 };
