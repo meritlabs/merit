@@ -41,7 +41,7 @@ extern unsigned int nTxConfirmTarget;
 extern bool bSpendZeroConfChange;
 extern bool fWalletRbf;
 
-static const unsigned int DEFAULT_KEYPOOL_SIZE = 1000;
+static const unsigned int DEFAULT_KEYPOOL_SIZE = 10;
 //! -paytxfee default
 static const CAmount DEFAULT_TRANSACTION_FEE = 0;
 //! -fallbackfee default
@@ -100,7 +100,7 @@ enum WalletFeature
     FEATURE_LATEST = FEATURE_COMPRPUBKEY // HD is optional, use FEATURE_COMPRPUBKEY as latest version
 };
 
-std::string GenerateAndSendReferralTx(CConnman *connman);
+std::string GenerateAndSendReferralTx(CPubKey& pubkey, uint256 referredBy, CConnman *connman);
 
 /** A key pool entry */
 class CKeyPool
@@ -109,9 +109,10 @@ public:
     int64_t nTime;
     CPubKey vchPubKey;
     bool fInternal; // for change outputs
+    bool m_rootReferralKey; // if current key is a root of this wallet referral tree
 
     CKeyPool();
-    CKeyPool(const CPubKey& vchPubKeyIn, bool internalIn);
+    CKeyPool(const CPubKey& vchPubKeyIn, bool internalIn, bool rootReferralKeyIn);
 
     ADD_SERIALIZE_METHODS;
 
@@ -219,6 +220,10 @@ public:
     bool RelayReferralTransaction(CConnman* connman);
     bool InMempool() const;
     bool AcceptToMemoryPool(const ReferralRef& referral);
+
+    bool IsNull() const {
+        return m_pReferral == nullptr || GetHash().IsNull();
+    }
 
     const uint256& GetHash() const {
         return m_pReferral->GetHash();
@@ -745,6 +750,8 @@ private:
 
     std::set<int64_t> setInternalKeyPool;
     std::set<int64_t> setExternalKeyPool;
+    std::set<int64_t> m_setReferralKeyPool;
+    std::set<int64_t> m_setRootReferralKeys;
     int64_t m_max_keypool_index;
     std::map<CKeyID, int64_t> m_pool_key_to_index;
 
@@ -792,6 +799,7 @@ public:
     }
 
     void LoadKeyPool(int64_t nIndex, const CKeyPool &keypool);
+    void LoadReferral(int64_t nIndex, const Referral &referral);
 
     // Map from Key ID (for regular keys) or Script ID (for watch-only keys) to
     // key metadata.
@@ -853,6 +861,9 @@ public:
     std::set<COutPoint> setLockedCoins;
 
     const CWalletTx* GetWalletTx(const uint256& hash) const;
+
+    // Sets the referral code to unlock the wallet and sends referral tx to the network
+    bool Unlock(std::string referralCodeIn);
 
     //! check whether we are allowed to upgrade (or already support) to the named feature
     bool CanSupportFeature(enum WalletFeature wf) const { AssertLockHeld(cs_wallet); return nWalletMaxVersion >= wf; }
@@ -1014,7 +1025,7 @@ public:
 
     bool NewKeyPool();
     size_t KeypoolCountExternalKeys();
-    bool TopUpKeyPool(unsigned int kpSize = 0);
+    bool TopUpKeyPool(unsigned int kpSize = 0, std::shared_ptr<uint256> referredBy = nullptr, bool outReferral = false);
     void ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRequestedInternal);
     void KeepKey(int64_t nIndex);
     void ReturnKey(int64_t nIndex, bool fInternal, const CPubKey& pubkey);
@@ -1173,7 +1184,7 @@ public:
     bool SetHDMasterKey(const CPubKey& key);
 
     bool SetReferralTx(const ReferralTx& rtx);
-    ReferralTx GenerateNewReferral(CWalletDB& walletdb);
+    ReferralRef GenerateNewReferral(CPubKey& pubkey, uint256 referredBy, CWalletDB& walletdb);
 
     bool IsReferred() const;
 };
