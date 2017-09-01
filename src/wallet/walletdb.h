@@ -9,7 +9,6 @@
 #include "amount.h"
 #include "key.h"
 #include "primitives/transaction.h"
-#include "primitives/referral.h"
 #include "wallet/db.h"
 
 #include <list>

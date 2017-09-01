@@ -471,15 +471,6 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
 
             pwallet->LoadKeyPool(nIndex, keypool);
         }
-        else if (strType == "ref")
-        {
-            int64_t nIndex;
-            ssKey >> nIndex;
-            MutableReferral referral;
-            ssValue >> referral;
-
-            pwallet->LoadReferral(nIndex, Referral(referral));
-        }
         else if (strType == "version")
         {
             ssValue >> wss.nFileVersion;
