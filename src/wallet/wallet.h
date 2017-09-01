@@ -1058,7 +1058,7 @@ public:
     std::set<CTxDestination> GetAccountAddresses(const std::string& strAccount) const;
 
     isminetype IsMine(const CTxIn& txin) const;
-    isminetype IsMineRef(const Referral& ref) const;
+    isminetype IsMine(const Referral& ref) const;
 
     /**
      * Returns amount of debit if the input matches the

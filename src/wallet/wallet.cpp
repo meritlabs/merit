@@ -1229,7 +1229,7 @@ bool CWallet::AddToWalletIfInvolvingMe(const ReferralRef& pref)
             return false;
         }
 
-        if (fExisted || IsMineRef(ref)/* || IsFromMe(tx)*/)
+        if (fExisted || IsMine(ref)/* || IsFromMe(tx)*/)
         {
             ReferralTx rtx(pref);
 
@@ -1446,7 +1446,7 @@ isminetype CWallet::IsMine(const CTxIn &txin) const
     return ISMINE_NO;
 }
 
-isminetype CWallet::IsMineRef(const Referral& ref) const
+isminetype CWallet::IsMine(const Referral& ref) const
 {
     {
         LOCK(cs_wallet);
@@ -4293,11 +4293,13 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
                 throw std::runtime_error(std::string(__func__) + ": Storing master key failed");
         }
 
+        walletInstance->TopUpKeyPool();
+
         // Top up the keypool
-        if (!walletInstance->TopUpKeyPool()) {
-            InitError(_("Unable to generate initial keys") += "\n");
-            return NULL;
-        }
+        // if (!walletInstance->TopUpKeyPool()) {
+        //     InitError(_("Unable to generate initial keys") += "\n");
+        //     return NULL;
+        // }
 
         walletInstance->SetBestChain(chainActive.GetLocator());
     }
