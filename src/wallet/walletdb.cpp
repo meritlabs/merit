@@ -145,21 +145,6 @@ bool CWalletDB::ErasePool(int64_t nPool)
     return EraseIC(std::make_pair(std::string("pool"), nPool));
 }
 
-bool CWalletDB::ReadReferral(int64_t nReferral, ReferralRef referral)
-{
-    return batch.Read(std::make_pair(std::string("ref"), nReferral), referral);
-}
-
-bool CWalletDB::WriteReferral(int64_t nReferral, const Referral& referral)
-{
-    return WriteIC(std::make_pair(std::string("ref"), nReferral), referral);
-}
-
-bool CWalletDB::EraseReferral(int64_t nReferral)
-{
-    return EraseIC(std::make_pair(std::string("ref"), nReferral));
-}
-
 bool CWalletDB::WriteMinVersion(int nVersion)
 {
     return WriteIC(std::string("minversion"), nVersion);
@@ -313,7 +298,8 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             ReferralTx rtx;
             ssValue >> rtx;
 
-            pwallet->SetUnlockReferralTx(rtx);
+            LogPrintf("Found rtx in database. Loading...\n");
+
             pwallet->LoadToWallet(rtx);
         }
         else if (strType == "acentry")

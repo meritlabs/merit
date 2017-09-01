@@ -197,10 +197,6 @@ public:
     bool WritePool(int64_t nPool, const CKeyPool& keypool);
     bool ErasePool(int64_t nPool);
 
-    bool ReadReferral(int64_t nReferral, ReferralRef referral);
-    bool WriteReferral(int64_t nReferral, const Referral& referral);
-    bool EraseReferral(int64_t nReferral);
-
     bool WriteMinVersion(int nVersion);
 
     /// This writes directly to the database, and will not update the CWallet's cached accounting entries!
