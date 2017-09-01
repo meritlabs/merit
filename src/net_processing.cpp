@@ -2013,7 +2013,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
         LOCK(cs_main);
 
-        // mark that we got the referral from pfrom 
+        // mark that we got the referral from pfrom
         // and make sure not to ask again.
         CInv inv(MSG_REFERRAL, rtx.GetHash());
         MarkGotInventoryFrom(pfrom, inv);
