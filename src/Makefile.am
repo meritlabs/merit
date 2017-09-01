@@ -297,6 +297,12 @@ libbitcoin_consensus_a_SOURCES = \
   primitives/transaction.cpp \
   primitives/transaction.h \
   primitives/referral.cpp \
+  pog/anv.cpp \
+  pog/anv.h \
+  pog/select.cpp \
+  pog/select.h \
+  pog/reward.cpp \
+  pog/reward.cpp \
   pubkey.cpp \
   pubkey.h \
   script/bitcoinconsensus.cpp \
