@@ -1078,13 +1078,42 @@ bool CWallet::AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose)
     std::pair<std::map<uint256, ReferralTx>::iterator, bool> ret = mapWalletRTx.insert(std::make_pair(hash, rtxIn));
     ReferralTx& rtx = (*ret.first).second;
     rtx.BindWallet(this);
+    bool fInsertedNew = ret.second;
+    if (fInsertedNew)
+    {
+        rtx.nTimeReceived = GetAdjustedTime();
+    }
+
+    bool fUpdated = false;
+    if (!fInsertedNew)
+    {
+        // Merge
+        if (!rtxIn.hashUnset() &&rtxIn.hashBlock != rtx.hashBlock)
+        {
+            rtx.hashBlock = rtxIn.hashBlock;
+            fUpdated = true;
+        }
+        // If no longer abandoned, update
+        if (rtxIn.hashBlock.IsNull() && rtx.isAbandoned())
+        {
+            rtx.hashBlock = rtxIn.hashBlock;
+            fUpdated = true;
+        }
+        if (rtxIn.nIndex != -1 && (rtxIn.nIndex != rtx.nIndex))
+        {
+            rtx.nIndex = rtxIn.nIndex;
+            fUpdated = true;
+        }
+    }
 
     //// debug print
-    LogPrintf("AddToWallet referral %s\n", rtxIn.GetHash().ToString());
+    LogPrintf("AddToWallet %s  %s%s\n", rtxIn.GetHash().ToString(), (fInsertedNew ? "new" : ""), (fUpdated ? "update" : ""));
 
     // Write to disk
-    if (!walletdb.WriteReferralTx(rtx)) {
-        return false;
+    if (fInsertedNew || fUpdated) {
+        if (!walletdb.WriteReferralTx(rtx)) {
+            return false;
+        }
     }
 
     if (!IsReferred()) {
@@ -1217,15 +1246,14 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const CBlockI
     return false;
 }
 
-bool CWallet::AddToWalletIfInvolvingMe(const ReferralRef& pref)
+bool CWallet::AddToWalletIfInvolvingMe(const ReferralRef& pref, const CBlockIndex* pIndex, int posInBlock, bool fUpdate)
 {
     const Referral& ref = *pref;
     {
         AssertLockHeld(cs_wallet);
 
         bool fExisted = mapWalletRTx.count(ref.GetHash()) != 0;
-
-        if (fExisted) {
+        if (fExisted && !fUpdate) {
             return false;
         }
 
@@ -1233,9 +1261,14 @@ bool CWallet::AddToWalletIfInvolvingMe(const ReferralRef& pref)
         {
             ReferralTx rtx(pref);
 
+            // Get merkle branch if transaction was found in a block
+            if (pIndex != nullptr)
+                rtx.SetMerkleBranch(pIndex, posInBlock);
+
             return AddToWallet(rtx);
         }
     }
+
     return false;
 }
 
@@ -1390,13 +1423,13 @@ void CWallet::TransactionAddedToMempool(const CTransactionRef& ptx) {
     SyncTransaction(ptx);
 }
 
-void CWallet::SyncRefTransaction(const ReferralRef& pref) {
-    AddToWalletIfInvolvingMe(pref);
+void CWallet::SyncTransaction(const ReferralRef& pref, const CBlockIndex *pindex, int posInBlock) {
+    AddToWalletIfInvolvingMe(pref, pindex, posInBlock, true);
 }
 
 // void CWallet::ReferralAddedToMempool(const ReferralRef& pref) {
 //     LOCK2(cs_main, cs_wallet);
-//     SyncRefTransaction(pref);
+//     SyncTransaction(pref);
 // }
 
 void CWallet::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) {
@@ -1416,7 +1449,7 @@ void CWallet::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const 
         SyncTransaction(pblock->vtx[i], pindex, i);
     }
     for (size_t i = 0; i < pblock->m_vRef.size(); i++) {
-        SyncRefTransaction(pblock->m_vRef[i]);
+        SyncTransaction(pblock->m_vRef[i]);
     }
 }
 
@@ -1427,7 +1460,7 @@ void CWallet::BlockDisconnected(const std::shared_ptr<const CBlock>& pblock) {
         SyncTransaction(ptx);
     }
     for (const ReferralRef& pref : pblock->m_vRef) {
-        SyncRefTransaction(pref);
+        SyncTransaction(pref);
     }
 }
 
@@ -1662,7 +1695,7 @@ ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy)
 
 bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx)
 {
-    if (IsReferred()) {
+    if (IsReferred() || !rtx.IsUnlockTx()) {
         return false;
     }
 
@@ -4613,7 +4646,7 @@ int CMerkleTx::GetBlocksToMaturity() const
 }
 
 
-bool CMerkleTx::AcceptToMemoryPool(const CAmount& nAbsurdFee, CValidationState& state)
+bool CWalletTx::AcceptToMemoryPool(const CAmount& nAbsurdFee, CValidationState& state)
 {
     return ::AcceptToMemoryPool(mempool, state, tx, true, nullptr, nullptr, false, nAbsurdFee);
 }
