@@ -23,7 +23,7 @@ MutableReferral::MutableReferral(CKeyID& addressIn, uint256 referralIn) :
     m_previousReferral{referralIn},
     m_pubKeyId{addressIn},
     m_code{GenerateReferralCode()},
-    m_codeHash{uint256S(m_code)} {}
+    m_codeHash{Hash(m_code.begin(), m_code.end())} {}
 
 MutableReferral::MutableReferral(const Referral& ref) :
     m_nVersion{ref.m_nVersion},
@@ -48,7 +48,7 @@ Referral::Referral(CKeyID& addressIn, uint256 referralIn) :
     m_previousReferral{referralIn},
     m_pubKeyId{addressIn},
     m_code{GenerateReferralCode()},
-    m_codeHash{uint256S(m_code)},
+    m_codeHash{Hash(m_code.begin(), m_code.end())},
     m_hash{} {}
 
 Referral::Referral(const MutableReferral &ref) :
@@ -75,9 +75,10 @@ unsigned int Referral::GetTotalSize() const
 std::string Referral::ToString() const
 {
     std::string str;
-    str += strprintf("Referral(hash=%s, ver=%d, m_previousReferral=%s, m_pubKeyId=%s)\n",
+    str += strprintf("Referral(hash=%s, ver=%d, codeHash=%s, m_previousReferral=%s, m_pubKeyId=%s)\n",
         GetHash().ToString().substr(0,10),
         m_nVersion,
+        HexStr(m_codeHash),
         HexStr(m_previousReferral),
         HexStr(m_pubKeyId));
     return str;

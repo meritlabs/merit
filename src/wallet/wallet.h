@@ -189,19 +189,34 @@ struct COutputEntry
 
 class ReferralTx {
 private:
-    ReferralRef m_pReferral;
     const CWallet* m_pWallet;
+    bool m_isUnlock;
 
 public:
-    ReferralTx() {};
+    ReferralRef m_pReferral;
 
-    ReferralTx(ReferralRef pReferralIn) : m_pReferral{pReferralIn} { }
+    ReferralTx(bool isUnlock = false) : m_isUnlock(isUnlock) {};
 
-    ReferralTx(const CWallet* pWalletIn, ReferralRef pReferralIn) : m_pReferral{pReferralIn}, m_pWallet{pWalletIn} { }
+    ReferralTx(ReferralRef pReferralIn, bool isUnlock = false) : m_isUnlock(isUnlock), m_pReferral{pReferralIn} { }
 
     void BindWallet(CWallet *pWalletIn)
     {
         m_pWallet = pWalletIn;
+    }
+
+    void SetReferral(ReferralRef arg)
+    {
+        m_pReferral = std::move(arg);
+    }
+
+    ReferralRef GetReferral()
+     {
+        return m_pReferral;
+    }
+
+    bool IsUnlockTx() const
+    {
+        return m_isUnlock;
     }
 
     ADD_SERIALIZE_METHODS;
@@ -209,9 +224,10 @@ public:
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(m_pReferral);
+        READWRITE(m_isUnlock);
     }
 
-    bool RelayReferralTransaction(CConnman* connman);
+    bool RelayWalletTransaction(CConnman* connman);
     bool InMempool() const;
     bool AcceptToMemoryPool(const ReferralRef& referral);
 
@@ -735,7 +751,7 @@ private:
     /* Used by TransactionAddedToMemorypool/BlockConnected/Disconnected.
      * Should be called with pindexBlock and posInBlock if this is for a transaction that is included in a block. */
     void SyncTransaction(const CTransactionRef& tx, const CBlockIndex *pindex = nullptr, int posInBlock = 0);
-    void SyncRefTransaction(const ReferralRef& tx, const CBlockIndex *pindex = nullptr, int posInBlock = 0);
+    void SyncRefTransaction(const ReferralRef& tx);
 
     /* the HD chain data model (external chain counters) */
     CHDChain hdChain;
@@ -745,8 +761,6 @@ private:
 
     std::set<int64_t> setInternalKeyPool;
     std::set<int64_t> setExternalKeyPool;
-    std::set<int64_t> m_setReferralKeyPool;
-    std::set<int64_t> m_setRootReferralKeys;
     int64_t m_max_keypool_index;
     std::map<CKeyID, int64_t> m_pool_key_to_index;
 
@@ -859,7 +873,7 @@ public:
     const CWalletTx* GetWalletTx(const uint256& hash) const;
 
     // Sets the referral code to unlock the wallet and sends referral tx to the network
-    bool Unlock(std::string referralCodeIn);
+    bool Unlock(const uint256& referralCodeIn);
 
     //! check whether we are allowed to upgrade (or already support) to the named feature
     bool CanSupportFeature(enum WalletFeature wf) const { AssertLockHeld(cs_wallet); return nWalletMaxVersion >= wf; }
@@ -1000,7 +1014,9 @@ public:
      */
     bool CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, int& nChangePosInOut,
                            std::string& strFailReason, const CCoinControl& coin_control, bool sign = true);
+    bool CreateTransaction(ReferralTx& rtx, ReferralRef& referral);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CConnman* connman, CValidationState& state);
+    bool CommitTransaction(ReferralTx& rtxNew, CConnman* connman);
 
     void ListAccountCreditDebit(const std::string& strAccount, std::list<CAccountingEntry>& entries);
     bool AddAccountingEntry(const CAccountingEntry&);
@@ -1185,7 +1201,7 @@ public:
     bool SetHDMasterKey(const CPubKey& key);
 
     bool SetUnlockReferralTx(const ReferralTx& rtx);
-    ReferralRef GenerateNewReferral(CPubKey& pubkey, uint256 referredBy, CWalletDB& walletdb);
+    ReferralRef GenerateNewReferral(CPubKey& pubkey, uint256 referredBy);
 
     bool IsReferred() const;
 };
