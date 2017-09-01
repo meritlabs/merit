@@ -115,17 +115,20 @@ public:
 
 bool ReferralTx::RelayWalletTransaction(CConnman *connman)
 {
-    if (InMempool() || AcceptToMemoryPool(m_pReferral)) {
-        if (connman) {
-            CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
+    assert(m_pWallet->GetBroadcastTransactions());
+    if (!isAbandoned() && GetDepthInMainChain() == 0)
+    {
+        if (InMempool() || AcceptToMemoryPool(m_pReferral)) {
+            if (connman) {
+                CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
 
-            LogPrint(BCLog::NET, "Relaying referral %s\n", m_pReferral->GetHash().ToString());
-            connman->ForEachNode([&inv](CNode* pnode)
-            {
-                pnode->PushInventory(inv);
-            });
+                LogPrint(BCLog::NET, "Relaying referral %s\n", m_pReferral->GetHash().ToString());
+                connman->ForEachNode([&inv](CNode* pnode) {
+                    pnode->PushInventory(inv);
+                });
 
-            return true;
+                return true;
+            }
         }
     }
 
@@ -1116,7 +1119,8 @@ bool CWallet::AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose)
         }
     }
 
-    if (!IsReferred()) {
+    // Set unlock referral tx in case this tx is root unlock tx, wallet us not unlocked yet and tx is in the blockchain, aka confirmed
+    if (rtx.IsUnlockTx() && !IsReferred() && rtx.GetDepthInMainChain() > 0) {
         SetUnlockReferralTx(rtx);
     }
 
@@ -1159,9 +1163,9 @@ bool CWallet::LoadToWallet(const CWalletTx& wtxIn)
 
 bool CWallet::LoadToWallet(const ReferralTx& rtxIn)
 {
-    if (!IsReferred() && rtxIn.IsUnlockTx()) {
-        SetUnlockReferralTx(rtxIn);
-    }
+    // if (!IsReferred() && rtxIn.IsUnlockTx()) {
+    //     SetUnlockReferralTx(rtxIn);
+    // }
 
     uint256 hash = rtxIn.GetHash();
 
@@ -1695,7 +1699,7 @@ ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy)
 
 bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx)
 {
-    if (IsReferred() || !rtx.IsUnlockTx()) {
+    if (IsReferred() || !rtx.IsUnlockTx() || rtx.GetDepthInMainChain() == 0) {
         return false;
     }
 
