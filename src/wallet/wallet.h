@@ -756,7 +756,8 @@ private:
      * Should be called with pindexBlock and posInBlock if this is for a transaction that is included in a block. */
     void SyncTransaction(const CTransactionRef& tx, const CBlockIndex *pindex = nullptr, int posInBlock = 0);
     void SyncRefTransaction(const ReferralRef& tx, const CBlockIndex *pindex = nullptr, int posInBlock = 0);
-
+    void ReferralAddedToMempool(const ReferralRef& pref);
+        
     /* the HD chain data model (external chain counters) */
     CHDChain hdChain;
 
