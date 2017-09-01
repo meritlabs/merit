@@ -44,6 +44,7 @@ class CBlockPolicyEstimator;
 class CTxMemPool;
 class ReferralTxMemPool;
 class CValidationState;
+class ReferralsViewDB;
 struct ChainTxData;
 
 struct PrecomputedTransactionData;
@@ -478,6 +479,9 @@ extern CCoinsViewCache *pcoinsTip;
 
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern CBlockTreeDB *pblocktree;
+
+/** Global variable that points to the Referral DB */
+extern ReferralsViewDB *prefviewdb;
 
 /**
  * Return the spend height, which is one more than the inputs.GetBestBlock().

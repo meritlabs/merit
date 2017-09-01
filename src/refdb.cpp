@@ -11,7 +11,7 @@ bool ReferralsViewDB::GetReferral(const uint256& code_hash, MutableReferral& ref
     return db.Read(code_hash, referral);
 }
 
-bool ReferralsViewDB::InsertReferralCode(const Referral& referral) {
+bool ReferralsViewDB::InsertReferral(const Referral& referral) {
     return db.Write(referral.m_codeHash, referral);
 }
 

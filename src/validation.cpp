@@ -26,6 +26,7 @@
 #include "primitives/transaction.h"
 #include "primitives/referral.h"
 #include "random.h"
+#include "refdb.h"
 #include "reverse_iterator.h"
 #include "script/script.h"
 #include "script/sigcache.h"
@@ -185,6 +186,7 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 CCoinsViewDB *pcoinsdbview = nullptr;
 CCoinsViewCache *pcoinsTip = nullptr;
 CBlockTreeDB *pblocktree = nullptr;
+ReferralsViewDB *prefviewdb = nullptr;
 
 enum FlushStateMode {
     FLUSH_STATE_NONE,
@@ -4687,6 +4689,7 @@ void DumpReferralMempool()
         file << (uint64_t)vReferral.size();
         for (const auto& i : vReferral) {
             file << i;
+            prefviewdb->InsertReferral(*i);
         }
 
         FileCommit(file.Get());
