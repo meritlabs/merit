@@ -3174,14 +3174,14 @@ UniValue generatereferralcode(const JSONRPCRequest& request)
 
 UniValue validatereferralcode(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() != 0) {
+    if (request.fHelp || request.params.size() != 1) {
         throw std::runtime_error(
             "Validate referral code\n"
             + HelpExampleCli("validatereferralcode", "")
         );
     }
 
-    UniValue result(UniValue::VOBJ);
+    UniValue result(UniValue::VBOOL);
     return result;
 }
 
