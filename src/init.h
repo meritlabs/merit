@@ -70,11 +70,13 @@ std::string LicenseInfo();
 /** Flags **/
 namespace flags
 {
-    const std::string txindex = "-txindex";
-    const std::string timestampindex = "-timestampindex";
-    const std::string addressindex = "-addressindex";
-    const std::string spentindex = "-spentindex";
-    const std::string referralindex = "-referralindex";
+    const std::string txindex = "txindex";
+    const std::string timestampindex = "timestampindex";
+    const std::string addressindex = "addressindex";
+    const std::string spentindex = "spentindex";
+    const std::string referralindex = "referralindex";
+
+    inline std::string ConvertToCliFlag(const std::string flag);
 }
 
 

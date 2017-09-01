@@ -72,6 +72,7 @@ bool fTxIndex = false;
 bool fAddressIndex = false;
 bool fTimestampIndex = false;
 bool fSpentIndex = false;
+bool fReferralIndex = false;
 bool fHavePruned = false;
 bool fPruneMode = false;
 bool fIsBareMultisigStd = DEFAULT_PERMIT_BAREMULTISIG;
@@ -965,6 +966,14 @@ bool GetAddressIndex(uint160 addressHash, int type,
 
     if (!pblocktree->ReadAddressIndex(addressHash, type, addressIndex, start, end))
         return error("unable to get txids for address");
+
+    return true;
+}
+
+bool GetReferralIndex()
+{
+    if (!fReferralIndex) 
+        return error("referral index is not enabled");
 
     return true;
 }
@@ -3755,20 +3764,24 @@ bool static LoadBlockIndexDB(const CChainParams& chainparams)
     fReindex |= fReindexing;
 
     // Check whether we have a transaction index
-    pblocktree->ReadFlag("txindex", fTxIndex);
+    pblocktree->ReadFlag(flags::txindex, fTxIndex);
     LogPrintf("%s: transaction index %s\n", __func__, fTxIndex ? "enabled" : "disabled");
 
     // Check whether we have an address index
-    pblocktree->ReadFlag("addressindex", fAddressIndex);
+    pblocktree->ReadFlag(flags::addressindex, fAddressIndex);
     LogPrintf("%s: address index %s\n", __func__, fAddressIndex ? "enabled" : "disabled");
 
     // Check whether we have a timestamp index
-    pblocktree->ReadFlag("timestampindex", fTimestampIndex);
+    pblocktree->ReadFlag(flags::timestampindex, fTimestampIndex);
     LogPrintf("%s: timestamp index %s\n", __func__, fTimestampIndex ? "enabled" : "disabled");
 
     // Check whether we have a spent index
-    pblocktree->ReadFlag("spentindex", fSpentIndex);
+    pblocktree->ReadFlag(flags::spentindex, fSpentIndex);
     LogPrintf("%s: spent index %s\n", __func__, fSpentIndex ? "enabled" : "disabled");
+
+    pblocktree->ReadFlag(flags::referralindex, fReferralIndex);
+    LogPrintf("%s: referral index %s\n", __func__, fReferralIndex ? "enabled" : "disabled");
+
     return true;
 }
 

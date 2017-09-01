@@ -185,6 +185,7 @@ extern int nScriptCheckThreads;
 extern bool fTxIndex;
 extern bool fAddressIndex;
 extern bool fSpentIndex;
+extern bool fReferralIndex;
 extern bool fTimestampIndex;
 extern bool fIsBareMultisigStd;
 extern bool fRequireStandard;
@@ -417,6 +418,7 @@ bool GetAddressIndex(uint160 addressHash, int type,
                      int start = 0, int end = 0);
 bool GetAddressUnspent(uint160 addressHash, int type,
                        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
+bool GetReferralIndex();
 /** Initializes the script-execution cache */
 void InitScriptExecutionCache();
 

@@ -378,12 +378,12 @@ std::string HelpMessage(HelpMessageMode mode)
 #ifndef WIN32
     strUsage += HelpMessageOpt("-sysperms", _("Create new files with system default permissions, instead of umask 077 (only effective with disabled wallet functionality)"));
 #endif
-    strUsage += HelpMessageOpt(flags::txindex, strprintf(_("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)"), DEFAULT_TXINDEX));
+    strUsage += HelpMessageOpt(flags::ConvertToCliFlag(flags::txindex), strprintf(_("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)"), DEFAULT_TXINDEX));
 
-    strUsage += HelpMessageOpt(flags::addressindex, strprintf(_("Maintain a full address index, used to query for the balance, txids and unspent outputs for addresses (default: %u)"), DEFAULT_ADDRESSINDEX));
-    strUsage += HelpMessageOpt(flags::timestampindex, strprintf(_("Maintain a timestamp index for block hashes, used to query blocks hashes by a range of timestamps (default: %u)"), DEFAULT_TIMESTAMPINDEX));
-    strUsage += HelpMessageOpt(flags::spentindex, strprintf(_("Maintain a full spent index, used to query the spending txid and input index for an outpoint (default: %u)"), DEFAULT_SPENTINDEX));
-    strUsage += HelpMessageOpt(flags::referralindex, strprintf(_("Maintain a full referral index, used to query the referral txid (default: %u)"), DEFAULT_REFERRALINDEX));
+    strUsage += HelpMessageOpt(flags::ConvertToCliFlag(flags::addressindex), strprintf(_("Maintain a full address index, used to query for the balance, txids and unspent outputs for addresses (default: %u)"), DEFAULT_ADDRESSINDEX));
+    strUsage += HelpMessageOpt(flags::ConvertToCliFlag(flags::timestampindex), strprintf(_("Maintain a timestamp index for block hashes, used to query blocks hashes by a range of timestamps (default: %u)"), DEFAULT_TIMESTAMPINDEX));
+    strUsage += HelpMessageOpt(flags::ConvertToCliFlag(flags::spentindex), strprintf(_("Maintain a full spent index, used to query the spending txid and input index for an outpoint (default: %u)"), DEFAULT_SPENTINDEX));
+    strUsage += HelpMessageOpt(flags::ConvertToCliFlag(flags::referralindex), strprintf(_("Maintain a full referral index, used to query the referral txid (default: %u)"), DEFAULT_REFERRALINDEX));
 
     strUsage += HelpMessageGroup(_("Connection options:"));
     strUsage += HelpMessageOpt("-addnode=<ip>", _("Add a node to connect to and attempt to keep the connection open"));
@@ -901,7 +901,7 @@ bool AppInitParameterInteraction()
 
     // if using block pruning, then disallow txindex
     if (gArgs.GetArg("-prune", 0)) {
-        if (gArgs.GetBoolArg(flags::txindex, DEFAULT_TXINDEX))
+        if (gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::txindex), DEFAULT_TXINDEX))
             return InitError(_("Prune mode is incompatible with -txindex."));
     }
 
@@ -1388,15 +1388,17 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     nTotalCache = std::min(nTotalCache, nMaxDbCache << 20); // total cache cannot be greater than nMaxDbcache
     int64_t nBlockTreeDBCache = nTotalCache / 8;
 
-    if (gArgs.GetBoolArg(flags::addressindex, DEFAULT_ADDRESSINDEX) || gArgs.GetBoolArg(flags::spentindex, DEFAULT_SPENTINDEX) || 
-        gArgs.GetBoolArg(flags::referralindex, DEFAULT_REFERRALINDEX)) 
+    if (gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::addressindex), DEFAULT_ADDRESSINDEX) || 
+        gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::spentindex), DEFAULT_SPENTINDEX) || 
+        gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::referralindex), DEFAULT_REFERRALINDEX)) 
     {
         // enable 3/4 of the cache if addressindex and/or spentindex is enabled
         nBlockTreeDBCache = nTotalCache * 3 / 4;
     } 
     else 
     {
-        nBlockTreeDBCache = std::min(nBlockTreeDBCache, (gArgs.GetBoolArg(flags::txindex, DEFAULT_TXINDEX) ? nMaxBlockDBAndTxIndexCache : nMaxBlockDBCache) << 20);
+        nBlockTreeDBCache = std::min(nBlockTreeDBCache, 
+            (gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::txindex), DEFAULT_TXINDEX) ? nMaxBlockDBAndTxIndexCache : nMaxBlockDBCache) << 20);
     }
 
     nTotalCache -= nBlockTreeDBCache;
@@ -1454,7 +1456,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                     return InitError(_("Incorrect or no genesis block found. Wrong datadir for network?"));
 
                 // Check for changed -txindex state
-                if (fTxIndex != gArgs.GetBoolArg(flags::txindex, DEFAULT_TXINDEX)) {
+                if (fTxIndex != gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::txindex), DEFAULT_TXINDEX)) {
                     strLoadError = _("You need to rebuild the database using -reindex-chainstate to change -txindex");
                     break;
                 }
@@ -1731,4 +1733,9 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
 #endif
 
     return !fRequestShutdown;
+}
+
+inline std::string flags::ConvertToCliFlag(const std::string flag)
+{
+    return "-" + flag;
 }
