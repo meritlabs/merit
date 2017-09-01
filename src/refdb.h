@@ -16,7 +16,7 @@ public:
     explicit ReferralsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
 
     bool GetReferral(const uint256&, MutableReferral&) const;
-    bool InsertReferralCode(const Referral&);
+    bool InsertReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;
 };
 
