@@ -37,8 +37,8 @@ const char *SENDHEADERS="sendheaders";
 const char *FEEFILTER="feefilter";
 const char *SENDCMPCT="sendcmpct";
 const char *CMPCTBLOCK="cmpctblock";
-const char *GETBLOCKTXN="getblocktxn";
-const char *BLOCKTXN="blocktxn";
+const char *GETBLOCKREFTXN="getblockreftxn";
+const char *BLOCKREFTXN="blockreftxn";
 // Merit messages go below
 const char *REF="referral";
 } // namespace NetMsgType
@@ -71,8 +71,8 @@ const static std::string allNetMessageTypes[] = {
     NetMsgType::FEEFILTER,
     NetMsgType::SENDCMPCT,
     NetMsgType::CMPCTBLOCK,
-    NetMsgType::GETBLOCKTXN,
-    NetMsgType::BLOCKTXN,
+    NetMsgType::GETBLOCKREFTXN,
+    NetMsgType::BLOCKREFTXN,
     // Merit messages go below
     NetMsgType::REF,
 };
