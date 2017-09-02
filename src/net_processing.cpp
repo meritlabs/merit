@@ -1177,14 +1177,24 @@ uint32_t GetFetchFlags(CNode* pfrom) {
 
 inline void static SendBlockTransactions(const CBlock& block, const BlockTransactionsRequest& req, CNode* pfrom, CConnman& connman) {
     BlockTransactions resp(req);
-    for (size_t i = 0; i < req.indexes.size(); i++) {
-        if (req.indexes[i] >= block.vtx.size()) {
+    for (size_t i = 0; i < req.m_transaction_indices.size(); i++) {
+        if (req.m_transaction_indices[i] >= block.vtx.size()) {
             LOCK(cs_main);
             Misbehaving(pfrom->GetId(), 100);
             LogPrintf("Peer %d sent us a getblocktxn with out-of-bounds tx indices", pfrom->GetId());
             return;
         }
-        resp.txn[i] = block.vtx[req.indexes[i]];
+        resp.txn[i] = block.vtx[req.m_transaction_indices[i]];
+    }
+
+    for (size_t i = 0; i < req.m_referral_indices.size(); i++) {
+        if (req.m_referral_indices[i] >= block.m_vRef.size()) {
+            LOCK(cs_main);
+            Misbehaving(pfrom->GetId(), 100);
+            LogPrintf("Peer %d sent us a getblocktxn with out-of-bounds referral indices", pfrom->GetId());
+            return;
+        }
+        resp.ref[i] = block.m_vRef[req.m_referral_indices[i]];
     }
 
     LOCK(cs_main);
@@ -2013,7 +2023,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
         LOCK(cs_main);
 
-        // mark that we got the referral from pfrom
+        // mark that we got the referral from pfrom 
         // and make sure not to ask again.
         CInv inv(MSG_REFERRAL, rtx.GetHash());
         MarkGotInventoryFrom(pfrom, inv);
@@ -2140,9 +2150,9 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 BlockTransactionsRequest req;
                 for (size_t i = 0; i < cmpctblock.BlockTxCount(); i++) {
                     if (!partialBlock.IsTxAvailable(i))
-                        req.indexes.push_back(i);
+                        req.m_transaction_indices.push_back(i);
                 }
-                if (req.indexes.empty()) {
+                if (req.m_transaction_indices.empty()) {
                     // Dirty hack to jump to BLOCKTXN code (TODO: move message handling into their own functions)
                     BlockTransactions txn;
                     txn.blockhash = cmpctblock.header.GetHash();
