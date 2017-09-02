@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include "pubkey.h"
 #include "serialize.h"
+#include "script/script.h"
 #include "uint256.h"
 
 #include <unordered_map>
@@ -35,6 +36,7 @@ inline void SerializeReferral(const TxType& ref, Stream& s) {
     s << ref.m_codeHash;
 }
 
+
 /** The basic referral that is broadcast on the network and contained in
  * blocks. A referral references a previous referral which helps construct the
  * referral tree.
@@ -57,13 +59,18 @@ public:
     uint256 m_previousReferral;
 
     // address that this referral is related to
+    // TODO: COnsider following the scriptPubKey convention here
     CKeyID m_pubKeyId;
 
-    // Referral code that is used as a referrence to a wallet
+    // Referral code that is used as a referrence to an address
     const std::string m_code;
 
     // hash of m_code
     const uint256 m_codeHash;
+
+    // A script signature to validate that this referral was, in fact, sent 
+    // by the corresponding pubKeyId.
+    CScript scriptSig; 
 
 private:
     /** Memory only. */
@@ -102,7 +109,7 @@ public:
      */
     unsigned int GetTotalSize() const;
 
-    bool IsGenesisReferral() const
+    bool IsGenesis() const
     {
         // TODO: Decide if we need a genesis referral check.
         // TODO: If we do need a genesis referral check, let's impement it.

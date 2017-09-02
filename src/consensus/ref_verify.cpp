@@ -19,7 +19,9 @@ namespace consensus
 
     bool CheckReferral(const Referral& ref, CValidationState& state)
     {
-        if(ref.previousReferral.IsNull())
+        // TODO: Consider only checking this if the referral is not the genesis referral.
+        // The relevance here is that the genesis account will be able to transact.
+        if(ref.m_previousReferral.IsNull() && !ref.IsGenesis())
             return state.DoS(100, false, REJECT_INVALID, "bad-ref-prev-null");
 
         if (ref.scriptSig.size() < TOO_SMALL_SCRIPT || ref.scriptSig.size() > TOO_BIG_SCRIPT)
