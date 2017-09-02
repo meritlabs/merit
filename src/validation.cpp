@@ -456,6 +456,9 @@ bool AcceptToReferralMemoryPool(ReferralTxMemPool& pool, const ReferralRef& refe
         return state.Invalid(false, REJECT_DUPLICATE, "txn-already-in-mempool");
     }
 
+    // TODO: Trace the referral tree all the way back up to genesis address.  
+    // Ensure all referrals are valid down the chain.
+
     // TODO: check mempool(and maybe not only pool) for referral consistency
     pool.AddUnchecked(referral->GetHash(), referral);
 

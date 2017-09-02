@@ -2030,6 +2030,9 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
         if (!AlreadyHave(inv) && AcceptToReferralMemoryPool(mempoolReferral, prtx)) {
             RelayReferral(rtx, connman);
+
+            // TODO: We should recursively process any orphan transactions that were contingent on a referred key 
+            // We can then relay to the network the de-orphaned transaction as soon as it's valid.
         }
     }
 
