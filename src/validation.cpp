@@ -1770,6 +1770,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     // Special case for the genesis block, skipping connection of its transactions
     // (its coinbase is unspendable)
+    // TODO: Adjust this check as part of making coinbase spendable
     if (block.GetHash() == chainparams.GetConsensus().hashGenesisBlock) {
         if (!fJustCheck)
             view.SetBestBlock(pindex->GetBlockHash());
@@ -1899,6 +1900,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                  REJECT_INVALID, "bad-txns-nonfinal");
             }
 
+            // Additional index for the Merit LightWallet Stack
             if (fAddressIndex || fSpentIndex)
             {
                 for (size_t j = 0; j < tx.vin.size(); j++) {
@@ -1996,13 +1998,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
-    }
-
-    //Validate Referrals before connecting block
-    //TODO: Validate referrals
-    for(const auto& ref : block.m_vRef)
-    {
-        assert(false && "Validate referrals here");
     }
 
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
