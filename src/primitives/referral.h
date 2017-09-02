@@ -102,6 +102,13 @@ public:
      */
     unsigned int GetTotalSize() const;
 
+    bool IsGenesisReferral() const
+    {
+        // TODO: Decide if we need a genesis referral check.
+        // TODO: If we do need a genesis referral check, let's impement it.
+        return false;
+    }
+
     friend bool operator==(const Referral& a, const Referral& b)
     {
         return a.m_hash == b.m_hash;
