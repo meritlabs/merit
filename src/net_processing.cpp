@@ -1175,7 +1175,7 @@ uint32_t GetFetchFlags(CNode* pfrom) {
     return nFetchFlags;
 }
 
-inline void static SendBlockTransactions(const CBlock& block, const BlockTransactionsRequest& req, CNode* pfrom, CConnman& connman) {
+inline void static SendBlockReferralsAndTransactions(const CBlock& block, const BlockTransactionsRequest& req, CNode* pfrom, CConnman& connman) {
     BlockTransactions resp(req);
     for (size_t i = 0; i < req.m_transaction_indices.size(); i++) {
         if (req.m_transaction_indices[i] >= block.vtx.size()) {
@@ -1723,7 +1723,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             // Unlock cs_most_recent_block to avoid cs_main lock inversion
         }
         if (recent_block) {
-            SendBlockTransactions(*recent_block, req, pfrom, connman);
+            SendBlockReferralsAndTransactions(*recent_block, req, pfrom, connman);
             return true;
         }
 
@@ -1756,7 +1756,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         bool ret = ReadBlockFromDisk(block, it->second, chainparams.GetConsensus());
         assert(ret);
 
-        SendBlockTransactions(block, req, pfrom, connman);
+        SendBlockReferralsAndTransactions(block, req, pfrom, connman);
     }
 
 
@@ -2063,7 +2063,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             }
         }
 
-        // When we succeed in decoding a block's txids from a cmpctblock
+        // When we succeed in decoding a block's txids and refids from a cmpctblock
         // message we typically jump to the BLOCKREFTXN handling code, with a
         // dummy (empty) BLOCKREFTXN message, to re-use the logic there in
         // completing processing of the putative block (without cs_main).
