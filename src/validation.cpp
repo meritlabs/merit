@@ -449,8 +449,17 @@ bool AcceptToReferralMemoryPool(ReferralTxMemPool& pool, const ReferralRef& refe
 {
     LOCK(pool.cs);
 
+    const uint256 hash = referral.GetHash();
+    
+    // is it already in the memory pool?
+    if (pool.exists(hash)) {
+        return state.Invalid(false, REJECT_DUPLICATE, "txn-already-in-mempool");
+    }
+
     // TODO: check mempool(and maybe not only pool) for referral consistency
     pool.AddUnchecked(referral->GetHash(), referral);
+
+    GetMainSignals().ReferralAddedToMempool(referral);    
 
     return true;
 }
