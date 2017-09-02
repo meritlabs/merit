@@ -11,6 +11,8 @@
 #include "utilstrencodings.h"
 #include "random.h"
 
+#include <utility>
+
 static inline std::string GenerateReferralCode()
 {
     auto randomHash = GetRandHash();
@@ -82,4 +84,40 @@ std::string Referral::ToString() const
         HexStr(m_previousReferral),
         HexStr(m_pubKeyId));
     return str;
+}
+
+ReferralsViewBacked::ReferralsViewBacked(ReferralsView *viewIn) { base = viewIn; }
+
+bool ReferralsViewBacked::GetReferral(const uint256& code, MutableReferral& m_ref) const { return base->GetReferral(code, m_ref); }
+bool ReferralsViewBacked::InsertReferral(const Referral& ref) { return base->InsertReferral(ref); }
+void ReferralsViewBacked::SetBackend(ReferralsView& view_in) { base = &view_in; }
+bool ReferralsViewBacked::ReferralCodeExists(const uint256& code) const {return base->ReferralCodeExists(code); }
+
+ReferralMap::iterator ReferralsViewCache::Fetch(const uint256& code) const {
+    return referral_cache.find(code);
+}
+
+bool ReferralsViewCache::GetReferral(const uint256& code, MutableReferral& m_ref) const {
+    auto it = Fetch(code);
+    if (it != referral_cache.end()) {
+        m_ref = it->second;
+        return true;
+    }
+    return false;
+}
+
+bool ReferralsViewCache::InsertReferral(const Referral& ref) {
+    auto ret = referral_cache.insert(std::make_pair(ref.m_codeHash, ref));
+    return ret.second;
+}
+
+bool ReferralsViewCache::ReferralCodeExists(const uint256& code) const {
+    return !(Fetch(code) == referral_cache.end());
+}
+
+void ReferralsViewCache::Flush() {
+    for (auto pr : referral_cache) {
+        base->InsertReferral(pr.second);
+    }
+    referral_cache.clear();
 }

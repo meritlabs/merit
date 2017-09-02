@@ -8,16 +8,16 @@
 #include "dbwrapper.h"
 #include "primitives/referral.h"
 
-class ReferralsViewDB
+class ReferralsViewDB : public ReferralsView
 {
 protected:
     CDBWrapper db;
 public:
     explicit ReferralsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
 
-    bool GetReferral(const uint256&, MutableReferral&) const;
-    bool InsertReferralCode(const Referral&);
-    bool ReferralCodeExists(const uint256&) const;
+    bool GetReferral(const uint256&, MutableReferral&) const override;
+    bool InsertReferral(const Referral&) override;
+    bool ReferralCodeExists(const uint256&) const override;
 };
 
 #endif

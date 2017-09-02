@@ -10,6 +10,8 @@
 #include "serialize.h"
 #include "uint256.h"
 
+#include <unordered_map>
+
 struct MutableReferral;
 
 static const int SERIALIZE_REFERRAL = 0x40000000;
@@ -168,5 +170,45 @@ template <typename Ref> static inline ReferralRef MakeReferralRef(Ref&& referral
 {
      return std::make_shared<const Referral>(std::forward<Ref>(referralIn));
 }
+
+typedef std::unordered_map<uint256, Referral> ReferralMap;
+
+class ReferralsView
+{
+public:
+    virtual bool GetReferral(const uint256&, MutableReferral&) const;
+    virtual bool InsertReferral(const Referral&);
+    virtual bool ReferralCodeExists(const uint256&) const;
+
+    virtual ~ReferralsView() {}
+};
+
+class ReferralsViewBacked : public ReferralsView
+{
+protected:
+    ReferralsView *base;
+public:
+    ReferralsViewBacked(ReferralsView *viewIn);
+
+    bool GetReferral(const uint256&, MutableReferral&) const override;
+    bool InsertReferral(const Referral&) override;
+    void SetBackend(ReferralsView&);
+    bool ReferralCodeExists(const uint256&) const override;
+};
+
+class ReferralsViewCache : public ReferralsViewBacked
+{
+protected:
+    mutable ReferralMap referral_cache;
+public:
+    ReferralsViewCache(ReferralsView *viewIn) : ReferralsViewBacked(viewIn) {};
+
+    bool GetReferral(const uint256&, MutableReferral&) const override;
+    bool InsertReferral(const Referral&) override;
+    bool ReferralCodeExists(const uint256&) const override;
+
+    ReferralMap::iterator Fetch(const uint256& code) const;
+    void Flush();
+};
 
 #endif // BITCOIN_PRIMITIVES_REFERRAL_H
