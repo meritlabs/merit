@@ -2152,7 +2152,11 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                     if (!partialBlock.IsTxAvailable(i))
                         req.m_transaction_indices.push_back(i);
                 }
-                if (req.m_transaction_indices.empty()) {
+                for (size_t i = 0; i < cmpctblock.BlockRefCount(); i++) {
+                    if (!partialBlock.IsRefAvailable(i))
+                        req.m_referral_indices.push_back(i);
+                }
+                if (req.m_transaction_indices.empty() && req.m_referral_indices.empty()) {
                     // Dirty hack to jump to BLOCKTXN code (TODO: move message handling into their own functions)
                     BlockTransactions txn;
                     txn.blockhash = cmpctblock.header.GetHash();

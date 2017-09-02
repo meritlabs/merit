@@ -179,6 +179,9 @@ ReadStatus PartiallyDownloadedBlock::InitData(
             break;
     }
 
+    // TODO: Insert Refs in the same style as txns are inserted above.
+
+
     LogPrint(BCLog::CMPCTBLOCK, "Initialized PartiallyDownloadedBlock for block %s using a cmpctblock of size %lu\n", cmpctblock.header.GetHash().ToString(), GetSerializeSize(cmpctblock, SER_NETWORK, PROTOCOL_VERSION));
 
     return READ_STATUS_OK;
@@ -188,6 +191,12 @@ bool PartiallyDownloadedBlock::IsTxAvailable(size_t index) const {
     assert(!header.IsNull());
     assert(index < m_txn_available.size());
     return m_txn_available[index] != nullptr;
+}
+
+bool PartiallyDownloadedBlock::IsRefAvailable(size_t index) const {
+    assert(!header.IsNull());
+    assert(index < m_refs_available.size());
+    return m_refs_available[index] != nullptr;
 }
 
 ReadStatus PartiallyDownloadedBlock::FillBlock(
@@ -210,11 +219,22 @@ ReadStatus PartiallyDownloadedBlock::FillBlock(
             block.vtx[i] = std::move(m_txn_available[i]);
     }
 
+    size_t ref_missing_offset = 0;
+    for (size_t i = 0; i < m_refs_available.size(); i++) {
+        if (!m_refs_available[i]) {
+            if (vtx_missing.size() <= ref_missing_offset)
+                return READ_STATUS_INVALID;
+            block.vtx[i] = vtx_missing[ref_missing_offset++];
+        } else
+            block.vtx[i] = std::move(m_refs_available[i]);
+    }
+
     // Make sure we can't call FillBlock again.
     header.SetNull();
     m_txn_available.clear();
+    m_refs_available.clear();
 
-    if (vtx_missing.size() != tx_missing_offset)
+    if (vtx_missing.size() != tx_missing_offset | ref_missing.size() != ref_missing_offset)
         return READ_STATUS_INVALID;
 
     CValidationState state;
