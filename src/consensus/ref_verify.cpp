@@ -26,6 +26,12 @@ namespace consensus
 
         if (ref.scriptSig.size() < TOO_SMALL_SCRIPT || ref.scriptSig.size() > TOO_BIG_SCRIPT)
             return state.DoS(100, false, REJECT_INVALID, "bad-ref-cb-length");
+            
+        if (ref.m_pubKeyId.IsNull())
+            return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-pubkey");
+
+        if (ref.m_codeHash.IsNull())
+            return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-ref-code")
 
         //TODO: More static checks here, for example, making sure the script has
         //signatures.

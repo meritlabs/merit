@@ -63,6 +63,7 @@ public:
     CKeyID m_pubKeyId;
 
     // Referral code that is used as a referrence to an address
+    // TODO: Make this private??
     const std::string m_code;
 
     // hash of m_code
