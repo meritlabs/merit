@@ -458,6 +458,19 @@ bool AcceptToReferralMemoryPool(ReferralTxMemPool& pool, const ReferralRef& refe
 
     // TODO: Trace the referral tree all the way back up to genesis address.  
     // Ensure all referrals are valid down the chain.
+    for (const Referral refIn : referral.m_previousReferral) {
+        if (!refIn.IsEmpty()) {
+            // Check to be sure that it's actually exists up the chain.
+            if (!refIn.ReferralCodeExists) {
+                return state.Invalid(false, REJECT_INVALID, "no-upstream-referral-known");
+            }
+            // Now that it exists, we must be sure it's valid.
+        } 
+        // No previousReferral; the only valid case of this is the genesis.
+        if (!refIn.IsGenesis()) {
+            return state.Invalid(false, REJECT_INVALID, "upstream-referral-chain-broken");            
+        } 
+    }
 
     // TODO: check mempool(and maybe not only pool) for referral consistency
     pool.AddUnchecked(referral->GetHash(), referral);
