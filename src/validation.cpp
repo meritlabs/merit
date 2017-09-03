@@ -451,6 +451,9 @@ bool AcceptRefToMemoryPool(ReferralTxMemPool& pool, const ReferralRef& referral)
     LOCK(pool.cs);
 
     const uint256 hash = referral.GetHash();
+
+    if (!CheckReferral(referral, state))
+        return false; // state filled in by CheckReferral
     
     // is it already in the memory pool?
     if (pool.exists(hash)) {
