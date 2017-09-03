@@ -2028,7 +2028,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         CInv inv(MSG_REFERRAL, rtx.GetHash());
         MarkGotInventoryFrom(pfrom, inv);
 
-        if (!AlreadyHave(inv) && AcceptToReferralMemoryPool(mempoolReferral, prtx)) {
+        if (!AlreadyHave(inv) && AcceptRefToMemoryPool(mempoolReferral, prtx)) {
             RelayReferral(rtx, connman);
 
             // TODO: We should recursively process any orphan transactions that were contingent on a referred key 

@@ -142,7 +142,7 @@ bool ReferralTx::InMempool() const
 }
 
 bool ReferralTx::AcceptToMemoryPool(const ReferralRef& referral) {
-    return ::AcceptToReferralMemoryPool(mempoolReferral, referral);
+    return ::AcceptRefToMemoryPool(mempoolReferral, referral);
 }
 
 std::string GenerateAndSendReferralTx(CPubKey& pubkey, uint256 referredBy, CConnman* connman)

@@ -445,7 +445,8 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
     return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata);
 }
 
-bool AcceptToReferralMemoryPool(ReferralTxMemPool& pool, const ReferralRef& referral)
+// TODO: Rename this to AcceptTxToMemoryPoolWorker...
+bool AcceptRefToMemoryPool(ReferralTxMemPool& pool, const ReferralRef& referral)
 {
     LOCK(pool.cs);
 
@@ -480,6 +481,7 @@ bool AcceptToReferralMemoryPool(ReferralTxMemPool& pool, const ReferralRef& refe
     return true;
 }
 
+// TODO: Rename this to AcceptTxToMemoryPoolWorker...
 static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool& pool, CValidationState& state, const CTransactionRef& ptx, bool fLimitFree,
                               bool* pfMissingInputs, int64_t nAcceptTime, std::list<CTransactionRef>* plTxnReplaced,
                               bool fOverrideMempoolLimit, const CAmount& nAbsurdFee, std::vector<COutPoint>& coins_to_uncache)
@@ -4673,7 +4675,7 @@ bool LoadReferralMempool()
             file >> ref;
 
             LOCK(cs_main);
-            AcceptToReferralMemoryPool(mempoolReferral, ref);
+            AcceptRefToMemoryPool(mempoolReferral, ref);
             if (ref != nullptr) {
                 ++count;
             } else {
