@@ -31,7 +31,7 @@ namespace consensus
             return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-pubkey");
 
         if (ref.m_codeHash.IsNull())
-            return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-ref-code")
+            return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-ref-code");
 
         //TODO: More static checks here, for example, making sure the script has
         //signatures.
