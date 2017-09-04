@@ -57,6 +57,12 @@ public:
     ReferralTxMemPool() {};
 
     bool AddUnchecked(const uint256& hash, const ReferralRef entry);
+
+    bool exists(uint256 hash) const
+    {
+        LOCK(cs);
+        return (mapRTx.count(hash) != 0);
+    }
 };
 
 /** \class CTxMemPoolEntry
