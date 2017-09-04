@@ -27,6 +27,7 @@
 #include "primitives/referral.h"
 #include "random.h"
 #include "refdb.h"
+#include "referrals.h"
 #include "reverse_iterator.h"
 #include "script/script.h"
 #include "script/sigcache.h"
@@ -187,6 +188,7 @@ CCoinsViewDB *pcoinsdbview = nullptr;
 CCoinsViewCache *pcoinsTip = nullptr;
 CBlockTreeDB *pblocktree = nullptr;
 ReferralsViewDB *prefviewdb = nullptr;
+ReferralsViewCache *prefviewcache = nullptr;
 
 enum FlushStateMode {
     FLUSH_STATE_NONE,

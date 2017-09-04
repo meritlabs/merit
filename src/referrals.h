@@ -13,19 +13,19 @@
 
 typedef std::unordered_map<uint256, Referral> ReferralMap;
 
-class ReferralsView
+class ReferralsViewCache
 {
 private:
-    ReferralMap::iterator Fetch(const uint256& code) const;
     mutable CCriticalSection m_cs_cache;
-protected:
     ReferralsViewDB *m_db;
     mutable ReferralMap m_referral_cache;
+
+    ReferralMap::iterator Fetch(const uint256& code) const;
+    bool InsertReferralIntoCache(const Referral&) const;
 public:
-    ReferralsView(ReferralsViewDB*);
+    ReferralsViewCache(ReferralsViewDB*);
 
     bool GetReferral(const uint256&, MutableReferral&) const;
-    bool InsertReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;
 
     void Flush();
