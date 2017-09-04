@@ -180,6 +180,10 @@ void CZMQNotificationInterface::BlockConnected(const std::shared_ptr<const CBloc
         // Do a normal notify for each transaction added in the block
         TransactionAddedToMempool(ptx);
     }
+    for (const ReferralRef& ref : pblock->m_vRef) {
+        // Do a normal notify for each referral transaction added in the block
+        ReferralTransactionAddedToMempool(ref);
+    }
 }
 
 void CZMQNotificationInterface::BlockDisconnected(const std::shared_ptr<const CBlock>& pblock)
@@ -187,6 +191,10 @@ void CZMQNotificationInterface::BlockDisconnected(const std::shared_ptr<const CB
     for (const CTransactionRef& ptx : pblock->vtx) {
         // Do a normal notify for each transaction removed in block disconnection
         TransactionAddedToMempool(ptx);
+    }
+    for (const ReferralRef& ref : pblock->m_vRef) {
+        // Do a normal notify for each referral transaction removed in block disconnection
+        ReferralTransactionAddedToMempool(ref);
     }
 }
 
