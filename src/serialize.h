@@ -162,11 +162,11 @@ enum
 #define READWRITE(obj)      (::SerReadWrite(s, (obj), ser_action))
 #define READWRITEMANY(...)      (::SerReadWriteMany(s, ser_action, __VA_ARGS__))
 
-/**
+/** 
  * Implement three methods for serializable objects. These are actually wrappers over
  * "SerializationOp" template, which implements the body of each class' serialization
  * code. Adding "ADD_SERIALIZE_METHODS" in the body of the class causes these wrappers to be
- * added as members.
+ * added as members. 
  */
 #define ADD_SERIALIZE_METHODS                                         \
     template<typename Stream>                                         \
@@ -217,15 +217,9 @@ template<typename Stream> inline void Unserialize(Stream& s, bool& a) { char f=s
  * size <= UINT_MAX   -- 5 bytes  (254 + 4 bytes)
  * size >  UINT_MAX   -- 9 bytes  (255 + 8 bytes)
  */
-const uint8_t f_253 = 253;
-const uint8_t f_254 = 254;
-const uint8_t f_255 = 255;
-const uint32_t f_254_min = 0x10000u;
-const uint64_t f_255_min = 0x100000000ULL;
-
 inline unsigned int GetSizeOfCompactSize(uint64_t nSize)
 {
-    if (nSize < f_253)             return sizeof(unsigned char);
+    if (nSize < 253)             return sizeof(unsigned char);
     else if (nSize <= std::numeric_limits<unsigned short>::max()) return sizeof(unsigned char) + sizeof(unsigned short);
     else if (nSize <= std::numeric_limits<unsigned int>::max())  return sizeof(unsigned char) + sizeof(unsigned int);
     else                         return sizeof(unsigned char) + sizeof(uint64_t);
@@ -236,23 +230,23 @@ inline void WriteCompactSize(CSizeComputer& os, uint64_t nSize);
 template<typename Stream>
 void WriteCompactSize(Stream& os, uint64_t nSize)
 {
-    if (nSize < f_253)
+    if (nSize < 253)
     {
         ser_writedata8(os, nSize);
     }
     else if (nSize <= std::numeric_limits<unsigned short>::max())
     {
-        ser_writedata8(os, f_253);
+        ser_writedata8(os, 253);
         ser_writedata16(os, nSize);
     }
     else if (nSize <= std::numeric_limits<unsigned int>::max())
     {
-        ser_writedata8(os, f_254);
+        ser_writedata8(os, 254);
         ser_writedata32(os, nSize);
     }
     else
     {
-        ser_writedata8(os, f_255);
+        ser_writedata8(os, 255);
         ser_writedata64(os, nSize);
     }
     return;
@@ -263,26 +257,26 @@ uint64_t ReadCompactSize(Stream& is)
 {
     uint8_t chSize = ser_readdata8(is);
     uint64_t nSizeRet = 0;
-    if (chSize < f_253)
+    if (chSize < 253)
     {
         nSizeRet = chSize;
     }
-    else if (chSize == f_253)
+    else if (chSize == 253)
     {
         nSizeRet = ser_readdata16(is);
-        if (nSizeRet < f_253)
+        if (nSizeRet < 253)
             throw std::ios_base::failure("non-canonical ReadCompactSize()");
     }
-    else if (chSize == f_254)
+    else if (chSize == 254)
     {
         nSizeRet = ser_readdata32(is);
-        if (nSizeRet < f_254_min)
+        if (nSizeRet < 0x10000u)
             throw std::ios_base::failure("non-canonical ReadCompactSize()");
     }
     else
     {
         nSizeRet = ser_readdata64(is);
-        if (nSizeRet < f_255_min)
+        if (nSizeRet < 0x100000000ULL)
             throw std::ios_base::failure("non-canonical ReadCompactSize()");
     }
     if (nSizeRet > (uint64_t)MAX_SIZE)
@@ -296,16 +290,16 @@ uint64_t ReadCompactSize(Stream& is)
  * sure the encoding is one-to-one, one is subtracted from all but the last digit.
  * Thus, the byte sequence a[] with length len, where all but the last byte
  * has bit 128 set, encodes the number:
- *
+ * 
  *  (a[len-1] & 0x7F) + sum(i=1..len-1, 128^i*((a[len-i-1] & 0x7F)+1))
- *
+ * 
  * Properties:
  * * Very small (0-127: 1 byte, 128-16511: 2 bytes, 16512-2113663: 3 bytes)
  * * Every integer has exactly one encoding
  * * Encoding does not depend on size of original integer type
  * * No redundancy: every (infinite) byte sequence corresponds to a list
  *   of encoded integers.
- *
+ * 
  * 0:         [0x00]  256:        [0x81 0x00]
  * 1:         [0x01]  16383:      [0xFE 0x7F]
  * 127:       [0x7F]  16384:      [0xFF 0x00]
@@ -373,7 +367,7 @@ I ReadVarInt(Stream& is)
 #define COMPACTSIZE(obj) REF(CCompactSize(REF(obj)))
 #define LIMITED_STRING(obj,n) REF(LimitedString< n >(REF(obj)))
 
-/**
+/** 
  * Wrapper for serializing arrays and POD.
  */
 class CFlatData
