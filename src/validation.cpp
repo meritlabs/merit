@@ -450,6 +450,8 @@ bool AcceptToReferralMemoryPool(ReferralTxMemPool& pool, const ReferralRef& refe
     // TODO: check mempool(and maybe not only pool) for referral consistency
     pool.AddUnchecked(referral->GetHash(), referral);
 
+    GetMainSignals().ReferralAddedToMempool(referral);
+
     return true;
 }
 
@@ -3679,7 +3681,6 @@ CBlockIndex * InsertBlockIndex(uint256 hash)
 
 bool static LoadBlockIndexDB(const CChainParams& chainparams)
 {
-    std::cout << "LoadBlockIndexDB" << std::endl;
     if (!pblocktree->LoadBlockIndexGuts(chainparams.GetConsensus(), InsertBlockIndex))
         return false;
 
@@ -3785,7 +3786,6 @@ bool static LoadBlockIndexDB(const CChainParams& chainparams)
     LogPrintf("%s: spent index %s\n", __func__, fSpentIndex ? "enabled" : "disabled");
 
     pblocktree->ReadFlag(flags::referralindex, fReferralIndex);
-    std::cout << fReferralIndex << std::endl;
     LogPrintf("%s: referral index %s\n", __func__, fReferralIndex ? "enabled" : "disabled");
 
     return true;
