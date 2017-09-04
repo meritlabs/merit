@@ -12,6 +12,7 @@
 #include <boost/test/unit_test.hpp>
 
 std::vector<std::pair<uint256, CTransactionRef>> extra_txn;
+std::vector<std::pair<uint256, ReferralRef>> extra_refs;
 
 struct RegtestingSetup : public TestingSetup {
     RegtestingSetup() : TestingSetup(CBaseChainParams::REGTEST) {}
@@ -58,6 +59,7 @@ static CBlock BuildBlockTestCase() {
 BOOST_AUTO_TEST_CASE(SimpleRoundTripTest)
 {
     CTxMemPool pool;
+    ReferralTxMemPool refpool;
     TestMemPoolEntryHelper entry;
     CBlock block(BuildBlockTestCase());
 
@@ -66,16 +68,16 @@ BOOST_AUTO_TEST_CASE(SimpleRoundTripTest)
 
     // Do a simple ShortTxIDs RT
     {
-        CBlockHeaderAndShortTxIDs shortIDs(block, true);
+        BlockHeaderAndShortIDs shortIDs(block, true);
 
         CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
         stream << shortIDs;
 
-        CBlockHeaderAndShortTxIDs shortIDs2;
+        BlockHeaderAndShortIDs shortIDs2;
         stream >> shortIDs2;
 
-        PartiallyDownloadedBlock partialBlock(&pool);
-        BOOST_CHECK(partialBlock.InitData(shortIDs2, extra_txn) == READ_STATUS_OK);
+        PartiallyDownloadedBlock partialBlock(&pool, &refpool);
+        BOOST_CHECK(partialBlock.InitData(shortIDs2, extra_txn, extra_refs) == READ_STATUS_OK);
         BOOST_CHECK( partialBlock.IsTxAvailable(0));
         BOOST_CHECK(!partialBlock.IsTxAvailable(1));
         BOOST_CHECK( partialBlock.IsTxAvailable(2));
@@ -89,21 +91,21 @@ BOOST_AUTO_TEST_CASE(SimpleRoundTripTest)
         CBlock block2;
         {
             PartiallyDownloadedBlock tmp = partialBlock;
-            BOOST_CHECK(partialBlock.FillBlock(block2, {}) == READ_STATUS_INVALID); // No transactions
+            BOOST_CHECK(partialBlock.FillBlock(block2, {}, {}) == READ_STATUS_INVALID); // No transactions
             partialBlock = tmp;
         }
 
         // Wrong transaction
         {
             PartiallyDownloadedBlock tmp = partialBlock;
-            partialBlock.FillBlock(block2, {block.vtx[2]}); // Current implementation doesn't check txn here, but don't require that
+            partialBlock.FillBlock(block2, {block.vtx[2]}, {}); // Current implementation doesn't check txn here, but don't require that
             partialBlock = tmp;
         }
         bool mutated;
         BOOST_CHECK(block.hashMerkleRoot != BlockMerkleRoot(block2, &mutated));
 
         CBlock block3;
-        BOOST_CHECK(partialBlock.FillBlock(block3, {block.vtx[1]}) == READ_STATUS_OK);
+        BOOST_CHECK(partialBlock.FillBlock(block3, {block.vtx[1]}, {}) == READ_STATUS_OK);
         BOOST_CHECK_EQUAL(block.GetHash().ToString(), block3.GetHash().ToString());
         BOOST_CHECK_EQUAL(block.hashMerkleRoot.ToString(), BlockMerkleRoot(block3, &mutated).ToString());
         BOOST_CHECK(!mutated);
@@ -111,25 +113,25 @@ BOOST_AUTO_TEST_CASE(SimpleRoundTripTest)
 }
 
 class TestHeaderAndShortIDs {
-    // Utility to encode custom CBlockHeaderAndShortTxIDs
+    // Utility to encode custom BlockHeaderAndShortIDs
 public:
     CBlockHeader header;
     uint64_t nonce;
     std::vector<uint64_t> shorttxids;
     std::vector<PrefilledTransaction> prefilledtxn;
 
-    explicit TestHeaderAndShortIDs(const CBlockHeaderAndShortTxIDs& orig) {
+    explicit TestHeaderAndShortIDs(const BlockHeaderAndShortIDs& orig) {
         CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
         stream << orig;
         stream >> *this;
     }
     explicit TestHeaderAndShortIDs(const CBlock& block) :
-        TestHeaderAndShortIDs(CBlockHeaderAndShortTxIDs(block, true)) {}
+        TestHeaderAndShortIDs(BlockHeaderAndShortIDs(block, true)) {}
 
     uint64_t GetShortID(const uint256& txhash) const {
         CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
         stream << *this;
-        CBlockHeaderAndShortTxIDs base;
+        BlockHeaderAndShortIDs base;
         stream >> base;
         return base.GetShortID(txhash);
     }
@@ -157,6 +159,7 @@ public:
 BOOST_AUTO_TEST_CASE(NonCoinbasePreforwardRTTest)
 {
     CTxMemPool pool;
+    ReferralTxMemPool refpool;
     TestMemPoolEntryHelper entry;
     CBlock block(BuildBlockTestCase());
 
@@ -177,11 +180,11 @@ BOOST_AUTO_TEST_CASE(NonCoinbasePreforwardRTTest)
         CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
         stream << shortIDs;
 
-        CBlockHeaderAndShortTxIDs shortIDs2;
+        BlockHeaderAndShortIDs shortIDs2;
         stream >> shortIDs2;
 
-        PartiallyDownloadedBlock partialBlock(&pool);
-        BOOST_CHECK(partialBlock.InitData(shortIDs2, extra_txn) == READ_STATUS_OK);
+        PartiallyDownloadedBlock partialBlock(&pool, &refpool);
+        BOOST_CHECK(partialBlock.InitData(shortIDs2, extra_txn, extra_refs) == READ_STATUS_OK);
         BOOST_CHECK(!partialBlock.IsTxAvailable(0));
         BOOST_CHECK( partialBlock.IsTxAvailable(1));
         BOOST_CHECK( partialBlock.IsTxAvailable(2));
@@ -191,14 +194,14 @@ BOOST_AUTO_TEST_CASE(NonCoinbasePreforwardRTTest)
         CBlock block2;
         {
             PartiallyDownloadedBlock tmp = partialBlock;
-            BOOST_CHECK(partialBlock.FillBlock(block2, {}) == READ_STATUS_INVALID); // No transactions
+            BOOST_CHECK(partialBlock.FillBlock(block2, {}, {}) == READ_STATUS_INVALID); // No transactions
             partialBlock = tmp;
         }
 
         // Wrong transaction
         {
             PartiallyDownloadedBlock tmp = partialBlock;
-            partialBlock.FillBlock(block2, {block.vtx[1]}); // Current implementation doesn't check txn here, but don't require that
+            partialBlock.FillBlock(block2, {block.vtx[1]}, {}); // Current implementation doesn't check txn here, but don't require that
             partialBlock = tmp;
         }
         bool mutated;
@@ -206,7 +209,7 @@ BOOST_AUTO_TEST_CASE(NonCoinbasePreforwardRTTest)
 
         CBlock block3;
         PartiallyDownloadedBlock partialBlockCopy = partialBlock;
-        BOOST_CHECK(partialBlock.FillBlock(block3, {block.vtx[0]}) == READ_STATUS_OK);
+        BOOST_CHECK(partialBlock.FillBlock(block3, {block.vtx[0]}, {}) == READ_STATUS_OK);
         BOOST_CHECK_EQUAL(block.GetHash().ToString(), block3.GetHash().ToString());
         BOOST_CHECK_EQUAL(block.hashMerkleRoot.ToString(), BlockMerkleRoot(block3, &mutated).ToString());
         BOOST_CHECK(!mutated);
@@ -223,6 +226,7 @@ BOOST_AUTO_TEST_CASE(NonCoinbasePreforwardRTTest)
 BOOST_AUTO_TEST_CASE(SufficientPreforwardRTTest)
 {
     CTxMemPool pool;
+    ReferralTxMemPool refpool;
     TestMemPoolEntryHelper entry;
     CBlock block(BuildBlockTestCase());
 
@@ -243,11 +247,11 @@ BOOST_AUTO_TEST_CASE(SufficientPreforwardRTTest)
         CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
         stream << shortIDs;
 
-        CBlockHeaderAndShortTxIDs shortIDs2;
+        BlockHeaderAndShortIDs shortIDs2;
         stream >> shortIDs2;
 
-        PartiallyDownloadedBlock partialBlock(&pool);
-        BOOST_CHECK(partialBlock.InitData(shortIDs2, extra_txn) == READ_STATUS_OK);
+        PartiallyDownloadedBlock partialBlock(&pool, &refpool);
+        BOOST_CHECK(partialBlock.InitData(shortIDs2, extra_txn, extra_refs) == READ_STATUS_OK);
         BOOST_CHECK( partialBlock.IsTxAvailable(0));
         BOOST_CHECK( partialBlock.IsTxAvailable(1));
         BOOST_CHECK( partialBlock.IsTxAvailable(2));
@@ -256,7 +260,7 @@ BOOST_AUTO_TEST_CASE(SufficientPreforwardRTTest)
 
         CBlock block2;
         PartiallyDownloadedBlock partialBlockCopy = partialBlock;
-        BOOST_CHECK(partialBlock.FillBlock(block2, {}) == READ_STATUS_OK);
+        BOOST_CHECK(partialBlock.FillBlock(block2, {}, {}) == READ_STATUS_OK);
         BOOST_CHECK_EQUAL(block.GetHash().ToString(), block2.GetHash().ToString());
         bool mutated;
         BOOST_CHECK_EQUAL(block.hashMerkleRoot.ToString(), BlockMerkleRoot(block2, &mutated).ToString());
@@ -273,6 +277,7 @@ BOOST_AUTO_TEST_CASE(SufficientPreforwardRTTest)
 BOOST_AUTO_TEST_CASE(EmptyBlockRoundTripTest)
 {
     CTxMemPool pool;
+    ReferralTxMemPool refpool;
     CMutableTransaction coinbase;
     coinbase.vin.resize(1);
     coinbase.vin[0].scriptSig.resize(10);
@@ -293,21 +298,22 @@ BOOST_AUTO_TEST_CASE(EmptyBlockRoundTripTest)
 
     // Test simple header round-trip with only coinbase
     {
-        CBlockHeaderAndShortTxIDs shortIDs(block, false);
+        BlockHeaderAndShortIDs shortIDs(block, false);
 
         CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
         stream << shortIDs;
 
-        CBlockHeaderAndShortTxIDs shortIDs2;
+        BlockHeaderAndShortIDs shortIDs2;
         stream >> shortIDs2;
 
-        PartiallyDownloadedBlock partialBlock(&pool);
-        BOOST_CHECK(partialBlock.InitData(shortIDs2, extra_txn) == READ_STATUS_OK);
+        PartiallyDownloadedBlock partialBlock(&pool, &refpool);
+        BOOST_CHECK(partialBlock.InitData(shortIDs2, extra_txn, extra_refs) == READ_STATUS_OK);
         BOOST_CHECK(partialBlock.IsTxAvailable(0));
 
         CBlock block2;
         std::vector<CTransactionRef> vtx_missing;
-        BOOST_CHECK(partialBlock.FillBlock(block2, vtx_missing) == READ_STATUS_OK);
+        std::vector<ReferralRef> vrefs_missing;
+        BOOST_CHECK(partialBlock.FillBlock(block2, vtx_missing, vrefs_missing) == READ_STATUS_OK);
         BOOST_CHECK_EQUAL(block.GetHash().ToString(), block2.GetHash().ToString());
         BOOST_CHECK_EQUAL(block.hashMerkleRoot.ToString(), BlockMerkleRoot(block2, &mutated).ToString());
         BOOST_CHECK(!mutated);

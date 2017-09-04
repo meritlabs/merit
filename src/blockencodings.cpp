@@ -25,21 +25,21 @@ uint64_t BlockHeaderAndShortIDs::GetShortID(const uint256& hash) const
 
 BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTXID) :
         m_nonce(GetRand(std::numeric_limits<uint64_t>::max())),
-        m_short_tx_ids(block.vtx.size() - 1), m_short_ref_ids(block.m_vRef.size()), 
-        m_prefilled_txn(1), header(block) 
+        m_short_tx_ids(block.vtx.size() - 1), m_short_ref_ids(block.m_vRef.size()),
+        m_prefilled_txn(1), header(block)
 {
     FillShortIDSelector();
     //TODO: Use our mempool prior to block acceptance to predictively fill more than just the coinbase
     m_prefilled_txn[0] = {0, block.vtx[0]};
-    std::transform(std::begin(block.vtx) + 1, std::end(block.vtx), std::begin(m_short_tx_ids), 
+    std::transform(std::begin(block.vtx) + 1, std::end(block.vtx), std::begin(m_short_tx_ids),
             [this,fUseWTXID](const CTransactionRef& tx) {
         return GetShortID(fUseWTXID ? tx->GetWitnessHash() : tx->GetHash());
     });
 
     //transform block ref
-    std::transform(std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(m_short_ref_ids), 
+    std::transform(std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(m_short_ref_ids),
             [this,fUseWTXID](const ReferralRef& ref) {
-        return GetShortID(fUseWTXID ? ref->GetWitnessHash() : ref->GetHash());
+        return GetShortID(ref->GetHash());
     });
 }
 
@@ -55,7 +55,7 @@ void BlockHeaderAndShortIDs::FillShortIDSelector() const {
 }
 
 ReadStatus PartiallyDownloadedBlock::InitData(
-        const BlockHeaderAndShortIDs& cmpctblock, 
+        const BlockHeaderAndShortIDs& cmpctblock,
         const ExtraTransactions& extra_txn,
         const ExtraReferrals& extra_ref) {
 
@@ -191,7 +191,7 @@ bool PartiallyDownloadedBlock::IsTxAvailable(size_t index) const {
 }
 
 ReadStatus PartiallyDownloadedBlock::FillBlock(
-        CBlock& block, 
+        CBlock& block,
         const MissingTransactions& vtx_missing,
         const MissingReferrals& ref_missing) {
 
