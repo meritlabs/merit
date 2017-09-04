@@ -7,6 +7,7 @@
 
 #include "primitives/referral.h"
 #include "refdb.h"
+#include "sync.h"
 
 #include <unordered_map>
 
@@ -14,17 +15,19 @@ typedef std::unordered_map<uint256, Referral> ReferralMap;
 
 class ReferralsView
 {
+private:
+    ReferralMap::iterator Fetch(const uint256& code) const;
+    mutable CCriticalSection m_cs_cache;
 protected:
-    ReferralsViewDB m_db;
+    ReferralsViewDB *m_db;
     mutable ReferralMap m_referral_cache;
 public:
-    ReferralsView(size_t nCacheSize, bool fMemory = false, bool fWipe = false) : m_db{nCacheSize, fMemory, fWipe} {};
+    ReferralsView(ReferralsViewDB*);
 
     bool GetReferral(const uint256&, MutableReferral&) const;
     bool InsertReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;
 
-    ReferralMap::iterator Fetch(const uint256& code) const;
     void Flush();
 };
 
