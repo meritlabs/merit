@@ -972,7 +972,7 @@ bool GetAddressIndex(uint160 addressHash, int type,
 
 bool GetReferralIndex()
 {
-    if (!fReferralIndex) 
+    if (!fReferralIndex)
         return error("referral index is not enabled");
 
     return true;
@@ -2079,6 +2079,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
         if (!pblocktree->WriteTimestampBlockIndex(CTimestampBlockIndexKey(pindex->GetBlockHash()), CTimestampBlockIndexValue(logicalTS)))
             return AbortNode(state, "Failed to write blockhash index");
+    }
+
+    if (fReferralIndex) {
+        // ToDo: write here to referral index
     }
 
     // add this block to the view's block chain
@@ -3675,6 +3679,7 @@ CBlockIndex * InsertBlockIndex(uint256 hash)
 
 bool static LoadBlockIndexDB(const CChainParams& chainparams)
 {
+    std::cout << "LoadBlockIndexDB" << std::endl;
     if (!pblocktree->LoadBlockIndexGuts(chainparams.GetConsensus(), InsertBlockIndex))
         return false;
 
@@ -3780,6 +3785,7 @@ bool static LoadBlockIndexDB(const CChainParams& chainparams)
     LogPrintf("%s: spent index %s\n", __func__, fSpentIndex ? "enabled" : "disabled");
 
     pblocktree->ReadFlag(flags::referralindex, fReferralIndex);
+    std::cout << fReferralIndex << std::endl;
     LogPrintf("%s: referral index %s\n", __func__, fReferralIndex ? "enabled" : "disabled");
 
     return true;
