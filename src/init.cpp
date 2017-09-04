@@ -29,6 +29,7 @@
 #include "policy/fees.h"
 #include "policy/policy.h"
 #include "refdb.h"
+#include "referrals.h"
 #include "rpc/server.h"
 #include "rpc/register.h"
 #include "rpc/blockchain.h"
@@ -1395,7 +1396,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     } else {
         nBlockTreeDBCache = std::min(nBlockTreeDBCache, (gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX) ? nMaxBlockDBAndTxIndexCache : nMaxBlockDBCache) << 20);
     }
-    int64_t nReferralDBCache = 0; // todo: figure out how much to cache
+    size_t nReferralDBCache = 0; // todo: figure out how much to cache
     nTotalCache -= nBlockTreeDBCache;
     int64_t nCoinDBCache = std::min(nTotalCache / 2, (nTotalCache / 4) + (1 << 23)); // use 25%-50% of the remainder for disk cache
     nCoinDBCache = std::min(nCoinDBCache, nMaxCoinsDBCache << 20); // cap total coins db cache
@@ -1543,7 +1544,8 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                     }
                 }
 
-                prefviewdb = new ReferralsViewDB(nReferralDBCache, false, fReset || fReindexChainState);
+                prefviewdb = new ReferralsViewDB{nReferralDBCache, false, fReset || fReindexChainState};
+                prefviewcache = new ReferralsViewCache{prefviewdb};
 
             } catch (const std::exception& e) {
                 LogPrintf("%s\n", e.what());

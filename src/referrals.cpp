@@ -6,15 +6,15 @@
 
 #include <utility>
 
-ReferralsView::ReferralsView(ReferralsViewDB *db) : m_db{db} {
+ReferralsViewCache::ReferralsViewCache(ReferralsViewDB *db) : m_db{db} {
     assert(db);
 };
 
-ReferralMap::iterator ReferralsView::Fetch(const uint256& code) const {
+ReferralMap::iterator ReferralsViewCache::Fetch(const uint256& code) const {
     return m_referral_cache.find(code);
 }
 
-bool ReferralsView::GetReferral(const uint256& code, MutableReferral& ref) const {
+bool ReferralsViewCache::GetReferral(const uint256& code, MutableReferral& ref) const {
     {
         LOCK(m_cs_cache);
         auto it = Fetch(code);
@@ -24,25 +24,32 @@ bool ReferralsView::GetReferral(const uint256& code, MutableReferral& ref) const
         }
     }
     if (m_db->GetReferral(code, ref)) {
-        LOCK(m_cs_cache);
-        auto ret = m_referral_cache.insert(std::make_pair(ref.m_codeHash, ref));
-        return ret.second;
+        return InsertReferralIntoCache(ref);
     }
     return false;
 }
 
-bool ReferralsView::InsertReferral(const Referral& ref) {
+bool ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const {
     LOCK(m_cs_cache);
     auto ret = m_referral_cache.insert(std::make_pair(ref.m_codeHash, ref));
     return ret.second;
 }
 
-bool ReferralsView::ReferralCodeExists(const uint256& code) const {
-    LOCK(m_cs_cache);
-    return m_referral_cache.count(code) > 0;
+bool ReferralsViewCache::ReferralCodeExists(const uint256& code) const {
+    {
+        LOCK(m_cs_cache);
+        if (m_referral_cache.count(code) > 0) {
+            return true;
+        }
+    }
+    MutableReferral db_ref;
+    if (m_db->GetReferral(code, db_ref)) {
+        return InsertReferralIntoCache(db_ref);
+    }
+    return false;
 }
 
-void ReferralsView::Flush() {
+void ReferralsViewCache::Flush() {
     LOCK(m_cs_cache);
     // todo: use batch insert
     for (auto pr : m_referral_cache) {
