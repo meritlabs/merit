@@ -907,7 +907,8 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_WITNESS_BLOCK:
         return mapBlockIndex.count(inv.hash);
     case MSG_REFERRAL:
-        return false;
+        // TODO: add to recentRejects if referral code is not valid
+        return mempoolReferral.exists(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
