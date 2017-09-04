@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2014-2016 The Bitcoin Core developers
+# Copyright (c) 2017 The Merit Foundation developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,7 +12,9 @@
                 -zmqpubhashblock=tcp://127.0.0.1:28332 \
                 -zmqpubrawtx=tcp://127.0.0.1:28332 \
                 -zmqpubhashtx=tcp://127.0.0.1:28332 \
-                -zmqpubhashblock=tcp://127.0.0.1:28332
+                -zmqpubhashblock=tcp://127.0.0.1:28332 \
+                -zmqpubhashreferraltx=tcp://127.0.0.1:28332 \
+                -zmqpubrawreferraltx=tcp://127.0.0.1:28332
 
     We use the asyncio library here.  `self.handle()` installs itself as a
     future at the end of the function.  Since it never returns with the event
