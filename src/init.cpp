@@ -248,6 +248,8 @@ void Shutdown()
         pblocktree = nullptr;
         delete prefviewdb;
         prefviewdb = nullptr;
+        delete prefviewcache;
+        prefviewcache = nullptr;
     }
 #ifdef ENABLE_WALLET
     for (CWalletRef pwallet : vpwallets) {
@@ -1425,6 +1427,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                 delete pcoinscatcher;
                 delete pblocktree;
                 delete prefviewdb;
+                delete prefviewcache;
 
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReset);
 
