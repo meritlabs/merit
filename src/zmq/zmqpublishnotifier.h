@@ -40,6 +40,12 @@ public:
     bool NotifyTransaction(const CTransaction &transaction) override;
 };
 
+class CZMQPublishHashReferralNotifier : public CZMQAbstractPublishNotifier
+{
+public:
+    bool NotifyReferral(const ReferralRef &ref) override;
+};
+
 class CZMQPublishRawBlockNotifier : public CZMQAbstractPublishNotifier
 {
 public:
@@ -52,7 +58,7 @@ public:
     bool NotifyTransaction(const CTransaction &transaction) override;
 };
 
-class CZMQPublishReferralNotifier : public CZMQAbstractPublishNotifier
+class CZMQPublishRawReferralNotifier : public CZMQAbstractPublishNotifier
 {
 public:
     bool NotifyReferral(const ReferralRef &ref) override;

@@ -10,6 +10,13 @@
 #include "streams.h"
 #include "util.h"
 
+static const char *PUB_HASHBLOCK    = "pubhashblock";
+static const char *PUB_HASHTX       = "pubhashtx";
+static const char *PUB_HASHREFERRAL = "pubhashreferraltx";
+static const char *PUB_RAWBLOCK     = "pubrawblock";
+static const char *PUB_RAWTX        = "pubrawtx";
+static const char *PUB_RAWREFERRAL  = "pubrawreferraltx";
+
 void zmqError(const char *str)
 {
     LogPrint(BCLog::ZMQ, "zmq: Error: %s, errno=%s\n", str, zmq_strerror(errno));
@@ -35,11 +42,12 @@ CZMQNotificationInterface* CZMQNotificationInterface::Create()
     std::map<std::string, CZMQNotifierFactory> factories;
     std::list<CZMQAbstractNotifier*> notifiers;
 
-    factories["pubhashblock"] = CZMQAbstractNotifier::Create<CZMQPublishHashBlockNotifier>;
-    factories["pubhashtx"] = CZMQAbstractNotifier::Create<CZMQPublishHashTransactionNotifier>;
-    factories["pubrawblock"] = CZMQAbstractNotifier::Create<CZMQPublishRawBlockNotifier>;
-    factories["pubrawtx"] = CZMQAbstractNotifier::Create<CZMQPublishRawTransactionNotifier>;
-    factories["pubreferraltx"] = CZMQAbstractNotifier::Create<CZMQPublishReferralNotifier>;
+    factories[PUB_HASHBLOCK] = CZMQAbstractNotifier::Create<CZMQPublishHashBlockNotifier>;
+    factories[PUB_HASHTX] = CZMQAbstractNotifier::Create<CZMQPublishHashTransactionNotifier>;
+    factories[PUB_HASHREFERRAL] = CZMQAbstractNotifier::Create<CZMQPublishHashReferralNotifier>;
+    factories[PUB_RAWBLOCK] = CZMQAbstractNotifier::Create<CZMQPublishRawBlockNotifier>;
+    factories[PUB_RAWTX] = CZMQAbstractNotifier::Create<CZMQPublishRawTransactionNotifier>;
+    factories[PUB_RAWREFERRAL] = CZMQAbstractNotifier::Create<CZMQPublishRawReferralNotifier>;
 
     for (std::map<std::string, CZMQNotifierFactory>::const_iterator i=factories.begin(); i!=factories.end(); ++i)
     {

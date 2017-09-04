@@ -44,9 +44,10 @@ class ZMQHandler():
         self.zmqSubSocket = self.zmqContext.socket(zmq.SUB)
         self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "hashblock")
         self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "hashtx")
+        self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "hashreferraltx")
         self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "rawblock")
         self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "rawtx")
-        self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "referraltx")
+        self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "rawreferraltx")
         self.zmqSubSocket.connect("tcp://127.0.0.1:%i" % port)
 
     async def handle(self) :
@@ -62,6 +63,9 @@ class ZMQHandler():
             print(binascii.hexlify(body))
         elif topic == b"hashtx":
             print('- HASH TX  ('+sequence+') -')
+            print(binascii.hexlify(body))
+        elif topic == b"hashreferraltx":
+            print('- HASH REFERRAL TX  ('+sequence+') -')
             print(binascii.hexlify(body))
         elif topic == b"rawblock":
             print('- RAW BLOCK HEADER ('+sequence+') -')
