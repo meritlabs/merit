@@ -107,7 +107,7 @@ ThresholdState AbstractThresholdConditionChecker::GetStateFor(const CBlockIndex*
 // return the numerical statistics of blocks signalling the specified BIP9 condition in this current period
 BIP9Stats AbstractThresholdConditionChecker::GetStateStatisticsFor(const CBlockIndex* pindex, const Consensus::Params& params) const
 {
-    BIP9Stats stats;
+    BIP9Stats stats = {};
 
     stats.period = Period(params);
     stats.threshold = Threshold(params);
@@ -185,7 +185,7 @@ protected:
     }
 
 public:
-    VersionBitsConditionChecker(Consensus::DeploymentPos id_) : id(id_) {}
+    explicit VersionBitsConditionChecker(Consensus::DeploymentPos id_) : id(id_) {}
     uint32_t Mask(const Consensus::Params& params) const { return ((uint32_t)1) << params.vDeployments[id].bit; }
 };
 

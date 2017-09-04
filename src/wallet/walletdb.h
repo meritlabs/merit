@@ -7,9 +7,10 @@
 #define BITCOIN_WALLET_WALLETDB_H
 
 #include "amount.h"
-#include "primitives/transaction.h"
-#include "wallet/db.h"
 #include "key.h"
+#include "primitives/transaction.h"
+#include "primitives/referral.h"
+#include "wallet/db.h"
 
 #include <list>
 #include <stdint.h>
@@ -42,6 +43,7 @@ class CMasterKey;
 class CScript;
 class CWallet;
 class CWalletTx;
+class ReferralTx;
 class uint160;
 class uint256;
 
@@ -105,7 +107,7 @@ public:
     {
         SetNull();
     }
-    CKeyMetadata(int64_t nCreateTime_)
+    explicit CKeyMetadata(int64_t nCreateTime_)
     {
         SetNull();
         nCreateTime = nCreateTime_;
@@ -162,7 +164,7 @@ private:
     }
 
 public:
-    CWalletDB(CWalletDBWrapper& dbw, const char* pszMode = "r+", bool _fFlushOnClose = true) :
+    explicit CWalletDB(CWalletDBWrapper& dbw, const char* pszMode = "r+", bool _fFlushOnClose = true) :
         batch(dbw, pszMode, _fFlushOnClose),
         m_dbw(dbw)
     {
@@ -191,11 +193,13 @@ public:
 
     bool WriteOrderPosNext(int64_t nOrderPosNext);
 
-    bool WriteDefaultKey(const CPubKey& vchPubKey);
-
     bool ReadPool(int64_t nPool, CKeyPool& keypool);
     bool WritePool(int64_t nPool, const CKeyPool& keypool);
     bool ErasePool(int64_t nPool);
+
+    bool ReadReferral(int64_t nReferral, ReferralRef referral);
+    bool WriteReferral(int64_t nReferral, const Referral& referral);
+    bool EraseReferral(int64_t nReferral);
 
     bool WriteMinVersion(int nVersion);
 
@@ -243,6 +247,10 @@ public:
     bool ReadVersion(int& nVersion);
     //! Write wallet version
     bool WriteVersion(int nVersion);
+
+    //! Write referral
+    bool WriteReferralTx(const ReferralTx& rtx);
+
 private:
     CDB batch;
     CWalletDBWrapper& m_dbw;

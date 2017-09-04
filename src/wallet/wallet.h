@@ -18,6 +18,7 @@
 #include "wallet/crypter.h"
 #include "wallet/walletdb.h"
 #include "wallet/rpcwallet.h"
+#include "primitives/referral.h"
 
 #include <algorithm>
 #include <atomic>
@@ -40,7 +41,7 @@ extern unsigned int nTxConfirmTarget;
 extern bool bSpendZeroConfChange;
 extern bool fWalletRbf;
 
-static const unsigned int DEFAULT_KEYPOOL_SIZE = 1000;
+static const unsigned int DEFAULT_KEYPOOL_SIZE = 10;
 //! -paytxfee default
 static const CAmount DEFAULT_TRANSACTION_FEE = 0;
 //! -fallbackfee default
@@ -99,6 +100,7 @@ enum WalletFeature
     FEATURE_LATEST = FEATURE_COMPRPUBKEY // HD is optional, use FEATURE_COMPRPUBKEY as latest version
 };
 
+std::string GenerateAndSendReferralTx(CPubKey& pubkey, uint256 referredBy, CConnman *connman);
 
 /** A key pool entry */
 class CKeyPool
@@ -107,9 +109,10 @@ public:
     int64_t nTime;
     CPubKey vchPubKey;
     bool fInternal; // for change outputs
+    bool m_rootReferralKey; // if current key is a root of this wallet referral tree
 
     CKeyPool();
-    CKeyPool(const CPubKey& vchPubKeyIn, bool internalIn);
+    CKeyPool(const CPubKey& vchPubKeyIn, bool internalIn, bool rootReferralKeyIn);
 
     ADD_SERIALIZE_METHODS;
 
@@ -184,6 +187,49 @@ struct COutputEntry
     int vout;
 };
 
+class ReferralTx {
+private:
+    ReferralRef m_pReferral;
+    const CWallet* m_pWallet;
+
+public:
+    ReferralTx() {};
+
+    ReferralTx(ReferralRef pReferralIn)
+    {
+        SetReferral(pReferralIn);
+	}
+
+    void SetReferral(ReferralRef arg)
+    {
+        m_pReferral = std::move(arg);
+    }
+
+    void BindWallet(CWallet *pWalletIn)
+    {
+        m_pWallet = pWalletIn;
+    }
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(m_pReferral);
+    }
+
+    bool RelayReferralTransaction(CConnman* connman);
+    bool InMempool() const;
+    bool AcceptToMemoryPool(const ReferralRef& referral);
+
+    bool IsNull() const {
+        return m_pReferral == nullptr || GetHash().IsNull();
+    }
+
+    const uint256& GetHash() const {
+        return m_pReferral->GetHash();
+    }
+};
+
 /** A transaction with a merkle branch linking it to the block chain. */
 class CMerkleTx
 {
@@ -208,7 +254,7 @@ public:
         Init();
     }
 
-    CMerkleTx(CTransactionRef arg)
+    explicit CMerkleTx(CTransactionRef arg)
     {
         SetTx(std::move(arg));
         Init();
@@ -262,7 +308,7 @@ public:
     bool IsCoinBase() const { return tx->IsCoinBase(); }
 };
 
-/** 
+/**
  * A transaction with a bunch of additional info that only the owner cares about.
  * It includes any unrecorded transactions needed to link it back to the block chain.
  */
@@ -548,7 +594,7 @@ public:
     //! todo: add something to note what created it (user, getnewaddress, change)
     //!   maybe should have a map<string, string> property map
 
-    CWalletKey(int64_t nExpires=0);
+    explicit CWalletKey(int64_t nExpires=0);
 
     ADD_SERIALIZE_METHODS;
 
@@ -647,11 +693,11 @@ private:
 };
 
 
-/** 
+/**
  * A CWallet is an extension of a keystore, which also maintains a set of transactions and balances,
  * and provides the ability to create new transactions.
  */
-class CWallet : public CCryptoKeyStore, public CValidationInterface
+class CWallet final : public CCryptoKeyStore, public CValidationInterface
 {
 private:
     static std::atomic<bool> fFlushScheduled;
@@ -695,19 +741,24 @@ private:
     /* Used by TransactionAddedToMemorypool/BlockConnected/Disconnected.
      * Should be called with pindexBlock and posInBlock if this is for a transaction that is included in a block. */
     void SyncTransaction(const CTransactionRef& tx, const CBlockIndex *pindex = nullptr, int posInBlock = 0);
+    void SyncRefTransaction(const ReferralRef& tx, const CBlockIndex *pindex = nullptr, int posInBlock = 0);
 
     /* the HD chain data model (external chain counters) */
     CHDChain hdChain;
 
     /* HD derive new child key (on internal or external chain) */
-    void DeriveNewChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKey& secret, bool internal = false);
+    void DeriveNewChildKey(CWalletDB& walletdb, CKeyMetadata& metadata, CKey& secret, bool internal = false);
 
     std::set<int64_t> setInternalKeyPool;
     std::set<int64_t> setExternalKeyPool;
+    std::set<int64_t> m_setReferralKeyPool;
+    std::set<int64_t> m_setRootReferralKeys;
     int64_t m_max_keypool_index;
     std::map<CKeyID, int64_t> m_pool_key_to_index;
 
     int64_t nTimeFirstKey;
+
+    ReferralTx m_referralTx;
 
     /**
      * Private version of AddWatchOnly method which does not accept a
@@ -749,6 +800,7 @@ public:
     }
 
     void LoadKeyPool(int64_t nIndex, const CKeyPool &keypool);
+    void LoadReferral(int64_t nIndex, const Referral &referral);
 
     // Map from Key ID (for regular keys) or Script ID (for watch-only keys) to
     // key metadata.
@@ -765,7 +817,7 @@ public:
     }
 
     // Create wallet with passed-in database handle
-    CWallet(std::unique_ptr<CWalletDBWrapper> dbw_in) : dbw(std::move(dbw_in))
+    explicit CWallet(std::unique_ptr<CWalletDBWrapper> dbw_in) : dbw(std::move(dbw_in))
     {
         SetNull();
     }
@@ -807,11 +859,12 @@ public:
 
     std::map<CTxDestination, CAddressBookData> mapAddressBook;
 
-    CPubKey vchDefaultKey;
-
     std::set<COutPoint> setLockedCoins;
 
     const CWalletTx* GetWalletTx(const uint256& hash) const;
+
+    // Sets the referral code to unlock the wallet and sends referral tx to the network
+    bool Unlock(std::string referralCodeIn);
 
     //! check whether we are allowed to upgrade (or already support) to the named feature
     bool CanSupportFeature(enum WalletFeature wf) const { AssertLockHeld(cs_wallet); return nWalletMaxVersion >= wf; }
@@ -904,7 +957,7 @@ public:
     void GetKeyBirthTimes(std::map<CTxDestination, int64_t> &mapKeyBirth) const;
     unsigned int ComputeTimeSmart(const CWalletTx& wtx) const;
 
-    /** 
+    /**
      * Increment the next transaction order id
      * @return next transaction order id
      */
@@ -973,7 +1026,7 @@ public:
 
     bool NewKeyPool();
     size_t KeypoolCountExternalKeys();
-    bool TopUpKeyPool(unsigned int kpSize = 0);
+    bool TopUpKeyPool(unsigned int kpSize = 0, std::shared_ptr<uint256> referredBy = nullptr, bool outReferral = false);
     void ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRequestedInternal);
     void KeepKey(int64_t nIndex);
     void ReturnKey(int64_t nIndex, bool fInternal, const CPubKey& pubkey);
@@ -984,8 +1037,6 @@ public:
      */
     void MarkReserveKeysAsUsed(int64_t keypool_id);
     const std::map<CKeyID, int64_t>& GetAllReserveKeys() const { return m_pool_key_to_index; }
-    /** Does the wallet have at least min_keys in the keypool? */
-    bool HasUnusedKeys(int min_keys) const;
 
     std::set< std::set<CTxDestination> > GetAddressGroupings();
     std::map<CTxDestination, CAmount> GetAddressBalances();
@@ -1033,14 +1084,12 @@ public:
     }
 
     void GetScriptForMining(std::shared_ptr<CReserveScript> &script);
-    
+
     unsigned int GetKeyPoolSize()
     {
         AssertLockHeld(cs_wallet); // set{Ex,In}ternalKeyPool
         return setInternalKeyPool.size() + setExternalKeyPool.size();
     }
-
-    bool SetDefaultKey(const CPubKey &vchPubKey);
 
     //! signify that a particular wallet feature is now used. this may change nWalletVersion and nWalletMaxVersion if those are lower
     bool SetMinVersion(enum WalletFeature, CWalletDB* pwalletdbIn = nullptr, bool fExplicit = false);
@@ -1064,8 +1113,8 @@ public:
     //  This function will perform salvage on the wallet if requested, as long as only one wallet is
     //  being loaded (CWallet::ParameterInteraction forbids -salvagewallet, -zapwallettxes or -upgradewallet with multiwallet).
     static bool Verify();
-    
-    /** 
+
+    /**
      * Address book entry changed.
      * @note called with lock cs_wallet held.
      */
@@ -1074,7 +1123,7 @@ public:
             const std::string &purpose,
             ChangeType status)> NotifyAddressBookChanged;
 
-    /** 
+    /**
      * Wallet transaction added, removed or updated.
      * @note called with lock cs_wallet held.
      */
@@ -1128,16 +1177,22 @@ public:
 
     /* Generates a new HD master key (will not be activated) */
     CPubKey GenerateNewHDMasterKey();
-    
+
     /* Set the current HD master key (will reset the chain child index counters)
        Sets the master key's version based on the current wallet version (so the
        caller must ensure the current wallet version is correct before calling
        this function). */
     bool SetHDMasterKey(const CPubKey& key);
+
+    bool SetReferralTx(const ReferralTx& rtx);
+    ReferralRef GenerateNewReferral(CPubKey& pubkey, uint256 referredBy, CWalletDB& walletdb);
+    void ReferralAddedToMempool(const ReferralRef& pref);
+
+    bool IsReferred() const;
 };
 
 /** A key allocated from the key pool. */
-class CReserveKey : public CReserveScript
+class CReserveKey final : public CReserveScript
 {
 protected:
     CWallet* pwallet;
@@ -1145,7 +1200,7 @@ protected:
     CPubKey vchPubKey;
     bool fInternal;
 public:
-    CReserveKey(CWallet* pwalletIn)
+    explicit CReserveKey(CWallet* pwalletIn)
     {
         nIndex = -1;
         pwallet = pwalletIn;
@@ -1168,7 +1223,7 @@ public:
 };
 
 
-/** 
+/**
  * Account information.
  * Stored in wallet with key "acc"+string account name.
  */

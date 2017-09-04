@@ -22,7 +22,7 @@ static const size_t DBWRAPPER_PREALLOC_VALUE_SIZE = 1024;
 class dbwrapper_error : public std::runtime_error
 {
 public:
-    dbwrapper_error(const std::string& msg) : std::runtime_error(msg) {}
+    explicit dbwrapper_error(const std::string& msg) : std::runtime_error(msg) {}
 };
 
 class CDBWrapper;
@@ -61,7 +61,7 @@ public:
     /**
      * @param[in] _parent   CDBWrapper that this batch is to be submitted to
      */
-    CDBBatch(const CDBWrapper &_parent) : parent(_parent), ssKey(SER_DISK, CLIENT_VERSION), ssValue(SER_DISK, CLIENT_VERSION), size_estimate(0) { };
+    explicit CDBBatch(const CDBWrapper &_parent) : parent(_parent), ssKey(SER_DISK, CLIENT_VERSION), ssValue(SER_DISK, CLIENT_VERSION), size_estimate(0) { };
 
     void Clear()
     {
@@ -130,7 +130,7 @@ public:
         parent(_parent), piter(_piter) { };
     ~CDBIterator();
 
-    bool Valid();
+    bool Valid() const;
 
     void SeekToFirst();
 
@@ -211,14 +211,16 @@ private:
 
 public:
     /**
-     * @param[in] path        Location in the filesystem where leveldb data will be stored.
-     * @param[in] nCacheSize  Configures various leveldb cache settings.
-     * @param[in] fMemory     If true, use leveldb's memory environment.
-     * @param[in] fWipe       If true, remove all existing data.
-     * @param[in] obfuscate   If true, store data obfuscated via simple XOR. If false, XOR
-     *                        with a zero'd byte array.
+     * @param[in] path          Location in the filesystem where leveldb data will be stored.
+     * @param[in] nCacheSize    Configures various leveldb cache settings.
+     * @param[in] fMemory       If true, use leveldb's memory environment.
+     * @param[in] fWipe         If true, remove all existing data.
+     * @param[in] obfuscate     If true, store data obfuscated via simple XOR. If false, XOR
+     *                          with a zero'd byte array.
+     * @param[in] compression   Enable snappy compression for the database
+     * @param[in] maxOpenFiles  The maximum number of open files for the database
      */
-    CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory = false, bool fWipe = false, bool obfuscate = false);
+    CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory = false, bool fWipe = false, bool obfuscate = false, bool compression = false, int maxOpenFiles = 64);
     ~CDBWrapper();
 
     template <typename K, typename V>

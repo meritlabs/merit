@@ -130,11 +130,6 @@ bool CWalletDB::WriteOrderPosNext(int64_t nOrderPosNext)
     return WriteIC(std::string("orderposnext"), nOrderPosNext);
 }
 
-bool CWalletDB::WriteDefaultKey(const CPubKey& vchPubKey)
-{
-    return WriteIC(std::string("defaultkey"), vchPubKey);
-}
-
 bool CWalletDB::ReadPool(int64_t nPool, CKeyPool& keypool)
 {
     return batch.Read(std::make_pair(std::string("pool"), nPool), keypool);
@@ -148,6 +143,21 @@ bool CWalletDB::WritePool(int64_t nPool, const CKeyPool& keypool)
 bool CWalletDB::ErasePool(int64_t nPool)
 {
     return EraseIC(std::make_pair(std::string("pool"), nPool));
+}
+
+bool CWalletDB::ReadReferral(int64_t nReferral, ReferralRef referral)
+{
+    return batch.Read(std::make_pair(std::string("ref"), nReferral), referral);
+}
+
+bool CWalletDB::WriteReferral(int64_t nReferral, const Referral& referral)
+{
+    return WriteIC(std::make_pair(std::string("ref"), nReferral), referral);
+}
+
+bool CWalletDB::EraseReferral(int64_t nReferral)
+{
+    return EraseIC(std::make_pair(std::string("ref"), nReferral));
 }
 
 bool CWalletDB::WriteMinVersion(int nVersion)
@@ -245,9 +255,7 @@ public:
     }
 };
 
-bool
-ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
-             CWalletScanState &wss, std::string& strType, std::string& strErr)
+bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CWalletScanState& wss, std::string& strType, std::string& strErr)
 {
     try {
         // Unserialize
@@ -452,7 +460,14 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
         }
         else if (strType == "defaultkey")
         {
-            ssValue >> pwallet->vchDefaultKey;
+            // We don't want or need the default key, but if there is one set,
+            // we want to make sure that it is valid so that we can detect corruption
+            CPubKey vchPubKey;
+            ssValue >> vchPubKey;
+            if (!vchPubKey.IsValid()) {
+                strErr = "Error reading wallet database: Default Key corrupt";
+                return false;
+            }
         }
         else if (strType == "pool")
         {
@@ -462,6 +477,15 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
             ssValue >> keypool;
 
             pwallet->LoadKeyPool(nIndex, keypool);
+        }
+        else if (strType == "ref")
+        {
+            int64_t nIndex;
+            ssKey >> nIndex;
+            MutableReferral referral;
+            ssValue >> referral;
+
+            pwallet->LoadReferral(nIndex, Referral(referral));
         }
         else if (strType == "version")
         {
@@ -506,6 +530,14 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
                 strErr = "Error reading wallet database: SetHDChain failed";
                 return false;
             }
+        } else if (strType == "rtx") {
+            ReferralTx rtx;
+            ssValue >> rtx;
+
+            if (!pwallet->SetReferralTx(rtx)) {
+                strErr = "Error reading wallet database: setReferralTx failed";
+                return false;
+            }
         }
     } catch (...)
     {
@@ -522,7 +554,6 @@ bool CWalletDB::IsKeyType(const std::string& strType)
 
 DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
 {
-    pwallet->vchDefaultKey = CPubKey();
     CWalletScanState wss;
     bool fNoncriticalErrors = false;
     DBErrors result = DB_LOAD_OK;
@@ -565,7 +596,7 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
             {
                 // losing keys is considered a catastrophic error, anything else
                 // we assume the user can live with:
-                if (IsKeyType(strType))
+                if (IsKeyType(strType) || strType == "defaultkey")
                     result = DB_CORRUPT;
                 else
                 {
@@ -621,7 +652,7 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
     pwallet->laccentries.clear();
     ListAccountCreditDebit("*", pwallet->laccentries);
     for (CAccountingEntry& entry : pwallet->laccentries) {
-        pwallet->wtxOrdered.insert(make_pair(entry.nOrderPos, CWallet::TxPair((CWalletTx*)0, &entry)));
+        pwallet->wtxOrdered.insert(make_pair(entry.nOrderPos, CWallet::TxPair(nullptr, &entry)));
     }
 
     return result;
@@ -862,4 +893,9 @@ bool CWalletDB::ReadVersion(int& nVersion)
 bool CWalletDB::WriteVersion(int nVersion)
 {
     return batch.WriteVersion(nVersion);
+}
+
+bool CWalletDB::WriteReferralTx(const ReferralTx& rtx)
+{
+    return WriteIC(std::make_pair(std::string("rtx"), rtx.GetHash()), rtx);
 }

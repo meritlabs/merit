@@ -905,18 +905,31 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_BLOCK:
     case MSG_WITNESS_BLOCK:
         return mapBlockIndex.count(inv.hash);
+    case MSG_REFERRAL:
+        return false;
     }
     // Don't know what it is, just say we already got one
     return true;
 }
 
-static void RelayTransaction(const CTransaction& tx, CConnman& connman)
+static void RelayInventory(const CInv& inv, CConnman& connman)
 {
-    CInv inv(MSG_TX, tx.GetHash());
     connman.ForEachNode([&inv](CNode* pnode)
     {
         pnode->PushInventory(inv);
     });
+}
+
+static void RelayTransaction(const CTransaction& tx, CConnman& connman)
+{
+    CInv inv(MSG_TX, tx.GetHash());
+    RelayInventory(inv, connman);
+}
+
+static void RelayReferral(const Referral& rtx, CConnman& connman)
+{
+    CInv inv(MSG_REFERRAL, rtx.GetHash());
+    RelayInventory(inv, connman);
 }
 
 static void RelayAddress(const CAddress& addr, bool fReachable, CConnman& connman)
@@ -1123,6 +1136,13 @@ void static ProcessGetData(CNode* pfrom, const Consensus::Params& consensusParam
                 if (!push) {
                     vNotFound.push_back(inv);
                 }
+            } else if (inv.type == MSG_REFERRAL) {
+                auto it = mempoolReferral.mapRTx.find(inv.hash);
+                int nSendFlags = 0;
+
+                if (it != mempoolReferral.mapRTx.end()) {
+                    connman.PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::REF, *it->second));
+                }
             }
 
             // Track requests for our stuff.
@@ -1166,10 +1186,20 @@ inline void static SendBlockTransactions(const CBlock& block, const BlockTransac
         }
         resp.txn[i] = block.vtx[req.indexes[i]];
     }
+
     LOCK(cs_main);
     const CNetMsgMaker msgMaker(pfrom->GetSendVersion());
     int nSendFlags = State(pfrom->GetId())->fWantsCmpctWitness ? 0 : SERIALIZE_TRANSACTION_NO_WITNESS;
     connman.PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::BLOCKTXN, resp));
+}
+
+void MarkGotInventoryFrom(CNode* pfrom, const CInv& inv)
+{
+    assert(pfrom);
+
+    pfrom->AddInventoryKnown(inv);
+    pfrom->setAskFor.erase(inv.hash);
+    mapAlreadyAskedFor.erase(inv.hash);
 }
 
 bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, int64_t nTimeReceived, const CChainParams& chainparams, CConnman& connman, const std::atomic<bool>& interruptMsgProc)
@@ -1526,7 +1556,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         }
     }
 
-
     else if (strCommand == NetMsgType::INV)
     {
         std::vector<CInv> vInv;
@@ -1777,7 +1806,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         connman.PushMessage(pfrom, msgMaker.Make(NetMsgType::HEADERS, vHeaders));
     }
 
-
     else if (strCommand == NetMsgType::TX)
     {
         // Stop processing the transaction early if
@@ -1795,15 +1823,13 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         const CTransaction& tx = *ptx;
 
         CInv inv(MSG_TX, tx.GetHash());
-        pfrom->AddInventoryKnown(inv);
 
         LOCK(cs_main);
 
         bool fMissingInputs = false;
         CValidationState state;
 
-        pfrom->setAskFor.erase(inv.hash);
-        mapAlreadyAskedFor.erase(inv.hash);
+        MarkGotInventoryFrom(pfrom, inv);
 
         std::list<CTransactionRef> lRemovedTxn;
 
@@ -1963,6 +1989,39 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         }
     }
 
+    else if (strCommand == NetMsgType::REF) {
+        // Similar to transactions, don't recieve transactions if in block only mode, or peer isn't whitelisted and
+        // whitelist parameter is used.
+        if (!fRelayTxes && (!pfrom->fWhitelisted || !gArgs.GetBoolArg("-whitelistrelay", DEFAULT_WHITELISTRELAY)))
+        {
+            LogPrint(BCLog::NET, "referral sent in violation of protocol peer=%d\n", pfrom->GetId());
+            return true;
+        }
+
+        ReferralRef prtx;
+        vRecv >> prtx;
+
+        if(prtx == nullptr)
+        {
+            LogPrint(BCLog::NET, "unable to decode referral =%d\n", pfrom->GetId());
+            return true;
+        }
+
+        const Referral& rtx = *prtx;
+
+        LogPrintf("Referral message received\n");
+
+        LOCK(cs_main);
+
+        // mark that we got the referral from pfrom 
+        // and make sure not to ask again.
+        CInv inv(MSG_REFERRAL, rtx.GetHash());
+        MarkGotInventoryFrom(pfrom, inv);
+
+        if (!AlreadyHave(inv) && AcceptToReferralMemoryPool(mempoolReferral, prtx)) {
+            RelayReferral(rtx, connman);
+        }
+    }
 
     else if (strCommand == NetMsgType::CMPCTBLOCK && !fImporting && !fReindex) // Ignore blocks received while importing
     {
@@ -2250,6 +2309,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         for (unsigned int n = 0; n < nCount; n++) {
             vRecv >> headers[n];
             ReadCompactSize(vRecv); // ignore tx count; assume it is 0.
+            ReadCompactSize(vRecv); // ignore ref count; assume it is 0.            
         }
 
         if (nCount == 0) {
@@ -2659,6 +2719,26 @@ static bool SendRejectsAndCheckIfBanned(CNode* pnode, CConnman& connman)
     return false;
 }
 
+void SendInventoryReferralsRequest(CNode* pto, CConnman& connman, const CNetMsgMaker& msgMaker)
+{
+    std::vector<CInv> vInv;
+
+    vInv.reserve(std::max<size_t>(pto->setInventoryReferralToSend.size(), INVENTORY_BROADCAST_MAX));
+
+    for (const uint256& hash: pto->setInventoryReferralToSend) {
+        vInv.push_back(CInv(MSG_REFERRAL, hash));
+        if (vInv.size() == MAX_INV_SZ) {
+            connman.PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
+            vInv.clear();
+        }
+    }
+
+    pto->setInventoryReferralToSend.clear();
+
+    if (!vInv.empty())
+        connman.PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
+}
+
 bool ProcessMessages(CNode* pfrom, CConnman& connman, const std::atomic<bool>& interruptMsgProc)
 {
     const CChainParams& chainparams = Params();
@@ -2783,7 +2863,7 @@ class CompareInvMempoolOrder
 {
     CTxMemPool *mp;
 public:
-    CompareInvMempoolOrder(CTxMemPool *_mempool)
+    explicit CompareInvMempoolOrder(CTxMemPool *_mempool)
     {
         mp = _mempool;
     }
@@ -3071,6 +3151,9 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                 }
             }
             pto->vInventoryBlockToSend.clear();
+
+            // Add referrals
+            SendInventoryReferralsRequest(pto, connman, msgMaker);
 
             // Check whether periodic sends should happen
             bool fSendTrickle = pto->fWhitelisted;

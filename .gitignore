@@ -104,6 +104,7 @@ test/config.ini
 test/cache/*
 
 !src/leveldb*/Makefile
+!build_docker/Makefile
 
 /doc/doxygen/
 
@@ -112,4 +113,8 @@ contrib/devtools/split-debug.sh
 
 # IDEs
 .idea/
+.project
+.cproject
+.settings
+.tags*
 .vscode

@@ -128,7 +128,7 @@ public:
         pchMessageStart[1] = 0xbe;
         pchMessageStart[2] = 0xb4;
         pchMessageStart[3] = 0xd9;
-        nDefaultPort = 8333;
+        nDefaultPort = 8445;
         nPruneAfterHeight = 100000;
 
         genesis = CreateNewGenesisBlock(1503444726, 4, 0x207fffff, 1, 50 * COIN);
@@ -206,8 +206,8 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nTimeout = 1493596800; // May 1st 2017
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000002830dab7f76dbb7d63");
-
+        consensus.nMinimumChainWork = uint256S("0x00");
+        
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("14933df1e491d761a3972449bc88f3525f2081060af8534f8e54ad8d793f61b0"); //1135275
 
@@ -222,7 +222,7 @@ public:
         pchMessageStart[1] = 0x11;
         pchMessageStart[2] = 0x09;
         pchMessageStart[3] = 0x07;
-        nDefaultPort = 18333;
+        nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
         //ours
@@ -283,7 +283,7 @@ class CRegTestParams : public CChainParams {
 public:
     CRegTestParams() {
         strNetworkID = "regtest";
-        consensus.nSubsidyHalvingInterval = 150;
+        consensus.nSubsidyHalvingInterval = 15000;
         consensus.BIP34Height = 100000000; // BIP34 has not activated on regtest (far in the future so block v1 are not rejected in tests)
         consensus.BIP34Hash = uint256();
         consensus.BIP65Height = 1351; // BIP65 activated on regtest (Used in rpc activation tests)
@@ -315,13 +315,13 @@ public:
         pchMessageStart[1] = 0xbf;
         pchMessageStart[2] = 0xb5;
         pchMessageStart[3] = 0xda;
-        nDefaultPort = 18444;
+        nDefaultPort = 18556;
         nPruneAfterHeight = 1000;
 
         genesis = CreateGenesisBlock(1503352716, 337, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0b2ecdb504815d9cd6ee91c9b0093ff2ccc84428b4c2957f7270d0ada3c2c905"));
-        assert(genesis.hashMerkleRoot == uint256S("5731febf76c3c07d0eae6fe60cb37c827f0631a8d3a0b0fff91f19755e2917cf"));
+        assert(consensus.hashGenesisBlock == uint256S("192b040df53511a4a3f63a4b9c66e85f19f5963b345a2ac4fada7b58907ef272"));
+        assert(genesis.hashMerkleRoot == uint256S("b1c4626a9b876698ea607a9e1e77b28283d65e1d538c6c79a57f34d9ad4166ad"));
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
@@ -332,7 +332,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("0b2ecdb504815d9cd6ee91c9b0093ff2ccc84428b4c2957f7270d0ada3c2c905")},
+                {0, uint256S("192b040df53511a4a3f63a4b9c66e85f19f5963b345a2ac4fada7b58907ef272")},
             }
         };
 

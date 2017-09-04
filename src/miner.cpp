@@ -43,6 +43,7 @@
 // its ancestors.
 
 uint64_t nLastBlockTx = 0;
+uint64_t nLastBlockRef = 0;
 uint64_t nLastBlockSize = 0;
 uint64_t nLastBlockWeight = 0;
 
@@ -123,6 +124,7 @@ void BlockAssembler::resetBlock()
 
     // These counters do not include coinbase tx
     nBlockTx = 0;
+    nBlockRef = 0;
     nFees = 0;
 }
 
@@ -171,10 +173,12 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
     addPackageTxs(nPackagesSelected, nDescendantsUpdated);
+    AddReferrals();
 
     int64_t nTime1 = GetTimeMicros();
 
     nLastBlockTx = nBlockTx;
+    nLastBlockRef = nBlockRef;
     nLastBlockSize = nBlockSize;
     nLastBlockWeight = nBlockWeight;
 
@@ -191,7 +195,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblocktemplate->vTxFees[0] = -nFees;
 
     uint64_t nSerializeSize = GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION);
-    LogPrintf("CreateNewBlock(): total size: %u block weight: %u txs: %u fees: %ld sigops %d\n", nSerializeSize, GetBlockWeight(*pblock), nBlockTx, nFees, nBlockSigOpsCost);
+    LogPrintf("CreateNewBlock(): total size: %u block weight: %u txs: %u fees: %ld sigops: %d refs: %d\n", nSerializeSize, GetBlockWeight(*pblock), nBlockTx, nFees, nBlockSigOpsCost, nBlockRef);
 
     // Fill in header
     pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
@@ -224,7 +228,7 @@ void BlockAssembler::onlyUnconfirmed(CTxMemPool::setEntries& testSet)
     }
 }
 
-bool BlockAssembler::TestPackage(uint64_t packageSize, int64_t packageSigOpsCost)
+bool BlockAssembler::TestPackage(uint64_t packageSize, int64_t packageSigOpsCost) const
 {
     // TODO: switch to weight-based accounting for packages instead of vsize-based accounting.
     if (nBlockWeight + WITNESS_SCALE_FACTOR * packageSize >= nBlockMaxWeight)
@@ -331,6 +335,14 @@ void BlockAssembler::SortForBlock(const CTxMemPool::setEntries& package, CTxMemP
     sortedEntries.clear();
     sortedEntries.insert(sortedEntries.begin(), package.begin(), package.end());
     std::sort(sortedEntries.begin(), sortedEntries.end(), CompareTxIterByAncestorCount());
+}
+
+void BlockAssembler::AddReferrals()
+{
+    for(auto const &ref: mempoolReferral.mapRTx) {
+        pblock->m_vRef.push_back(ref.second);
+        ++nBlockRef;
+    }
 }
 
 // This transaction selection algorithm orders the mempool based

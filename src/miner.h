@@ -33,7 +33,7 @@ struct CBlockTemplate
 // Container for tracking updates to ancestor feerate as we include (parent)
 // transactions in a block
 struct CTxMemPoolModifiedEntry {
-    CTxMemPoolModifiedEntry(CTxMemPool::txiter entry)
+    explicit CTxMemPoolModifiedEntry(CTxMemPool::txiter entry)
     {
         iter = entry;
         nSizeWithAncestors = entry->GetSizeWithAncestors();
@@ -116,7 +116,7 @@ typedef indexed_modified_transaction_set::index<ancestor_score>::type::iterator 
 
 struct update_for_parent_inclusion
 {
-    update_for_parent_inclusion(CTxMemPool::txiter it) : iter(it) {}
+    explicit update_for_parent_inclusion(CTxMemPool::txiter it) : iter(it) {}
 
     void operator() (CTxMemPoolModifiedEntry &e)
     {
@@ -147,6 +147,7 @@ private:
     uint64_t nBlockWeight;
     uint64_t nBlockSize;
     uint64_t nBlockTx;
+    uint64_t nBlockRef;
     uint64_t nBlockSigOpsCost;
     CAmount nFees;
     CTxMemPool::setEntries inBlock;
@@ -164,7 +165,7 @@ public:
         CFeeRate blockMinFeeRate;
     };
 
-    BlockAssembler(const CChainParams& params);
+    explicit BlockAssembler(const CChainParams& params);
     BlockAssembler(const CChainParams& params, const Options& options);
 
     /** Construct a new block template with coinbase to scriptPubKeyIn */
@@ -183,11 +184,14 @@ private:
       * statistics from the package selection (for logging statistics). */
     void addPackageTxs(int &nPackagesSelected, int &nDescendantsUpdated);
 
+    // Add referrals to block from mempoolReferral
+    void AddReferrals();
+
     // helper functions for addPackageTxs()
     /** Remove confirmed (inBlock) entries from given set */
     void onlyUnconfirmed(CTxMemPool::setEntries& testSet);
     /** Test if a new package would "fit" in the block */
-    bool TestPackage(uint64_t packageSize, int64_t packageSigOpsCost);
+    bool TestPackage(uint64_t packageSize, int64_t packageSigOpsCost) const;
     /** Perform checks on each transaction in a package:
       * locktime, premature-witness, serialized size (if necessary)
       * These checks should always succeed, and they're here

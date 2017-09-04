@@ -16,6 +16,7 @@
 #include "policy/fees.h"
 #include "policy/policy.h"
 #include "policy/rbf.h"
+#include "referrals.h"
 #include "rpc/mining.h"
 #include "rpc/server.h"
 #include "script/sign.h"
@@ -77,6 +78,10 @@ void EnsureWalletIsUnlocked(CWallet * const pwallet)
 {
     if (pwallet->IsLocked()) {
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
+    }
+
+    if (!pwallet->IsReferred()) {
+        throw JSONRPCError(RPC_REFERRER_IS_NOT_SET, "Error: Referee must be set in the wallet. Use referral code to unlock first.");
     }
 }
 
@@ -1124,7 +1129,7 @@ public:
     CWallet * const pwallet;
     CScriptID result;
 
-    Witnessifier(CWallet *_pwallet) : pwallet(_pwallet) {}
+    explicit Witnessifier(CWallet *_pwallet) : pwallet(_pwallet) {}
 
     bool operator()(const CNoDestination &dest) const { return false; }
 
@@ -1135,7 +1140,7 @@ public:
             SignatureData sigs;
             // This check is to make sure that the script we created can actually be solved for and signed by us
             // if we were to have the private keys. This is just to make sure that the script is valid and that,
-            // if found in a transaction, we would still accept and relay that transcation.
+            // if found in a transaction, we would still accept and relay that transaction.
             if (!ProduceSignature(DummySignatureCreator(pwallet), witscript, sigs) ||
                 !VerifyScript(sigs.scriptSig, witscript, &sigs.scriptWitness, MANDATORY_SCRIPT_VERIFY_FLAGS | SCRIPT_VERIFY_WITNESS_PUBKEYTYPE, DummySignatureCreator(pwallet).Checker())) {
                 return false;
@@ -1160,7 +1165,7 @@ public:
             SignatureData sigs;
             // This check is to make sure that the script we created can actually be solved for and signed by us
             // if we were to have the private keys. This is just to make sure that the script is valid and that,
-            // if found in a transaction, we would still accept and relay that transcation.
+            // if found in a transaction, we would still accept and relay that transaction.
             if (!ProduceSignature(DummySignatureCreator(pwallet), witscript, sigs) ||
                 !VerifyScript(sigs.scriptSig, witscript, &sigs.scriptWitness, MANDATORY_SCRIPT_VERIFY_FLAGS | SCRIPT_VERIFY_WITNESS_PUBKEYTYPE, DummySignatureCreator(pwallet).Checker())) {
                 return false;
@@ -1645,10 +1650,10 @@ UniValue listtransactions(const JSONRPCRequest& request)
     for (CWallet::TxItems::const_reverse_iterator it = txOrdered.rbegin(); it != txOrdered.rend(); ++it)
     {
         CWalletTx *const pwtx = (*it).second.first;
-        if (pwtx != 0)
+        if (pwtx != nullptr)
             ListTransactions(pwallet, *pwtx, strAccount, 0, true, ret, filter);
         CAccountingEntry *const pacentry = (*it).second.second;
-        if (pacentry != 0)
+        if (pacentry != nullptr)
             AcentryToJSON(*pacentry, strAccount, ret);
 
         if ((int)ret.size() >= (nCount+nFrom)) break;
@@ -1875,10 +1880,11 @@ UniValue listsinceblock(const JSONRPCRequest& request)
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Can't read block from disk");
         }
         for (const CTransactionRef& tx : block.vtx) {
-            if (pwallet->mapWallet.count(tx->GetHash()) > 0) {
+            auto it = pwallet->mapWallet.find(tx->GetHash());
+            if (it != pwallet->mapWallet.end()) {
                 // We want all transactions regardless of confirmation count to appear here,
                 // even negative confirmation ones, hence the big negative.
-                ListTransactions(pwallet, pwallet->mapWallet[tx->GetHash()], "*", -100000000, true, removed, filter);
+                ListTransactions(pwallet, it->second, "*", -100000000, true, removed, filter);
             }
         }
         paltindex = paltindex->pprev;
@@ -1958,10 +1964,11 @@ UniValue gettransaction(const JSONRPCRequest& request)
             filter = filter | ISMINE_WATCH_ONLY;
 
     UniValue entry(UniValue::VOBJ);
-    if (!pwallet->mapWallet.count(hash)) {
+    auto it = pwallet->mapWallet.find(hash);
+    if (it == pwallet->mapWallet.end()) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
     }
-    const CWalletTx& wtx = pwallet->mapWallet[hash];
+    const CWalletTx& wtx = it->second;
 
     CAmount nCredit = wtx.GetCredit(filter);
     CAmount nDebit = wtx.GetDebit(filter);
@@ -3147,6 +3154,127 @@ UniValue generateGenesis(const JSONRPCRequest& request) {
     return foundGenesis;
 }
 
+UniValue generatereferralcode(const JSONRPCRequest& request)
+{
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 0) {
+        throw std::runtime_error(
+            "Generate referral code for the wallet\n"
+            "\nResult:\n"
+            "\"referral\"    (string) The new referral code\n"
+            "\nExamples:\n"
+            "\nGenerate referral code for default wallet\n"
+            + HelpExampleCli("generatereferralcode", "")
+        );
+    }
+
+    if (!g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
+
+    // Generate a new key that is added to wallet
+    CPubKey newKey;
+    if (!pwallet->GetKeyFromPool(newKey)) {
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+    }
+
+    UniValue result(GenerateAndSendReferralTx(newKey, uint256(), g_connman.get()));
+
+    return result;
+}
+
+UniValue validatereferralcode(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 1) {
+        throw std::runtime_error(
+            "Validate referral code\n"
+            + HelpExampleCli("validatereferralcode", "")
+        );
+    }
+
+    const std::string referral = request.params[0].get_str();
+    bool is_valid = prefviewcache->ReferralCodeExists(uint256S(referral));
+
+    UniValue result(is_valid);
+    return result;
+}
+
+UniValue unlockwallet(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 1 || request.params[0].get_str().empty()) {
+        throw std::runtime_error(
+            "unlockwallet\n"
+            "Updates the wallet with referral code and beacons first key with associated referral.\n"
+            "Returns an object containing various wallet state info.\n"
+            "\nArguments:\n"
+            "1. code      (string, required) Referral code needed to unlock the wallet.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"walletname\": xxxxx,             (string) the wallet name\n"
+            "  \"walletversion\": xxxxx,          (numeric) the wallet version\n"
+            "  \"balance\": xxxxxxx,              (numeric) the total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
+            "  \"unconfirmed_balance\": xxx,      (numeric) the total unconfirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
+            "  \"immature_balance\": xxxxxx,      (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
+            "  \"txcount\": xxxxxxx,              (numeric) the total number of transactions in the wallet\n"
+            "  \"keypoololdest\": xxxxxx,         (numeric) the timestamp (seconds since Unix epoch) of the oldest pre-generated key in the key pool\n"
+            "  \"keypoolsize\": xxxx,             (numeric) how many new keys are pre-generated (only counts external keys)\n"
+            "  \"keypoolsize_hd_internal\": xxxx, (numeric) how many new keys are pre-generated for internal use (used for change outputs, only appears if the wallet is using this feature, otherwise external keys are used)\n"
+            "  \"unlocked_until\": ttt,           (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
+            "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
+            "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("unlockwallet", "\"referralcode\"")
+            + HelpExampleRpc("unlockwallet", "\"referralcode\"")
+        );
+    }
+
+    if (pwallet->IsReferred()) {
+        throw JSONRPCError(RPC_REFERRER_IS_SET, "Error: Referee is already set for the wallet.");
+    }
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    std::string code = request.params[0].get_str();
+
+    pwallet->Unlock(code);
+
+    UniValue obj(UniValue::VOBJ);
+
+    size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
+    obj.push_back(Pair("walletname", pwallet->GetName()));
+    obj.push_back(Pair("walletversion", pwallet->GetVersion()));
+    obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
+    obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
+    obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
+    obj.push_back(Pair("txcount",       (int)pwallet->mapWallet.size()));
+    obj.push_back(Pair("keypoololdest", pwallet->GetOldestKeyPoolTime()));
+    obj.push_back(Pair("keypoolsize", (int64_t)kpExternalSize));
+    CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
+
+    if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT))
+        obj.push_back(Pair("keypoolsize_hd_internal",   (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
+
+    if (pwallet->IsCrypted())
+        obj.push_back(Pair("unlocked_until", pwallet->nRelockTime));
+
+    obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
+
+    if (!masterKeyID.IsNull())
+        obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
+
+    return obj;
+}
 
 extern UniValue abortrescan(const JSONRPCRequest& request); // in rpcdump.cpp
 extern UniValue dumpprivkey(const JSONRPCRequest& request); // in rpcdump.cpp
@@ -3215,6 +3343,12 @@ static const CRPCCommand commands[] =
 
     { "generating",         "generate",                 &generate,                 true,   {"nblocks","maxtries"} },
     { "generating",         "generateGenesis",          &generateGenesis,     true,   {"numThreads"} },
+
+    // merit specific commands
+
+    { "referral",           "generatereferralcode",     &generatereferralcode,     true,   {} },
+    { "referral",           "validatereferralcode",     &validatereferralcode,     true,   {} },
+    { "referral",           "unlockwallet",             &unlockwallet,             false,  {} }
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)

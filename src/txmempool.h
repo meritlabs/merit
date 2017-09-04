@@ -13,6 +13,8 @@
 #include <utility>
 #include <string>
 
+#include "addressindex.h"
+#include "spentindex.h"
 #include "amount.h"
 #include "coins.h"
 #include "indirectmap.h"
@@ -48,7 +50,16 @@ struct LockPoints
     LockPoints() : height(0), time(0), maxInputBlock(nullptr) { }
 };
 
-class CTxMemPool;
+class ReferralTxMemPool
+{
+public:
+    std::map<uint256, ReferralRef> mapRTx;
+    mutable CCriticalSection cs;
+
+    ReferralTxMemPool() {};
+
+    bool AddUnchecked(const uint256& hash, const ReferralRef entry);
+};
 
 /** \class CTxMemPoolEntry
  *
@@ -61,7 +72,6 @@ class CTxMemPool;
  * all ancestors of the newly added transaction.
  *
  */
-
 class CTxMemPoolEntry
 {
 private:
@@ -167,7 +177,7 @@ struct update_ancestor_state
 
 struct update_fee_delta
 {
-    update_fee_delta(int64_t _feeDelta) : feeDelta(_feeDelta) { }
+    explicit update_fee_delta(int64_t _feeDelta) : feeDelta(_feeDelta) { }
 
     void operator() (CTxMemPoolEntry &e) { e.UpdateFeeDelta(feeDelta); }
 
@@ -177,7 +187,7 @@ private:
 
 struct update_lock_points
 {
-    update_lock_points(const LockPoints& _lp) : lp(_lp) { }
+    explicit update_lock_points(const LockPoints& _lp) : lp(_lp) { }
 
     void operator() (CTxMemPoolEntry &e) { e.UpdateLockPoints(lp); }
 
@@ -490,6 +500,18 @@ private:
     typedef std::map<txiter, TxLinks, CompareIteratorByHash> txlinksMap;
     txlinksMap mapLinks;
 
+    typedef std::map<CMempoolAddressDeltaKey, CMempoolAddressDelta, CMempoolAddressDeltaKeyCompare> addressDeltaMap;
+    addressDeltaMap mapAddress;
+
+    typedef std::map<uint256, std::vector<CMempoolAddressDeltaKey> > addressDeltaMapInserted;
+    addressDeltaMapInserted mapAddressInserted;
+
+    typedef std::map<CSpentIndexKey, CSpentIndexValue, CSpentIndexKeyCompare> mapSpentIndex;
+    mapSpentIndex mapSpent;
+
+    typedef std::map<uint256, std::vector<CSpentIndexKey> > mapSpentIndexInserted;
+    mapSpentIndexInserted mapSpentInserted;
+
     void UpdateParent(txiter entry, txiter parent, bool add);
     void UpdateChild(txiter entry, txiter child, bool add);
 
@@ -501,7 +523,7 @@ public:
 
     /** Create a new CTxMemPool.
      */
-    CTxMemPool(CBlockPolicyEstimator* estimator = nullptr);
+    explicit CTxMemPool(CBlockPolicyEstimator* estimator = nullptr);
 
     /**
      * If sanity-checking is turned on, check makes sure the pool is
@@ -518,6 +540,15 @@ public:
     // then invoke the second version.
     bool addUnchecked(const uint256& hash, const CTxMemPoolEntry &entry, bool validFeeEstimate = true);
     bool addUnchecked(const uint256& hash, const CTxMemPoolEntry &entry, setEntries &setAncestors, bool validFeeEstimate = true);
+
+    void addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewCache &view);
+    bool getAddressIndex(std::vector<std::pair<uint160, int> > &addresses,
+                         std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results);
+    bool removeAddressIndex(const uint256 txhash);
+
+    void addSpentIndex(const CTxMemPoolEntry &entry, const CCoinsViewCache &view);
+    bool getSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value);
+    bool removeSpentIndex(const uint256 txhash);
 
     void removeRecursive(const CTransaction &tx, MemPoolRemovalReason reason = MemPoolRemovalReason::UNKNOWN);
     void removeForReorg(const CCoinsViewCache *pcoins, unsigned int nMemPoolHeight, int flags);
@@ -606,7 +637,7 @@ public:
         return mapTx.size();
     }
 
-    uint64_t GetTotalTxSize()
+    uint64_t GetTotalTxSize() const
     {
         LOCK(cs);
         return totalTxSize;
@@ -666,7 +697,7 @@ private:
     void removeUnchecked(txiter entry, MemPoolRemovalReason reason = MemPoolRemovalReason::UNKNOWN);
 };
 
-/** 
+/**
  * CCoinsView that brings transactions from a memorypool into view.
  * It does not check for spendings by memory pool transactions.
  * Instead, it provides access to all Coins which are either unspent in the

@@ -7,6 +7,7 @@
 #define BITCOIN_PRIMITIVES_BLOCK_H
 
 #include "primitives/transaction.h"
+#include "primitives/referral.h"
 #include "serialize.h"
 #include "uint256.h"
 
@@ -74,6 +75,7 @@ class CBlock : public CBlockHeader
 public:
     // network and disk
     std::vector<CTransactionRef> vtx;
+    std::vector<ReferralRef> m_vRef;
 
     // memory only
     mutable bool fChecked;
@@ -95,12 +97,14 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
+        READWRITE(m_vRef);
     }
 
     void SetNull()
     {
         CBlockHeader::SetNull();
         vtx.clear();
+        m_vRef.clear();
         fChecked = false;
     }
 
@@ -129,7 +133,7 @@ struct CBlockLocator
 
     CBlockLocator() {}
 
-    CBlockLocator(const std::vector<uint256>& vHaveIn) : vHave(vHaveIn) {}
+    explicit CBlockLocator(const std::vector<uint256>& vHaveIn) : vHave(vHaveIn) {}
 
     ADD_SERIALIZE_METHODS;
 
