@@ -20,3 +20,8 @@ bool CZMQAbstractNotifier::NotifyTransaction(const CTransaction &/*transaction*/
 {
     return true;
 }
+
+bool CZMQAbstractNotifier::NotifyReferral(const ReferralRef &/*referral*/)
+{
+    return true;
+}

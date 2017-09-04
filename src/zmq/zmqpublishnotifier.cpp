@@ -195,3 +195,12 @@ bool CZMQPublishRawTransactionNotifier::NotifyTransaction(const CTransaction &tr
     ss << transaction;
     return SendMessage(MSG_RAWTX, &(*ss.begin()), ss.size());
 }
+
+bool CZMQPublishReferralNotifier::NotifyReferral(const ReferralRef &ref)
+{
+    uint256 hash = ref->GetHash();
+    LogPrint(BCLog::ZMQ, "zmq: Publish referral %s\n", hash.GetHex());
+    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION | RPCSerializationFlags());
+    ss << ref;
+    return SendMessage(MSG_RAWTX, &(*ss.begin()), ss.size());
+}

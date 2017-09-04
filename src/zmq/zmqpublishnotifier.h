@@ -52,4 +52,10 @@ public:
     bool NotifyTransaction(const CTransaction &transaction) override;
 };
 
+class CZMQPublishReferralNotifier : public CZMQAbstractPublishNotifier
+{
+public:
+    bool NotifyReferral(const ReferralRef &ref) override;
+};
+
 #endif // BITCOIN_ZMQ_ZMQPUBLISHNOTIFIER_H

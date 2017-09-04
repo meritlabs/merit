@@ -64,6 +64,9 @@ protected:
     friend void ::RegisterValidationInterface(CValidationInterface*);
     friend void ::UnregisterValidationInterface(CValidationInterface*);
     friend void ::UnregisterAllValidationInterfaces();
+
+    /** Notifies listeners of a referral having been added to mempool. */
+    virtual void ReferralTransactionAddedToMempool(const ReferralRef &rtx) {}
 };
 
 struct MainSignalsInstance;
@@ -92,6 +95,8 @@ public:
     void Broadcast(int64_t nBestBlockTime, CConnman* connman);
     void BlockChecked(const CBlock&, const CValidationState&);
     void NewPoWValidBlock(const CBlockIndex *, const std::shared_ptr<const CBlock>&);
+
+    void ReferralAddedToMempool(const ReferralRef &rtx);
 };
 
 CMainSignals& GetMainSignals();
