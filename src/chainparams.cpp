@@ -25,12 +25,16 @@ CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutput
     txNew.vout[0].nValue = genesisReward;
     txNew.vout[0].scriptPubKey = genesisOutputScript;
 
+    CKeyID addr {uint160(ParseHex("n2xrSmGsSuf32q8p8PjQxvMxvBwFggtksU"))};
+    MutableReferral refNew{addr, uint256()};
+
     CBlock genesis;
     genesis.nTime    = nTime;
     genesis.nBits    = nBits;
     genesis.nNonce   = nNonce;
     genesis.nVersion = nVersion;
     genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
+    genesis.m_vRef.push_back(MakeReferralRef(std::move(refNew)));
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
     return genesis;
