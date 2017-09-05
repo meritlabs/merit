@@ -144,6 +144,9 @@ public:
 
     void Next();
 
+    leveldb::Slice key() const;
+    leveldb::Slice value() const;
+
     template<typename K> bool GetKey(K& key) {
         leveldb::Slice slKey = piter->key();
         try {
@@ -234,8 +237,10 @@ public:
         std::string strValue;
         leveldb::Status status = pdb->Get(readoptions, slKey, &strValue);
         if (!status.ok()) {
-            if (status.IsNotFound())
+            if (status.IsNotFound()) {
+                std::cerr << "Error!! " << std::endl;
                 return false;
+            }
             LogPrintf("LevelDB read failure: %s\n", status.ToString());
             dbwrapper_private::HandleError(status);
         }
@@ -243,7 +248,8 @@ public:
             CDataStream ssValue(strValue.data(), strValue.data() + strValue.size(), SER_DISK, CLIENT_VERSION);
             ssValue.Xor(obfuscate_key);
             ssValue >> value;
-        } catch (const std::exception&) {
+        } catch (const std::exception& errMessage) {
+            std::cerr << "Error!! " << errMessage.what() << std::endl;
             return false;
         }
         return true;
