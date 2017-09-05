@@ -137,6 +137,19 @@ public:
     }
 };
 
+/** A hash function for using uints as keys in unordered_maps
+ */
+namespace std
+{
+    template <>
+    struct hash<uint256> {
+        std::size_t operator()(const uint256& n) const {
+            using std::hash;
+            return hash<std::string>()(n.ToString());
+        }
+    };
+}
+
 /* uint256 from const char *.
  * This is a separate function because the constructor uint256(const char*) can result
  * in dangerously catching uint256(0).
