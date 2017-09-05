@@ -3232,6 +3232,7 @@ UniValue unlockwallet(const JSONRPCRequest& request)
             "  \"unlocked_until\": ttt,           (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
             "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
             "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
+            "  \"referralcode\":  \"<string>\"    (string) the referral code generated that can be shared with other users\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("unlockwallet", "\"referralcode\"")
@@ -3246,8 +3247,9 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
 
     std::string code = request.params[0].get_str();
+    uint256 codeHash = Hash(code.begin(), code.end());
 
-    pwallet->Unlock(code);
+    ReferralRef referral = pwallet->Unlock(codeHash);
 
     UniValue obj(UniValue::VOBJ);
 
@@ -3272,6 +3274,8 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     if (!masterKeyID.IsNull())
         obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
+
+    obj.push_back(Pair("referralcode", referral->m_code));
 
     return obj;
 }
