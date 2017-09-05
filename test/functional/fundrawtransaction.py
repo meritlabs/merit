@@ -452,7 +452,7 @@ class RawTransactionsTest(BitcoinTestFramework):
         self.stop_node(2)
         self.stop_node(3)
         self.nodes[1].node_encrypt_wallet("test")
-
+      
         self.nodes = self.start_nodes(self.num_nodes, self.options.tmpdir)
         # This test is not meant to test fee estimation and we'd like
         # to be sure all txs are sent at a consistent desired feerate
@@ -638,6 +638,17 @@ class RawTransactionsTest(BitcoinTestFramework):
         ################################
         # Test no address reuse occurs #
         ################################
+
+
+
+
+
+
+
+
+
+
+
 
         result3 = self.nodes[3].fundrawtransaction(rawtx)
         res_dec = self.nodes[0].decoderawtransaction(result3["hex"])
