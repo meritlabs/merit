@@ -15,6 +15,7 @@ bool ReferralsViewDB::GetReferral(const uint256& code_hash, MutableReferral& ref
 }
 
 bool ReferralsViewDB::InsertReferral(const Referral& referral) {
+    std::cerr << "Writing: " << referral.m_codeHash.ToString() << std::endl;
     return m_db.Write(std::make_pair(DB_REFERRALS, referral.m_codeHash), referral);
 }
 
@@ -28,8 +29,13 @@ bool ReferralsViewDB::ListKeys() const {
     //std::cerr << "Is this thing valid?: " << (iter->Valid()) << std::endl;
     for (iter->Seek(0); iter->Valid(); iter->Next()) {
         if (!iter->value().empty()) {
-            std::cerr << "Key: " << (iter->key().ToString()) << std::endl;
-            std::cerr << "Value: " << (iter->value().ToString()) << std::endl;
+            auto pair = std::make_pair(DB_REFERRALS, uint256{});
+            bool got = iter->GetKey(pair);
+            if(got)
+            {
+                std::cerr << "Key: " << pair.second.ToString() << std::endl;
+                std::cerr << "Value: " << (iter->value().ToString()) << std::endl;
+            }
         }
     }
     return true;
