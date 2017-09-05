@@ -50,6 +50,14 @@ struct LockPoints
     LockPoints() : height(0), time(0), maxInputBlock(nullptr) { }
 };
 
+/** \class ReferralTxMemPool 
+* ReferralTxMemPool stores valid-according-to-the-current-best-chain referral transactions
+* that may be included in the next block.  
+* 
+* Not all transactions are accepted by the mempool.  Specifically, we do not add: 
+* - referrals that are already in the blockchain. 
+* - a referral referencing a referral code that lacks a valid tree of referrals.
+*/
 class ReferralTxMemPool
 {
 public:
@@ -59,6 +67,16 @@ public:
     ReferralTxMemPool() {};
 
     bool AddUnchecked(const uint256& hash, const ReferralRef entry);
+
+    bool exists(uint256 hash) const
+    {
+        LOCK(cs);
+        return (mapTx.count(hash) != 0);
+    }
+};
+
+class ReferralTxMemPoolEntry
+{
 };
 
 /** \class CTxMemPoolEntry

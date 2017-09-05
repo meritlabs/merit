@@ -3231,8 +3231,9 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
 
     std::string code = request.params[0].get_str();
+    uint256 codeHash = Hash(code.begin(), code.end());
 
-    pwallet->Unlock(code);
+    pwallet->Unlock(codeHash);
 
     UniValue obj(UniValue::VOBJ);
 

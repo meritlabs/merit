@@ -13,6 +13,7 @@
 #include "consensus/consensus.h"
 #include "consensus/merkle.h"
 #include "consensus/tx_verify.h"
+#include "consensus/ref_verify.h"
 #include "consensus/validation.h"
 #include "cuckoocache.h"
 #include "fs.h"
@@ -446,16 +447,46 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
     return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata);
 }
 
-bool AcceptToReferralMemoryPool(ReferralTxMemPool& pool, const ReferralRef& referral)
+// TODO: Rename this to AcceptTxToMemoryPoolWorker...
+bool AcceptRefToMemoryPool(ReferralTxMemPool& pool, const ReferralRef& referral)
 {
     LOCK(pool.cs);
+
+    const uint256 hash = referral.GetHash();
+
+    if (!CheckReferral(referral, state))
+        return false; // state filled in by CheckReferral
+    
+    // is it already in the memory pool?
+    if (pool.exists(hash)) {
+        return state.Invalid(false, REJECT_DUPLICATE, "txn-already-in-mempool");
+    }
+
+    // TODO: Trace the referral tree all the way back up to genesis address.  
+    // Ensure all referrals are valid down the chain.
+    for (const Referral refIn : referral.m_previousReferral) {
+        if (!refIn.IsEmpty()) {
+            // Check to be sure that it's actually exists up the chain.
+            if (!refIn.ReferralCodeExists) {
+                return state.Invalid(false, REJECT_INVALID, "no-upstream-referral-known");
+            }
+            // Now that it exists, we must be sure it's valid.
+        } 
+        // No previousReferral; the only valid case of this is the genesis.
+        if (!refIn.IsGenesis()) {
+            return state.Invalid(false, REJECT_INVALID, "upstream-referral-chain-broken");            
+        } 
+    }
 
     // TODO: check mempool(and maybe not only pool) for referral consistency
     pool.AddUnchecked(referral->GetHash(), referral);
 
+    GetMainSignals().ReferralAddedToMempool(referral);    
+
     return true;
 }
 
+// TODO: Rename this to AcceptTxToMemoryPoolWorker...
 static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool& pool, CValidationState& state, const CTransactionRef& ptx, bool fLimitFree,
                               bool* pfMissingInputs, int64_t nAcceptTime, std::list<CTransactionRef>* plTxnReplaced,
                               bool fOverrideMempoolLimit, const CAmount& nAbsurdFee, std::vector<COutPoint>& coins_to_uncache)
@@ -988,8 +1019,6 @@ bool GetAddressUnspent(uint160 addressHash, int type,
 /** Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock */
 bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, const Consensus::Params& consensusParams, uint256 &hashBlock, bool fAllowSlow)
 {
-    CBlockIndex *pindexSlow = nullptr;
-
     LOCK(cs_main);
 
     CTransactionRef ptx = mempool.get(hash);
@@ -1022,17 +1051,17 @@ bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, const Consensus
 
     if (fAllowSlow) { // use coin database to locate block that contains transaction, and scan it
         const Coin& coin = AccessByTxid(*pcoinsTip, hash);
-        if (!coin.IsSpent()) pindexSlow = chainActive[coin.nHeight];
-    }
 
-    if (pindexSlow) {
-        CBlock block;
-        if (ReadBlockFromDisk(block, pindexSlow, consensusParams)) {
-            for (const auto& tx : block.vtx) {
-                if (tx->GetHash() == hash) {
-                    txOut = tx;
-                    hashBlock = pindexSlow->GetBlockHash();
-                    return true;
+        if (!coin.IsSpent()) {
+            CBlockIndex *pindexSlow = chainActive[coin.nHeight];
+            CBlock block;
+            if (ReadBlockFromDisk(block, pindexSlow, consensusParams)) {
+                for (const auto& tx : block.vtx) {
+                    if (tx->GetHash() == hash) {
+                        txOut = tx;
+                        hashBlock = pindexSlow->GetBlockHash();
+                        return true;
+                    }
                 }
             }
         }
@@ -1773,6 +1802,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     // Special case for the genesis block, skipping connection of its transactions
     // (its coinbase is unspendable)
+    // TODO: Adjust this check as part of making coinbase spendable
     if (block.GetHash() == chainparams.GetConsensus().hashGenesisBlock) {
         if (!fJustCheck)
             view.SetBestBlock(pindex->GetBlockHash());
@@ -1902,6 +1932,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                  REJECT_INVALID, "bad-txns-nonfinal");
             }
 
+            // Additional index for the Merit LightWallet Stack
             if (fAddressIndex || fSpentIndex)
             {
                 for (size_t j = 0; j < tx.vin.size(); j++) {
@@ -2000,6 +2031,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
+
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime3 - nTime2), 0.001 * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * 0.000001);
 
@@ -3053,6 +3085,12 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
         if (!CheckTransaction(*tx, state, false))
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
                                  strprintf("Transaction check failed (tx hash %s) %s", tx->GetHash().ToString(), state.GetDebugMessage()));
+
+    // Check Referrals
+    for (const auto& ref : block.m_vRef)
+        if (!consensus::CheckReferral(*ref, state))
+            return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
+                                 strprintf("Referral check failed (ref hash %s) %s", ref->GetHash().ToString(), state.GetDebugMessage()));
 
     unsigned int nSigOps = 0;
     for (const auto& tx : block.vtx)
@@ -4642,7 +4680,7 @@ bool LoadReferralMempool()
             file >> ref;
 
             LOCK(cs_main);
-            AcceptToReferralMemoryPool(mempoolReferral, ref);
+            AcceptRefToMemoryPool(mempoolReferral, ref);
             if (ref != nullptr) {
                 ++count;
             } else {
