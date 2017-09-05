@@ -28,12 +28,17 @@ CBlock CreateNewGenesisBlock(const char* pszTimestamp, const CScript& genesisOut
     auto rawKeyStr = ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35");
     CPubKey rawPubKey {rawKeyStr}; 
     CKeyID address = rawPubKey.GetID();
-    MutableReferral refNew;
-    refNew.m_codeHash = uint256(ParseHex("05c0854699dc25ca4b3df49c62603ca7419d6a305bd99d5bd8846507be4ddde7"));
-    refNew.m_pubKeyId = address;
-    refNew.m_previousReferral.SetNull();
+    // MutableReferral refNew;
+    // refNew.m_codeHash = uint256(ParseHex("05c0854699dc25ca4b3df49c62603ca7419d6a305bd99d5bd8846507be4ddde7"));
+    // refNew.m_pubKeyId = address;
+    // refNew.m_previousReferral.SetNull();
+
+    // Generate the code
+    MutableReferral refNew {address, uint256()};
     std::cout << "We made a ref!! With this code:" << refNew.m_code << std::endl;
-    std::cout << "We made a ref!! With this codeHash:" << HexStr(refNew.m_codeHash) << std::endl;
+    std::cout << "We made a ref!! With this codeHash1: " << (refNew.m_codeHash.ToString()) << std::endl;    
+    // HexStr is reversing of the order of the hash!
+    // std::cout << "We made a ref!! With this codeHash2: " << HexStr(refNew.m_codeHash) << std::endl; 
 
     CBlock genesis;
     genesis.nTime    = nTime;
@@ -57,22 +62,12 @@ CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutput
     txNew.vout[0].nValue = genesisReward;
     txNew.vout[0].scriptPubKey = genesisOutputScript;
 
-    auto rawKeyStr = ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35");
-    CPubKey rawPubKey {rawKeyStr}; 
-    CKeyID address = rawPubKey.GetID();
-    MutableReferral refNew;
-
-    refNew.m_codeHash = uint256(ParseHex("05c0854699dc25ca4b3df49c62603ca7419d6a305bd99d5bd8846507be4ddde7"));
-    refNew.m_pubKeyId = address;
-    refNew.m_previousReferral.SetNull();
-
     CBlock genesis;
     genesis.nTime    = nTime;
     genesis.nBits    = nBits;
     genesis.nNonce   = nNonce;
     genesis.nVersion = nVersion;
     genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
-    genesis.m_vRef.push_back(MakeReferralRef(std::move(refNew)));    
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
     return genesis;
@@ -152,8 +147,8 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_SEGWIT].nTimeout = 1510704000; // November 15th, 2017.
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000723d3581fe1bd55373540a");
-
+        consensus.nMinimumChainWork = uint256S("0x00");
+        
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("0x0000000000000000003b9ce759c2a087d52abc4266f8f4ebd6d768b89defa50a"); //477890
 
