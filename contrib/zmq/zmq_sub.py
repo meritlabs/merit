@@ -76,7 +76,7 @@ class ZMQHandler():
         elif topic == b"rawtx":
             print('- RAW TX ('+sequence+') -')
             print(binascii.hexlify(body))
-        elif topic == b"referraltx":
+        elif topic == b"rawreferraltx":
             print('- REFERRAL TX ('+sequence+') -')
             print(binascii.hexlify(body))
         # schedule ourselves to receive the next message
