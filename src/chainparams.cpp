@@ -29,7 +29,7 @@ CBlock CreateNewGenesisBlock(const char* pszTimestamp, const CScript& genesisOut
     CPubKey rawPubKey {rawKeyStr}; 
     CKeyID address = rawPubKey.GetID();
     MutableReferral refNew;
-    refNew.m_codeHash = uint256S("4d27b4cb4db1d7aa2f711ac0dc0841003bf6b4d55c2c7583b7323a965ed2c7fa");
+    refNew.m_codeHash.SetHex("73a50383c1e58f5f215cdb40508b584bfd9f8d0e46cc3d0f17c79c6774a5dafd");
     refNew.m_pubKeyId = address;
     refNew.m_previousReferral.SetNull();
 
