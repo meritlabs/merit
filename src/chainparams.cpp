@@ -15,6 +15,38 @@
 #include "chainparamsseeds.h"
 #include <iostream>
 
+CBlock CreateNewGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+{
+    CMutableTransaction txNew;
+    txNew.nVersion = 1;
+    txNew.vin.resize(1);
+    txNew.vout.resize(1);
+    txNew.vin[0].scriptSig = CScript() << 486604799 << CScriptNum(4) << std::vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
+    txNew.vout[0].nValue = genesisReward;
+    txNew.vout[0].scriptPubKey = genesisOutputScript;
+
+    auto rawKeyStr = ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35");
+    CPubKey rawPubKey {rawKeyStr}; 
+    CKeyID address = rawPubKey.GetID();
+    MutableReferral refNew;
+    refNew.m_codeHash = uint256(ParseHex("05c0854699dc25ca4b3df49c62603ca7419d6a305bd99d5bd8846507be4ddde7"));
+    refNew.m_pubKeyId = address;
+    refNew.m_previousReferral.SetNull();
+    std::cout << "We made a ref!! With this code:" << refNew.m_code << std::endl;
+    std::cout << "We made a ref!! With this codeHash:" << HexStr(refNew.m_codeHash) << std::endl;
+
+    CBlock genesis;
+    genesis.nTime    = nTime;
+    genesis.nBits    = nBits;
+    genesis.nNonce   = nNonce;
+    genesis.nVersion = nVersion;
+    genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
+    genesis.m_vRef.push_back(MakeReferralRef(std::move(refNew)));
+    genesis.hashPrevBlock.SetNull();
+    genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
+    return genesis;
+}
+
 CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
     CMutableTransaction txNew;
@@ -25,16 +57,12 @@ CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutput
     txNew.vout[0].nValue = genesisReward;
     txNew.vout[0].scriptPubKey = genesisOutputScript;
 
-    CKeyID addr {uint160(ParseHex("n2xrSmGsSuf32q8p8PjQxvMxvBwFggtksU"))};
-    MutableReferral refNew{addr, uint256()};
-
     CBlock genesis;
     genesis.nTime    = nTime;
     genesis.nBits    = nBits;
     genesis.nNonce   = nNonce;
     genesis.nVersion = nVersion;
     genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
-    genesis.m_vRef.push_back(MakeReferralRef(std::move(refNew)));
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
     return genesis;
@@ -62,7 +90,7 @@ CBlock CreateNewGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, in
 {
     const char* pszTimestamp = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
     const CScript genesisOutputScript = CScript() << ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35") << OP_CHECKSIG;
-    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
+    return CreateNewGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
 }
 
 
