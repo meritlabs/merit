@@ -145,6 +145,11 @@ bool ReferralTx::AcceptToMemoryPool(const ReferralRef& referral) {
     return ::AcceptToReferralMemoryPool(mempoolReferral, referral);
 }
 
+bool ReferralTx::IsAccepted() const
+{
+    return GetDepthInMainChain() > CHAIN_DEPTH_TO_UNLOCK_WALLET;
+}
+
 std::string GenerateAndSendReferralTx(CPubKey& pubkey, uint256 referredBy, CConnman* connman)
 {
     CKeyID keyID = pubkey.GetID();
@@ -1124,7 +1129,7 @@ bool CWallet::AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose)
     }
 
     // Set unlock referral tx in case this tx is root unlock tx, wallet us not unlocked yet and tx is in the blockchain, aka confirmed
-    if (rtx.IsUnlockTx() && !IsReferred() && rtx.GetDepthInMainChain() > 0) {
+    if (rtx.IsUnlockTx() && !IsReferred() && rtx.IsAccepted()) {
         SetUnlockReferralTx(rtx);
     }
 
@@ -1265,7 +1270,7 @@ bool CWallet::AddToWalletIfInvolvingMe(const ReferralRef& pref, const CBlockInde
             return false;
         }
 
-        if (fExisted || IsMine(ref)/* || IsFromMe(tx)*/)
+        if (fExisted || IsMine(ref))
         {
             ReferralTx rtx(pref);
 
@@ -1703,7 +1708,7 @@ ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy)
 
 bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx)
 {
-    if (IsReferred() || !rtx.IsUnlockTx() || rtx.GetDepthInMainChain() == 0) {
+    if (IsReferred() || !rtx.IsUnlockTx() || !rtx.IsAccepted()) {
         return false;
     }
 
