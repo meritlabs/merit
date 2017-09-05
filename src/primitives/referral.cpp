@@ -83,3 +83,4 @@ std::string Referral::ToString() const
         HexStr(m_pubKeyId));
     return str;
 }
+

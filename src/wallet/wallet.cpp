@@ -1431,10 +1431,10 @@ void CWallet::SyncTransaction(const ReferralRef& pref, const CBlockIndex *pindex
     AddToWalletIfInvolvingMe(pref, pindex, posInBlock, true);
 }
 
-// void CWallet::ReferralAddedToMempool(const ReferralRef& pref) {
-//     LOCK2(cs_main, cs_wallet);
-//     SyncTransaction(pref);
-// }
+void CWallet::ReferralAddedToMempool(const ReferralRef& pref) {
+    LOCK2(cs_main, cs_wallet);
+    SyncTransaction(pref);
+}
 
 void CWallet::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) {
     LOCK2(cs_main, cs_wallet);
@@ -1453,7 +1453,7 @@ void CWallet::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const 
         SyncTransaction(pblock->vtx[i], pindex, i);
     }
     for (size_t i = 0; i < pblock->m_vRef.size(); i++) {
-        SyncTransaction(pblock->m_vRef[i]);
+        SyncTransaction(pblock->m_vRef[i], pindex, i);
     }
 }
 

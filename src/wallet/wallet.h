@@ -1206,6 +1206,7 @@ public:
 
     bool SetUnlockReferralTx(const ReferralTx& rtx);
     ReferralRef GenerateNewReferral(CPubKey& pubkey, uint256 referredBy);
+    void ReferralAddedToMempool(const ReferralRef& pref);
 
     bool IsReferred() const;
 };

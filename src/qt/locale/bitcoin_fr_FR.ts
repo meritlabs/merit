@@ -1205,9 +1205,9 @@
     <message>
         <source>&amp;Save Image...</source>
         <translation>&amp;Sauvegarder image</translation>
+        <source>URI</source>
     </message>
     <message>
-        <source>URI</source>
         <translation>URI</translation>
     </message>
     <message>

@@ -79,10 +79,11 @@ endif
 # bitcoin core #
 BITCOIN_CORE_H = \
   addrdb.h \
+  addressindex.h \
   addrman.h \
   base58.h \
-  bloom.h \
   blockencodings.h \
+  bloom.h \
   chain.h \
   chainparams.h \
   chainparamsbase.h \
@@ -101,6 +102,7 @@ BITCOIN_CORE_H = \
   core_io.h \
   core_memusage.h \
   cuckoocache.h \
+  dbwrapper.h \
   fs.h \
   httprpc.h \
   httpserver.h \
@@ -108,7 +110,6 @@ BITCOIN_CORE_H = \
   init.h \
   key.h \
   keystore.h \
-  dbwrapper.h \
   limitedmap.h \
   memusage.h \
   merkleblock.h \
@@ -126,9 +127,13 @@ BITCOIN_CORE_H = \
   pow.h \
   protocol.h \
   random.h \
+  refdb.h \
+  referrals.h \
   reverse_iterator.h \
   reverselock.h \
   rpc/blockchain.h \
+  spentindex.h \
+  timestampindex.h \
   rpc/client.h \
   rpc/mining.h \
   rpc/protocol.h \
@@ -204,6 +209,7 @@ libbitcoin_server_a_SOURCES = \
   policy/policy.cpp \
   policy/rbf.cpp \
   pow.cpp \
+  refdb.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
   rpc/mining.cpp \
@@ -326,6 +332,7 @@ libbitcoin_common_a_SOURCES = \
   netbase.cpp \
   policy/feerate.cpp \
   protocol.cpp \
+  referrals.cpp \
   scheduler.cpp \
   script/sign.cpp \
   script/standard.cpp \

@@ -16,6 +16,7 @@
 #include "policy/fees.h"
 #include "policy/policy.h"
 #include "policy/rbf.h"
+#include "referrals.h"
 #include "rpc/mining.h"
 #include "rpc/server.h"
 #include "script/sign.h"
@@ -3174,14 +3175,17 @@ UniValue generatereferralcode(const JSONRPCRequest& request)
 
 UniValue validatereferralcode(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() != 0) {
+    if (request.fHelp || request.params.size() != 1) {
         throw std::runtime_error(
             "Validate referral code\n"
             + HelpExampleCli("validatereferralcode", "")
         );
     }
 
-    UniValue result(UniValue::VOBJ);
+    const std::string referral = request.params[0].get_str();
+    bool is_valid = prefviewcache->ReferralCodeExists(uint256S(referral));
+
+    UniValue result(is_valid);
     return result;
 }
 
