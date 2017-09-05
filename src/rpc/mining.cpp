@@ -174,12 +174,13 @@ std::vector<std::shared_ptr<CBlock>> findGenesisBlock(uint64_t fromNonce, uint64
 
     for (auto const& genBlock: genBlocks) 
     {
+        stopSearching = false;
         for (; fromNonce < toNonce && !CheckProofOfWork(genBlock->GetHash(), genBlock->nBits, Params().GetConsensus()); fromNonce++) {
             if (stopSearching) {
                 genBlock->nNonce = -1; // Signalling that this thread did not find the winning nonce.  
                 std::cerr << "Losing Nonce at StopSearching Signal:" << genBlock->nNonce <<  std::endl;
                 std::cerr << "Hash of loser:" << genBlock->ToString() << std::endl;
-                continue;    
+                break;    
             }    
             if (fromNonce % 1000000 == 0) {
                 std::cerr << "Current Nonce:" << fromNonce << std::endl;
