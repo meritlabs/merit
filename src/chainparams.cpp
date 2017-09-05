@@ -28,17 +28,17 @@ CBlock CreateNewGenesisBlock(const char* pszTimestamp, const CScript& genesisOut
     auto rawKeyStr = ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35");
     CPubKey rawPubKey {rawKeyStr}; 
     CKeyID address = rawPubKey.GetID();
-    // MutableReferral refNew;
-    // refNew.m_codeHash = uint256(ParseHex("05c0854699dc25ca4b3df49c62603ca7419d6a305bd99d5bd8846507be4ddde7"));
-    // refNew.m_pubKeyId = address;
-    // refNew.m_previousReferral.SetNull();
+    MutableReferral refNew;
+    refNew.m_codeHash = uint256(ParseHex("4d27b4cb4db1d7aa2f711ac0dc0841003bf6b4d55c2c7583b7323a965ed2c7fa"));
+    refNew.m_pubKeyId = address;
+    refNew.m_previousReferral.SetNull();
 
     // Generate the code
-    MutableReferral refNew {address, uint256()};
+    //MutableReferral refNew {address, uint256()};
     std::cout << "We made a ref!! With this code:" << refNew.m_code << std::endl;
     std::cout << "We made a ref!! With this codeHash1: " << (refNew.m_codeHash.ToString()) << std::endl;    
     // HexStr is reversing of the order of the hash!
-    // std::cout << "We made a ref!! With this codeHash2: " << HexStr(refNew.m_codeHash) << std::endl; 
+    std::cout << "We made a ref!! With this codeHash2: " << HexStr(refNew.m_codeHash) << std::endl; 
 
     CBlock genesis;
     genesis.nTime    = nTime;
