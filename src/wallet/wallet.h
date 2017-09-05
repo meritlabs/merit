@@ -69,6 +69,9 @@ static const bool DEFAULT_DISABLE_WALLET = false;
 //! if set, all keys will be derived by using BIP32
 static const bool DEFAULT_USE_HD_WALLET = true;
 
+//! how many blocks should be verified before wallet can be unlocked
+static const unsigned int CHAIN_DEPTH_TO_UNLOCK_WALLET = 0;
+
 extern const char * DEFAULT_WALLET_DAT;
 
 static const int64_t TIMESTAMP_MIN = 0;
@@ -293,6 +296,7 @@ public:
     bool RelayWalletTransaction(CConnman* connman);
     bool InMempool() const;
     bool AcceptToMemoryPool(const ReferralRef& referral);
+    bool IsAccepted() const;
 
     bool IsNull() const {
         return m_pReferral == nullptr || GetHash().IsNull();
@@ -993,6 +997,7 @@ public:
     CBlockIndex* ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate = false);
     void ReacceptWalletTransactions();
     void ResendWalletTransactions(int64_t nBestBlockTime, CConnman* connman) override;
+
     // ResendWalletTransactionsBefore may only be called if fBroadcastTransactions!
     std::vector<uint256> ResendWalletTransactionsBefore(int64_t nTime, CConnman* connman);
     CAmount GetBalance() const;

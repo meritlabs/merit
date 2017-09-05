@@ -3184,7 +3184,7 @@ UniValue validatereferralcode(const JSONRPCRequest& request)
 
     const std::string unlockCode = request.params[0].get_str();
     uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
-    std::reverse(std::begin(codeHash), std::end(codeHash));
+    //std::reverse(std::begin(codeHash), std::end(codeHash));
     std::cerr << "Here is the codeHash: " << codeHash.ToString() << std::endl;
     bool is_valid = prefviewcache->ReferralCodeExists(codeHash);
 

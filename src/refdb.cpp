@@ -10,7 +10,9 @@ ReferralsViewDB::ReferralsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) :
     m_db(GetDataDir() / "referrals", nCacheSize, fMemory, fWipe, true) {}
 
 bool ReferralsViewDB::GetReferral(const uint256& code_hash, MutableReferral& referral) const {
-    std::cerr << "Code Hash in GetReferral: " << code_hash.ToString() << std::endl;
+    std::cerr << "Code Hash (ToString) in GetReferral: " << code_hash.ToString() << std::endl;
+    std::cerr << "Code Hash in (HexStr) GetReferral: " << HexStr(code_hash) << std::endl;
+    std::cerr << "Code Hash in (GetHex) GetReferral: " << code_hash.GetHex() << std::endl;
     return m_db.Read(std::make_pair(DB_REFERRALS, code_hash), referral);
 }
 
