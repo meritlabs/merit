@@ -169,8 +169,12 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
     return &(it->second);
 }
 
-bool CWallet::Unlock(const uint256& referredByHash)
+ReferralRef CWallet::Unlock(const uint256& referredByHash)
 {
+    if (!IsReferred() && !mapWalletRTx.empty()) {
+        throw std::runtime_error(std::string(__func__) + ": wallet alredy have unconfirmed unlock referral transaction");
+    }
+
     CKeyPool keypool;
     int64_t nIndex = 0;
 
@@ -189,7 +193,7 @@ bool CWallet::Unlock(const uint256& referredByHash)
 
     m_pool_key_to_index[pubkey.GetID()] = nIndex;
 
-    return true;
+    return referral;
 }
 
 CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb, bool internal)
