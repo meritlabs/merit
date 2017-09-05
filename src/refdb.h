@@ -11,13 +11,14 @@
 class ReferralsViewDB
 {
 protected:
-    CDBWrapper m_db;
+    mutable CDBWrapper m_db;
 public:
     explicit ReferralsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
 
     bool GetReferral(const uint256&, MutableReferral&) const;
     bool InsertReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;
+    bool ListKeys() const;
 };
 
 #endif

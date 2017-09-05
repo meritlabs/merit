@@ -43,6 +43,7 @@ bool ReferralsViewCache::ReferralCodeExists(const uint256& code) const {
         }
     }
     MutableReferral db_ref;
+    m_db->ListKeys();
     if (m_db->GetReferral(code, db_ref)) {
         return InsertReferralIntoCache(db_ref);
     }

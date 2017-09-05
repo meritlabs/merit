@@ -192,6 +192,8 @@ bool CDBWrapper::IsEmpty()
 CDBIterator::~CDBIterator() { delete piter; }
 bool CDBIterator::Valid() const { return piter->Valid(); }
 void CDBIterator::SeekToFirst() { piter->SeekToFirst(); }
+leveldb::Slice CDBIterator::key() const { piter->key(); }
+leveldb::Slice CDBIterator::value() const { piter->value(); }
 void CDBIterator::Next() { piter->Next(); }
 
 namespace dbwrapper_private {

@@ -57,12 +57,22 @@ CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutput
     txNew.vout[0].nValue = genesisReward;
     txNew.vout[0].scriptPubKey = genesisOutputScript;
 
+    auto rawKeyStr = ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35");
+    CPubKey rawPubKey {rawKeyStr}; 
+    CKeyID address = rawPubKey.GetID();
+    MutableReferral refNew;
+
+    refNew.m_codeHash = uint256(ParseHex("05c0854699dc25ca4b3df49c62603ca7419d6a305bd99d5bd8846507be4ddde7"));
+    refNew.m_pubKeyId = address;
+    refNew.m_previousReferral.SetNull();
+
     CBlock genesis;
     genesis.nTime    = nTime;
     genesis.nBits    = nBits;
     genesis.nNonce   = nNonce;
     genesis.nVersion = nVersion;
     genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
+    genesis.m_vRef.push_back(MakeReferralRef(std::move(refNew)));    
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
     return genesis;
@@ -348,8 +358,8 @@ public:
 
         genesis = CreateGenesisBlock(1503352716, 337, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("192b040df53511a4a3f63a4b9c66e85f19f5963b345a2ac4fada7b58907ef272"));
-        assert(genesis.hashMerkleRoot == uint256S("b1c4626a9b876698ea607a9e1e77b28283d65e1d538c6c79a57f34d9ad4166ad"));
+        assert(consensus.hashGenesisBlock == uint256S("6658d7b9c175651ffeca39d517b1bf7f9eaf44bfd965026d71b8a60c93ab5725"));
+        assert(genesis.hashMerkleRoot == uint256S("f910cdf753c0e79f137fff201b2d6a501960f6b57b00294bb93d967ffdecb1c7"));
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
@@ -360,7 +370,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("192b040df53511a4a3f63a4b9c66e85f19f5963b345a2ac4fada7b58907ef272")},
+                {0, uint256S("6658d7b9c175651ffeca39d517b1bf7f9eaf44bfd965026d71b8a60c93ab5725")},
             }
         };
 
