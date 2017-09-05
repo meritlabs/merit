@@ -78,9 +78,9 @@ std::string Referral::ToString() const
     str += strprintf("Referral(hash=%s, ver=%d, codeHash=%s, m_previousReferral=%s, m_pubKeyId=%s)\n",
         GetHash().ToString().substr(0,10),
         m_nVersion,
-        HexStr(m_codeHash),
-        HexStr(m_previousReferral),
-        HexStr(m_pubKeyId));
+        m_codeHash.ToString(),
+        m_previousReferral.ToString(),
+        m_pubKeyId.ToString());
     return str;
 }
 
