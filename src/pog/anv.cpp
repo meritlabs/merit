@@ -31,7 +31,7 @@ namespace pog
      * accumulated version instead where ANV is cached and gets updated for every
      * mined transaction.
      */
-    uint64_t ComputeANV(uint256 top_wallet_id)
+    uint64_t ComputeANV(uint256 top_wallet_id, ReferralsViewCache& referrals)
     {
         wallet_stack wallets;
         wallets.push(top_wallet_id);

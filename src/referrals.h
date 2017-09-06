@@ -10,8 +10,10 @@
 #include "sync.h"
 
 #include <unordered_map>
+#include <boost/optional.hpp>
 
-typedef std::unordered_map<uint256, Referral> ReferralMap;
+using ReferralMap = std::unordered_map<uint256, Referral>;
+using WalletToReferrer = std::unordered_map<CKeyID, CKeyID>;
 
 class ReferralsViewCache
 {
@@ -19,14 +21,20 @@ private:
     mutable CCriticalSection m_cs_cache;
     ReferralsViewDB *m_db;
     mutable ReferralMap m_referral_cache;
+    mutable WalletToReferrer m_wallet_to_referrer;
 
     ReferralMap::iterator Fetch(const uint256& code) const;
-    bool InsertReferralIntoCache(const Referral&) const;
+    void InsertReferralIntoCache(const Referral&) const;
+    void InsertWalletRelationshipIntoCache(const CKeyID& child, const CKeyID& parent) const;
+
 public:
     ReferralsViewCache(ReferralsViewDB*);
 
-    bool GetReferral(const uint256&, MutableReferral&) const;
+    MaybeReferral GetReferral(const uint256&) const;
+    MaybeKeyID GetReferrer(CKeyID key) const;
+
     bool ReferralCodeExists(const uint256&) const;
+    bool WalletIdExists(const CKeyID&) const;
 
     void Flush();
 };
