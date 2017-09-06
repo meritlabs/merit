@@ -1431,6 +1431,10 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
 
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReset);
 
+                // TODO: Re-evaluate this placement of the RefDB and Cache.  There may be a more efficient place.
+                prefviewdb = new ReferralsViewDB{nReferralDBCache, false, fReset || fReindexChainState};
+                prefviewcache = new ReferralsViewCache{prefviewdb};
+
                 if (fReset) {
                     pblocktree->WriteReindexing(true);
                     //If we're reindexing in prune mode, wipe away unusable block files and all undo data files
@@ -1547,8 +1551,6 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                     }
                 }
 
-                prefviewdb = new ReferralsViewDB{nReferralDBCache, false, fReset || fReindexChainState};
-                prefviewcache = new ReferralsViewCache{prefviewdb};
 
             } catch (const std::exception& e) {
                 LogPrintf("%s\n", e.what());
