@@ -3061,6 +3061,13 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
                                  strprintf("Transaction check failed (tx hash %s) %s", tx->GetHash().ToString(), state.GetDebugMessage()));
 
+    for (const auto& ref : block.m_vRef) {
+        if (!CheckReferral(*ref, *prefviewcache, state)) {
+            return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
+                strprintf("Referral check failed (ref hash %s) %s", ref->GetHash().ToString(), state.GetDebugMessage()));
+        }
+    }
+
     unsigned int nSigOps = 0;
     for (const auto& tx : block.vtx)
     {
