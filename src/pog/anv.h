@@ -8,9 +8,24 @@
 #include "primitives/referral.h"
 #include "refdb.h"
 
+#include <vector>
+
 namespace pog 
 {
-    uint64_t ComputeANV(const CKeyID&, const ReferralsViewDB&);
+    /**
+     * Aggregate Network Value is computed by walking the referral tree down from the 
+     * key_id specified and aggregating each child's ANV.
+     */
+    MaybeANV ComputeANV(const CKeyID&, const ReferralsViewDB&);
+
+    struct KeyANV
+    {
+        CKeyID key;
+        CAmount anv;
+    };
+
+    using KeyANVs = std::vector<KeyANV>;
+    KeyANVs GetAllANVs(const ReferralsViewDB&);
 
 } // namespace pog
 

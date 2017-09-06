@@ -6,40 +6,35 @@
 #define MERIT_POG_SELECT_H
 
 #include "hash.h"
-#include <vector>
+#include "amount.h"
+#include "pog/anv.h"
+
 #include <map>
 
 namespace pog 
 {
-    struct WalletAnv
-    {
-        uint256 wallet;
-        uint64_t anv;
-    };
-
-    using WalletAnvs = std::vector<WalletAnv>;
-    using InvertedAnvs = WalletAnvs;
-    using WalletToAnv = std::map<uint256, WalletAnv>;
+    using InvertedAnvs = KeyANVs;
+    using WalletToAnv = std::map<CKeyID, KeyANV>;
 
     class AnvDistribution
     {
         public:
-            AnvDistribution(WalletAnvs anvs);
-            const WalletAnv& Sample(const uint256& hash) const;
+            AnvDistribution(KeyANVs anvs);
+            const KeyANV& Sample(const uint256& hash) const;
             size_t Size() const;
 
         private:
             InvertedAnvs m_inverted;
             WalletToAnv m_anvs;
-            uint64_t m_max_anv = 0;
+            CAmount m_max_anv = 0;
     };
 
     class WalletSelector
     {
         public:
-            WalletSelector(const WalletAnvs& anvs);
+            WalletSelector(const KeyANVs& anvs);
 
-            WalletAnvs Select(uint256 hash, size_t n) const;
+            KeyANVs Select(uint256 hash, size_t n) const;
         private:
             AnvDistribution m_distribution;
     };
