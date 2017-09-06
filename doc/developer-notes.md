@@ -332,6 +332,12 @@ C++ data structures
   - *Rationale*: Ensure determinism by avoiding accidental use of uninitialized
     values. Also, static analyzers balk about this.
 
+- By default, declare single-argument constructors `explicit`.
+
+  - *Rationale*: This is a precaution to avoid unintended conversions that might
+    arise when single-argument constructors are used as implicit conversion
+    functions.
+
 - Use explicitly signed or unsigned `char`s, or even better `uint8_t` and
   `int8_t`. Do not use bare `char` unless it is to pass to a third-party API.
   This type can be signed or unsigned depending on the architecture, which can
@@ -572,15 +578,13 @@ A few guidelines for introducing and reviewing new RPC interfaces:
     is specified as-is in BIP22.
 
 - Missing arguments and 'null' should be treated the same: as default values. If there is no
-  default value, both cases should fail in the same way.
+  default value, both cases should fail in the same way. The easiest way to follow this
+  guideline is detect unspecified arguments with `params[x].isNull()` instead of
+  `params.size() <= x`. The former returns true if the argument is either null or missing,
+  while the latter returns true if is missing, and false if it is null.
 
   - *Rationale*: Avoids surprises when switching to name-based arguments. Missing name-based arguments
   are passed as 'null'.
-
-  - *Exception*: Many legacy exceptions to this exist, one of the worst ones is
-    `getbalance` which follows a completely different code path based on the
-    number of arguments. We are still in the process of cleaning these up. Do not introduce
-    new ones.
 
 - Try not to overload methods on argument type. E.g. don't make `getblock(true)` and `getblock("hash")`
   do different things.
@@ -615,3 +619,8 @@ A few guidelines for introducing and reviewing new RPC interfaces:
   - *Rationale*: as well as complicating the implementation and interfering
     with the introduction of multi-wallet, wallet and non-wallet code should be
     separated to avoid introducing circular dependencies between code units.
+
+- Try to make the RPC response a JSON object.
+
+  - *Rationale*: If a RPC response is not a JSON object then it is harder to avoid API breakage if
+    new data in the response is needed.

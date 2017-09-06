@@ -6,11 +6,8 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import *
 
-
 class ImportPrunedFundsTest(BitcoinTestFramework):
-
-    def __init__(self):
-        super().__init__()
+    def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 2
 
@@ -24,7 +21,6 @@ class ImportPrunedFundsTest(BitcoinTestFramework):
         address1 = self.nodes[0].getnewaddress()
         # pubkey
         address2 = self.nodes[0].getnewaddress()
-        address2_pubkey = self.nodes[0].validateaddress(address2)['pubkey']                 # Using pubkey
         # privkey
         address3 = self.nodes[0].getnewaddress()
         address3_privkey = self.nodes[0].dumpprivkey(address3)                              # Using privkey
@@ -77,13 +73,13 @@ class ImportPrunedFundsTest(BitcoinTestFramework):
 
         #Import with affiliated address with no rescan
         self.nodes[1].importaddress(address2, "add2", False)
-        result2 = self.nodes[1].importprunedfunds(rawtxn2, proof2)
+        self.nodes[1].importprunedfunds(rawtxn2, proof2)
         balance2 = self.nodes[1].getbalance("add2", 0, True)
         assert_equal(balance2, Decimal('0.05'))
 
         #Import with private key with no rescan
         self.nodes[1].importprivkey(address3_privkey, "add3", False)
-        result3 = self.nodes[1].importprunedfunds(rawtxn3, proof3)
+        self.nodes[1].importprunedfunds(rawtxn3, proof3)
         balance3 = self.nodes[1].getbalance("add3", 0, False)
         assert_equal(balance3, Decimal('0.025'))
         balance3 = self.nodes[1].getbalance("*", 0, True)
