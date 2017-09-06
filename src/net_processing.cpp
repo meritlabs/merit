@@ -2029,7 +2029,9 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         CInv inv(MSG_REFERRAL, rtx.GetHash());
         MarkGotInventoryFrom(pfrom, inv);
 
-        if (!AlreadyHave(inv) && AcceptToReferralMemoryPool(mempoolReferral, prtx)) {
+        CValidationState state;
+
+        if (!AlreadyHave(inv) && AcceptReferralToMemoryPool(mempoolReferral, state, prtx)) {
             RelayReferral(rtx, connman);
         }
     }
@@ -2321,7 +2323,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         for (unsigned int n = 0; n < nCount; n++) {
             vRecv >> headers[n];
             ReadCompactSize(vRecv); // ignore tx count; assume it is 0.
-            ReadCompactSize(vRecv); // ignore ref count; assume it is 0.            
+            ReadCompactSize(vRecv); // ignore ref count; assume it is 0.
         }
 
         if (nCount == 0) {
