@@ -1153,6 +1153,16 @@ static const CRPCCommand commands[] =
     /* Blockchain */
     { "blockchain",         "getspentinfo",           &getspentinfo,           false, {} },
 
+    /* Address index */
+    { "addressindex",       "getaddressmempool",      &getaddressmempool,      true,  {}},
+    { "addressindex",       "getaddressutxos",        &getaddressutxos,        false, {} },
+    { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       false, {} },
+    { "addressindex",       "getaddresstxids",        &getaddresstxids,        false, {} },
+    { "addressindex",       "getaddressbalance",      &getaddressbalance,      false, {} },
+
+    /* Blockchain */
+    { "blockchain",         "getspentinfo",           &getspentinfo,           false, {} },
+
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            {"timestamp"}},
     { "hidden",             "echo",                   &echo,                   {"arg0","arg1","arg2","arg3","arg4","arg5","arg6","arg7","arg8","arg9"}},
