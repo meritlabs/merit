@@ -90,7 +90,7 @@ public:
         return m_hash;
     }
 
-    // Compute a m_hash that includes both transaction and witness data
+    // Compute a hash that includes both transaction and witness data
     uint256 GetWitnessHash() const;
 
     /**
