@@ -3182,9 +3182,10 @@ UniValue validatereferralcode(const JSONRPCRequest& request)
         );
     }
 
-    const std::string referral = request.params[0].get_str();
-    bool is_valid = prefviewcache->ReferralCodeExists(uint256S(referral));
-
+    const std::string unlockCode = request.params[0].get_str();
+    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
+    bool is_valid = prefviewcache->ReferralCodeExists(codeHash);
+    
     UniValue result(is_valid);
     return result;
 }
@@ -3231,37 +3232,41 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    std::string code = request.params[0].get_str();
-    uint256 codeHash = Hash(code.begin(), code.end());
+    std::string unlockCode = request.params[0].get_str();
+    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
 
     ReferralRef referral = pwallet->Unlock(codeHash);
 
-    UniValue obj(UniValue::VOBJ);
+    // TODO: Make this check more robust.
+    UniValue obj(UniValue::VOBJ);    
+    if (prefviewcache->ReferralCodeExists(codeHash)) {
+     
+        size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
+        obj.push_back(Pair("walletname", pwallet->GetName()));
+        obj.push_back(Pair("walletversion", pwallet->GetVersion()));
+        obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
+        obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
+        obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
+        obj.push_back(Pair("txcount",       (int)pwallet->mapWallet.size()));
+        obj.push_back(Pair("keypoololdest", pwallet->GetOldestKeyPoolTime()));
+        obj.push_back(Pair("keypoolsize", (int64_t)kpExternalSize));
+        CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
 
-    size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
-    obj.push_back(Pair("walletname", pwallet->GetName()));
-    obj.push_back(Pair("walletversion", pwallet->GetVersion()));
-    obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
-    obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
-    obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
-    obj.push_back(Pair("txcount",       (int)pwallet->mapWallet.size()));
-    obj.push_back(Pair("keypoololdest", pwallet->GetOldestKeyPoolTime()));
-    obj.push_back(Pair("keypoolsize", (int64_t)kpExternalSize));
-    CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
+        if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT))
+            obj.push_back(Pair("keypoolsize_hd_internal",   (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
 
-    if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT))
-        obj.push_back(Pair("keypoolsize_hd_internal",   (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
+        if (pwallet->IsCrypted())
+            obj.push_back(Pair("unlocked_until", pwallet->nRelockTime));
 
-    if (pwallet->IsCrypted())
-        obj.push_back(Pair("unlocked_until", pwallet->nRelockTime));
+        obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
 
-    obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
+        if (!masterKeyID.IsNull())
+            obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
 
-    if (!masterKeyID.IsNull())
-        obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
-
-    obj.push_back(Pair("referralcode", referral->m_code));
-
+        obj.push_back(Pair("referralcode", referral->m_code));
+    } else { 
+        throw JSONRPCError(RPC_CODE_DOES_NOT_EXIST, "Error: Unlock code is not valid.");        
+    }
     return obj;
 }
 
