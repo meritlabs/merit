@@ -1716,7 +1716,7 @@ bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx)
     m_unlockReferralTx = rtx;
 
     // top up keypool after unlocking wallet
-    // TopUpKeyPool();
+    TopUpKeyPool();
 
     return true;
 }
@@ -3297,9 +3297,12 @@ bool CWallet::CommitTransaction(ReferralTx& rtxNew, CConnman* connman, CValidati
 
         if (fBroadcastTransactions)
         {
-            if (!rtxNew.AcceptToMemoryPool(state))
-            // Broadcast
-            rtxNew.RelayWalletTransaction(connman);
+            if (!rtxNew.AcceptToMemoryPool(state)) {
+                LogPrintf("CommitTransaction(): Referral transaction cannot be broadcast immediately, %s\n", state.GetRejectReason());
+            } else {
+                LogPrintf(">>>>>>>>>>  Relaying transaction to the network");
+                rtxNew.RelayWalletTransaction(connman);
+            }
         }
     }
 
