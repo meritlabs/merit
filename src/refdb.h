@@ -8,6 +8,12 @@
 #include "dbwrapper.h"
 #include "primitives/referral.h"
 
+#include <boost/optional.hpp>
+
+using MaybeReferral = boost::optional<Referral>;
+using MaybeKeyID = boost::optional<CKeyID>;
+using ChildKeys = std::vector<CKeyID>;
+
 class ReferralsViewDB
 {
 protected:
@@ -15,9 +21,12 @@ protected:
 public:
     explicit ReferralsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
 
-    bool GetReferral(const uint256&, MutableReferral&) const;
+    MaybeReferral GetReferral(const uint256&) const;
+    MaybeKeyID GetRefferer(const CKeyID&) const;
+    ChildKeys GetChildren(const CKeyID&) const;
     bool InsertReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;
+    bool WalletIdExists(const CKeyID&) const;
 };
 
 #endif
