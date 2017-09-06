@@ -16,13 +16,8 @@ bool CheckReferral(const Referral& referral, const ReferralsViewCache& refView, 
     // Basic checks that don't depend on any context
 
     // check that referral code is not empty and this referral is not genesis referral
-    if (referral.m_previousReferral.IsNull() && referral.m_codeHash != genesisReferralCodeHash) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-ref-prevref-empty");
-    }
-
-    // check that referral code exists
-    if (!refView.ReferralCodeExists(referral.m_previousReferral)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-ref-prevref-not-exists");
+    if ((referral.m_previousReferral.IsNull() || !refView.ReferralCodeExists(referral.m_previousReferral)) && referral.m_codeHash != genesisReferralCodeHash) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-ref-prevref-invalid");
     }
 
     if (referral.m_pubKeyId.IsNull()) {
