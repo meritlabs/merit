@@ -121,7 +121,8 @@ public:
     {
         Unencrypted,  // !wallet->IsCrypted()
         Locked,       // wallet->IsCrypted() && wallet->IsLocked()
-        Unlocked      // wallet->IsCrypted() && !wallet->IsLocked()
+        NotReferred,  // !wallet->IsReferred()
+        Unlocked      // wallet->IsCrypted() && !wallet->IsLocked() && wallet->IsReferred()
     };
 
     OptionsModel *getOptionsModel();
