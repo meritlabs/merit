@@ -293,7 +293,7 @@ public:
 
     bool RelayWalletTransaction(CConnman* connman);
     bool InMempool() const;
-    bool AcceptToMemoryPool(const ReferralRef& referral);
+    bool AcceptToMemoryPool(CValidationState& state);
     bool IsAccepted() const;
 
     bool IsNull() const {
@@ -987,6 +987,7 @@ public:
     bool LoadToWallet(const CWalletTx& wtxIn);
     bool LoadToWallet(const ReferralTx& rtxIn);
     void TransactionAddedToMempool(const CTransactionRef& tx) override;
+    void ReferralAddedToMempool(const ReferralRef& pref) override;
     void BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) override;
     void BlockDisconnected(const std::shared_ptr<const CBlock>& pblock) override;
     bool AddToWalletIfInvolvingMe(const CTransactionRef& tx, const CBlockIndex* pIndex, int posInBlock, bool fUpdate);
@@ -1023,7 +1024,7 @@ public:
                            std::string& strFailReason, const CCoinControl& coin_control, bool sign = true);
     bool CreateTransaction(ReferralTx& rtx, ReferralRef& referral);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CConnman* connman, CValidationState& state);
-    bool CommitTransaction(ReferralTx& rtxNew, CConnman* connman);
+    bool CommitTransaction(ReferralTx& rtxNew, CConnman* connman, CValidationState& state);
 
     void ListAccountCreditDebit(const std::string& strAccount, std::list<CAccountingEntry>& entries);
     bool AddAccountingEntry(const CAccountingEntry&);
@@ -1209,7 +1210,6 @@ public:
 
     bool SetUnlockReferralTx(const ReferralTx& rtx);
     ReferralRef GenerateNewReferral(CPubKey& pubkey, uint256 referredBy);
-    void ReferralAddedToMempool(const ReferralRef& pref);
 
     bool IsReferred() const;
 };

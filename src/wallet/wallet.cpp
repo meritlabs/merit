@@ -119,7 +119,8 @@ bool ReferralTx::RelayWalletTransaction(CConnman *connman)
     assert(m_pWallet->GetBroadcastTransactions());
     if (!isAbandoned() && GetDepthInMainChain() == 0)
     {
-        if (InMempool() || AcceptToMemoryPool(m_pReferral)) {
+        CValidationState state;
+        if (InMempool() || AcceptToMemoryPool(state)) {
             if (connman) {
                 CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
 
@@ -142,13 +143,13 @@ bool ReferralTx::InMempool() const
     return mempoolReferral.mapRTx.count(GetHash());
 }
 
-bool ReferralTx::AcceptToMemoryPool(const ReferralRef& referral) {
-    return ::AcceptToReferralMemoryPool(mempoolReferral, referral);
+bool ReferralTx::AcceptToMemoryPool(CValidationState& state) {
+    return ::AcceptReferralToMemoryPool(mempoolReferral, state, GetReferral());
 }
 
 bool ReferralTx::IsAccepted() const
 {
-    return GetDepthInMainChain() > (int)CHAIN_DEPTH_TO_UNLOCK_WALLET;
+    return GetDepthInMainChain() > (int) CHAIN_DEPTH_TO_UNLOCK_WALLET;
 }
 
 const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
@@ -1697,8 +1698,9 @@ ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy)
     ReferralRef referral = MakeReferralRef(MutableReferral(keyID, referredBy));
     ReferralTx rtx(true);
 
+    CValidationState state;
     CreateTransaction(rtx, referral);
-    CommitTransaction(rtx, g_connman.get());
+    CommitTransaction(rtx, g_connman.get(), state);
 
     return referral;
 }
@@ -3282,7 +3284,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CCon
 /**
  * Call after CreateTransaction unless you want to abort
  */
-bool CWallet::CommitTransaction(ReferralTx& rtxNew, CConnman* connman)
+bool CWallet::CommitTransaction(ReferralTx& rtxNew, CConnman* connman, CValidationState& state)
 {
     {
         LOCK2(cs_main, cs_wallet);
@@ -3296,6 +3298,7 @@ bool CWallet::CommitTransaction(ReferralTx& rtxNew, CConnman* connman)
 
         if (fBroadcastTransactions)
         {
+            if (!rtxNew.AcceptToMemoryPool(state))
             // Broadcast
             rtxNew.RelayWalletTransaction(connman);
         }
