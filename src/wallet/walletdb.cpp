@@ -6,6 +6,7 @@
 #include "wallet/walletdb.h"
 
 #include "base58.h"
+#include "consensus/ref_verify.h"
 #include "consensus/tx_verify.h"
 #include "consensus/validation.h"
 #include "fs.h"
@@ -19,6 +20,10 @@
 #include <atomic>
 
 #include <boost/thread.hpp>
+
+class ReferralsViewCache;
+
+extern ReferralsViewCache *prefviewcache;
 
 //
 // CWalletDB
@@ -295,10 +300,17 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             pwallet->LoadToWallet(wtx);
         }
         else if (strType == "rtx") {
+            uint256 hash;
+            ssKey >> hash;
             ReferralTx rtx;
             ssValue >> rtx;
 
             LogPrintf("Found rtx in database. Loading...\n");
+
+            CValidationState state;
+            if (!(CheckReferral(*(rtx.GetReferral()), *prefviewcache, state) && (rtx.GetHash() == hash) && state.IsValid())) {
+                return false;
+            }
 
             pwallet->LoadToWallet(rtx);
         }
