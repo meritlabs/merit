@@ -14,16 +14,15 @@ static uint256 genesisReferralCodeHash = uint256S("73a50383c1e58f5f215cdb40508b5
 bool CheckReferral(const Referral& referral, const ReferralsViewCache& refView, CValidationState &state)
 {
     // Basic checks that don't depend on any context
+
+    // check that referral code is not empty and this referral is not genesis referral
+    if (referral.m_previousReferral.IsNull() && referral.m_codeHash != genesisReferralCodeHash) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-ref-prevref-empty");
+    }
+
+    // check that referral code exists
     if (!refView.ReferralCodeExists(referral.m_previousReferral)) {
         return state.DoS(100, false, REJECT_INVALID, "bad-ref-prevref-not-exists");
-    }
-
-    if (refView.ReferralCodeExists(referral.m_codeHash)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-ref-already-exists");
-    }
-
-    if (referral.m_previousReferral.IsNull() && referral.m_previousReferral != genesisReferralCodeHash) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-ref-prevref-empty");
     }
 
     if (referral.m_pubKeyId.IsNull()) {
