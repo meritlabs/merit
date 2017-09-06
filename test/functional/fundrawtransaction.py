@@ -635,6 +635,17 @@ class RawTransactionsTest(BitcoinTestFramework):
         # Test no address reuse occurs #
         ################################
 
+
+
+
+
+
+
+
+
+
+
+
         result3 = self.nodes[3].fundrawtransaction(rawtx)
         res_dec = self.nodes[0].decoderawtransaction(result3["hex"])
         changeaddress = ""

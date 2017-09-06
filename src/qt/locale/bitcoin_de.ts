@@ -43,7 +43,7 @@
     </message>
     <message>
         <source>Choose the address to send coins to</source>
-        <translation>Wählen Sie die Adresse aus, an die Sie Bitcoins überweisen möchten</translation>
+        <translation>Wählen Sie die Adresse aus, an die Sie Bitcoins senden möchten</translation>
     </message>
     <message>
         <source>Choose the address to receive coins with</source>
