@@ -3665,7 +3665,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
             m_pool_key_to_index[pubkey.GetID()] = index;
         }
         if (missingInternal + missingExternal > 0) {
-            LogPrintf("keypool added %d keys (%d internal), size=%u (%u internal), %d referrals\n",
+            LogPrintf("keypool added %d keys (%d internal), size=%u (%u internal)\n",
                 missingInternal + missingExternal,
                 missingInternal,
                 setInternalKeyPool.size() + setExternalKeyPool.size(),

@@ -2461,6 +2461,7 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
     // Remove conflicting transactions from the mempool.;
     mempool.removeForBlock(blockConnecting.vtx, pindexNew->nHeight);
     disconnectpool.removeForBlock(blockConnecting.vtx);
+    mempoolReferral.RemoveForBlock(blockConnecting.m_vRef);
     // Update chainActive & related variables.
     UpdateTip(pindexNew, chainparams);
 
