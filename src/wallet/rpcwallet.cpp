@@ -32,8 +32,11 @@
 
 #include <init.h>  // For StartShutdown
 
+<<<<<<< HEAD
 #include <stdint.h>
 
+=======
+>>>>>>> origin
 static const std::string WALLET_ENDPOINT_BASE = "/wallet/";
 
 CWallet *GetWalletForJSONRPCRequest(const JSONRPCRequest& request)
