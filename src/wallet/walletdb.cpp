@@ -590,8 +590,8 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
                 {
                     // Leave other errors alone, if we try to fix them we might make things worse.
                     fNoncriticalErrors = true; // ... but do warn the user there is something wrong.
-                    if (strType == "tx")
-                        // Rescan if there is a bad transaction record:
+                    if (strType == "tx" || strType == "rtx")
+                        // Rescan if there is a bad transaction/referral record:
                         gArgs.SoftSetBoolArg("-rescan", true);
                 }
             }
