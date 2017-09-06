@@ -9,7 +9,10 @@ namespace
 const char DB_CHILDREN = 'c';
 const char DB_REFERRALS = 'r';
 const char DB_PARENT_KEY = 'p';
+const char DB_ANV = 'a';
+const size_t MAX_LEVELS = 10000000000;
 }
+
 
 ReferralsViewDB::ReferralsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) :
     m_db(GetDataDir() / "referrals", nCacheSize, fMemory, fWipe, true) {}
@@ -68,4 +71,44 @@ bool ReferralsViewDB::ReferralCodeExists(const uint256& code_hash) const {
 bool ReferralsViewDB::WalletIdExists(const CKeyID& key) const
 {
     return m_db.Exists(std::make_pair(DB_PARENT_KEY, key));
+}
+
+/**
+ * Updates ANV for the key and all parents. Note change can be negative if 
+ * there was a debit.
+ */
+bool ReferralsViewDB::UpdateANV(const CKeyID& start_key, CAmount change)
+{
+    MaybeKeyID key = start_key;
+    size_t levels = 0;
+
+    //MAX_LEVELS gaurds against cycles in DB
+    while(key && levels < MAX_LEVELS)
+    {
+        //it's possible key didn't exist yet so an ANV of 0 is assumed.
+        CAmount anv = 0;
+        m_db.Read(std::make_pair(DB_ANV, *key), anv);
+
+        anv += change;
+        if(!m_db.Write(std::make_pair(DB_ANV, *key), anv)) {
+            //TODO: Do we rollback anv computation for already processed keys?
+            // likely if we can't write then rollback will fail too. 
+            // figure out how to mark database as corrupt.
+            return false;
+        }
+
+        key = GetReferrer(*key);
+        levels++;
+    }
+
+    // We should never have cycles in the DB. 
+    // Hacked? Bug?
+    assert(levels < MAX_LEVELS && "reached max levels. Referral DB cycle detected");
+    return true;
+}
+
+MaybeANV ReferralsViewDB::GetANV(const CKeyID& key) const
+{
+    CAmount anv;
+    return m_db.Read(std::make_pair(DB_ANV, key), anv) ? MaybeANV{anv} : MaybeANV{};
 }
