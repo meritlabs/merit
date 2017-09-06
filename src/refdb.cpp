@@ -20,7 +20,7 @@ MaybeReferral ReferralsViewDB::GetReferral(const uint256& code_hash) const {
          MaybeReferral{referral} : MaybeReferral{};
 }
 
-MaybeKeyID ReferralsViewDB::GetRefferer(const CKeyID& key) const
+MaybeKeyID ReferralsViewDB::GetReferrer(const CKeyID& key) const
 {
     CKeyID parent;
     return m_db.Read(std::make_pair(DB_PARENT_KEY, key), parent) ? 

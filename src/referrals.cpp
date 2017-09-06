@@ -11,23 +11,22 @@ ReferralsViewCache::ReferralsViewCache(ReferralsViewDB *db) : m_db{db}
     assert(db);
 };
 
-ReferralMap::iterator ReferralsViewCache::FetchByCode(const uint256& code) const
+ReferralMap::iterator ReferralsViewCache::Fetch(const uint256& code) const
 {
     return m_referral_cache.find(code);
 }
 
-MaybeReferral ReferralsViewCache::GetReferral(const uint256& code, MutableReferral& ref) const
+MaybeReferral ReferralsViewCache::GetReferral(const uint256& code) const
 {
     {
         LOCK(m_cs_cache);
         auto it = Fetch(code);
         if (it != m_referral_cache.end()) {
-            ref = it->second;
-            return true;
+            return it->second;
         }
     }
 
-    if (auto ref = m_db->GetReferral(code, ref); ref) {
+    if (auto ref = m_db->GetReferral(code)) {
         InsertReferralIntoCache(*ref);
         return ref;
     }
@@ -49,9 +48,9 @@ bool ReferralsViewCache::ReferralCodeExists(const uint256& code) const
             return true;
         }
     }
-    MutableReferral db_ref;
-    if (m_db->GetReferral(code, db_ref)) {
-        return InsertReferralIntoCache(db_ref);
+    if (auto ref = m_db->GetReferral(code)) {
+        InsertReferralIntoCache(*ref);
+        return true;
     }
     return false;
 }
@@ -82,14 +81,14 @@ MaybeKeyID ReferralsViewCache::GetReferrer(const CKeyID& key) const
         }
     }
 
-    if (auto parent = m_db->GetReferrer(key); parent) {
+    if (auto parent = m_db->GetReferrer(key)) {
         InsertWalletRelationshipIntoCache(key, *parent);
         return parent;
     }
-    return {}
+    return {};
 }
     
-bool WalletIdExists(const CKeyID& key) const
+bool ReferralsViewCache::WalletIdExists(const CKeyID& key) const
 {
     {
         LOCK(m_cs_cache);
@@ -98,7 +97,7 @@ bool WalletIdExists(const CKeyID& key) const
             return true;
         }
     }
-    if (auto parent = m_db->GetReferrer(key); parent) {
+    if (auto parent = m_db->GetReferrer(key)) {
         InsertWalletRelationshipIntoCache(key, *parent);
         return true;
     }

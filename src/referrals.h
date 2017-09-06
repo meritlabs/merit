@@ -31,7 +31,7 @@ public:
     ReferralsViewCache(ReferralsViewDB*);
 
     MaybeReferral GetReferral(const uint256&) const;
-    MaybeKeyID GetReferrer(CKeyID key) const;
+    MaybeKeyID GetReferrer(const CKeyID& key) const;
 
     bool ReferralCodeExists(const uint256&) const;
     bool WalletIdExists(const CKeyID&) const;

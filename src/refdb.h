@@ -22,7 +22,7 @@ public:
     explicit ReferralsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
 
     MaybeReferral GetReferral(const uint256&) const;
-    MaybeKeyID GetRefferer(const CKeyID&) const;
+    MaybeKeyID GetReferrer(const CKeyID&) const;
     ChildKeys GetChildren(const CKeyID&) const;
 
     bool InsertReferral(const Referral&);
