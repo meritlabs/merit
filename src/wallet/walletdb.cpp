@@ -6,6 +6,7 @@
 #include "wallet/walletdb.h"
 
 #include "base58.h"
+#include "consensus/ref_verify.h"
 #include "consensus/tx_verify.h"
 #include "consensus/validation.h"
 #include "fs.h"
@@ -19,6 +20,10 @@
 #include <atomic>
 
 #include <boost/thread.hpp>
+
+class ReferralsViewCache;
+
+extern ReferralsViewCache *prefviewcache;
 
 //
 // CWalletDB
@@ -294,6 +299,21 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
 
             pwallet->LoadToWallet(wtx);
         }
+        else if (strType == "rtx") {
+            uint256 hash;
+            ssKey >> hash;
+            ReferralTx rtx;
+            ssValue >> rtx;
+
+            LogPrintf("Found rtx in database. Loading...\n");
+
+            CValidationState state;
+            if (!(CheckReferral(*(rtx.GetReferral()), *prefviewcache, state) && (rtx.GetHash() == hash) && state.IsValid())) {
+                return false;
+            }
+
+            pwallet->LoadToWallet(rtx);
+        }
         else if (strType == "acentry")
         {
             std::string strAccount;
@@ -506,14 +526,6 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
                 strErr = "Error reading wallet database: SetHDChain failed";
                 return false;
             }
-        } else if (strType == "ref") {
-            ReferralTx rtx;
-            ssValue >> rtx;
-
-            if (!pwallet->SetReferralTx(rtx)) {
-                strErr = "Error reading wallet database: setReferralTx failed";
-                return false;
-            }
         }
     } catch (...)
     {
@@ -578,8 +590,8 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
                 {
                     // Leave other errors alone, if we try to fix them we might make things worse.
                     fNoncriticalErrors = true; // ... but do warn the user there is something wrong.
-                    if (strType == "tx")
-                        // Rescan if there is a bad transaction record:
+                    if (strType == "tx" || strType == "rtx")
+                        // Rescan if there is a bad transaction/referral record:
                         gArgs.SoftSetBoolArg("-rescan", true);
                 }
             }
@@ -873,5 +885,5 @@ bool CWalletDB::WriteVersion(int nVersion)
 
 bool CWalletDB::WriteReferralTx(const ReferralTx& rtx)
 {
-    return WriteIC(std::make_pair(std::string("ref"), rtx.GetHash()), rtx);
+    return WriteIC(std::make_pair(std::string("rtx"), rtx.GetHash()), rtx);
 }

@@ -104,6 +104,7 @@ test/config.ini
 test/cache/*
 
 !src/leveldb*/Makefile
+!build_docker/Makefile
 
 /doc/doxygen/
 
