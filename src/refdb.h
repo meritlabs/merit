@@ -6,13 +6,17 @@
 #define BITCOIN_REFDB_H
 
 #include "dbwrapper.h"
+#include "amount.h"
 #include "primitives/referral.h"
 
 #include <boost/optional.hpp>
 
 using MaybeReferral = boost::optional<Referral>;
 using MaybeKeyID = boost::optional<CKeyID>;
+using MaybeANV = boost::optional<CAmount>;
 using ChildKeys = std::vector<CKeyID>;
+
+
 
 class ReferralsViewDB
 {
@@ -24,6 +28,9 @@ public:
     MaybeReferral GetReferral(const uint256&) const;
     MaybeKeyID GetReferrer(const CKeyID&) const;
     ChildKeys GetChildren(const CKeyID&) const;
+
+    bool UpdateANV(const CKeyID&, CAmount);
+    MaybeANV GetANV(const CKeyID&) const;
 
     bool InsertReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;
