@@ -3231,6 +3231,7 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     return obj;
 }
 
+#ifdef ENABLE_WALLET
 UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 2 || request.params[0].get_str().empty() || request.params[1].get_str().empty()) {
@@ -3270,13 +3271,9 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
             + HelpExampleRpc("unlockwallet", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\", \"referralcode\"")
         );
     }
-#ifdef ENABLE_WALLET
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
 
     LOCK2(cs_main, pwallet ? &pwallet->cs_wallet : nullptr);
-#else
-    LOCK(cs_main);
-#endif
 
     CBitcoinAddress address(request.params[0].get_str());
     bool isValid = address.IsValid();
@@ -3298,10 +3295,26 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
         uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
 
         // ToDo: create transaction here
+            // check if provided referral code hash is valid, i.e. exists in the blockchain
+        if (!prefviewcache->ReferralCodeExists(codeHash)) {
+            throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain");
+        }
 
-        ret.push_back(Pair("referralcode", "")); // referral->m_code
+        CKeyID addressKey;
+        if (address.GetKeyID(addressKey))
+        {
+            throw std::runtime_error(std::string(__func__) + ": Address is invalid or is in wrong format.");
+        }
 
-#ifdef ENABLE_WALLET
+        ReferralRef referral = MakeReferralRef(MutableReferral(addressKey, codeHash));
+        ReferralTx rtx(true);
+
+        CValidationState state;
+        pwallet->CreateTransaction(rtx, referral);
+        pwallet->CommitTransaction(rtx, g_connman.get(), state);
+
+        ret.push_back(Pair("referralcode", referral->m_code)); // referral->m_code
+
         isminetype mine = pwallet ? IsMine(*pwallet, dest) : ISMINE_NO;
         ret.push_back(Pair("ismine", bool(mine & ISMINE_SPENDABLE)));
         ret.push_back(Pair("iswatchonly", bool(mine & ISMINE_WATCH_ONLY)));
@@ -3325,10 +3338,10 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
                 }
             }
         }
-#endif
     }
     return ret;
 }
+#endif
 
 extern UniValue abortrescan(const JSONRPCRequest& request); // in rpcdump.cpp
 extern UniValue dumpprivkey(const JSONRPCRequest& request); // in rpcdump.cpp
@@ -3401,7 +3414,9 @@ static const CRPCCommand commands[] =
 
     { "referral",           "validatereferralcode",     &validatereferralcode,     true,   {} },
     { "referral",           "unlockwallet",             &unlockwallet,             false,  {"referralcode"} },
+#ifdef ENABLE_WALLET
     { "referral",           "unlockwalletwithaddress",  &unlockwalletwithaddress,  false,  {"address", "referralcode"} }
+#endif
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)
