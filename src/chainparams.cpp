@@ -29,7 +29,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     CPubKey rawPubKey {rawKeyStr}; 
     CKeyID address = rawPubKey.GetID();
     MutableReferral refNew;
-    refNew.m_codeHash.SetHex("4d27b4cb4db1d7aa2f711ac0dc0841003bf6b4d55c2c7583b7323a965ed2c7fa");
+    refNew.m_codeHash.SetHex("73a50383c1e58f5f215cdb40508b584bfd9f8d0e46cc3d0f17c79c6774a5dafd");
     refNew.m_pubKeyId = address;
     refNew.m_previousReferral.SetNull();
 
@@ -128,10 +128,10 @@ public:
         nDefaultPort = 8445;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1503515697, 3, 0x207fffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1503515697, 0, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("48c0233c2548658a17be44124aac7f8f0fec86fb5ace3c7ae2983e44f98b2c44"));
-        assert(genesis.hashMerkleRoot == uint256S("47ea78db84bc78cf5888fc6f0cdf9358e4464941578cb059b0f18cca55597d20"));
+        assert(consensus.hashGenesisBlock == uint256S("43ca943c27513e6bfcf554c0afce0f2613d2a7346b9f0ac3d5f947462a128399"));
+        assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
         // Note that of those with the service bits flag, most only support a subset of possible options
         /*vSeeds.emplace_back("seed.bitcoin.sipa.be", true); // Pieter Wuille, only supports x1, x5, x9, and xd
@@ -155,7 +155,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("48c0233c2548658a17be44124aac7f8f0fec86fb5ace3c7ae2983e44f98b2c44")},
+                {0, uint256S("43ca943c27513e6bfcf554c0afce0f2613d2a7346b9f0ac3d5f947462a128399")},
             }
         };
 
@@ -214,10 +214,10 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 10, 0x207fffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1503444726, 0, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("43be6dceae2f0438a5d44ce602824a7885ba204b1c4213dceaf9989eefe3bc74"));
-        assert(genesis.hashMerkleRoot == uint256S("47ea78db84bc78cf5888fc6f0cdf9358e4464941578cb059b0f18cca55597d20"));
+        assert(consensus.hashGenesisBlock == uint256S("6e49a1749718838ccce04562c86a2f0b1824a77cab117ae1893abf87eac93135"));
+        assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -242,7 +242,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("43be6dceae2f0438a5d44ce602824a7885ba204b1c4213dceaf9989eefe3bc74")},
+                {0, uint256S("6e49a1749718838ccce04562c86a2f0b1824a77cab117ae1893abf87eac93135")},
             }
         };
 
@@ -297,10 +297,10 @@ public:
         nDefaultPort = 18556;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503670484, 11, 0x207fffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1503670484, 3, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("47e0bfa462db2a60c365eef2407ee635148be6a4eb8fb89861324bd2c2acee49"));
-        assert(genesis.hashMerkleRoot == uint256S("47ea78db84bc78cf5888fc6f0cdf9358e4464941578cb059b0f18cca55597d20"));
+        assert(consensus.hashGenesisBlock == uint256S("3b2e6158a8d299cbe3ff8a4fbbebbc09ebf89653b4c558896574f38711034f01"));
+        assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
@@ -311,7 +311,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("47e0bfa462db2a60c365eef2407ee635148be6a4eb8fb89861324bd2c2acee49")},
+                {0, uint256S("3b2e6158a8d299cbe3ff8a4fbbebbc09ebf89653b4c558896574f38711034f01")},
             }
         };
 
