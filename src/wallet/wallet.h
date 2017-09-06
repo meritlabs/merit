@@ -103,8 +103,6 @@ enum WalletFeature
     FEATURE_LATEST = FEATURE_COMPRPUBKEY // HD is optional, use FEATURE_COMPRPUBKEY as latest version
 };
 
-std::string GenerateAndSendReferralTx(CPubKey& pubkey, uint256 referredBy, CConnman *connman);
-
 /** A key pool entry */
 class CKeyPool
 {
