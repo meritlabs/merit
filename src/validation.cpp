@@ -12,6 +12,7 @@
 #include "checkqueue.h"
 #include "consensus/consensus.h"
 #include "consensus/merkle.h"
+#include "consensus/ref_verify.h"
 #include "consensus/tx_verify.h"
 #include "consensus/validation.h"
 #include "cuckoocache.h"
@@ -446,12 +447,18 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
     return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata);
 }
 
-bool AcceptToReferralMemoryPool(ReferralTxMemPool& pool, const ReferralRef& referral)
+bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState &state, const ReferralRef& referral)
 {
     LOCK(pool.cs);
 
+    if (!CheckReferral(*referral, *prefviewcache, state)) {
+        return false;
+    }
+
     // TODO: check mempool(and maybe not only pool) for referral consistency
     pool.AddUnchecked(referral->GetHash(), referral);
+
+    GetMainSignals().ReferralAddedToMempool(referral);
 
     return true;
 }
@@ -2454,6 +2461,7 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
     // Remove conflicting transactions from the mempool.;
     mempool.removeForBlock(blockConnecting.vtx, pindexNew->nHeight);
     disconnectpool.removeForBlock(blockConnecting.vtx);
+    mempoolReferral.RemoveForBlock(blockConnecting.m_vRef);
     // Update chainActive & related variables.
     UpdateTip(pindexNew, chainparams);
 
@@ -3054,6 +3062,13 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
                                  strprintf("Transaction check failed (tx hash %s) %s", tx->GetHash().ToString(), state.GetDebugMessage()));
 
+    for (const auto& ref : block.m_vRef) {
+        if (!CheckReferral(*ref, *prefviewcache, state)) {
+            return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
+                strprintf("Referral check failed (ref hash %s) %s", ref->GetHash().ToString(), state.GetDebugMessage()));
+        }
+    }
+
     unsigned int nSigOps = 0;
     for (const auto& tx : block.vtx)
     {
@@ -3392,6 +3407,10 @@ static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidation
 
     if (fCheckForPruning)
         FlushStateToDisk(chainparams, state, FLUSH_STATE_NONE); // we just allocated more disk space for block files
+
+    for (const auto& ref : pblock->m_vRef) {
+        prefviewdb->InsertReferral(*ref);
+    }
 
     return true;
 }
@@ -4169,7 +4188,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
 
         // TODO: Find a better place to write the genesis referral to the DB.
         prefviewdb->InsertReferral(*block.m_vRef[0]);
-        
+
     } catch (const std::runtime_error& e) {
         return error("%s: failed to write genesis block: %s", __func__, e.what());
     }
@@ -4644,10 +4663,12 @@ bool LoadReferralMempool()
         while (num--) {
             ReferralRef ref;
             file >> ref;
+            CValidationState state;
 
             LOCK(cs_main);
-            AcceptToReferralMemoryPool(mempoolReferral, ref);
-            if (ref != nullptr) {
+            AcceptReferralToMemoryPool(mempoolReferral, state, ref);
+
+            if (state.IsValid()) {
                 ++count;
             } else {
                 ++failed;

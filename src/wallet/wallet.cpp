@@ -22,6 +22,7 @@
 #include "policy/rbf.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
+#include "referrals.h"
 #include "script/script.h"
 #include "script/sign.h"
 #include "scheduler.h"
@@ -118,7 +119,8 @@ bool ReferralTx::RelayWalletTransaction(CConnman *connman)
     assert(m_pWallet->GetBroadcastTransactions());
     if (!isAbandoned() && GetDepthInMainChain() == 0)
     {
-        if (InMempool() || AcceptToMemoryPool(m_pReferral)) {
+        CValidationState state;
+        if (InMempool() || AcceptToMemoryPool(state)) {
             if (connman) {
                 CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
 
@@ -141,28 +143,13 @@ bool ReferralTx::InMempool() const
     return mempoolReferral.mapRTx.count(GetHash());
 }
 
-bool ReferralTx::AcceptToMemoryPool(const ReferralRef& referral) {
-    return ::AcceptToReferralMemoryPool(mempoolReferral, referral);
+bool ReferralTx::AcceptToMemoryPool(CValidationState& state) {
+    return ::AcceptReferralToMemoryPool(mempoolReferral, state, GetReferral());
 }
 
 bool ReferralTx::IsAccepted() const
 {
-    return GetDepthInMainChain() > CHAIN_DEPTH_TO_UNLOCK_WALLET;
-}
-
-std::string GenerateAndSendReferralTx(CPubKey& pubkey, uint256 referredBy, CConnman* connman)
-{
-    CKeyID keyID = pubkey.GetID();
-    ReferralRef referral = MakeReferralRef(MutableReferral(keyID, referredBy));
-    ReferralTx rtx(referral);
-
-    bool sent = rtx.RelayWalletTransaction(connman);
-
-    if (!sent) {
-        throw std::runtime_error(std::string(__func__) + ": relaying referral transaction failed");
-    }
-
-    return referral->m_code;
+    return GetDepthInMainChain() > (int) CHAIN_DEPTH_TO_UNLOCK_WALLET;
 }
 
 const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
@@ -176,27 +163,37 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
 
 ReferralRef CWallet::Unlock(const uint256& referredByHash)
 {
+    // check that wallet is not unlocked yet and there is no unlock referral transactions in the wallet yet
     if (!IsReferred() && !mapWalletRTx.empty()) {
         throw std::runtime_error(std::string(__func__) + ": wallet alredy have unconfirmed unlock referral transaction");
     }
 
-    CKeyPool keypool;
-    int64_t nIndex = 0;
-
-    CWalletDB walletdb(*dbw);
-    bool internal = true;
-    CPubKey pubkey(GenerateNewKey(walletdb, internal));
-    if (!walletdb.WritePool(nIndex, CKeyPool(pubkey, internal, true))) {
-        throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
+    // check if provided referral code hash is valid, i.e. exists in the blockchain
+    if (!prefviewcache->ReferralCodeExists(referredByHash)) {
+        throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain");
     }
 
+    int64_t nIndex = ++m_max_keypool_index;
+
+    CWalletDB walletdb(*dbw);
+
+    bool internal = IsHDEnabled() && CanSupportFeature(FEATURE_HD_SPLIT);
+
+    LOCK(cs_wallet);
+
+    // generate new key pair for the wallet
+    CPubKey pubkey(GenerateNewKey(walletdb, internal));
+    CKeyPool keypool(pubkey, internal, true);
+
+    if (!walletdb.WritePool(nIndex, keypool)) {
+        throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
+    }
+    LoadKeyPool(nIndex, keypool);
+
+    // generate new referral associated with new pubkey
     ReferralRef referral = GenerateNewReferral(pubkey, referredByHash);
 
     LogPrintf("Generated new unlock referral. Code: %s\n", referral->m_code);
-
-    setInternalKeyPool.insert(nIndex);
-
-    m_pool_key_to_index[pubkey.GetID()] = nIndex;
 
     return referral;
 }
@@ -1700,8 +1697,9 @@ ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy)
     ReferralRef referral = MakeReferralRef(MutableReferral(keyID, referredBy));
     ReferralTx rtx(true);
 
+    CValidationState state;
     CreateTransaction(rtx, referral);
-    CommitTransaction(rtx, g_connman.get());
+    CommitTransaction(rtx, g_connman.get(), state);
 
     return referral;
 }
@@ -1718,7 +1716,7 @@ bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx)
     m_unlockReferralTx = rtx;
 
     // top up keypool after unlocking wallet
-    // TopUpKeyPool();
+    TopUpKeyPool();
 
     return true;
 }
@@ -3285,7 +3283,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CCon
 /**
  * Call after CreateTransaction unless you want to abort
  */
-bool CWallet::CommitTransaction(ReferralTx& rtxNew, CConnman* connman)
+bool CWallet::CommitTransaction(ReferralTx& rtxNew, CConnman* connman, CValidationState& state)
 {
     {
         LOCK2(cs_main, cs_wallet);
@@ -3299,8 +3297,11 @@ bool CWallet::CommitTransaction(ReferralTx& rtxNew, CConnman* connman)
 
         if (fBroadcastTransactions)
         {
-            // Broadcast
-            rtxNew.RelayWalletTransaction(connman);
+            if (!rtxNew.AcceptToMemoryPool(state)) {
+                LogPrintf("CommitTransaction(): Referral transaction cannot be broadcast immediately, %s\n", state.GetRejectReason());
+            } else {
+                rtxNew.RelayWalletTransaction(connman);
+            }
         }
     }
 
@@ -3655,8 +3656,6 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
 
             LogPrintf("Generated new referral. Code: %s\n", referral->m_code);
 
-            currentTopReferral = std::make_shared<uint256>(referral->m_codeHash);
-
             if (internal) {
                 setInternalKeyPool.insert(index);
             } else {
@@ -3666,7 +3665,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
             m_pool_key_to_index[pubkey.GetID()] = index;
         }
         if (missingInternal + missingExternal > 0) {
-            LogPrintf("keypool added %d keys (%d internal), size=%u (%u internal), %d referrals\n",
+            LogPrintf("keypool added %d keys (%d internal), size=%u (%u internal)\n",
                 missingInternal + missingExternal,
                 missingInternal,
                 setInternalKeyPool.size() + setExternalKeyPool.size(),
@@ -4333,19 +4332,22 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
             // ensure this wallet.dat can only be opened by clients supporting HD with chain split
             walletInstance->SetMinVersion(FEATURE_HD_SPLIT);
 
+            /*
+             * TODO: Generate master key on unlock
+             * DO NOT GENERATE KEYS ON FIRST RUN AS WALLET IS LOCKED
             // generate a new master key
             CPubKey masterPubKey = walletInstance->GenerateNewHDMasterKey();
             if (!walletInstance->SetHDMasterKey(masterPubKey))
                 throw std::runtime_error(std::string(__func__) + ": Storing master key failed");
+            */
         }
 
-        walletInstance->TopUpKeyPool();
-
-        // Top up the keypool
-        // if (!walletInstance->TopUpKeyPool()) {
-        //     InitError(_("Unable to generate initial keys") += "\n");
-        //     return NULL;
-        // }
+        /* DO NOT GENERATE KEYS ON FIRST RUN AS WALLET IS LOCKED
+        if (!walletInstance->TopUpKeyPool()) {
+            InitError(_("Unable to generate initial keys") += "\n");
+            return NULL;
+        }
+        */
 
         walletInstance->SetBestChain(chainActive.GetLocator());
     }
@@ -4437,9 +4439,10 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
 
     {
         LOCK(walletInstance->cs_wallet);
-        LogPrintf("setKeyPool.size() = %u\n",      walletInstance->GetKeyPoolSize());
-        LogPrintf("mapWallet.size() = %u\n",       walletInstance->mapWallet.size());
-        LogPrintf("mapAddressBook.size() = %u\n",  walletInstance->mapAddressBook.size());
+        LogPrintf("setKeyPool.size() (internal + external) = %u\n", walletInstance->GetKeyPoolSize());
+        LogPrintf("mapWallet.size() = %u\n", walletInstance->mapWallet.size());
+        LogPrintf("mapWalletRTx.size() = %u\n", walletInstance->mapWalletRTx.size());
+        LogPrintf("mapAddressBook.size() = %u\n", walletInstance->mapAddressBook.size());
     }
 
     return walletInstance;

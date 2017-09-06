@@ -99,6 +99,7 @@ BITCOIN_CORE_H = \
   compressor.h \
   consensus/consensus.h \
   consensus/tx_verify.h \
+  consensus/ref_verify.h \
   core_io.h \
   core_memusage.h \
   cuckoocache.h \
@@ -196,6 +197,7 @@ libbitcoin_server_a_SOURCES = \
   chain.cpp \
   checkpoints.cpp \
   consensus/tx_verify.cpp \
+  consensus/ref_verify.cpp \
   httprpc.cpp \
   httpserver.cpp \
   init.cpp \
@@ -273,8 +275,8 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/sha256.cpp \
   crypto/sha256.h \
   crypto/sha512.cpp \
-  crypto/sha512.h 
-  
+  crypto/sha512.h
+
 if EXPERIMENTAL_ASM
 crypto_libbitcoin_crypto_a_SOURCES += crypto/sha256_sse4.cpp
 endif

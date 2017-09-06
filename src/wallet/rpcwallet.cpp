@@ -1,5 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
+// Copyright (c) 2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -19,6 +20,7 @@
 #include "referrals.h"
 #include "rpc/mining.h"
 #include "rpc/server.h"
+#include "rpc/misc.h"
 #include "script/sign.h"
 #include "timedata.h"
 #include "util.h"
@@ -29,8 +31,6 @@
 #include "wallet/walletdb.h"
 
 #include <stdint.h>
-
-#include <univalue.h>
 
 static const std::string WALLET_ENDPOINT_BASE = "/wallet/";
 
@@ -3139,40 +3139,6 @@ UniValue generate(const JSONRPCRequest& request)
     return generateBlocks(coinbase_script, num_generate, max_tries, true);
 }
 
-UniValue generatereferralcode(const JSONRPCRequest& request)
-{
-    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
-
-    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
-        return NullUniValue;
-    }
-
-    if (request.fHelp || request.params.size() != 0) {
-        throw std::runtime_error(
-            "Generate referral code for the wallet\n"
-            "\nResult:\n"
-            "\"referral\"    (string) The new referral code\n"
-            "\nExamples:\n"
-            "\nGenerate referral code for default wallet\n"
-            + HelpExampleCli("generatereferralcode", "")
-        );
-    }
-
-    if (!g_connman) {
-        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
-    }
-
-    // Generate a new key that is added to wallet
-    CPubKey newKey;
-    if (!pwallet->GetKeyFromPool(newKey)) {
-        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
-    }
-
-    UniValue result(GenerateAndSendReferralTx(newKey, uint256(), g_connman.get()));
-
-    return result;
-}
-
 UniValue validatereferralcode(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1) {
@@ -3185,7 +3151,7 @@ UniValue validatereferralcode(const JSONRPCRequest& request)
     const std::string unlockCode = request.params[0].get_str();
     uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
     bool is_valid = prefviewcache->ReferralCodeExists(codeHash);
-    
+
     UniValue result(is_valid);
     return result;
 }
@@ -3226,37 +3192,34 @@ UniValue unlockwallet(const JSONRPCRequest& request)
         );
     }
 
-    if (pwallet->IsReferred()) {
-        throw JSONRPCError(RPC_REFERRER_IS_SET, "Error: Referee is already set for the wallet.");
-    }
-
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    std::string code = request.params[0].get_str();
-    uint256 codeHash = Hash(code.begin(), code.end());
+    std::string unlockCode = request.params[0].get_str();
+    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
 
     ReferralRef referral = pwallet->Unlock(codeHash);
 
+    // TODO: Make this check more robust.
     UniValue obj(UniValue::VOBJ);
 
     size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
-    obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
+    obj.push_back(Pair("balance", ValueFromAmount(pwallet->GetBalance())));
     obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
-    obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
-    obj.push_back(Pair("txcount",       (int)pwallet->mapWallet.size()));
+    obj.push_back(Pair("immature_balance", ValueFromAmount(pwallet->GetImmatureBalance())));
+    obj.push_back(Pair("txcount", (int)pwallet->mapWallet.size()));
     obj.push_back(Pair("keypoololdest", pwallet->GetOldestKeyPoolTime()));
     obj.push_back(Pair("keypoolsize", (int64_t)kpExternalSize));
     CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
 
     if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT))
-        obj.push_back(Pair("keypoolsize_hd_internal",   (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
+        obj.push_back(Pair("keypoolsize_hd_internal", (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
 
     if (pwallet->IsCrypted())
         obj.push_back(Pair("unlocked_until", pwallet->nRelockTime));
 
-    obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
+    obj.push_back(Pair("paytxfee", ValueFromAmount(payTxFee.GetFeePerK())));
 
     if (!masterKeyID.IsNull())
         obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
@@ -3265,6 +3228,118 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     return obj;
 }
+
+#ifdef ENABLE_WALLET
+UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 2 || request.params[0].get_str().empty() || request.params[1].get_str().empty()) {
+        throw std::runtime_error(
+            "unlockwalletwithaddress\n"
+            "Updates the wallet with referral code and beacons first key with associated referral.\n"
+            "Return information about the given bitcoin address..\n"
+            "\nArguments:\n"
+            "1. address      (string, required) Address of the wallet to unlock.\n"
+            "2. code         (string, required) Referral code needed to unlock the wallet.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"isvalid\" : true|false,       (boolean) If the address is valid or not. If not, this is the only property returned.\n"
+            "  \"address\" : \"address\", (string) The bitcoin address validated\n"
+            "  \"scriptPubKey\" : \"hex\",       (string) The hex encoded scriptPubKey generated by the address\n"
+            "  \"ismine\" : true|false,        (boolean) If the address is yours or not\n"
+            "  \"iswatchonly\" : true|false,   (boolean) If the address is watchonly\n"
+            "  \"isscript\" : true|false,      (boolean) If the key is a script\n"
+            "  \"script\" : \"type\"             (string, optional) The output script type. Possible types: nonstandard, pubkey, pubkeyhash, scripthash, multisig, nulldata, witness_v0_keyhash, witness_v0_scripthash\n"
+            "  \"hex\" : \"hex\",                (string, optional) The redeemscript for the p2sh address\n"
+            "  \"addresses\"                   (string, optional) Array of addresses associated with the known redeemscript\n"
+            "    [\n"
+            "      \"address\"\n"
+            "      ,...\n"
+            "    ]\n"
+            "  \"sigsrequired\" : xxxxx        (numeric, optional) Number of signatures required to spend multisig output\n"
+            "  \"pubkey\" : \"publickeyhex\",    (string) The hex value of the raw public key\n"
+            "  \"iscompressed\" : true|false,  (boolean) If the address is compressed\n"
+            "  \"account\" : \"account\"         (string) DEPRECATED. The account associated with the address, \"\" is the default account\n"
+            "  \"timestamp\" : timestamp,        (number, optional) The creation time of the key if available in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"hdkeypath\" : \"keypath\"       (string, optional) The HD keypath if the key is HD and available\n"
+            "  \"hdmasterkeyid\" : \"<hash160>\" (string, optional) The Hash160 of the HD master pubkey\n"
+            "  \"referralcode\":  \"<string>\"    (string) the referral code generated that can be shared with other users\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("unlockwallet", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\" \"referralcode\"")
+            + HelpExampleRpc("unlockwallet", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\", \"referralcode\"")
+        );
+    }
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+
+    LOCK2(cs_main, pwallet ? &pwallet->cs_wallet : nullptr);
+
+    CBitcoinAddress address(request.params[0].get_str());
+    bool isValid = address.IsValid();
+
+    UniValue ret(UniValue::VOBJ);
+    ret.push_back(Pair("isvalid", isValid));
+
+    if (isValid)
+    {
+        CTxDestination dest = address.Get();
+        std::string currentAddress = address.ToString();
+        ret.push_back(Pair("address", currentAddress));
+
+        CScript scriptPubKey = GetScriptForDestination(dest);
+        ret.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
+
+        // Create referral trasnaction
+        std::string unlockCode = request.params[1].get_str();
+        uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
+
+        // check if provided referral code hash is valid, i.e. exists in the blockchain
+        if (!prefviewcache->ReferralCodeExists(codeHash))
+        {
+            throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain");
+        }
+
+        CKeyID addressKey;
+        if (!address.GetKeyID(addressKey))
+        {
+            throw std::runtime_error(std::string(__func__) + ": Address is invalid or is in wrong format.");
+        }
+
+        ReferralRef referral = MakeReferralRef(MutableReferral(addressKey, codeHash));
+        ReferralTx rtx(true);
+
+        CValidationState state;
+        pwallet->CreateTransaction(rtx, referral);
+        pwallet->CommitTransaction(rtx, g_connman.get(), state);
+
+        ret.push_back(Pair("referralcode", referral->m_code)); // referral->m_code
+
+        isminetype mine = pwallet ? IsMine(*pwallet, dest) : ISMINE_NO;
+        ret.push_back(Pair("ismine", bool(mine & ISMINE_SPENDABLE)));
+        ret.push_back(Pair("iswatchonly", bool(mine & ISMINE_WATCH_ONLY)));
+        UniValue detail = boost::apply_visitor(DescribeAddressVisitor(pwallet), dest);
+        ret.pushKVs(detail);
+        if (pwallet && pwallet->mapAddressBook.count(dest)) {
+            ret.push_back(Pair("account", pwallet->mapAddressBook[dest].name));
+        }
+        CKeyID keyID;
+        if (pwallet) {
+            const auto& meta = pwallet->mapKeyMetadata;
+            auto it = address.GetKeyID(keyID) ? meta.find(keyID) : meta.end();
+            if (it == meta.end()) {
+                it = meta.find(CScriptID(scriptPubKey));
+            }
+            if (it != meta.end()) {
+                ret.push_back(Pair("timestamp", it->second.nCreateTime));
+                if (!it->second.hdKeypath.empty()) {
+                    ret.push_back(Pair("hdkeypath", it->second.hdKeypath));
+                    ret.push_back(Pair("hdmasterkeyid", it->second.hdMasterKeyID.GetHex()));
+                }
+            }
+        }
+    }
+    return ret;
+}
+#endif
 
 extern UniValue abortrescan(const JSONRPCRequest& request); // in rpcdump.cpp
 extern UniValue dumpprivkey(const JSONRPCRequest& request); // in rpcdump.cpp
@@ -3335,9 +3410,11 @@ static const CRPCCommand commands[] =
 
     // merit specific commands
 
-    { "referral",           "generatereferralcode",     &generatereferralcode,     true,   {} },
     { "referral",           "validatereferralcode",     &validatereferralcode,     true,   {} },
-    { "referral",           "unlockwallet",             &unlockwallet,             false,  {} }
+    { "referral",           "unlockwallet",             &unlockwallet,             false,  {"referralcode"} },
+#ifdef ENABLE_WALLET
+    { "referral",           "unlockwalletwithaddress",  &unlockwalletwithaddress,  false,  {"address", "referralcode"} }
+#endif
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)
