@@ -13,7 +13,7 @@
 #include <boost/optional.hpp>
 
 using ReferralMap = std::unordered_map<uint256, Referral>;
-using WalletToReferrer = std::unordered_map<CKeyID, CKeyID>;
+using WalletToReferrer = std::unordered_map<CKeyID, CKeyID, std::hash<uint160>>;
 
 class ReferralsViewCache
 {

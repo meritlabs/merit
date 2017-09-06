@@ -6,7 +6,7 @@
 
 namespace 
 {
-const char DB_REF_NUM_CHILDREN_PREFIX = 'n';
+const char DB_CHILDREN = 'c';
 const char DB_REFERRALS = 'r';
 const char DB_PARENT_KEY = 'p';
 }
@@ -16,33 +16,53 @@ ReferralsViewDB::ReferralsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) :
 
 MaybeReferral ReferralsViewDB::GetReferral(const uint256& code_hash) const {
      MutableReferral referral;
-     return m_db.Read(std::make_pair(DB_REFERRALS,code_hash), referral) ? referral : {};
+     return m_db.Read(std::make_pair(DB_REFERRALS,code_hash), referral) ? 
+         MaybeReferral{referral} : MaybeReferral{};
+}
+
+MaybeKeyID ReferralsViewDB::GetRefferer(const CKeyID& key) const
+{
+    CKeyID parent;
+    return m_db.Read(std::make_pair(DB_PARENT_KEY, key), parent) ? 
+        MaybeKeyID{parent} : MaybeKeyID{};
+}
+
+ChildKeys ReferralsViewDB::GetChildren(const CKeyID& key) const
+{
+    ChildKeys children;
+    m_db.Read(std::make_pair(DB_CHILDREN, key), children);
+    return children;
 }
 
 bool ReferralsViewDB::InsertReferral(const Referral& referral) {
     //write referral
-    bool referral_written = m_db.Write(std::make_pair(DB_REFERRALS, referral.m_codeHash), referral);
-    if(!referral_written) return false;
+    if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.m_codeHash), referral))
+        return false;
 
-    // Typically because the referral should be writen in order we should
+    // Typically because the referral should be written in order we should
     // be able to find the parent referral. We can then write the child->parent
     // mapping of public keys
-    if(auto parent_referral = GetReferral(referral.m_previousReferral, previous_referral); parent_referral)
-        return m_db.Write(std::make_pair(DB_PARENT_KEY, referral.m_pubKeyId), previous_referral.m_pubKeyId);
-    else
-        return m_db.Write(std::make_pair(DB_PARENT_KEY, referral.m_pubKeyId), CKeyID{});
+    CKeyID parent_key;
+    if(auto parent_referral = GetReferral(referral.m_previousReferral))
+        parent_key = parent_referral->m_pubKeyId;
+
+    if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.m_pubKeyId), parent_key))
+        return false;
+
+    // Now we update the children of the parent key by inserting into the 
+    // child key array for the parent.
+    ChildKeys children;
+    m_db.Read(std::make_pair(DB_CHILDREN, parent_key), children);
+
+    children.push_back(referral.m_pubKeyId);
+    if(!m_db.Write(std::make_pair(DB_CHILDREN, parent_key), children))
+        return false;
 
     return true;
 }
 
 bool ReferralsViewDB::ReferralCodeExists(const uint256& code_hash) const {
     return m_db.Exists(std::make_pair(DB_REFERRALS, code_hash));
-}
-
-MaybeKeyID ReferralsViewDB::GetRefferer(const CKeyID& key) const
-{
-    CKeyID parent;
-    return m_db.Read(std::make_pair(DB_PARENT_KEY, key), parent) ? parent : {};
 }
 
 bool ReferralsViewDB::WalletIdExists(const CKeyID& key) const
