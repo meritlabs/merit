@@ -1,5 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
+// Copyright (c) 2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -19,6 +20,7 @@
 #include "referrals.h"
 #include "rpc/mining.h"
 #include "rpc/server.h"
+#include "rpc/misc.h"
 #include "script/sign.h"
 #include "timedata.h"
 #include "util.h"
@@ -3268,8 +3270,64 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
             + HelpExampleRpc("unlockwallet", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\", \"referralcode\"")
         );
     }
-    UniValue obj(UniValue::VOBJ);
-    return obj;
+#ifdef ENABLE_WALLET
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+
+    LOCK2(cs_main, pwallet ? &pwallet->cs_wallet : nullptr);
+#else
+    LOCK(cs_main);
+#endif
+
+    CBitcoinAddress address(request.params[0].get_str());
+    bool isValid = address.IsValid();
+
+    UniValue ret(UniValue::VOBJ);
+    ret.push_back(Pair("isvalid", isValid));
+
+    if (isValid)
+    {
+        CTxDestination dest = address.Get();
+        std::string currentAddress = address.ToString();
+        ret.push_back(Pair("address", currentAddress));
+
+        CScript scriptPubKey = GetScriptForDestination(dest);
+        ret.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
+
+        // Create referral trasnaction
+        std::string unlockCode = request.params[0].get_str();
+        uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
+
+        // ToDo: create transaction here
+
+        ret.push_back(Pair("referralcode", "")); // referral->m_code
+
+#ifdef ENABLE_WALLET
+        isminetype mine = pwallet ? IsMine(*pwallet, dest) : ISMINE_NO;
+        ret.push_back(Pair("ismine", bool(mine & ISMINE_SPENDABLE)));
+        ret.push_back(Pair("iswatchonly", bool(mine & ISMINE_WATCH_ONLY)));
+        UniValue detail = boost::apply_visitor(DescribeAddressVisitor(pwallet), dest);
+        ret.pushKVs(detail);
+        if (pwallet && pwallet->mapAddressBook.count(dest)) {
+            ret.push_back(Pair("account", pwallet->mapAddressBook[dest].name));
+        }
+        CKeyID keyID;
+        if (pwallet) {
+            const auto& meta = pwallet->mapKeyMetadata;
+            auto it = address.GetKeyID(keyID) ? meta.find(keyID) : meta.end();
+            if (it == meta.end()) {
+                it = meta.find(CScriptID(scriptPubKey));
+            }
+            if (it != meta.end()) {
+                ret.push_back(Pair("timestamp", it->second.nCreateTime));
+                if (!it->second.hdKeypath.empty()) {
+                    ret.push_back(Pair("hdkeypath", it->second.hdKeypath));
+                    ret.push_back(Pair("hdmasterkeyid", it->second.hdMasterKeyID.GetHex()));
+                }
+            }
+        }
+#endif
+    }
+    return ret;
 }
 
 extern UniValue abortrescan(const JSONRPCRequest& request); // in rpcdump.cpp
