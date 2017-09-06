@@ -7,46 +7,18 @@
 
 namespace pog 
 {
-    using KeyStack = std::stack<CKeyID>;
-
-    uint64_t GetKeyBalance(const CKeyID& key)
-    {
-        //TODO: make work
-        return 0;
-    }
-
-    ChildKeys GetReferredIds(const CKeyID& key, const ReferralsViewDB& db)
-    {
-        return db.GetChildren(key);
-    }
-
     /**
-     * Aggregate Network Value is computed by walking the referral tree down from the 
-     * key_id specified and aggregating each child's ANV.
-     *
-     * This is the naive version that computes whole tree every time. We need an 
-     * accumulated version instead where ANV is cached and gets updated for every
-     * mined transaction.
+     * This version simply pulls the ANV from the DB. ReferralsViewDB::UpdateANV
+     * incrementally updates an ANV for a key and all parents.
      */
-    uint64_t ComputeANV(const CKeyID& top_key_id, const ReferralsViewDB& db)
+    MaybeANV ComputeANV(const CKeyID& key_id, const ReferralsViewDB& db)
     {
-        KeyStack keys;
-        keys.push(top_key_id);
-
-        uint64_t anv = 0;
-        while(!keys.empty())
-        {
-            //aggregate balance
-            const auto& key_id = keys.top();
-            anv += GetKeyBalance(key_id);
-            keys.pop();
-
-            auto children = GetReferredIds(key_id, db);
-            for(const auto& child: children)
-                keys.push(child);
-        }
-
-        return anv;
+        return db.GetANV(key_id);
     }
 
+    KeyANVs GetAllANVs(const ReferralsViewDB&)
+    {
+        //TODO: Get all ANVS
+        return {};
+    }
 } // namespace pog
