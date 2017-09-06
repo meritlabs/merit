@@ -32,8 +32,6 @@
 
 #include <stdint.h>
 
-#include <univalue.h>
-
 static const std::string WALLET_ENDPOINT_BASE = "/wallet/";
 
 CWallet *GetWalletForJSONRPCRequest(const JSONRPCRequest& request)
@@ -3291,17 +3289,17 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
         ret.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
 
         // Create referral trasnaction
-        std::string unlockCode = request.params[0].get_str();
+        std::string unlockCode = request.params[1].get_str();
         uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
 
-        // ToDo: create transaction here
-            // check if provided referral code hash is valid, i.e. exists in the blockchain
-        if (!prefviewcache->ReferralCodeExists(codeHash)) {
+        // check if provided referral code hash is valid, i.e. exists in the blockchain
+        if (!prefviewcache->ReferralCodeExists(codeHash))
+        {
             throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain");
         }
 
         CKeyID addressKey;
-        if (address.GetKeyID(addressKey))
+        if (!address.GetKeyID(addressKey))
         {
             throw std::runtime_error(std::string(__func__) + ": Address is invalid or is in wrong format.");
         }
