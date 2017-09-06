@@ -22,6 +22,7 @@
 #include "policy/rbf.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
+#include "referrals.h"
 #include "script/script.h"
 #include "script/sign.h"
 #include "scheduler.h"
@@ -147,22 +148,7 @@ bool ReferralTx::AcceptToMemoryPool(const ReferralRef& referral) {
 
 bool ReferralTx::IsAccepted() const
 {
-    return GetDepthInMainChain() > CHAIN_DEPTH_TO_UNLOCK_WALLET;
-}
-
-std::string GenerateAndSendReferralTx(CPubKey& pubkey, uint256 referredBy, CConnman* connman)
-{
-    CKeyID keyID = pubkey.GetID();
-    ReferralRef referral = MakeReferralRef(MutableReferral(keyID, referredBy));
-    ReferralTx rtx(referral);
-
-    bool sent = rtx.RelayWalletTransaction(connman);
-
-    if (!sent) {
-        throw std::runtime_error(std::string(__func__) + ": relaying referral transaction failed");
-    }
-
-    return referral->m_code;
+    return GetDepthInMainChain() > (int)CHAIN_DEPTH_TO_UNLOCK_WALLET;
 }
 
 const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
@@ -176,8 +162,14 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
 
 ReferralRef CWallet::Unlock(const uint256& referredByHash)
 {
+    // check that wallet is not unlocked yet and there is no unlock referral transactions in the wallet yet
     if (!IsReferred() && !mapWalletRTx.empty()) {
         throw std::runtime_error(std::string(__func__) + ": wallet alredy have unconfirmed unlock referral transaction");
+    }
+
+    // check if provided referral code hash is valid, i.e. exists in the blockchain
+    if (!prefviewcache->ReferralCodeExists(referredByHash)) {
+        throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain");
     }
 
     CKeyPool keypool;
@@ -185,11 +177,16 @@ ReferralRef CWallet::Unlock(const uint256& referredByHash)
 
     CWalletDB walletdb(*dbw);
     bool internal = true;
+
+    LOCK(cs_wallet);
+
+    // generate new key pair for the wallet
     CPubKey pubkey(GenerateNewKey(walletdb, internal));
     if (!walletdb.WritePool(nIndex, CKeyPool(pubkey, internal, true))) {
         throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
     }
 
+    // generate new referral associated with new pubkey
     ReferralRef referral = GenerateNewReferral(pubkey, referredByHash);
 
     LogPrintf("Generated new unlock referral. Code: %s\n", referral->m_code);
