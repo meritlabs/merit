@@ -3139,40 +3139,6 @@ UniValue generate(const JSONRPCRequest& request)
     return generateBlocks(coinbase_script, num_generate, max_tries, true);
 }
 
-UniValue generatereferralcode(const JSONRPCRequest& request)
-{
-    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
-
-    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
-        return NullUniValue;
-    }
-
-    if (request.fHelp || request.params.size() != 0) {
-        throw std::runtime_error(
-            "Generate referral code for the wallet\n"
-            "\nResult:\n"
-            "\"referral\"    (string) The new referral code\n"
-            "\nExamples:\n"
-            "\nGenerate referral code for default wallet\n"
-            + HelpExampleCli("generatereferralcode", "")
-        );
-    }
-
-    if (!g_connman) {
-        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
-    }
-
-    // Generate a new key that is added to wallet
-    CPubKey newKey;
-    if (!pwallet->GetKeyFromPool(newKey)) {
-        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
-    }
-
-    UniValue result(GenerateAndSendReferralTx(newKey, uint256(), g_connman.get()));
-
-    return result;
-}
-
 UniValue validatereferralcode(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1) {
@@ -3185,7 +3151,7 @@ UniValue validatereferralcode(const JSONRPCRequest& request)
     const std::string unlockCode = request.params[0].get_str();
     uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
     bool is_valid = prefviewcache->ReferralCodeExists(codeHash);
-    
+
     UniValue result(is_valid);
     return result;
 }
@@ -3226,37 +3192,34 @@ UniValue unlockwallet(const JSONRPCRequest& request)
         );
     }
 
-    if (pwallet->IsReferred()) {
-        throw JSONRPCError(RPC_REFERRER_IS_SET, "Error: Referee is already set for the wallet.");
-    }
-
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    std::string code = request.params[0].get_str();
-    uint256 codeHash = Hash(code.begin(), code.end());
+    std::string unlockCode = request.params[0].get_str();
+    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
 
     ReferralRef referral = pwallet->Unlock(codeHash);
 
+    // TODO: Make this check more robust.
     UniValue obj(UniValue::VOBJ);
 
     size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
-    obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
+    obj.push_back(Pair("balance", ValueFromAmount(pwallet->GetBalance())));
     obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
-    obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
-    obj.push_back(Pair("txcount",       (int)pwallet->mapWallet.size()));
+    obj.push_back(Pair("immature_balance", ValueFromAmount(pwallet->GetImmatureBalance())));
+    obj.push_back(Pair("txcount", (int)pwallet->mapWallet.size()));
     obj.push_back(Pair("keypoololdest", pwallet->GetOldestKeyPoolTime()));
     obj.push_back(Pair("keypoolsize", (int64_t)kpExternalSize));
     CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
 
     if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT))
-        obj.push_back(Pair("keypoolsize_hd_internal",   (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
+        obj.push_back(Pair("keypoolsize_hd_internal", (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
 
     if (pwallet->IsCrypted())
         obj.push_back(Pair("unlocked_until", pwallet->nRelockTime));
 
-    obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
+    obj.push_back(Pair("paytxfee", ValueFromAmount(payTxFee.GetFeePerK())));
 
     if (!masterKeyID.IsNull())
         obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
@@ -3335,7 +3298,6 @@ static const CRPCCommand commands[] =
 
     // merit specific commands
 
-    { "referral",           "generatereferralcode",     &generatereferralcode,     true,   {} },
     { "referral",           "validatereferralcode",     &validatereferralcode,     true,   {} },
     { "referral",           "unlockwallet",             &unlockwallet,             false,  {} }
 };
