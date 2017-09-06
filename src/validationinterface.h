@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "primitives/transaction.h" // CTransaction(Ref)
+#include "primitives/referral.h" // ReferralRef
 
 class CBlock;
 class CBlockIndex;
