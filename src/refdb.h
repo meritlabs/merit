@@ -24,6 +24,7 @@ public:
     MaybeReferral GetReferral(const uint256&) const;
     MaybeKeyID GetRefferer(const CKeyID&) const;
     ChildKeys GetChildren(const CKeyID&) const;
+
     bool InsertReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;
     bool WalletIdExists(const CKeyID&) const;

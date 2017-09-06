@@ -16,11 +16,6 @@ ReferralMap::iterator ReferralsViewCache::FetchByCode(const uint256& code) const
     return m_referral_cache.find(code);
 }
 
-ReferralMap::iterator ReferralsViewCache::FetchByWalletId(const uint256& wallet) const
-{
-    return m_referral_cache.find(code);
-}
-
 MaybeReferral ReferralsViewCache::GetReferral(const uint256& code, MutableReferral& ref) const
 {
     {
