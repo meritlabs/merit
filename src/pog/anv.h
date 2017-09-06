@@ -6,11 +6,11 @@
 #define MERIT_POG_ANV_H
 
 #include "primitives/referral.h"
-#include "referrals.h"
+#include "refdb.h"
 
 namespace pog 
 {
-    uint64_t ComputeANV(uint256 wallet_id, ReferralsViewCache& referrals);
+    uint64_t ComputeANV(const CKeyID&, const ReferralsViewDB&);
 
 } // namespace pog
 
