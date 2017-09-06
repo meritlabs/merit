@@ -3300,7 +3300,6 @@ bool CWallet::CommitTransaction(ReferralTx& rtxNew, CConnman* connman, CValidati
             if (!rtxNew.AcceptToMemoryPool(state)) {
                 LogPrintf("CommitTransaction(): Referral transaction cannot be broadcast immediately, %s\n", state.GetRejectReason());
             } else {
-                LogPrintf(">>>>>>>>>>  Relaying transaction to the network");
                 rtxNew.RelayWalletTransaction(connman);
             }
         }
@@ -3656,8 +3655,6 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
             ReferralRef referral = GenerateNewReferral(pubkey, *currentTopReferral);
 
             LogPrintf("Generated new referral. Code: %s\n", referral->m_code);
-
-            currentTopReferral = std::make_shared<uint256>(referral->m_codeHash);
 
             if (internal) {
                 setInternalKeyPool.insert(index);

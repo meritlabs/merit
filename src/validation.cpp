@@ -3408,6 +3408,10 @@ static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidation
     if (fCheckForPruning)
         FlushStateToDisk(chainparams, state, FLUSH_STATE_NONE); // we just allocated more disk space for block files
 
+    for (const auto& ref : pblock->m_vRef) {
+        prefviewdb->InsertReferral(*ref);
+    }
+
     return true;
 }
 
