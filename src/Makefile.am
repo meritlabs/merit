@@ -37,6 +37,8 @@ LIBBITCOIN_ZMQ=libbitcoin_zmq.a
 endif
 if BUILD_BITCOIN_LIBS
 LIBBITCOINCONSENSUS=libbitcoinconsensus.la
+LIBBITCOINCRYPTO=libbitcoincrypto.la
+LIBBITCOINUTIL=libbitcoinutil.la
 endif
 if ENABLE_WALLET
 LIBBITCOIN_WALLET=libbitcoin_wallet.a
@@ -57,7 +59,7 @@ EXTRA_LIBRARIES += \
   $(LIBBITCOIN_WALLET) \
   $(LIBBITCOIN_ZMQ)
 
-lib_LTLIBRARIES = $(LIBBITCOINCONSENSUS)
+lib_LTLIBRARIES = $(LIBBITCOINCONSENSUS) $(LIBBITCOINCRYPTO) $(LIBBITCOINUTIL) 
 
 bin_PROGRAMS =
 noinst_PROGRAMS =
@@ -447,14 +449,27 @@ bitcoin_tx_LDADD += $(BOOST_LIBS) $(CRYPTO_LIBS)
 # bitcoinconsensus library #
 if BUILD_BITCOIN_LIBS
 include_HEADERS = script/bitcoinconsensus.h
-libbitcoinconsensus_la_SOURCES = $(crypto_libbitcoin_crypto_a_SOURCES) $(libbitcoin_consensus_a_SOURCES)
+libbitcoincrypto_la_SOURCES = $(crypto_libbitcoin_crypto_a_SOURCES)
+libbitcoincrypto_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
+libbitcoincrypto_la_LIBADD = $(LIBUNIVALUE) $(CRYPTO_LIBS) $(SSL_LIBS) $(BOOST_LIBS)
+libbitcoincrypto_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj $(UNIVALUE_CFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
+libbitcoincrypto_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+
+
+libbitcoinutil_la_SOURCES = $(libbitcoin_util_a_SOURCES)
+libbitcoinutil_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
+libbitcoinutil_la_LIBADD = $(LIBBITCOINCRYPTO) $(LIBUNIVALUE) $(CRYPTO_LIBS) $(SSL_LIBS) $(BOOST_LIBS)
+libbitcoinutil_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj $(UNIVALUE_CFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
+libbitcoinutil_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+
+libbitcoinconsensus_la_SOURCES = $(libbitcoin_consensus_a_SOURCES)
 
 if GLIBC_BACK_COMPAT
   libbitcoinconsensus_la_SOURCES += compat/glibc_compat.cpp
 endif
 
 libbitcoinconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
-libbitcoinconsensus_la_LIBADD = $(LIBSECP256K1) 
+libbitcoinconsensus_la_LIBADD = $(LIBSECP256K1) $(LIBBITCOINCRYPTO) $(LIBBITCOINUTIL) $(BOOST_LIBS)
 libbitcoinconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_BITCOIN_INTERNAL
 libbitcoinconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
