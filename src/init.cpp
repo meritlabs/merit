@@ -33,6 +33,7 @@
 #include "referrals.h"
 #include "rpc/server.h"
 #include "rpc/register.h"
+#include "rpc/safemode.h"
 #include "rpc/blockchain.h"
 #include "script/standard.h"
 #include "script/sigcache.h"
@@ -46,6 +47,7 @@
 #include "utilmoneystr.h"
 #include "validationinterface.h"
 #ifdef ENABLE_WALLET
+#include "wallet/init.h"
 #include "wallet/wallet.h"
 #endif
 #include "warnings.h"
@@ -72,7 +74,6 @@
 bool fFeeEstimatesInitialized = false;
 static const bool DEFAULT_PROXYRANDOMIZE = true;
 static const bool DEFAULT_REST_ENABLE = false;
-static const bool DEFAULT_DISABLE_SAFEMODE = true;
 static const bool DEFAULT_STOPAFTERBLOCKIMPORT = false;
 
 std::unique_ptr<CConnman> g_connman;
@@ -325,15 +326,6 @@ void OnRPCStopped()
     LogPrint(BCLog::RPC, "RPC stopped.\n");
 }
 
-void OnRPCPreCommand(const CRPCCommand& cmd)
-{
-    // Observe safe mode
-    std::string strWarning = GetWarnings("rpc");
-    if (strWarning != "" && !gArgs.GetBoolArg("-disablesafemode", DEFAULT_DISABLE_SAFEMODE) &&
-        !cmd.okSafeMode)
-        throw JSONRPCError(RPC_FORBIDDEN_BY_SAFE_MODE, std::string("Safe mode: ") + strWarning);
-}
-
 std::string HelpMessage(HelpMessageMode mode)
 {
     const auto defaultBaseParams = CreateBaseChainParams(CBaseChainParams::MAIN);
@@ -370,6 +362,9 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-maxorphantx=<n>", strprintf(_("Keep at most <n> unconnectable transactions in memory (default: %u)"), DEFAULT_MAX_ORPHAN_TRANSACTIONS));
     strUsage += HelpMessageOpt("-maxmempool=<n>", strprintf(_("Keep the transaction memory pool below <n> megabytes (default: %u)"), DEFAULT_MAX_MEMPOOL_SIZE));
     strUsage += HelpMessageOpt("-mempoolexpiry=<n>", strprintf(_("Do not keep transactions in the mempool longer than <n> hours (default: %u)"), DEFAULT_MEMPOOL_EXPIRY));
+    if (showDebug) {
+        strUsage += HelpMessageOpt("-minimumchainwork=<hex>", strprintf("Minimum work assumed to exist on a valid chain in hex (default: %s, testnet: %s)", defaultChainParams->GetConsensus().nMinimumChainWork.GetHex(), testnetChainParams->GetConsensus().nMinimumChainWork.GetHex()));
+    }
     strUsage += HelpMessageOpt("-persistmempool", strprintf(_("Whether to save the mempool on shutdown and load on restart (default: %u)"), DEFAULT_PERSIST_MEMPOOL));
     strUsage += HelpMessageOpt("-blockreconstructionextratxn=<n>", strprintf(_("Extra transactions to keep in memory for compact block reconstructions (default: %u)"), DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_TXN));
     strUsage += HelpMessageOpt("-par=<n>", strprintf(_("Set the number of script verification threads (%u to %d, 0 = auto, <0 = leave that many cores free, default: %d)"),
@@ -433,7 +428,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-maxuploadtarget=<n>", strprintf(_("Tries to keep outbound traffic under the given target (in MiB per 24h), 0 = no limit (default: %d)"), DEFAULT_MAX_UPLOAD_TARGET));
 
 #ifdef ENABLE_WALLET
-    strUsage += CWallet::GetWalletHelpString(showDebug);
+    strUsage += GetWalletHelpString(showDebug);
 #endif
 
 #if ENABLE_ZMQ
@@ -494,7 +489,7 @@ std::string HelpMessage(HelpMessageMode mode)
 
     strUsage += HelpMessageGroup(_("Node relay options:"));
     if (showDebug) {
-        strUsage += HelpMessageOpt("-acceptnonstdtxn", strprintf("Relay and mine \"non-standard\" transactions (%sdefault: %u)", "testnet/regtest only; ", defaultChainParams->RequireStandard()));
+        strUsage += HelpMessageOpt("-acceptnonstdtxn", strprintf("Relay and mine \"non-standard\" transactions (%sdefault: %u)", "testnet/regtest only; ", !testnetChainParams->RequireStandard()));
         strUsage += HelpMessageOpt("-incrementalrelayfee=<amt>", strprintf("Fee rate (in %s/kB) used to define cost of relay, used for mempool limiting and BIP 125 replacement. (default: %s)", CURRENCY_UNIT, FormatMoney(DEFAULT_INCREMENTAL_RELAY_FEE)));
         strUsage += HelpMessageOpt("-dustrelayfee=<amt>", strprintf("Fee rate (in %s/kB) used to defined dust, the value of an output such that it will cost more than its value in fees at this fee rate to spend it. (default: %s)", CURRENCY_UNIT, FormatMoney(DUST_RELAY_TX_FEE)));
     }
@@ -736,7 +731,6 @@ bool AppInitServers(boost::thread_group& threadGroup)
 {
     RPCServer::OnStarted(&OnRPCStarted);
     RPCServer::OnStopped(&OnRPCStopped);
-    RPCServer::OnPreCommand(&OnRPCPreCommand);
     if (!InitHTTPServer())
         return false;
     if (!StartRPC())
@@ -995,6 +989,20 @@ bool AppInitParameterInteraction()
     else
         LogPrintf("Validating signatures for all blocks.\n");
 
+    if (gArgs.IsArgSet("-minimumchainwork")) {
+        const std::string minChainWorkStr = gArgs.GetArg("-minimumchainwork", "");
+        if (!IsHexNumber(minChainWorkStr)) {
+            return InitError(strprintf("Invalid non-hex (%s) minimum chain work value specified", minChainWorkStr));
+        }
+        nMinimumChainWork = UintToArith256(uint256S(minChainWorkStr));
+    } else {
+        nMinimumChainWork = UintToArith256(chainparams.GetConsensus().nMinimumChainWork);
+    }
+    LogPrintf("Setting nMinimumChainWork=%s\n", nMinimumChainWork.GetHex());
+    if (nMinimumChainWork < UintToArith256(chainparams.GetConsensus().nMinimumChainWork)) {
+        LogPrintf("Warning: nMinimumChainWork set below default value of %s\n", chainparams.GetConsensus().nMinimumChainWork.GetHex());
+    }
+
     // mempool limits
     int64_t nMempoolSizeMax = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
     int64_t nMempoolSizeMin = gArgs.GetArg("-limitdescendantsize", DEFAULT_DESCENDANT_SIZE_LIMIT) * 1000 * 40;
@@ -1051,7 +1059,7 @@ bool AppInitParameterInteraction()
         if (!ParseMoney(gArgs.GetArg("-minrelaytxfee", ""), n)) {
             return InitError(AmountErrMsg("minrelaytxfee", gArgs.GetArg("-minrelaytxfee", "")));
         }
-        // High fee check is done afterward in CWallet::ParameterInteraction()
+        // High fee check is done afterward in WalletParameterInteraction()
         ::minRelayTxFee = CFeeRate(n);
     } else if (incrementalRelayFee > ::minRelayTxFee) {
         // Allow only setting incrementalRelayFee to control both
@@ -1084,7 +1092,7 @@ bool AppInitParameterInteraction()
     nBytesPerSigOp = gArgs.GetArg("-bytespersigop", nBytesPerSigOp);
 
 #ifdef ENABLE_WALLET
-    if (!CWallet::ParameterInteraction())
+    if (!WalletParameterInteraction())
         return false;
 #endif
 
@@ -1261,7 +1269,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // ********************************************************* Step 5: verify wallet database integrity
 #ifdef ENABLE_WALLET
-    if (!CWallet::Verify())
+    if (!WalletVerify())
         return false;
 #endif
     // ********************************************************* Step 6: network initialization
@@ -1444,6 +1452,10 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
 
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReset);
 
+                // TODO: Re-evaluate this placement of the RefDB and Cache.  There may be a more efficient place.
+                prefviewdb = new ReferralsViewDB{nReferralDBCache, false, fReset || fReindexChainState};
+                prefviewcache = new ReferralsViewCache{prefviewdb};
+
                 if (fReset) {
                     pblocktree->WriteReindexing(true);
                     //If we're reindexing in prune mode, wipe away unusable block files and all undo data files
@@ -1470,7 +1482,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
 
                 // Check for changed -txindex state
                 if (fTxIndex != gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::txindex), DEFAULT_TXINDEX)) {
-                    strLoadError = _("You need to rebuild the database using -reindex-chainstate to change -txindex");
+                    strLoadError = _("You need to rebuild the database using -reindex to change -txindex");
                     break;
                 }
 
@@ -1559,8 +1571,6 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                     }
                 }
 
-                prefviewdb = new ReferralsViewDB{nReferralDBCache, false, fReset || fReindexChainState};
-                prefviewcache = new ReferralsViewCache{prefviewdb};
 
             } catch (const std::exception& e) {
                 LogPrintf("%s\n", e.what());
@@ -1612,7 +1622,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // ********************************************************* Step 8: load wallet
 #ifdef ENABLE_WALLET
-    if (!CWallet::InitLoadWallet())
+    if (!InitLoadWallet())
         return false;
 #else
     LogPrintf("No wallet support compiled in!\n");
@@ -1732,7 +1742,14 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     if (gArgs.IsArgSet("-seednode")) {
         connOptions.vSeedNodes = gArgs.GetArgs("-seednode");
     }
-
+    // Initiate outbound connections unless connect=0
+    connOptions.m_use_addrman_outgoing = !gArgs.IsArgSet("-connect");
+    if (!connOptions.m_use_addrman_outgoing) {
+        const auto connect = gArgs.GetArgs("-connect");
+        if (connect.size() != 1 || connect[0] != "0") {
+            connOptions.m_specified_outgoing = connect;
+        }
+    }
     if (!connman.Start(scheduler, connOptions)) {
         return false;
     }

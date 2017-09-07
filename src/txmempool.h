@@ -23,11 +23,10 @@
 #include "sync.h"
 #include "random.h"
 
-#include "boost/multi_index_container.hpp"
-#include "boost/multi_index/ordered_index.hpp"
-#include "boost/multi_index/hashed_index.hpp"
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/hashed_index.hpp>
+#include <boost/multi_index/ordered_index.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
-
 #include <boost/signals2/signal.hpp>
 
 class CBlockIndex;
@@ -48,17 +47,6 @@ struct LockPoints
     CBlockIndex* maxInputBlock;
 
     LockPoints() : height(0), time(0), maxInputBlock(nullptr) { }
-};
-
-class ReferralTxMemPool
-{
-public:
-    std::map<uint256, ReferralRef> mapRTx;
-    mutable CCriticalSection cs;
-
-    ReferralTxMemPool() {};
-
-    bool AddUnchecked(const uint256& hash, const ReferralRef entry);
 };
 
 /** \class CTxMemPoolEntry
@@ -104,8 +92,6 @@ public:
                     int64_t _nTime, unsigned int _entryHeight,
                     bool spendsCoinbase,
                     int64_t nSigOpsCost, LockPoints lp);
-
-    CTxMemPoolEntry(const CTxMemPoolEntry& other);
 
     const CTransaction& GetTx() const { return *this->tx; }
     CTransactionRef GetSharedTx() const { return this->tx; }
@@ -348,6 +334,29 @@ public:
     size_t operator()(const uint256& txid) const {
         return SipHashUint256(k0, k1, txid);
     }
+};
+
+class ReferralTxMemPool
+{
+public:
+    unsigned int m_nReferralsUpdated;
+
+    std::map<uint256, ReferralRef> mapRTx;
+    mutable CCriticalSection cs;
+
+    ReferralTxMemPool() : m_nReferralsUpdated(0) {};
+
+    bool AddUnchecked(const uint256& hash, const ReferralRef entry);
+    void RemoveForBlock(const std::vector<ReferralRef>& vRefs);
+
+    bool exists(uint256 hash) const
+    {
+        LOCK(cs);
+        return (mapRTx.count(hash) != 0);
+    }
+
+    boost::signals2::signal<void (ReferralRef)> NotifyEntryAdded;
+    boost::signals2::signal<void (ReferralRef, MemPoolRemovalReason)> NotifyEntryRemoved;
 };
 
 /**

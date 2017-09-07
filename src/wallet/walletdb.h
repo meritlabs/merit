@@ -9,7 +9,6 @@
 #include "amount.h"
 #include "key.h"
 #include "primitives/transaction.h"
-#include "primitives/referral.h"
 #include "wallet/db.h"
 
 #include <list>
@@ -196,10 +195,6 @@ public:
     bool ReadPool(int64_t nPool, CKeyPool& keypool);
     bool WritePool(int64_t nPool, const CKeyPool& keypool);
     bool ErasePool(int64_t nPool);
-
-    bool ReadReferral(int64_t nReferral, ReferralRef referral);
-    bool WriteReferral(int64_t nReferral, const Referral& referral);
-    bool EraseReferral(int64_t nReferral);
 
     bool WriteMinVersion(int nVersion);
 

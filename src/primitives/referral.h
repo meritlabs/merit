@@ -92,7 +92,7 @@ public:
         return m_hash;
     }
 
-    // Compute a m_hash that includes both transaction and witness data
+    // Compute a hash that includes both transaction and witness data
     uint256 GetWitnessHash() const;
 
     /**
@@ -124,7 +124,7 @@ struct MutableReferral
     std::string m_code;
     uint256 m_codeHash;
 
-    MutableReferral() { }
+    MutableReferral() : m_nVersion(Referral::CURRENT_VERSION) { }
     MutableReferral(CKeyID& addressIn, uint256 referralIn);
     MutableReferral(const Referral& ref);
 

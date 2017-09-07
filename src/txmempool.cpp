@@ -27,8 +27,31 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const ReferralRef refe
         mapRTx.insert(std::make_pair(hash, referral));
     }
 
+    m_nReferralsUpdated++;
+
     return true;
 }
+
+/**
+ * Called when a block is connected. Removes referrals from mempool.
+ */
+ void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
+ {
+     LOCK(cs);
+
+     for (const auto& ref : vRefs) {
+         auto it = mapRTx.find(ref->GetHash());
+
+         if (it != mapRTx.end()) {
+             ReferralRef ref = it->second;
+
+             NotifyEntryRemoved(ref, MemPoolRemovalReason::BLOCK);
+
+             mapRTx.erase(it);
+             m_nReferralsUpdated++;
+         }
+     }
+ }
 
 CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
                                  int64_t _nTime, unsigned int _entryHeight,
@@ -49,11 +72,6 @@ CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFe
     nSizeWithAncestors = GetTxSize();
     nModFeesWithAncestors = nFee;
     nSigOpCostWithAncestors = sigOpCost;
-}
-
-CTxMemPoolEntry::CTxMemPoolEntry(const CTxMemPoolEntry& other)
-{
-    *this = other;
 }
 
 void CTxMemPoolEntry::UpdateFeeDelta(int64_t newFeeDelta)

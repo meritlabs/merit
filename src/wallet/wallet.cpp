@@ -22,6 +22,7 @@
 #include "policy/rbf.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
+#include "referrals.h"
 #include "script/script.h"
 #include "script/sign.h"
 #include "scheduler.h"
@@ -30,6 +31,7 @@
 #include "util.h"
 #include "ui_interface.h"
 #include "utilmoneystr.h"
+#include "wallet/fees.h"
 
 #include <assert.h>
 
@@ -113,19 +115,23 @@ public:
     void operator()(const CNoDestination &none) {}
 };
 
-bool ReferralTx::RelayReferralTransaction(CConnman *connman)
+bool ReferralTx::RelayWalletTransaction(CConnman *connman)
 {
-    if (InMempool() || AcceptToMemoryPool(m_pReferral)) {
-        if (connman) {
-            CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
+    assert(m_pWallet->GetBroadcastTransactions());
+    if (!isAbandoned() && GetDepthInMainChain() == 0)
+    {
+        CValidationState state;
+        if (InMempool() || AcceptToMemoryPool(state)) {
+            if (connman) {
+                CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
 
-            LogPrint(BCLog::NET, "Relaying referral %s\n", m_pReferral->GetHash().ToString());
-            connman->ForEachNode([&inv](CNode* pnode)
-            {
-                pnode->PushInventory(inv);
-            });
+                LogPrint(BCLog::NET, "Relaying referral %s\n", m_pReferral->GetHash().ToString());
+                connman->ForEachNode([&inv](CNode* pnode) {
+                    pnode->PushInventory(inv);
+                });
 
-            return true;
+                return true;
+            }
         }
     }
 
@@ -138,23 +144,13 @@ bool ReferralTx::InMempool() const
     return mempoolReferral.mapRTx.count(GetHash());
 }
 
-bool ReferralTx::AcceptToMemoryPool(const ReferralRef& referral) {
-    return ::AcceptToReferralMemoryPool(mempoolReferral, referral);
+bool ReferralTx::AcceptToMemoryPool(CValidationState& state) {
+    return ::AcceptReferralToMemoryPool(mempoolReferral, state, GetReferral());
 }
 
-std::string GenerateAndSendReferralTx(CPubKey& pubkey, uint256 referredBy, CConnman* connman)
+bool ReferralTx::IsAccepted() const
 {
-    CKeyID keyID = pubkey.GetID();
-    ReferralRef referral = MakeReferralRef(MutableReferral(keyID, referredBy));
-    ReferralTx rtx(referral);
-
-    bool sent = rtx.RelayReferralTransaction(connman);
-
-    if (!sent) {
-        throw std::runtime_error(std::string(__func__) + ": relaying referral transaction failed");
-    }
-
-    return referral->m_code;
+    return GetDepthInMainChain() > (int) CHAIN_DEPTH_TO_UNLOCK_WALLET;
 }
 
 const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
@@ -166,33 +162,41 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
     return &(it->second);
 }
 
-bool CWallet::Unlock(std::string referralCodeIn)
+ReferralRef CWallet::Unlock(const uint256& referredByHash)
 {
-    uint256 codeHash = uint256S(referralCodeIn);
+    // check that wallet is not unlocked yet and there is no unlock referral transactions in the wallet yet
+    if (!IsReferred() && !mapWalletRTx.empty()) {
+        throw std::runtime_error(std::string(__func__) + ": wallet alredy have unconfirmed unlock referral transaction");
+    }
 
-    CKeyPool keypool;
-    int64_t nIndex = 0;
+    // check if provided referral code hash is valid, i.e. exists in the blockchain
+    if (!prefviewcache->ReferralCodeExists(referredByHash)) {
+        throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain");
+    }
+
+    int64_t nIndex = ++m_max_keypool_index;
 
     CWalletDB walletdb(*dbw);
-    bool internal = true;
+
+    bool internal = IsHDEnabled() && CanSupportFeature(FEATURE_HD_SPLIT);
+
+    LOCK(cs_wallet);
+
+    // generate new key pair for the wallet
     CPubKey pubkey(GenerateNewKey(walletdb, internal));
-    if (!walletdb.WritePool(nIndex, CKeyPool(pubkey, internal, true))) {
+    CKeyPool keypool(pubkey, internal, true);
+
+    if (!walletdb.WritePool(nIndex, keypool)) {
         throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
     }
+    LoadKeyPool(nIndex, keypool);
 
-    ReferralRef referral = GenerateNewReferral(pubkey, codeHash, walletdb);
-    if (!walletdb.WriteReferral(nIndex, *referral)) {
-        throw std::runtime_error(std::string(__func__) + ": writing generated referral failed");
-    }
+    // generate new referral associated with new pubkey
+    ReferralRef referral = GenerateNewReferral(pubkey, referredByHash);
 
-    LogPrintf("Generated new referral. Code: %s\n", referral->m_code);
+    LogPrintf("Generated new unlock referral. Code: %s\n", referral->m_code);
 
-    setInternalKeyPool.insert(nIndex);
-    m_setReferralKeyPool.insert(nIndex);
-
-    m_pool_key_to_index[pubkey.GetID()] = nIndex;
-
-    return true;
+    return referral;
 }
 
 CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb, bool internal)
@@ -379,7 +383,7 @@ bool CWallet::LoadCScript(const CScript& redeemScript)
      * these. Do not add them to the wallet and warn. */
     if (redeemScript.size() > MAX_SCRIPT_ELEMENT_SIZE)
     {
-        std::string strAddr = CBitcoinAddress(CScriptID(redeemScript)).ToString();
+        std::string strAddr = EncodeDestination(CScriptID(redeemScript));
         LogPrintf("%s: Warning: This wallet contains a redeemScript of size %i which exceeds maximum size %i thus can never be redeemed. Do not use address %s.\n",
             __func__, redeemScript.size(), MAX_SCRIPT_ELEMENT_SIZE, strAddr);
         return true;
@@ -565,63 +569,6 @@ bool CWallet::HasWalletSpend(const uint256& txid) const
 void CWallet::Flush(bool shutdown)
 {
     dbw->Flush(shutdown);
-}
-
-bool CWallet::Verify()
-{
-    if (gArgs.GetBoolArg("-disablewallet", DEFAULT_DISABLE_WALLET))
-        return true;
-
-    uiInterface.InitMessage(_("Verifying wallet(s)..."));
-
-    // Keep track of each wallet absolute path to detect duplicates.
-    std::set<fs::path> wallet_paths;
-
-    for (const std::string& walletFile : gArgs.GetArgs("-wallet")) {
-        if (boost::filesystem::path(walletFile).filename() != walletFile) {
-            return InitError(strprintf(_("Error loading wallet %s. -wallet parameter must only specify a filename (not a path)."), walletFile));
-        }
-
-        if (SanitizeString(walletFile, SAFE_CHARS_FILENAME) != walletFile) {
-            return InitError(strprintf(_("Error loading wallet %s. Invalid characters in -wallet filename."), walletFile));
-        }
-
-        fs::path wallet_path = fs::absolute(walletFile, GetDataDir());
-
-        if (fs::exists(wallet_path) && (!fs::is_regular_file(wallet_path) || fs::is_symlink(wallet_path))) {
-            return InitError(strprintf(_("Error loading wallet %s. -wallet filename must be a regular file."), walletFile));
-        }
-
-        if (!wallet_paths.insert(wallet_path).second) {
-            return InitError(strprintf(_("Error loading wallet %s. Duplicate -wallet filename specified."), walletFile));
-        }
-
-        std::string strError;
-        if (!CWalletDB::VerifyEnvironment(walletFile, GetDataDir().string(), strError)) {
-            return InitError(strError);
-        }
-
-        if (gArgs.GetBoolArg("-salvagewallet", false)) {
-            // Recover readable keypairs:
-            CWallet dummyWallet;
-            std::string backup_filename;
-            if (!CWalletDB::Recover(walletFile, (void *)&dummyWallet, CWalletDB::RecoverKeysOnlyFilter, backup_filename)) {
-                return false;
-            }
-        }
-
-        std::string strWarning;
-        bool dbV = CWalletDB::VerifyDatabaseFile(walletFile, GetDataDir().string(), strWarning, strError);
-        if (!strWarning.empty()) {
-            InitWarning(strWarning);
-        }
-        if (!dbV) {
-            InitError(strError);
-            return false;
-        }
-    }
-
-    return true;
 }
 
 void CWallet::SyncMetaData(std::pair<TxSpends::iterator, TxSpends::iterator> range)
@@ -1071,6 +1018,77 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose)
     return true;
 }
 
+
+bool CWallet::AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose)
+{
+    LOCK(cs_wallet);
+
+    CWalletDB walletdb(*dbw, "r+", fFlushOnClose);
+
+    uint256 hash = rtxIn.GetHash();
+
+    // Inserts only if not already there, returns tx inserted or tx found
+    std::pair<std::map<uint256, ReferralTx>::iterator, bool> ret = mapWalletRTx.insert(std::make_pair(hash, rtxIn));
+    ReferralTx& rtx = (*ret.first).second;
+    rtx.BindWallet(this);
+    bool fInsertedNew = ret.second;
+    if (fInsertedNew)
+    {
+        rtx.nTimeReceived = GetAdjustedTime();
+    }
+
+    bool fUpdated = false;
+    if (!fInsertedNew)
+    {
+        // Merge
+        if (!rtxIn.hashUnset() &&rtxIn.hashBlock != rtx.hashBlock)
+        {
+            rtx.hashBlock = rtxIn.hashBlock;
+            fUpdated = true;
+        }
+        // If no longer abandoned, update
+        if (rtxIn.hashBlock.IsNull() && rtx.isAbandoned())
+        {
+            rtx.hashBlock = rtxIn.hashBlock;
+            fUpdated = true;
+        }
+        if (rtxIn.nIndex != -1 && (rtxIn.nIndex != rtx.nIndex))
+        {
+            rtx.nIndex = rtxIn.nIndex;
+            fUpdated = true;
+        }
+    }
+
+    //// debug print
+    LogPrintf("AddToWallet %s  %s%s\n", rtxIn.GetHash().ToString(), (fInsertedNew ? "new" : ""), (fUpdated ? "update" : ""));
+
+    // Write to disk
+    if (fInsertedNew || fUpdated) {
+        if (!walletdb.WriteReferralTx(rtx)) {
+            return false;
+        }
+    }
+
+    // Set unlock referral tx in case this tx is root unlock tx, wallet us not unlocked yet and tx is in the blockchain, aka confirmed
+    if (rtx.IsUnlockTx() && !IsReferred() && rtx.IsAccepted()) {
+        SetUnlockReferralTx(rtx);
+    }
+
+    // Notify UI of new or updated transaction
+    NotifyTransactionChanged(this, hash, CT_NEW);
+
+    // notify an external script when a wallet transaction comes in or is updated
+    std::string strCmd = gArgs.GetArg("-walletnotify", "");
+
+    if (!strCmd.empty())
+    {
+        boost::replace_all(strCmd, "%s", rtx.GetHash().GetHex());
+        boost::thread t(runCommand, strCmd); // thread runs free
+    }
+
+    return true;
+}
+
 bool CWallet::LoadToWallet(const CWalletTx& wtxIn)
 {
     uint256 hash = wtxIn.GetHash();
@@ -1089,6 +1107,23 @@ bool CWallet::LoadToWallet(const CWalletTx& wtxIn)
             }
         }
     }
+
+    return true;
+}
+
+bool CWallet::LoadToWallet(const ReferralTx& rtxIn)
+{
+    // if (!IsReferred() && rtxIn.IsUnlockTx()) {
+    //     SetUnlockReferralTx(rtxIn);
+    // }
+
+    uint256 hash = rtxIn.GetHash();
+
+    mapWalletRTx[hash] = rtxIn;
+    ReferralTx& rtx = mapWalletRTx[hash];
+    rtx.BindWallet(this);
+
+    LogPrintf("≈≈≈≈≈≈≈≈≈≈≈≈ LoadToWallet RTx ≈≈≈≈≈≈≈≈≈≈≈≈≈\n");
 
     return true;
 }
@@ -1162,6 +1197,32 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const CBlockI
             return AddToWallet(wtx, false);
         }
     }
+    return false;
+}
+
+bool CWallet::AddToWalletIfInvolvingMe(const ReferralRef& pref, const CBlockIndex* pIndex, int posInBlock, bool fUpdate)
+{
+    const Referral& ref = *pref;
+    {
+        AssertLockHeld(cs_wallet);
+
+        bool fExisted = mapWalletRTx.count(ref.GetHash()) != 0;
+        if (fExisted && !fUpdate) {
+            return false;
+        }
+
+        if (fExisted || IsMine(ref))
+        {
+            ReferralTx rtx(pref);
+
+            // Get merkle branch if transaction was found in a block
+            if (pIndex != nullptr)
+                rtx.SetMerkleBranch(pIndex, posInBlock);
+
+            return AddToWallet(rtx);
+        }
+    }
+
     return false;
 }
 
@@ -1316,13 +1377,13 @@ void CWallet::TransactionAddedToMempool(const CTransactionRef& ptx) {
     SyncTransaction(ptx);
 }
 
-void CWallet::SyncRefTransaction(const ReferralRef& pref, const CBlockIndex *pindex, int posInBlock) {
-    // add referral transaction to map
+void CWallet::SyncTransaction(const ReferralRef& pref, const CBlockIndex *pindex, int posInBlock) {
+    AddToWalletIfInvolvingMe(pref, pindex, posInBlock, true);
 }
 
 void CWallet::ReferralAddedToMempool(const ReferralRef& pref) {
     LOCK2(cs_main, cs_wallet);
-    SyncRefTransaction(pref);
+    SyncTransaction(pref);
 }
 
 void CWallet::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) {
@@ -1342,7 +1403,7 @@ void CWallet::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const 
         SyncTransaction(pblock->vtx[i], pindex, i);
     }
     for (size_t i = 0; i < pblock->m_vRef.size(); i++) {
-        SyncRefTransaction(pblock->m_vRef[i], pindex, i);
+        SyncTransaction(pblock->m_vRef[i], pindex, i);
     }
 }
 
@@ -1353,11 +1414,9 @@ void CWallet::BlockDisconnected(const std::shared_ptr<const CBlock>& pblock) {
         SyncTransaction(ptx);
     }
     for (const ReferralRef& pref : pblock->m_vRef) {
-        SyncRefTransaction(pref);
+        SyncTransaction(pref);
     }
 }
-
-
 
 isminetype CWallet::IsMine(const CTxIn &txin) const
 {
@@ -1371,6 +1430,19 @@ isminetype CWallet::IsMine(const CTxIn &txin) const
                 return IsMine(prev.tx->vout[txin.prevout.n]);
         }
     }
+    return ISMINE_NO;
+}
+
+isminetype CWallet::IsMine(const Referral& ref) const
+{
+    {
+        LOCK(cs_wallet);
+        std::map<uint256, ReferralTx>::const_iterator mi = mapWalletRTx.find(ref.GetHash());
+        if (mi != mapWalletRTx.end()) {
+            return ISMINE_ALL;
+        }
+    }
+
     return ISMINE_NO;
 }
 
@@ -1562,36 +1634,41 @@ bool CWallet::IsHDEnabled() const
     return !hdChain.masterKeyID.IsNull();
 }
 
-ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy, CWalletDB& walletdb)
+ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy)
 {
     CKeyID keyID = pubkey.GetID();
     // generate referral for given public key
     ReferralRef referral = MakeReferralRef(MutableReferral(keyID, referredBy));
+    ReferralTx rtx(true);
 
-    // generate referral tx and bind it to this wallet
-    ReferralTx rtx(referral);
-
-    rtx.BindWallet(this);
-
-    walletdb.WriteReferralTx(rtx);
-
-    rtx.RelayReferralTransaction(g_connman.get());
-
-    // SetReferralTx(rtx);
+    CValidationState state;
+    CreateTransaction(rtx, referral);
+    CommitTransaction(rtx, g_connman.get(), state);
 
     return referral;
 }
 
-bool CWallet::SetReferralTx(const ReferralTx& rtx)
+bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx)
 {
-    m_referralTx = rtx;
+    if (IsReferred() || !rtx.IsUnlockTx() || !rtx.IsAccepted()) {
+        return false;
+    }
+
+    LogPrintf("------ Setting unlock referral tx ------\n");
+
+    // set referral tx as unlock tx
+    m_unlockReferralTx = rtx;
+
+    // top up keypool after unlocking wallet
+    TopUpKeyPool();
 
     return true;
 }
 
 bool CWallet::IsReferred() const
 {
-    return !m_referralTx.IsNull();
+    LogPrintf("+++++++ Wallet is referred? +++++++ %s\n", !m_unlockReferralTx.IsNull() ? "YESSSS!!!": "NOPE :(");
+    return !m_unlockReferralTx.IsNull();
 }
 
 int64_t CWalletTx::GetTxTime() const
@@ -2731,17 +2808,6 @@ bool CWallet::FundTransaction(CMutableTransaction& tx, CAmount& nFeeRet, int& nC
     return true;
 }
 
-static CFeeRate GetDiscardRate(const CBlockPolicyEstimator& estimator)
-{
-    unsigned int highest_target = estimator.HighestTargetTracked(FeeEstimateHorizon::LONG_HALFLIFE);
-    CFeeRate discard_rate = estimator.estimateSmartFee(highest_target, nullptr /* FeeCalculation */, false /* conservative */);
-    // Don't let discard_rate be greater than longest possible fee estimate if we get a valid fee estimate
-    discard_rate = (discard_rate == CFeeRate(0)) ? CWallet::m_discard_rate : std::min(discard_rate, CWallet::m_discard_rate);
-    // Discard rate must be at least dustRelayFee
-    discard_rate = std::max(discard_rate, ::dustRelayFee);
-    return discard_rate;
-}
-
 bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet,
                                 int& nChangePosInOut, std::string& strFailReason, const CCoinControl& coin_control, bool sign)
 {
@@ -2802,6 +2868,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
     assert(txNew.nLockTime <= (unsigned int)chainActive.Height());
     assert(txNew.nLockTime < LOCKTIME_THRESHOLD);
     FeeCalculation feeCalc;
+    CAmount nFeeNeeded;
     unsigned int nBytes;
     {
         std::set<CInputCoin> setCoins;
@@ -2963,7 +3030,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
                     vin.scriptWitness.SetNull();
                 }
 
-                CAmount nFeeNeeded = GetMinimumFee(nBytes, coin_control, ::mempool, ::feeEstimator, &feeCalc);
+                nFeeNeeded = GetMinimumFee(nBytes, coin_control, ::mempool, ::feeEstimator, &feeCalc);
 
                 // If we made it here and we aren't even able to meet the relay fee on the next pass, give up
                 // because we must be at the maximum allowed fee.
@@ -2984,13 +3051,15 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
                     // new inputs. We now know we only need the smaller fee
                     // (because of reduced tx size) and so we should add a
                     // change output. Only try this once.
-                    CAmount fee_needed_for_change = GetMinimumFee(change_prototype_size, coin_control, ::mempool, ::feeEstimator, nullptr);
-                    CAmount minimum_value_for_change = GetDustThreshold(change_prototype_txout, discard_rate);
-                    CAmount max_excess_fee = fee_needed_for_change + minimum_value_for_change;
-                    if (nFeeRet > nFeeNeeded + max_excess_fee && nChangePosInOut == -1 && nSubtractFeeFromAmount == 0 && pick_new_inputs) {
-                        pick_new_inputs = false;
-                        nFeeRet = nFeeNeeded + fee_needed_for_change;
-                        continue;
+                    if (nChangePosInOut == -1 && nSubtractFeeFromAmount == 0 && pick_new_inputs) {
+                        unsigned int tx_size_with_change = nBytes + change_prototype_size + 2; // Add 2 as a buffer in case increasing # of outputs changes compact size
+                        CAmount fee_needed_with_change = GetMinimumFee(tx_size_with_change, coin_control, ::mempool, ::feeEstimator, nullptr);
+                        CAmount minimum_value_for_change = GetDustThreshold(change_prototype_txout, discard_rate);
+                        if (nFeeRet >= fee_needed_with_change + minimum_value_for_change) {
+                            pick_new_inputs = false;
+                            nFeeRet = fee_needed_with_change;
+                            continue;
+                        }
                     }
 
                     // If we have change output already, just increase it
@@ -3085,14 +3154,23 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
         }
     }
 
-    LogPrintf("Fee Calculation: Fee:%d Bytes:%u Tgt:%d (requested %d) Reason:\"%s\" Decay %.5f: Estimation: (%g - %g) %.2f%% %.1f/(%.1f %d mem %.1f out) Fail: (%g - %g) %.2f%% %.1f/(%.1f %d mem %.1f out)\n",
-              nFeeRet, nBytes, feeCalc.returnedTarget, feeCalc.desiredTarget, StringForFeeReason(feeCalc.reason), feeCalc.est.decay,
+    LogPrintf("Fee Calculation: Fee:%d Bytes:%u Needed:%d Tgt:%d (requested %d) Reason:\"%s\" Decay %.5f: Estimation: (%g - %g) %.2f%% %.1f/(%.1f %d mem %.1f out) Fail: (%g - %g) %.2f%% %.1f/(%.1f %d mem %.1f out)\n",
+              nFeeRet, nBytes, nFeeNeeded, feeCalc.returnedTarget, feeCalc.desiredTarget, StringForFeeReason(feeCalc.reason), feeCalc.est.decay,
               feeCalc.est.pass.start, feeCalc.est.pass.end,
               100 * feeCalc.est.pass.withinTarget / (feeCalc.est.pass.totalConfirmed + feeCalc.est.pass.inMempool + feeCalc.est.pass.leftMempool),
               feeCalc.est.pass.withinTarget, feeCalc.est.pass.totalConfirmed, feeCalc.est.pass.inMempool, feeCalc.est.pass.leftMempool,
               feeCalc.est.fail.start, feeCalc.est.fail.end,
               100 * feeCalc.est.fail.withinTarget / (feeCalc.est.fail.totalConfirmed + feeCalc.est.fail.inMempool + feeCalc.est.fail.leftMempool),
               feeCalc.est.fail.withinTarget, feeCalc.est.fail.totalConfirmed, feeCalc.est.fail.inMempool, feeCalc.est.fail.leftMempool);
+    return true;
+}
+
+bool CWallet::CreateTransaction(ReferralTx& rtx, ReferralRef& referral)
+{
+    // generate referral tx and bind it to this wallet
+    rtx.SetReferral(referral);
+    rtx.BindWallet(this);
+
     return true;
 }
 
@@ -3138,6 +3216,34 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CCon
     return true;
 }
 
+/**
+ * Call after CreateTransaction unless you want to abort
+ */
+bool CWallet::CommitTransaction(ReferralTx& rtxNew, CConnman* connman, CValidationState& state)
+{
+    {
+        LOCK2(cs_main, cs_wallet);
+        LogPrintf("CommitTransaction:\n%s", rtxNew.m_pReferral->ToString());
+        if (!AddToWallet(rtxNew)) {
+            return false;
+        }
+
+        // Track how many getdata requests our transaction gets
+        mapRequestCount[rtxNew.GetHash()] = 0;
+
+        if (fBroadcastTransactions)
+        {
+            if (!rtxNew.AcceptToMemoryPool(state)) {
+                LogPrintf("CommitTransaction(): Referral transaction cannot be broadcast immediately, %s\n", state.GetRejectReason());
+            } else {
+                rtxNew.RelayWalletTransaction(connman);
+            }
+        }
+    }
+
+    return true;
+}
+
 void CWallet::ListAccountCreditDebit(const std::string& strAccount, std::list<CAccountingEntry>& entries) {
     CWalletDB walletdb(*dbw);
     return walletdb.ListAccountCreditDebit(strAccount, entries);
@@ -3163,73 +3269,10 @@ bool CWallet::AddAccountingEntry(const CAccountingEntry& acentry, CWalletDB *pwa
     return true;
 }
 
-CAmount CWallet::GetRequiredFee(unsigned int nTxBytes)
-{
-    return std::max(minTxFee.GetFee(nTxBytes), ::minRelayTxFee.GetFee(nTxBytes));
-}
-
-CAmount CWallet::GetMinimumFee(unsigned int nTxBytes, const CCoinControl& coin_control, const CTxMemPool& pool, const CBlockPolicyEstimator& estimator, FeeCalculation *feeCalc)
-{
-    /* User control of how to calculate fee uses the following parameter precedence:
-       1. coin_control.m_feerate
-       2. coin_control.m_confirm_target
-       3. payTxFee (user-set global variable)
-       4. nTxConfirmTarget (user-set global variable)
-       The first parameter that is set is used.
-    */
-    CAmount fee_needed;
-    if (coin_control.m_feerate) { // 1.
-        fee_needed = coin_control.m_feerate->GetFee(nTxBytes);
-        if (feeCalc) feeCalc->reason = FeeReason::PAYTXFEE;
-        // Allow to override automatic min/max check over coin control instance
-        if (coin_control.fOverrideFeeRate) return fee_needed;
-    }
-    else if (!coin_control.m_confirm_target && ::payTxFee != CFeeRate(0)) { // 3. TODO: remove magic value of 0 for global payTxFee
-        fee_needed = ::payTxFee.GetFee(nTxBytes);
-        if (feeCalc) feeCalc->reason = FeeReason::PAYTXFEE;
-    }
-    else { // 2. or 4.
-        // We will use smart fee estimation
-        unsigned int target = coin_control.m_confirm_target ? *coin_control.m_confirm_target : ::nTxConfirmTarget;
-        // By default estimates are economical iff we are signaling opt-in-RBF
-        bool conservative_estimate = !coin_control.signalRbf;
-        // Allow to override the default fee estimate mode over the CoinControl instance
-        if (coin_control.m_fee_mode == FeeEstimateMode::CONSERVATIVE) conservative_estimate = true;
-        else if (coin_control.m_fee_mode == FeeEstimateMode::ECONOMICAL) conservative_estimate = false;
-
-        fee_needed = estimator.estimateSmartFee(target, feeCalc, conservative_estimate).GetFee(nTxBytes);
-        if (fee_needed == 0) {
-            // if we don't have enough data for estimateSmartFee, then use fallbackFee
-            fee_needed = fallbackFee.GetFee(nTxBytes);
-            if (feeCalc) feeCalc->reason = FeeReason::FALLBACK;
-        }
-        // Obey mempool min fee when using smart fee estimation
-        CAmount min_mempool_fee = pool.GetMinFee(gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000).GetFee(nTxBytes);
-        if (fee_needed < min_mempool_fee) {
-            fee_needed = min_mempool_fee;
-            if (feeCalc) feeCalc->reason = FeeReason::MEMPOOL_MIN;
-        }
-    }
-
-    // prevent user from paying a fee below minRelayTxFee or minTxFee
-    CAmount required_fee = GetRequiredFee(nTxBytes);
-    if (required_fee > fee_needed) {
-        fee_needed = required_fee;
-        if (feeCalc) feeCalc->reason = FeeReason::REQUIRED;
-    }
-    // But always obey the maximum
-    if (fee_needed > maxTxFee) {
-        fee_needed = maxTxFee;
-        if (feeCalc) feeCalc->reason = FeeReason::MAXTXFEE;
-    }
-    return fee_needed;
-}
-
-
-
-
 DBErrors CWallet::LoadWallet(bool& fFirstRunRet)
 {
+    LOCK2(cs_main, cs_wallet);
+
     fFirstRunRet = false;
     CWalletDB wdb(*dbw,"cr+");
 
@@ -3238,10 +3281,8 @@ DBErrors CWallet::LoadWallet(bool& fFirstRunRet)
     {
         if (dbw->Rewrite("\x04pool"))
         {
-            LOCK(cs_wallet);
             setInternalKeyPool.clear();
             setExternalKeyPool.clear();
-            m_setReferralKeyPool.clear();
             m_pool_key_to_index.clear();
             // Note: can't top-up keypool here, because wallet is locked.
             // User will be prompted to unlock wallet the next operation
@@ -3273,7 +3314,6 @@ DBErrors CWallet::ZapSelectTx(std::vector<uint256>& vHashIn, std::vector<uint256
         {
             setInternalKeyPool.clear();
             setExternalKeyPool.clear();
-            m_setReferralKeyPool.clear();
             m_pool_key_to_index.clear();
             // Note: can't top-up keypool here, because wallet is locked.
             // User will be prompted to unlock wallet the next operation
@@ -3300,7 +3340,6 @@ DBErrors CWallet::ZapWalletTx(std::vector<CWalletTx>& vWtx)
             LOCK(cs_wallet);
             setInternalKeyPool.clear();
             setExternalKeyPool.clear();
-            m_setReferralKeyPool.clear();
             m_pool_key_to_index.clear();
             // Note: can't top-up keypool here, because wallet is locked.
             // User will be prompted to unlock wallet the next operation
@@ -3328,9 +3367,9 @@ bool CWallet::SetAddressBook(const CTxDestination& address, const std::string& s
     }
     NotifyAddressBookChanged(this, address, strName, ::IsMine(*this, address) != ISMINE_NO,
                              strPurpose, (fUpdated ? CT_UPDATED : CT_NEW) );
-    if (!strPurpose.empty() && !CWalletDB(*dbw).WritePurpose(CBitcoinAddress(address).ToString(), strPurpose))
+    if (!strPurpose.empty() && !CWalletDB(*dbw).WritePurpose(EncodeDestination(address), strPurpose))
         return false;
-    return CWalletDB(*dbw).WriteName(CBitcoinAddress(address).ToString(), strName);
+    return CWalletDB(*dbw).WriteName(EncodeDestination(address), strName);
 }
 
 bool CWallet::DelAddressBook(const CTxDestination& address)
@@ -3339,7 +3378,7 @@ bool CWallet::DelAddressBook(const CTxDestination& address)
         LOCK(cs_wallet); // mapAddressBook
 
         // Delete destdata tuples associated with address
-        std::string strAddress = CBitcoinAddress(address).ToString();
+        std::string strAddress = EncodeDestination(address);
         for (const std::pair<std::string, std::string> &item : mapAddressBook[address].destdata)
         {
             CWalletDB(*dbw).EraseDestData(strAddress, item.first);
@@ -3349,8 +3388,8 @@ bool CWallet::DelAddressBook(const CTxDestination& address)
 
     NotifyAddressBookChanged(this, address, "", ::IsMine(*this, address) != ISMINE_NO, "", CT_DELETED);
 
-    CWalletDB(*dbw).ErasePurpose(CBitcoinAddress(address).ToString());
-    return CWalletDB(*dbw).EraseName(CBitcoinAddress(address).ToString());
+    CWalletDB(*dbw).ErasePurpose(EncodeDestination(address));
+    return CWalletDB(*dbw).EraseName(EncodeDestination(address));
 }
 
 const std::string& CWallet::GetAccountName(const CScript& scriptPubKey) const
@@ -3387,11 +3426,6 @@ bool CWallet::NewKeyPool()
             walletdb.ErasePool(nIndex);
         }
         setExternalKeyPool.clear();
-
-        for (int64_t nIndex : m_setReferralKeyPool) {
-            walletdb.EraseReferral(nIndex);
-        }
-        m_setReferralKeyPool.clear();
 
         m_pool_key_to_index.clear();
 
@@ -3432,7 +3466,7 @@ void CWallet::LoadReferral(int64_t nIndex, const Referral& referral)
 {
     AssertLockHeld(cs_wallet);
 
-    m_setReferralKeyPool.insert(nIndex);
+    // TODO: figure out if we need to set referral to CKeyMetadata and update mapKeyMetadata here
 }
 
 bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referredBy, bool outReferral)
@@ -3448,24 +3482,13 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
 
         if (referredBy != nullptr) {
             currentTopReferral = std::move(referredBy);
+        } else if (IsReferred()) {
+            LogPrintf("referredBy code hash not provided. Looking for unlock referral\n");
+
+            currentTopReferral = std::make_shared<uint256>(m_unlockReferralTx.GetReferral()->m_codeHash);
         } else {
-            LogPrintf("referredBy code hash not provided. Looking for root referral pubkey");
-
-            if (m_setRootReferralKeys.empty()) {
-                throw std::runtime_error(std::string(__func__) + ": Referral is not set and no root referral pubkey found");
-            }
-
-            CKeyPool keypool;
-            if (!walletdb.ReadPool(*m_setRootReferralKeys.begin(), keypool)) {
-                throw std::runtime_error(std::string(__func__) + ": faild reading root referral pubkey");
-            }
-
-            ReferralRef referral;
-            if (!walletdb.ReadReferral(*m_setRootReferralKeys.begin(), referral)) {
-                throw std::runtime_error(std::string(__func__) + ": failed reading referral for root referral pubkey");
-            }
-
-            currentTopReferral = std::make_shared<uint256>(referral->m_codeHash);
+            LogPrintf("referredBy code hash not found\n");
+            return false;
         }
 
         // Top up key pool
@@ -3501,37 +3524,24 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
                 throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
             }
 
-            if (currentTopReferral == nullptr) {
-                currentTopReferral = std::move(referredBy);
-                LogPrintf("No root referral found. Setting top referral to currentTopReferral %s", currentTopReferral->ToString());
-            }
-
-            ReferralRef referral = GenerateNewReferral(pubkey, *currentTopReferral, walletdb);
-            walletdb.WriteReferral(index, *referral);
+            ReferralRef referral = GenerateNewReferral(pubkey, *currentTopReferral);
 
             LogPrintf("Generated new referral. Code: %s\n", referral->m_code);
-
-            if (outReferral) {
-                currentTopReferral = std::make_shared<uint256>(referral->m_codeHash);
-                LogPrintf("Setting top referral to %s", referral->m_code);
-            }
 
             if (internal) {
                 setInternalKeyPool.insert(index);
             } else {
                 setExternalKeyPool.insert(index);
             }
-            m_setReferralKeyPool.insert(index);
 
             m_pool_key_to_index[pubkey.GetID()] = index;
         }
         if (missingInternal + missingExternal > 0) {
-            LogPrintf("keypool added %d keys (%d internal), size=%u (%u internal), %d referrals\n",
+            LogPrintf("keypool added %d keys (%d internal), size=%u (%u internal)\n",
                 missingInternal + missingExternal,
                 missingInternal,
                 setInternalKeyPool.size() + setExternalKeyPool.size(),
-                setInternalKeyPool.size(),
-                m_setReferralKeyPool.size());
+                setInternalKeyPool.size());
         }
     }
     return true;
@@ -4026,14 +4036,14 @@ bool CWallet::AddDestData(const CTxDestination &dest, const std::string &key, co
         return false;
 
     mapAddressBook[dest].destdata.insert(std::make_pair(key, value));
-    return CWalletDB(*dbw).WriteDestData(CBitcoinAddress(dest).ToString(), key, value);
+    return CWalletDB(*dbw).WriteDestData(EncodeDestination(dest), key, value);
 }
 
 bool CWallet::EraseDestData(const CTxDestination &dest, const std::string &key)
 {
     if (!mapAddressBook[dest].destdata.erase(key))
         return false;
-    return CWalletDB(*dbw).EraseDestData(CBitcoinAddress(dest).ToString(), key);
+    return CWalletDB(*dbw).EraseDestData(EncodeDestination(dest), key);
 }
 
 bool CWallet::LoadDestData(const CTxDestination &dest, const std::string &key, const std::string &value)
@@ -4072,46 +4082,6 @@ std::vector<std::string> CWallet::GetDestValues(const std::string& prefix) const
     return values;
 }
 
-std::string CWallet::GetWalletHelpString(bool showDebug)
-{
-    std::string strUsage = HelpMessageGroup(_("Wallet options:"));
-    strUsage += HelpMessageOpt("-disablewallet", _("Do not load the wallet and disable wallet RPC calls"));
-    strUsage += HelpMessageOpt("-keypool=<n>", strprintf(_("Set key pool size to <n> (default: %u)"), DEFAULT_KEYPOOL_SIZE));
-    strUsage += HelpMessageOpt("-fallbackfee=<amt>", strprintf(_("A fee rate (in %s/kB) that will be used when fee estimation has insufficient data (default: %s)"),
-                                                               CURRENCY_UNIT, FormatMoney(DEFAULT_FALLBACK_FEE)));
-    strUsage += HelpMessageOpt("-discardfee=<amt>", strprintf(_("The fee rate (in %s/kB) that indicates your tolerance for discarding change by adding it to the fee (default: %s). "
-                                                                "Note: An output is discarded if it is dust at this rate, but we will always discard up to the dust relay fee and a discard fee above that is limited by the fee estimate for the longest target"),
-                                                              CURRENCY_UNIT, FormatMoney(DEFAULT_DISCARD_FEE)));
-    strUsage += HelpMessageOpt("-mintxfee=<amt>", strprintf(_("Fees (in %s/kB) smaller than this are considered zero fee for transaction creation (default: %s)"),
-                                                            CURRENCY_UNIT, FormatMoney(DEFAULT_TRANSACTION_MINFEE)));
-    strUsage += HelpMessageOpt("-paytxfee=<amt>", strprintf(_("Fee (in %s/kB) to add to transactions you send (default: %s)"),
-                                                            CURRENCY_UNIT, FormatMoney(payTxFee.GetFeePerK())));
-    strUsage += HelpMessageOpt("-rescan", _("Rescan the block chain for missing wallet transactions on startup"));
-    strUsage += HelpMessageOpt("-salvagewallet", _("Attempt to recover private keys from a corrupt wallet on startup"));
-    strUsage += HelpMessageOpt("-spendzeroconfchange", strprintf(_("Spend unconfirmed change when sending transactions (default: %u)"), DEFAULT_SPEND_ZEROCONF_CHANGE));
-    strUsage += HelpMessageOpt("-txconfirmtarget=<n>", strprintf(_("If paytxfee is not set, include enough fee so transactions begin confirmation on average within n blocks (default: %u)"), DEFAULT_TX_CONFIRM_TARGET));
-    strUsage += HelpMessageOpt("-usehd", _("Use hierarchical deterministic key generation (HD) after BIP32. Only has effect during wallet creation/first start") + " " + strprintf(_("(default: %u)"), DEFAULT_USE_HD_WALLET));
-    strUsage += HelpMessageOpt("-walletrbf", strprintf(_("Send transactions with full-RBF opt-in enabled (default: %u)"), DEFAULT_WALLET_RBF));
-    strUsage += HelpMessageOpt("-upgradewallet", _("Upgrade wallet to latest format on startup"));
-    strUsage += HelpMessageOpt("-wallet=<file>", _("Specify wallet file (within data directory)") + " " + strprintf(_("(default: %s)"), DEFAULT_WALLET_DAT));
-    strUsage += HelpMessageOpt("-walletbroadcast", _("Make the wallet broadcast transactions") + " " + strprintf(_("(default: %u)"), DEFAULT_WALLETBROADCAST));
-    strUsage += HelpMessageOpt("-walletnotify=<cmd>", _("Execute command when a wallet transaction changes (%s in cmd is replaced by TxID)"));
-    strUsage += HelpMessageOpt("-zapwallettxes=<mode>", _("Delete all wallet transactions and only recover those parts of the blockchain through -rescan on startup") +
-                               " " + _("(1 = keep tx meta data e.g. account owner and payment request information, 2 = drop tx meta data)"));
-
-    if (showDebug)
-    {
-        strUsage += HelpMessageGroup(_("Wallet debugging/testing options:"));
-
-        strUsage += HelpMessageOpt("-dblogsize=<n>", strprintf("Flush wallet database activity from memory to disk log every <n> megabytes (default: %u)", DEFAULT_WALLET_DBLOGSIZE));
-        strUsage += HelpMessageOpt("-flushwallet", strprintf("Run a thread to flush wallet periodically (default: %u)", DEFAULT_FLUSHWALLET));
-        strUsage += HelpMessageOpt("-privdb", strprintf("Sets the DB_PRIVATE flag in the wallet db environment (default: %u)", DEFAULT_WALLET_PRIVDB));
-        strUsage += HelpMessageOpt("-walletrejectlongchains", strprintf(_("Wallet will not create transactions that violate mempool chain limits (default: %u)"), DEFAULT_WALLET_REJECT_LONG_CHAINS));
-    }
-
-    return strUsage;
-}
-
 CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
 {
     // needed to restore wallet transaction meta data after -zapwallettxes
@@ -4121,15 +4091,12 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
         uiInterface.InitMessage(_("Zapping all transactions from wallet..."));
 
         std::unique_ptr<CWalletDBWrapper> dbw(new CWalletDBWrapper(&bitdb, walletFile));
-        CWallet *tempWallet = new CWallet(std::move(dbw));
+        std::unique_ptr<CWallet> tempWallet(new CWallet(std::move(dbw)));
         DBErrors nZapWalletRet = tempWallet->ZapWalletTx(vWtx);
         if (nZapWalletRet != DB_LOAD_OK) {
             InitError(strprintf(_("Error loading %s: Wallet corrupted"), walletFile));
             return nullptr;
         }
-
-        delete tempWallet;
-        tempWallet = nullptr;
     }
 
     uiInterface.InitMessage(_("Loading wallet..."));
@@ -4194,19 +4161,22 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
             // ensure this wallet.dat can only be opened by clients supporting HD with chain split
             walletInstance->SetMinVersion(FEATURE_HD_SPLIT);
 
+            /*
+             * TODO: Generate master key on unlock
+             * DO NOT GENERATE KEYS ON FIRST RUN AS WALLET IS LOCKED
             // generate a new master key
             CPubKey masterPubKey = walletInstance->GenerateNewHDMasterKey();
             if (!walletInstance->SetHDMasterKey(masterPubKey))
                 throw std::runtime_error(std::string(__func__) + ": Storing master key failed");
+            */
         }
 
-        walletInstance->TopUpKeyPool();
-
-        // Top up the keypool
-        // if (!walletInstance->TopUpKeyPool()) {
-        //     InitError(_("Unable to generate initial keys") += "\n");
-        //     return NULL;
-        // }
+        /* DO NOT GENERATE KEYS ON FIRST RUN AS WALLET IS LOCKED
+        if (!walletInstance->TopUpKeyPool()) {
+            InitError(_("Unable to generate initial keys") += "\n");
+            return NULL;
+        }
+        */
 
         walletInstance->SetBestChain(chainActive.GetLocator());
     }
@@ -4298,30 +4268,13 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
 
     {
         LOCK(walletInstance->cs_wallet);
-        LogPrintf("setKeyPool.size() = %u\n",      walletInstance->GetKeyPoolSize());
-        LogPrintf("mapWallet.size() = %u\n",       walletInstance->mapWallet.size());
-        LogPrintf("mapAddressBook.size() = %u\n",  walletInstance->mapAddressBook.size());
+        LogPrintf("setKeyPool.size() (internal + external) = %u\n", walletInstance->GetKeyPoolSize());
+        LogPrintf("mapWallet.size() = %u\n", walletInstance->mapWallet.size());
+        LogPrintf("mapWalletRTx.size() = %u\n", walletInstance->mapWalletRTx.size());
+        LogPrintf("mapAddressBook.size() = %u\n", walletInstance->mapAddressBook.size());
     }
 
     return walletInstance;
-}
-
-bool CWallet::InitLoadWallet()
-{
-    if (gArgs.GetBoolArg("-disablewallet", DEFAULT_DISABLE_WALLET)) {
-        LogPrintf("Wallet disabled!\n");
-        return true;
-    }
-
-    for (const std::string& walletFile : gArgs.GetArgs("-wallet")) {
-        CWallet * const pwallet = CreateWalletFromFile(walletFile);
-        if (!pwallet) {
-            return false;
-        }
-        vpwallets.push_back(pwallet);
-    }
-
-    return true;
 }
 
 std::atomic<bool> CWallet::fFlushScheduled(false);
@@ -4336,126 +4289,6 @@ void CWallet::postInitProcess(CScheduler& scheduler)
     if (!CWallet::fFlushScheduled.exchange(true)) {
         scheduler.scheduleEvery(MaybeCompactWalletDB, 500);
     }
-}
-
-bool CWallet::ParameterInteraction()
-{
-    gArgs.SoftSetArg("-wallet", DEFAULT_WALLET_DAT);
-    const bool is_multiwallet = gArgs.GetArgs("-wallet").size() > 1;
-
-    if (gArgs.GetBoolArg("-disablewallet", DEFAULT_DISABLE_WALLET))
-        return true;
-
-    if (gArgs.GetBoolArg("-blocksonly", DEFAULT_BLOCKSONLY) && gArgs.SoftSetBoolArg("-walletbroadcast", false)) {
-        LogPrintf("%s: parameter interaction: -blocksonly=1 -> setting -walletbroadcast=0\n", __func__);
-    }
-
-    if (gArgs.GetBoolArg("-salvagewallet", false)) {
-        if (is_multiwallet) {
-            return InitError(strprintf("%s is only allowed with a single wallet file", "-salvagewallet"));
-        }
-        // Rewrite just private keys: rescan to find transactions
-        if (gArgs.SoftSetBoolArg("-rescan", true)) {
-            LogPrintf("%s: parameter interaction: -salvagewallet=1 -> setting -rescan=1\n", __func__);
-        }
-    }
-
-    int zapwallettxes = gArgs.GetArg("-zapwallettxes", 0);
-    // -zapwallettxes implies dropping the mempool on startup
-    if (zapwallettxes != 0 && gArgs.SoftSetBoolArg("-persistmempool", false)) {
-        LogPrintf("%s: parameter interaction: -zapwallettxes=%s -> setting -persistmempool=0\n", __func__, zapwallettxes);
-    }
-
-    // -zapwallettxes implies a rescan
-    if (zapwallettxes != 0) {
-        if (is_multiwallet) {
-            return InitError(strprintf("%s is only allowed with a single wallet file", "-zapwallettxes"));
-        }
-        if (gArgs.SoftSetBoolArg("-rescan", true)) {
-            LogPrintf("%s: parameter interaction: -zapwallettxes=%s -> setting -rescan=1\n", __func__, zapwallettxes);
-        }
-    }
-
-    if (is_multiwallet) {
-        if (gArgs.GetBoolArg("-upgradewallet", false)) {
-            return InitError(strprintf("%s is only allowed with a single wallet file", "-upgradewallet"));
-        }
-    }
-
-    if (gArgs.GetBoolArg("-sysperms", false))
-        return InitError("-sysperms is not allowed in combination with enabled wallet functionality");
-    if (gArgs.GetArg("-prune", 0) && gArgs.GetBoolArg("-rescan", false))
-        return InitError(_("Rescans are not possible in pruned mode. You will need to use -reindex which will download the whole blockchain again."));
-
-    if (::minRelayTxFee.GetFeePerK() > HIGH_TX_FEE_PER_KB)
-        InitWarning(AmountHighWarn("-minrelaytxfee") + " " +
-                    _("The wallet will avoid paying less than the minimum relay fee."));
-
-    if (gArgs.IsArgSet("-mintxfee"))
-    {
-        CAmount n = 0;
-        if (!ParseMoney(gArgs.GetArg("-mintxfee", ""), n) || 0 == n)
-            return InitError(AmountErrMsg("mintxfee", gArgs.GetArg("-mintxfee", "")));
-        if (n > HIGH_TX_FEE_PER_KB)
-            InitWarning(AmountHighWarn("-mintxfee") + " " +
-                        _("This is the minimum transaction fee you pay on every transaction."));
-        CWallet::minTxFee = CFeeRate(n);
-    }
-    if (gArgs.IsArgSet("-fallbackfee"))
-    {
-        CAmount nFeePerK = 0;
-        if (!ParseMoney(gArgs.GetArg("-fallbackfee", ""), nFeePerK))
-            return InitError(strprintf(_("Invalid amount for -fallbackfee=<amount>: '%s'"), gArgs.GetArg("-fallbackfee", "")));
-        if (nFeePerK > HIGH_TX_FEE_PER_KB)
-            InitWarning(AmountHighWarn("-fallbackfee") + " " +
-                        _("This is the transaction fee you may pay when fee estimates are not available."));
-        CWallet::fallbackFee = CFeeRate(nFeePerK);
-    }
-    if (gArgs.IsArgSet("-discardfee"))
-    {
-        CAmount nFeePerK = 0;
-        if (!ParseMoney(gArgs.GetArg("-discardfee", ""), nFeePerK))
-            return InitError(strprintf(_("Invalid amount for -discardfee=<amount>: '%s'"), gArgs.GetArg("-discardfee", "")));
-        if (nFeePerK > HIGH_TX_FEE_PER_KB)
-            InitWarning(AmountHighWarn("-discardfee") + " " +
-                        _("This is the transaction fee you may discard if change is smaller than dust at this level"));
-        CWallet::m_discard_rate = CFeeRate(nFeePerK);
-    }
-    if (gArgs.IsArgSet("-paytxfee"))
-    {
-        CAmount nFeePerK = 0;
-        if (!ParseMoney(gArgs.GetArg("-paytxfee", ""), nFeePerK))
-            return InitError(AmountErrMsg("paytxfee", gArgs.GetArg("-paytxfee", "")));
-        if (nFeePerK > HIGH_TX_FEE_PER_KB)
-            InitWarning(AmountHighWarn("-paytxfee") + " " +
-                        _("This is the transaction fee you will pay if you send a transaction."));
-
-        payTxFee = CFeeRate(nFeePerK, 1000);
-        if (payTxFee < ::minRelayTxFee)
-        {
-            return InitError(strprintf(_("Invalid amount for -paytxfee=<amount>: '%s' (must be at least %s)"),
-                                       gArgs.GetArg("-paytxfee", ""), ::minRelayTxFee.ToString()));
-        }
-    }
-    if (gArgs.IsArgSet("-maxtxfee"))
-    {
-        CAmount nMaxFee = 0;
-        if (!ParseMoney(gArgs.GetArg("-maxtxfee", ""), nMaxFee))
-            return InitError(AmountErrMsg("maxtxfee", gArgs.GetArg("-maxtxfee", "")));
-        if (nMaxFee > HIGH_MAX_TX_FEE)
-            InitWarning(_("-maxtxfee is set very high! Fees this large could be paid on a single transaction."));
-        maxTxFee = nMaxFee;
-        if (CFeeRate(maxTxFee, 1000) < ::minRelayTxFee)
-        {
-            return InitError(strprintf(_("Invalid amount for -maxtxfee=<amount>: '%s' (must be at least the minrelay fee of %s to prevent stuck transactions)"),
-                                       gArgs.GetArg("-maxtxfee", ""), ::minRelayTxFee.ToString()));
-        }
-    }
-    nTxConfirmTarget = gArgs.GetArg("-txconfirmtarget", DEFAULT_TX_CONFIRM_TARGET);
-    bSpendZeroConfChange = gArgs.GetBoolArg("-spendzeroconfchange", DEFAULT_SPEND_ZEROCONF_CHANGE);
-    fWalletRbf = gArgs.GetBoolArg("-walletrbf", DEFAULT_WALLET_RBF);
-
-    return true;
 }
 
 bool CWallet::BackupWallet(const std::string& strDest)
@@ -4520,7 +4353,7 @@ int CMerkleTx::GetBlocksToMaturity() const
 }
 
 
-bool CMerkleTx::AcceptToMemoryPool(const CAmount& nAbsurdFee, CValidationState& state)
+bool CWalletTx::AcceptToMemoryPool(const CAmount& nAbsurdFee, CValidationState& state)
 {
     return ::AcceptToMemoryPool(mempool, state, tx, true, nullptr, nullptr, false, nAbsurdFee);
 }
