@@ -1215,7 +1215,7 @@ PrecomputedTransactionData::PrecomputedTransactionData(const CTransaction& txTo)
     hashOutputs = GetOutputsHash(txTo);
 }
 
-uint256 SignatureHash(const CScript scriptCode, const ReferralRef& referral, int nHashType)
+uint256 SignatureHash(const CScript& scriptCode, const ReferralRef& referral, int nHashType)
 {
     // Wrapper to serialize only the necessary parts of the referral being signed
     ReferralSignatureSerializer refTmp(referral, scriptCode);
@@ -1294,6 +1294,27 @@ uint256 SignatureHash(const CScript& scriptCode, const CTransaction& txTo, unsig
     CHashWriter ss(SER_GETHASH, 0);
     ss << txTmp << nHashType;
     return ss.GetHash();
+}
+
+
+bool ReferralSignatureChecker::CheckSig(const std::vector<unsigned char>& vchSigIn, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const
+{
+    CPubKey pubkey(vchPubKey);
+    if (!pubkey.IsValid())
+        return false;
+
+    // Hash type is one byte tacked on to the end of the signature
+    std::vector<unsigned char> vchSig(vchSigIn);
+    if (vchSig.empty()) {
+        return false;
+    }
+
+    int nHashType = vchSig.back();
+    vchSig.pop_back();
+
+    uint256 sighash = SignatureHash(scriptCode, m_pReferral, nHashType);
+
+    return pubkey.Verify(sighash, vchSig);
 }
 
 bool TransactionSignatureChecker::VerifySignature(const std::vector<unsigned char>& vchSig, const CPubKey& pubkey, const uint256& sighash) const

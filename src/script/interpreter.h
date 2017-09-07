@@ -148,6 +148,17 @@ public:
     virtual ~BaseSignatureChecker() {}
 };
 
+class ReferralSignatureChecker : public BaseSignatureChecker
+{
+private:
+    const ReferralRef m_pReferral;
+
+public:
+    ReferralSignatureChecker(const ReferralRef& referralIn) : m_pReferral{referralIn} { }
+
+    bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const override;
+};
+
 class TransactionSignatureChecker : public BaseSignatureChecker
 {
 private:

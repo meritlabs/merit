@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include "pubkey.h"
+#include "script/script.h"
 #include "serialize.h"
 #include "uint256.h"
 
@@ -64,6 +65,8 @@ public:
 
     // hash of m_code
     const uint256 m_codeHash;
+
+    CScript m_scriptSig;
 
 private:
     /** Memory only. */
@@ -123,6 +126,7 @@ struct MutableReferral
     CKeyID m_pubKeyId;
     std::string m_code;
     uint256 m_codeHash;
+    CScript m_scriptSig;
 
     MutableReferral() : m_nVersion(Referral::CURRENT_VERSION) { }
     MutableReferral(CKeyID& addressIn, uint256 referralIn);

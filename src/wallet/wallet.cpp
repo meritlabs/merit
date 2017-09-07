@@ -194,8 +194,6 @@ ReferralRef CWallet::Unlock(const uint256& referredByHash)
     // generate new referral associated with new pubkey
     ReferralRef referral = GenerateNewReferral(pubkey, referredByHash);
 
-    LogPrintf("Generated new unlock referral. Code: %s\n", referral->m_code);
-
     return referral;
 }
 
@@ -1642,7 +1640,10 @@ ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy)
     ReferralTx rtx(true);
 
     CValidationState state;
-    CreateTransaction(rtx, referral);
+    if (!CreateTransaction(rtx, referral)) {
+        throw std::runtime_error(std::string(__func__) + ": CreateTransaction for referral failed");
+    }
+
     CommitTransaction(rtx, g_connman.get(), state);
 
     return referral;
@@ -3167,9 +3168,28 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
 
 bool CWallet::CreateTransaction(ReferralTx& rtx, ReferralRef& referral)
 {
-    // generate referral tx and bind it to this wallet
-    rtx.SetReferral(referral);
     rtx.BindWallet(this);
+
+    std::map<CKeyID, int64_t>::const_iterator mi = m_pool_key_to_index.find(referral->m_pubKeyId);
+    if (mi == m_pool_key_to_index.end()) {
+        return false;
+    }
+
+    CPubKey pubkey;
+    GetPubKey(mi->first, pubkey);
+
+    const CScript scriptPubKey = CScript() << ToByteVector(pubkey) << OP_CHECKSIG;
+    SignatureData sigdata;
+    MutableReferral newRef{*referral};
+
+    if (!ProduceSignature(ReferralSignatureCreator(this, referral, SIGHASH_ALL), scriptPubKey, sigdata))
+    {
+        return false;
+    } else {
+        newRef.m_scriptSig = sigdata.scriptSig;
+    }
+
+    rtx.SetReferral(MakeReferralRef(newRef));
 
     return true;
 }
