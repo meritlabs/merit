@@ -974,8 +974,10 @@ bool HashOnchainActive(const uint256 &hash)
     return true;
 }
 
+using KeyActivity = std::vector<std::pair<CAddressIndexKey, CAmount>>;
+
 bool GetAddressIndex(uint160 addressHash, int type,
-                     std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex, int start, int end)
+                     KeyActivity& addressIndex, int start, int end)
 {
     if (!fAddressIndex)
         return error("address index not enabled");
@@ -1761,6 +1763,23 @@ static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
 
+void IndexReferralsAndUpdateANV(const CBlock& block, const KeyActivity& debits_and_credits)
+{
+    assert(prefviewdb);
+
+    // Record referrals into the referral DB
+    for (const auto& ref : block.m_vRef) {
+        prefviewdb->InsertReferral(*ref);
+    }
+
+    // Debit and Credit all ANVs of keys in the block
+    for(const auto& activity : debits_and_credits) {
+        const CKeyID key{activity.first.hashBytes};
+        const CAmount amount = activity.second;
+        prefviewdb->UpdateANV(key, amount);
+    }
+}
+
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins.
  *  Validity checks that depend on the UTXO set are also done; ConnectBlock()
  *  can fail if those validity checks fail (among other reasons). */
@@ -1886,7 +1905,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     std::vector<PrecomputedTransactionData> txdata;
     txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
 
-    std::vector<std::pair<CAddressIndexKey, CAmount> > addressIndex;
+    KeyActivity addressIndex;
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
 
@@ -2015,17 +2034,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    // Record referrals into the referral DB
-    for (const auto& ref : block.m_vRef) {
-        prefviewdb->InsertReferral(*ref);
-    }
-
-    // Debit and Credit all ANVs of keys in the block
-    for(const auto& activity : addressIndex) {
-        const CKeyID key{activity.first.hashBytes};
-        const CAmount amount = activity.second;
-        prefviewdb->UpdateANV(key, amount);
-    }
+    IndexReferralsAndUpdateANV(block, addressIndex);
 
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
