@@ -108,10 +108,6 @@ void CMainSignals::TransactionAddedToMempool(const CTransactionRef &ptx) {
     m_internals->TransactionAddedToMempool(ptx);
 }
 
-void CMainSignals::ReferralAddedToMempool(const ReferralRef &pref) {
-    m_internals->ReferralAddedToMempool(pref);
-}
-
 void CMainSignals::BlockConnected(const std::shared_ptr<const CBlock> &pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) {
     m_internals->BlockConnected(pblock, pindex, vtxConflicted);
 }
