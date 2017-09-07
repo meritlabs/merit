@@ -26,6 +26,7 @@
 #include "wallet/walletdb.h"
 #endif
 #include "warnings.h"
+#include "base58.h"
 
 #include <stdint.h>
 #ifdef HAVE_MALLOC_INFO
@@ -609,9 +610,9 @@ UniValue echo(const JSONRPCRequest& request)
 bool getAddressFromIndex(const int &type, const uint160 &hash, std::string &address)
 {
     if (type == 2) {
-        address = CBitcoinAddress(CScriptID(hash)).ToString();
+        address = CScriptID(hash).ToString();
     } else if (type == 1) {
-        address = CBitcoinAddress(CKeyID(hash)).ToString();
+        address = CKeyID(hash).ToString();
     } else {
         return false;
     }
@@ -1144,24 +1145,24 @@ static const CRPCCommand commands[] =
     { "util",               "signmessagewithprivkey", &signmessagewithprivkey, {"privkey","message"} },
 
     /* Address index */
-    { "addressindex",       "getaddressmempool",      &getaddressmempool,      true,  {}},
-    { "addressindex",       "getaddressutxos",        &getaddressutxos,        false, {} },
-    { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       false, {} },
-    { "addressindex",       "getaddresstxids",        &getaddresstxids,        false, {} },
-    { "addressindex",       "getaddressbalance",      &getaddressbalance,      false, {} },
+    { "addressindex",       "getaddressmempool",      &getaddressmempool,      {}},
+    { "addressindex",       "getaddressutxos",        &getaddressutxos,        {} },
+    { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       {} },
+    { "addressindex",       "getaddresstxids",        &getaddresstxids,        {} },
+    { "addressindex",       "getaddressbalance",      &getaddressbalance,      {} },
 
     /* Blockchain */
-    { "blockchain",         "getspentinfo",           &getspentinfo,           false, {} },
+    { "blockchain",         "getspentinfo",           &getspentinfo,           {} },
 
     /* Address index */
-    { "addressindex",       "getaddressmempool",      &getaddressmempool,      true,  {}},
-    { "addressindex",       "getaddressutxos",        &getaddressutxos,        false, {} },
-    { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       false, {} },
-    { "addressindex",       "getaddresstxids",        &getaddresstxids,        false, {} },
-    { "addressindex",       "getaddressbalance",      &getaddressbalance,      false, {} },
+    { "addressindex",       "getaddressmempool",      &getaddressmempool,      {}},
+    { "addressindex",       "getaddressutxos",        &getaddressutxos,        {} },
+    { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       {} },
+    { "addressindex",       "getaddresstxids",        &getaddresstxids,        {} },
+    { "addressindex",       "getaddressbalance",      &getaddressbalance,      {} },
 
     /* Blockchain */
-    { "blockchain",         "getspentinfo",           &getspentinfo,           false, {} },
+    { "blockchain",         "getspentinfo",           &getspentinfo,           {} },
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            {"timestamp"}},
