@@ -16,12 +16,18 @@ using MaybeKeyID = boost::optional<CKeyID>;
 using MaybeANV = boost::optional<CAmount>;
 using ChildKeys = std::vector<CKeyID>;
 
+struct KeyANV
+{
+    CKeyID key;
+    CAmount anv;
+};
 
+using KeyANVs = std::vector<KeyANV>;
 
 class ReferralsViewDB
 {
 protected:
-    CDBWrapper m_db;
+    mutable CDBWrapper m_db;
 public:
     explicit ReferralsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
 
@@ -31,6 +37,7 @@ public:
 
     bool UpdateANV(const CKeyID&, CAmount);
     MaybeANV GetANV(const CKeyID&) const;
+    KeyANVs GetAllANVs() const;
 
     bool InsertReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;

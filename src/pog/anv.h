@@ -18,13 +18,6 @@ namespace pog
      */
     MaybeANV ComputeANV(const CKeyID&, const ReferralsViewDB&);
 
-    struct KeyANV
-    {
-        CKeyID key;
-        CAmount anv;
-    };
-
-    using KeyANVs = std::vector<KeyANV>;
     KeyANVs GetAllANVs(const ReferralsViewDB&);
 
 } // namespace pog
