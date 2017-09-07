@@ -28,11 +28,13 @@
 #include "wallet/coincontrol.h"
 #include "wallet/feebumper.h"
 #include "wallet/wallet.h"
+#include "pog/anv.h"
 
 #include <init.h>  // For StartShutdown
 
 #include <stdint.h>
 #include <univalue.h>
+#include <numeric>
 
 static const std::string WALLET_ENDPOINT_BASE = "/wallet/";
 
@@ -3275,6 +3277,57 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     return obj;
 }
 
+UniValue getanv(const JSONRPCRequest& request)
+{
+    assert(prefviewdb);
+
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp)
+        throw std::runtime_error(
+            "getanv ( key1, key2, ..., keyN )\n"
+            "\nIf keys are not specified , returns the wallet's available balance.\n"
+            "\nResult:\n"
+            "anv              (numeric) The total Aggregate Network Value in " + CURRENCY_UNIT + " received for the keys or wallet.\n"
+            "\nExamples:\n"
+            "\nThe total amount in the wallet with 1 or more confirmations\n"
+            + HelpExampleCli("getanv", "") +
+            "\nGet Aggregate Network Value for all keys listed"
+            + HelpExampleCli("getanv", "abc, xyz, ggg")
+        );
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    std::vector<CKeyID> keys;
+
+    //If we don't specify any key ids, collect keys from wallet.
+    if(request.params.empty()) {
+        //TODO, use addressbook in CWallet to figure out keys.
+        //For HD chains, likely the approach will have to be filtering all
+        //keys to figure out which are the persons.
+    } else {
+        keys.reserve(request.params.size());
+        for(size_t i = 0; i < request.params.size(); i++) {
+            auto key_hex_str = request.params[i].get_str();
+            auto dest = DecodeDestination(key_hex_str);
+            if(auto key = boost::get<CKeyID>(&dest)) {
+                std::cerr << "ADDIMG: " << key_hex_str<< std::endl;
+                keys.push_back(*key);
+            }
+        }
+    }
+
+    auto anvs = pog::GetANVs(keys, *prefviewdb);
+    auto total = std::accumulate(std::begin(anvs), std::end(anvs), CAmount{0}, 
+            [](CAmount total, const KeyANV& v){ return total + v.anv;});
+
+    return total;
+}
+
 #ifdef ENABLE_WALLET
 UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
 {
@@ -3458,6 +3511,7 @@ static const CRPCCommand commands[] =
 
     { "referral",           "validatereferralcode",     &validatereferralcode,     {} },
     { "referral",           "unlockwallet",             &unlockwallet,             {"referralcode"} },
+    { "referral",           "getanv",                   &getanv,                   {"address"} },
 #ifdef ENABLE_WALLET
     { "referral",           "unlockwalletwithaddress",  &unlockwalletwithaddress,  {"address", "referralcode"} }
 #endif

@@ -18,6 +18,8 @@ namespace pog
      */
     MaybeANV ComputeANV(const CKeyID&, const ReferralsViewDB&);
 
+    KeyANVs GetANVs(const KeyIDs& keys, const ReferralsViewDB&);
+
     KeyANVs GetAllANVs(const ReferralsViewDB&);
 
 } // namespace pog
