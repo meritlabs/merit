@@ -10,11 +10,13 @@
 #include "primitives/referral.h"
 
 #include <boost/optional.hpp>
+#include <vector>
 
 using MaybeReferral = boost::optional<Referral>;
 using MaybeKeyID = boost::optional<CKeyID>;
 using MaybeANV = boost::optional<CAmount>;
 using ChildKeys = std::vector<CKeyID>;
+using KeyIDs = std::vector<CKeyID>;
 
 struct KeyANV
 {

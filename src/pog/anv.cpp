@@ -20,4 +20,19 @@ namespace pog
     {
         return db.GetAllANVs();
     }
+
+    KeyANVs GetANVs(const KeyIDs& keys, const ReferralsViewDB& db)
+    {
+        KeyANVs r;
+        r.reserve(keys.size());
+
+        for(const auto& k : keys) {
+            if(auto maybe_anv = ComputeANV(k, db))
+                r.push_back({k, *maybe_anv});
+        }
+
+        assert(r.size() <= keys.size());
+        return r;
+    }
+
 } // namespace pog
