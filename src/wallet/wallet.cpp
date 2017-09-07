@@ -164,8 +164,13 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
 
 ReferralRef CWallet::Unlock(const uint256& referredByHash)
 {
-    // check that wallet is not unlocked yet and there is no unlock referral transactions in the wallet yet
-    if (!IsReferred() && !mapWalletRTx.empty()) {
+    // fail if wallet is already unlocked
+    if (IsReferred()) {
+        throw std::runtime_error(std::string(__func__) + ": wallet is already unlocked");
+    }
+
+    // fail if wallet alredy have unconfirmed unlock tx
+    if (!mapWalletRTx.empty()) {
         throw std::runtime_error(std::string(__func__) + ": wallet alredy have unconfirmed unlock referral transaction");
     }
 
@@ -1655,7 +1660,7 @@ bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx)
         return false;
     }
 
-    LogPrintf("------ Setting unlock referral tx ------\n");
+    LogPrintf("Setting unlock referral tx\n");
 
     // set referral tx as unlock tx
     m_unlockReferralTx = rtx;
@@ -1668,7 +1673,7 @@ bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx)
 
 bool CWallet::IsReferred() const
 {
-    LogPrintf("+++++++ Wallet is referred? +++++++ %s\n", !m_unlockReferralTx.IsNull() ? "YESSSS!!!": "NOPE :(");
+    LogPrintf("Wallet is%s referred\n", !m_unlockReferralTx.IsNull() ? " ": " NOT");
     return !m_unlockReferralTx.IsNull();
 }
 
@@ -3544,10 +3549,6 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
                 throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
             }
 
-            ReferralRef referral = GenerateNewReferral(pubkey, *currentTopReferral);
-
-            LogPrintf("Generated new referral. Code: %s\n", referral->m_code);
-
             if (internal) {
                 setInternalKeyPool.insert(index);
             } else {
@@ -3555,6 +3556,8 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
             }
 
             m_pool_key_to_index[pubkey.GetID()] = index;
+
+            ReferralRef referral = GenerateNewReferral(pubkey, *currentTopReferral);
         }
         if (missingInternal + missingExternal > 0) {
             LogPrintf("keypool added %d keys (%d internal), size=%u (%u internal)\n",
