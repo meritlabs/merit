@@ -112,3 +112,27 @@ MaybeANV ReferralsViewDB::GetANV(const CKeyID& key) const
     CAmount anv;
     return m_db.Read(std::make_pair(DB_ANV, key), anv) ? MaybeANV{anv} : MaybeANV{};
 }
+
+KeyANVs ReferralsViewDB::GetAllANVs() const
+{
+    std::unique_ptr<CDBIterator> iter{m_db.NewIterator()};
+    iter->SeekToFirst();
+
+    KeyANVs anvs;
+    auto key = std::make_pair(DB_ANV, CKeyID{});
+    while(iter->Valid())
+    {
+        //filter non ANV keys
+        if(!iter->GetKey(key))
+            continue;
+        if(key.first != DB_ANV)
+            continue;
+
+        CAmount anv = 0;
+        if(!iter->GetValue(anv))
+            continue;
+
+        anvs.push_back({key.second, anv});
+    }
+    return anvs;
+}

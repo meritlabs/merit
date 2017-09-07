@@ -16,9 +16,8 @@ namespace pog
         return db.GetANV(key_id);
     }
 
-    KeyANVs GetAllANVs(const ReferralsViewDB&)
+    KeyANVs GetAllANVs(const ReferralsViewDB& db)
     {
-        //TODO: Get all ANVS
-        return {};
+        return db.GetAllANVs();
     }
 } // namespace pog
