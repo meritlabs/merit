@@ -5,7 +5,6 @@
 
 #include "interpreter.h"
 
-#include "primitives/transaction.h"
 #include "crypto/ripemd160.h"
 #include "crypto/sha1.h"
 #include "crypto/sha256.h"
@@ -100,7 +99,7 @@ bool static IsCompressedPubKey(const valtype &vchPubKey) {
  * Where R and S are not negative (their first byte has its highest bit not set), and not
  * excessively padded (do not start with a 0 byte, unless an otherwise negative number follows,
  * in which case a single 0 byte is necessary and even required).
- * 
+ *
  * See https://bitcointalk.org/index.php?topic=8392.msg127623#msg127623
  *
  * This function is consensus-critical since BIP66.
@@ -140,7 +139,7 @@ bool static IsValidSignatureEncoding(const std::vector<unsigned char> &sig) {
     // Verify that the length of the signature matches the sum of the length
     // of the elements.
     if ((size_t)(lenR + lenS + 7) != sig.size()) return false;
- 
+
     // Check whether the R element is an integer.
     if (sig[2] != 0x02) return false;
 
@@ -866,7 +865,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     popstack(stack);
                     stack.push_back(vchHash);
                 }
-                break;                                   
+                break;
 
                 case OP_CODESEPARATOR:
                 {
@@ -1045,6 +1044,49 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
 
 namespace {
 
+class ReferralSignatureSerializer
+{
+private:
+    const ReferralRef m_pReferral;
+    const CScript m_scriptCode;
+
+public:
+    ReferralSignatureSerializer(const ReferralRef& referralIn, const CScript& scriptCodeIn) : m_pReferral{referralIn}, m_scriptCode{scriptCodeIn} {}
+
+    /** Serialize the passed scriptCode, skipping OP_CODESEPARATORs */
+    template<typename S>
+    void SerializeScriptCode(S &s) const {
+        CScript::const_iterator it = m_scriptCode.begin();
+        CScript::const_iterator itBegin = it;
+        opcodetype opcode;
+        unsigned int nCodeSeparators = 0;
+        while (m_scriptCode.GetOp(it, opcode)) {
+            if (opcode == OP_CODESEPARATOR)
+                nCodeSeparators++;
+        }
+        ::WriteCompactSize(s, m_scriptCode.size() - nCodeSeparators);
+        it = itBegin;
+        while (m_scriptCode.GetOp(it, opcode)) {
+            if (opcode == OP_CODESEPARATOR) {
+                s.write((char*)&itBegin[0], it-itBegin-1);
+                itBegin = it;
+            }
+        }
+        if (itBegin != m_scriptCode.end())
+            s.write((char*)&itBegin[0], it-itBegin);
+    }
+
+    template<typename S>
+    void Serialize(S &s) const {
+        // Serialize referral
+        ::Serialize(s, m_pReferral->m_codeHash);
+        ::Serialize(s, m_pReferral->m_previousReferral);
+
+        // serialize script
+        SerializeScriptCode(s);
+    }
+};
+
 /**
  * Wrapper that serializes like CTransaction, but with the modifications
  *  required for the signature hash done in-place
@@ -1171,6 +1213,17 @@ PrecomputedTransactionData::PrecomputedTransactionData(const CTransaction& txTo)
     hashPrevouts = GetPrevoutHash(txTo);
     hashSequence = GetSequenceHash(txTo);
     hashOutputs = GetOutputsHash(txTo);
+}
+
+uint256 SignatureHash(const CScript scriptCode, const ReferralRef& referral, int nHashType)
+{
+    // Wrapper to serialize only the necessary parts of the referral being signed
+    ReferralSignatureSerializer refTmp(referral, scriptCode);
+
+    // Serialize and hash
+    CHashWriter ss(SER_GETHASH, 0);
+    ss << refTmp << nHashType;
+    return ss.GetHash();
 }
 
 uint256 SignatureHash(const CScript& scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType, const CAmount& amount, SigVersion sigversion, const PrecomputedTransactionData* cache)

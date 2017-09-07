@@ -15,6 +15,26 @@
 
 typedef std::vector<unsigned char> valtype;
 
+ReferralSignatureCreator::ReferralSignatureCreator(const CKeyStore* keystoreIn, const ReferralRef& referralIn, int nHashTypeIn) :
+    BaseSignatureCreator{keystoreIn}, m_pReferral{referralIn}, m_nHashType{nHashTypeIn} { }
+
+bool ReferralSignatureCreator::CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& address, const CScript& scriptCode, SigVersion sigversion) const
+{
+    CKey key;
+    if (!keystore->GetKey(address, key))
+        return false;
+
+    // Signing with uncompressed keys is disabled in witness scripts
+    if (sigversion == SIGVERSION_WITNESS_V0 && !key.IsCompressed())
+        return false;
+
+    uint256 hash = SignatureHash(scriptCode, m_pReferral, m_nHashType);
+    if (!key.Sign(hash, vchSig))
+        return false;
+    vchSig.push_back((unsigned char)m_nHashType);
+    return true;
+}
+
 TransactionSignatureCreator::TransactionSignatureCreator(const CKeyStore* keystoreIn, const CTransaction* txToIn, unsigned int nInIn, const CAmount& amountIn, int nHashTypeIn) : BaseSignatureCreator(keystoreIn), txTo(txToIn), nIn(nInIn), nHashType(nHashTypeIn), amount(amountIn), checker(txTo, nIn, amountIn) {}
 
 bool TransactionSignatureCreator::CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& address, const CScript& scriptCode, SigVersion sigversion) const
