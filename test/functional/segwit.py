@@ -12,7 +12,6 @@ from test_framework.script import CScript, OP_HASH160, OP_CHECKSIG, OP_0, hash16
 from io import BytesIO
 
 NODE_0 = 0
-NODE_1 = 1
 NODE_2 = 2
 WIT_V0 = 0
 WIT_V1 = 1
@@ -75,9 +74,7 @@ def find_unspent(node, min_value):
             return utxo
 
 class SegWitTest(BitcoinTestFramework):
-
-    def __init__(self):
-        super().__init__()
+    def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 3
         self.extra_args = [["-walletprematurewitness", "-rpcserialversion=0"],
@@ -281,6 +278,9 @@ class SegWitTest(BitcoinTestFramework):
         assert(txid1 in template_txids)
         assert(txid2 in template_txids)
         assert(txid3 in template_txids)
+
+        # Check that wtxid is properly reported in mempool entry
+        assert_equal(int(self.nodes[0].getmempoolentry(txid3)["wtxid"], 16), tx.calc_sha256(True))
 
         # Mine a block to clear the gbt cache again.
         self.nodes[0].generate(1)
