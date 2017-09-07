@@ -2020,6 +2020,13 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         prefviewdb->InsertReferral(*ref);
     }
 
+    // Debit and Credit all ANVs of keys in the block
+    for(const auto& activity : addressIndex) {
+        const CKeyID key{activity.first.hashBytes};
+        const CAmount amount = activity.second;
+        prefviewdb->UpdateANV(key, amount);
+    }
+
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
