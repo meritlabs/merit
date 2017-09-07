@@ -30,25 +30,21 @@ WALLET_PASSPHRASE_TIMEOUT = 3600
 
 
 class BumpFeeTest(BitcoinTestFramework):
-    def __init__(self):
-        super().__init__()
+    def set_test_params(self):
         self.num_nodes = 2
         self.setup_clean_chain = True
+        self.extra_args = [["-prematurewitness", "-walletprematurewitness", "-walletrbf={}".format(i)]
+                           for i in range(self.num_nodes)]
 
-    def setup_network(self, split=False):
-        extra_args = [["-prematurewitness", "-walletprematurewitness", "-walletrbf={}".format(i)]
-                      for i in range(self.num_nodes)]
-        self.nodes = self.start_nodes(self.num_nodes, self.options.tmpdir, extra_args)
-
+    def run_test(self):
         # Encrypt wallet for test_locked_wallet_fails test
         self.nodes[1].node_encrypt_wallet(WALLET_PASSPHRASE)
-        self.nodes[1] = self.start_node(1, self.options.tmpdir, extra_args[1])
+        self.start_node(1)
         self.nodes[1].walletpassphrase(WALLET_PASSPHRASE, WALLET_PASSPHRASE_TIMEOUT)
 
         connect_nodes_bi(self.nodes, 0, 1)
         self.sync_all()
 
-    def run_test(self):
         peer_node, rbf_node = self.nodes
         rbf_node_address = rbf_node.getnewaddress()
 
@@ -167,7 +163,7 @@ def test_bumpfee_with_descendant_fails(rbf_node, rbf_node_address, dest_address)
     parent_id = spend_one_input(rbf_node, rbf_node_address)
     tx = rbf_node.createrawtransaction([{"txid": parent_id, "vout": 0}], {dest_address: 0.00020000})
     tx = rbf_node.signrawtransaction(tx)
-    txid = rbf_node.sendrawtransaction(tx["hex"])
+    rbf_node.sendrawtransaction(tx["hex"])
     assert_raises_jsonrpc(-8, "Transaction has descendants in the wallet", rbf_node.bumpfee, parent_id)
 
 
