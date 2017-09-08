@@ -1141,7 +1141,7 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
     assert(consensus_params.ambassador_percent_cut >= 0 && consensus_params.ambassador_percent_cut <= 100);
     auto block_subsidy = GetBlockSubsidy(height, consensus_params);
 
-    auto ambassador_subsidy = (block_subsidy * 100) / consensus_params.ambassador_percent_cut; 
+    auto ambassador_subsidy = (block_subsidy * consensus_params.ambassador_percent_cut) / 100; 
     auto miner_subsidy = block_subsidy - ambassador_subsidy;
 
     assert(ambassador_subsidy < miner_subsidy);
@@ -1177,7 +1177,7 @@ CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t d
     // Select the N winners using the previousBlockHash as the seed
     auto winners = selector.Select(previousBlockHash, desired_winners);
 
-    assert(winners.size() <= desired_winners);
+    assert(winners.size() == desired_winners);
 
     // Compute reward for all the winners
     auto rewards = pog::RewardAmbassadors(winners, total);
