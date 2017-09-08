@@ -268,7 +268,7 @@ bool CheckSequenceLocks(const CTransaction &tx, int flags, LockPoints* lp, bool 
 
     CBlockIndex* tip = chainActive.Tip();
     assert(tip != nullptr);
-    
+
     CBlockIndex index;
     index.pprev = tip;
     // CheckSequenceLocks() uses chainActive.Height()+1 to evaluate
@@ -819,6 +819,8 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         if (!chainparams.RequireStandard()) {
             scriptVerifyFlags = gArgs.GetArg("-promiscuousmempoolflags", scriptVerifyFlags);
         }
+
+        Consensus::CheckTxOutputs(tx, state, *prefviewcache);
 
         // Check against previous transactions
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
@@ -2076,6 +2078,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         {
             nFees += view.GetValueIn(tx)-tx.GetValueOut();
 
+            Consensus::CheckTxOutputs(tx, state, *prefviewcache);
+
             std::vector<CScriptCheck> vChecks;
             bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
             if (!CheckInputs(tx, state, view, fScriptChecks, flags, fCacheResults, fCacheResults, txdata[i], nScriptCheckThreads ? &vChecks : nullptr))
@@ -2726,7 +2730,7 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
         // any disconnected transactions back to the mempool.
         UpdateMempoolForReorg(disconnectpool, true);
     }
-    mempool.check(pcoinsTip);
+    mempool.check(pcoinsTip, *prefviewcache);
 
     // Callbacks/notifications for a new best chain.
     if (fInvalidFound)
