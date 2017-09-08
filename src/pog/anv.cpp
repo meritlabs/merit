@@ -13,6 +13,7 @@ namespace pog
      */
     MaybeANV ComputeANV(const CKeyID& key_id, const ReferralsViewDB& db)
     {
+        std::cerr << "ComputeANV: " << key_id.ToString() << std::endl;
         return db.GetANV(key_id);
     }
 
@@ -23,10 +24,12 @@ namespace pog
 
     KeyANVs GetANVs(const KeyIDs& keys, const ReferralsViewDB& db)
     {
+       std::cerr << "GetANVs" << std::endl;
         KeyANVs r;
         r.reserve(keys.size());
 
         for(const auto& k : keys) {
+            std::cerr << "\tKey: " << k.ToString() << std::endl;
             if(auto maybe_anv = ComputeANV(k, db))
                 r.push_back({k, *maybe_anv});
         }
