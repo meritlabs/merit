@@ -57,6 +57,7 @@ EXTRA_LIBRARIES += \
   $(LIBBITCOIN_SERVER) \
   $(LIBBITCOIN_CLI) \
   $(LIBBITCOIN_WALLET) \
+  $(LIBBITCOIN_CONSENSUS) \
   $(LIBBITCOIN_ZMQ)
 
 lib_LTLIBRARIES = $(LIBBITCOINCONSENSUS) $(LIBBITCOINCRYPTO) $(LIBBITCOINUTIL) 
@@ -123,6 +124,9 @@ BITCOIN_CORE_H = \
   policy/policy.h \
   policy/rbf.h \
   pow.h \
+  pog/anv.h \
+  pog/select.h \
+  pog/reward.h \
   protocol.h \
   random.h \
   refdb.h \
@@ -303,6 +307,12 @@ libbitcoin_consensus_a_SOURCES = \
   primitives/transaction.cpp \
   primitives/transaction.h \
   primitives/referral.cpp \
+  pog/anv.cpp \
+  pog/anv.h \
+  pog/select.cpp \
+  pog/select.h \
+  pog/reward.cpp \
+  pog/reward.h \
   pubkey.cpp \
   pubkey.h \
   script/bitcoinconsensus.cpp \
@@ -420,6 +430,7 @@ bitcoin_cli_LDADD = \
   $(LIBBITCOIN_CLI) \
   $(LIBUNIVALUE) \
   $(LIBBITCOIN_UTIL) \
+  $(LIBBITCOIN_CONSENSUS) \
   $(LIBBITCOIN_CRYPTO)
 
 bitcoin_cli_LDADD += $(BOOST_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS)

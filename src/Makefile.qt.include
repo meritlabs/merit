@@ -402,7 +402,7 @@ if TARGET_WINDOWS
 endif
 qt_bitcoin_qt_LDADD = qt/libbitcoinqt.a $(LIBBITCOIN_SERVER)
 if ENABLE_WALLET
-qt_bitcoin_qt_LDADD += $(LIBBITCOIN_WALLET)
+qt_bitcoin_qt_LDADD += $(LIBBITCOIN_WALLET) $(LIBBITCOIN_CONSENSUS)
 endif
 if ENABLE_ZMQ
 qt_bitcoin_qt_LDADD += $(LIBBITCOIN_ZMQ) $(ZMQ_LIBS)

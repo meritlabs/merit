@@ -121,11 +121,16 @@ std::string ScriptToAsmStr(const CScript& script, const bool fAttemptSighashDeco
     return str;
 }
 
-std::string EncodeHexTx(const CTransaction& tx, const int serializeFlags)
+template<typename T>
+std::string EncodeHex(const T& tx, const int serialize_flags)
 {
-    CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION | serializeFlags);
-    ssTx << tx;
-    return HexStr(ssTx.begin(), ssTx.end());
+    CDataStream ds{SER_NETWORK, PROTOCOL_VERSION | serialize_flags};
+    ds << tx;
+    return HexStr(ds.begin(), ds.end());
+}
+
+std::string EncodeHexTx(const CTransaction& tx, const int serialize_flags) {
+    return EncodeHex(tx, serialize_flags);
 }
 
 void ScriptPubKeyToUniv(const CScript& scriptPubKey,
@@ -210,5 +215,22 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry,
 
     if (include_hex) {
         entry.pushKV("hex", EncodeHexTx(tx, serialize_flags)); // the hex-encoded transaction. used the name "hex" to be consistent with the verbose output of "getrawtransaction".
+    }
+}
+
+void RefToUniv(const Referral& ref, const uint256& hashBlock, UniValue& entry, bool include_hex, int serialize_flags)
+{
+    entry.pushKV("refd", ref.GetHash().GetHex());
+    entry.pushKV("version", ref.m_nVersion);
+    entry.pushKV("codeHash", ref.m_codeHash.GetHex());
+    entry.pushKV("parent", ref.m_previousReferral.GetHex());
+    entry.pushKV("key", EncodeDestination(ref.m_pubKeyId));
+    entry.pushKV("size", (int)::GetSerializeSize(ref, SER_NETWORK, PROTOCOL_VERSION));
+
+    if (!hashBlock.IsNull())
+        entry.pushKV("blockhash", hashBlock.GetHex());
+
+    if (include_hex) {
+        entry.pushKV("hex", EncodeHex(ref, serialize_flags));
     }
 }

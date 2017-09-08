@@ -144,8 +144,14 @@ namespace std
     template <>
     struct hash<uint256> {
         std::size_t operator()(const uint256& n) const {
-            using std::hash;
-            return hash<std::string>()(n.ToString());
+            return hash<string>()(n.ToString());
+        }
+    };
+
+    template <>
+    struct hash<uint160> {
+        std::size_t operator()(const uint160& n) const {
+            return hash<string>()(n.ToString());
         }
     };
 }

@@ -1,5 +1,3 @@
-// Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2016 The Bitcoin Core developers
 // Copyright (c) 2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -91,9 +89,6 @@ public:
     const uint256& GetHash() const {
         return m_hash;
     }
-
-    // Compute a hash that includes both transaction and witness data
-    uint256 GetWitnessHash() const;
 
     /**
      * Get the total transaction size in bytes, including witness data.

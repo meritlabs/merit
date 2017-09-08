@@ -974,8 +974,10 @@ bool HashOnchainActive(const uint256 &hash)
     return true;
 }
 
+using KeyActivity = std::vector<std::pair<CAddressIndexKey, CAmount>>;
+
 bool GetAddressIndex(uint160 addressHash, int type,
-                     std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex, int start, int end)
+                     KeyActivity& addressIndex, int start, int end)
 {
     if (!fAddressIndex)
         return error("address index not enabled");
@@ -1761,6 +1763,64 @@ static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
 
+using AddressPair = std::pair<uint160, int>;
+
+AddressPair ExtractAddress(const CTxOut& tout)
+{
+    uint160 hashBytes;
+    int addressType = 0;
+
+    if (tout.scriptPubKey.IsPayToScriptHash()) {
+        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
+        addressType = 2;
+    } else if (tout.scriptPubKey.IsPayToPublicKeyHash()) {
+        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+3, tout.scriptPubKey.begin()+23));
+        addressType = 1;
+    } 
+
+    return std::make_pair(hashBytes, addressType);
+}
+
+void IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
+{
+    assert(prefviewdb);
+
+    // Record referrals into the referral DB
+    for (const auto& ref : block.m_vRef) {
+        prefviewdb->InsertReferral(*ref);
+    }
+
+    // Debit and Credit all ANVs of keys in the block
+    std::vector<std::pair<CKeyID, CAmount>> debits_and_credits;
+    for (const auto& txn : block.vtx) {
+        assert(txn);
+
+        //debit senders
+        for (const auto& in :  txn->vin) {
+            const auto &in_out = view.AccessCoin(in.prevout).out;
+            auto address = ExtractAddress(in_out);
+            if(address.second == 0) continue;
+
+            debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * -1}});
+        }
+
+        //credit recipients
+        for (const auto& out : txn->vout) {
+            auto address = ExtractAddress(out);
+            if(address.second == 0) continue;
+
+            debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue}});
+        }
+    }
+
+    //apply the debit and credits to the addresses in the block transactions.
+    for (const auto& t : debits_and_credits) {
+        const auto& key = t.first;
+        const auto amount = t.second;
+        prefviewdb->UpdateANV(key, amount);
+    }
+}
+
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins.
  *  Validity checks that depend on the UTXO set are also done; ConnectBlock()
  *  can fail if those validity checks fail (among other reasons). */
@@ -1886,7 +1946,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     std::vector<PrecomputedTransactionData> txdata;
     txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
 
-    std::vector<std::pair<CAddressIndexKey, CAmount> > addressIndex;
+    KeyActivity addressIndex;
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
 
@@ -1922,19 +1982,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
                     const CTxIn input = tx.vin[j];
                     const CTxOut &prevout = view.AccessCoin(input.prevout).out;
-                    uint160 hashBytes;
-                    int addressType;
 
-                    if (prevout.scriptPubKey.IsPayToScriptHash()) {
-                        hashBytes = uint160(std::vector <unsigned char>(prevout.scriptPubKey.begin()+2, prevout.scriptPubKey.begin()+22));
-                        addressType = 2;
-                    } else if (prevout.scriptPubKey.IsPayToPublicKeyHash()) {
-                        hashBytes = uint160(std::vector <unsigned char>(prevout.scriptPubKey.begin()+3, prevout.scriptPubKey.begin()+23));
-                        addressType = 1;
-                    } else {
-                        hashBytes.SetNull();
-                        addressType = 0;
-                    }
+                    auto address = ExtractAddress(prevout);
+                    const uint160& hashBytes = address.first;
+                    const int addressType = address.second;
 
                     if (fAddressIndex && addressType > 0) {
                         // record spending activity
@@ -1979,28 +2030,17 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         if (fAddressIndex) {
             for (unsigned int k = 0; k < tx.vout.size(); k++) {
                 const CTxOut &out = tx.vout[k];
+                auto address = ExtractAddress(out);
+                if(address.second == 0) continue;
 
-                if (out.scriptPubKey.IsPayToScriptHash()) {
-                    std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
+                const uint160& hashBytes = address.first;
+                const int addressType = address.second;
 
-                    // record receiving activity
-                    addressIndex.push_back(std::make_pair(CAddressIndexKey(2, uint160(hashBytes), pindex->nHeight, i, txhash, k, false), out.nValue));
+                // record receiving activity
+                addressIndex.push_back(std::make_pair(CAddressIndexKey(addressType, uint160(hashBytes), pindex->nHeight, i, txhash, k, false), out.nValue));
 
-                    // record unspent output
-                    addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(2, uint160(hashBytes), txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight)));
-
-                } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
-                    std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
-
-                    // record receiving activity
-                    addressIndex.push_back(std::make_pair(CAddressIndexKey(1, uint160(hashBytes), pindex->nHeight, i, txhash, k, false), out.nValue));
-
-                    // record unspent output
-                    addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(1, uint160(hashBytes), txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight)));
-
-                } else {
-                    continue;
-                }
+                // record unspent output
+                addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(addressType, uint160(hashBytes), txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight)));
 
             }
         }
@@ -2015,9 +2055,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    // Record referrals into the referral DB
-    for (const auto& ref : block.m_vRef) {
-        prefviewdb->InsertReferral(*ref);
+    if(!fJustCheck) {
+        IndexReferralsAndUpdateANV(block, view);
     }
 
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
@@ -3472,6 +3511,7 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
         return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
     if (!ContextualCheckBlock(block, state, chainparams.GetConsensus(), pindexPrev))
         return error("%s: Consensus::ContextualCheckBlock: %s", __func__, FormatStateMessage(state));
+
     if (!ConnectBlock(block, state, &indexDummy, viewNew, chainparams, true))
         return false;
     assert(state.IsValid());
@@ -3926,6 +3966,7 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
             CBlock block;
             if (!ReadBlockFromDisk(block, pindex, chainparams.GetConsensus()))
                 return error("VerifyDB(): *** ReadBlockFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
+
             if (!ConnectBlock(block, state, pindex, coins, chainparams))
                 return error("VerifyDB(): *** found unconnectable block at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
         }
