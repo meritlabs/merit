@@ -126,7 +126,7 @@ BITCOIN_CORE_H = \
   pow.h \
   pog/anv.h \
   pog/select.h \
-  pog/reward.cpp \
+  pog/reward.h \
   protocol.h \
   random.h \
   refdb.h \
