@@ -75,8 +75,7 @@ int nScriptCheckThreads = 0;
 std::atomic_bool fImporting(false);
 bool fReindex = false;
 bool fTxIndex = false;
-//TODO: Don't use fAddressIndex code to update ANV computation.
-bool fAddressIndex = true;
+bool fAddressIndex = false;
 bool fTimestampIndex = false;
 bool fSpentIndex = false;
 bool fHavePruned = false;
@@ -1764,7 +1763,25 @@ static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
 
-void IndexReferralsAndUpdateANV(const CBlock& block, const KeyActivity& debits_and_credits)
+using AddressPair = std::pair<uint160, int>;
+
+AddressPair ExtractAddress(const CTxOut& tout)
+{
+    uint160 hashBytes;
+    int addressType = 0;
+
+    if (tout.scriptPubKey.IsPayToScriptHash()) {
+        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
+        addressType = 2;
+    } else if (tout.scriptPubKey.IsPayToPublicKeyHash()) {
+        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+3, tout.scriptPubKey.begin()+23));
+        addressType = 1;
+    } 
+
+    return std::make_pair(hashBytes, addressType);
+}
+
+void IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
 {
     assert(prefviewdb);
 
@@ -1774,9 +1791,32 @@ void IndexReferralsAndUpdateANV(const CBlock& block, const KeyActivity& debits_a
     }
 
     // Debit and Credit all ANVs of keys in the block
-    for(const auto& activity : debits_and_credits) {
-        const CKeyID key{activity.first.hashBytes};
-        const CAmount amount = activity.second;
+    std::vector<std::pair<CKeyID, CAmount>> debits_and_credits;
+    for (const auto& txn : block.vtx) {
+        assert(txn);
+
+        //debit senders
+        for (const auto& in :  txn->vin) {
+            const auto &in_out = view.AccessCoin(in.prevout).out;
+            auto address = ExtractAddress(in_out);
+            if(address.second == 0) continue;
+
+            debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * -1}});
+        }
+
+        //credit recipients
+        for (const auto& out : txn->vout) {
+            auto address = ExtractAddress(out);
+            if(address.second == 0) continue;
+
+            debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue}});
+        }
+    }
+
+    //apply the debit and credits to the addresses in the block transactions.
+    for (const auto& t : debits_and_credits) {
+        const auto& key = t.first;
+        const auto amount = t.second;
         prefviewdb->UpdateANV(key, amount);
     }
 }
@@ -1942,19 +1982,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
                     const CTxIn input = tx.vin[j];
                     const CTxOut &prevout = view.AccessCoin(input.prevout).out;
-                    uint160 hashBytes;
-                    int addressType;
 
-                    if (prevout.scriptPubKey.IsPayToScriptHash()) {
-                        hashBytes = uint160(std::vector <unsigned char>(prevout.scriptPubKey.begin()+2, prevout.scriptPubKey.begin()+22));
-                        addressType = 2;
-                    } else if (prevout.scriptPubKey.IsPayToPublicKeyHash()) {
-                        hashBytes = uint160(std::vector <unsigned char>(prevout.scriptPubKey.begin()+3, prevout.scriptPubKey.begin()+23));
-                        addressType = 1;
-                    } else {
-                        hashBytes.SetNull();
-                        addressType = 0;
-                    }
+                    auto address = ExtractAddress(prevout);
+                    const uint160& hashBytes = address.first;
+                    const int addressType = address.second;
 
                     if (fAddressIndex && addressType > 0) {
                         // record spending activity
@@ -1999,28 +2030,17 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         if (fAddressIndex) {
             for (unsigned int k = 0; k < tx.vout.size(); k++) {
                 const CTxOut &out = tx.vout[k];
+                auto address = ExtractAddress(out);
+                if(address.second == 0) continue;
 
-                if (out.scriptPubKey.IsPayToScriptHash()) {
-                    std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
+                const uint160& hashBytes = address.first;
+                const int addressType = address.second;
 
-                    // record receiving activity
-                    addressIndex.push_back(std::make_pair(CAddressIndexKey(2, uint160(hashBytes), pindex->nHeight, i, txhash, k, false), out.nValue));
+                // record receiving activity
+                addressIndex.push_back(std::make_pair(CAddressIndexKey(addressType, uint160(hashBytes), pindex->nHeight, i, txhash, k, false), out.nValue));
 
-                    // record unspent output
-                    addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(2, uint160(hashBytes), txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight)));
-
-                } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
-                    std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
-
-                    // record receiving activity
-                    addressIndex.push_back(std::make_pair(CAddressIndexKey(1, uint160(hashBytes), pindex->nHeight, i, txhash, k, false), out.nValue));
-
-                    // record unspent output
-                    addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(1, uint160(hashBytes), txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight)));
-
-                } else {
-                    continue;
-                }
+                // record unspent output
+                addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(addressType, uint160(hashBytes), txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight)));
 
             }
         }
@@ -2035,10 +2055,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    // TODO: Don't use addressIndex because that's bitcore specific
-    // Also Make sure to update DisconnectBlock
     if(!fJustCheck) {
-        IndexReferralsAndUpdateANV(block, addressIndex);
+        IndexReferralsAndUpdateANV(block, view);
     }
 
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
