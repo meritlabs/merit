@@ -123,16 +123,25 @@ KeyANVs ReferralsViewDB::GetAllANVs() const
     while(iter->Valid())
     {
         //filter non ANV keys
-        if(!iter->GetKey(key))
+        if(!iter->GetKey(key)) { 
+            iter->Next();
             continue;
-        if(key.first != DB_ANV)
+        }
+
+        if(key.first != DB_ANV) {
+            iter->Next();
             continue;
+        }
 
         CAmount anv = 0;
-        if(!iter->GetValue(anv))
+        if(!iter->GetValue(anv)) {
+            iter->Next();
             continue;
+        }
 
         anvs.push_back({key.second, anv});
+
+        iter->Next();
     }
     return anvs;
 }
