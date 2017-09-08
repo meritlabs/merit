@@ -191,17 +191,18 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     auto previousBlockHash = pindexPrev->GetBlockHash();
 
     auto subsidy = GetSplitSubsidy(nHeight, chain_params);
-    auto remaining_miner_subsidy = PayAmbassadors(previousBlockHash, subsidy.ambassador, chain_params.total_winning_ambassadors, coinbaseTx, nHeight);
-
-    auto miner_subsidy = subsidy.miner + remaining_miner_subsidy;
 
     coinbaseTx.vin.resize(1);
     coinbaseTx.vin[0].prevout.SetNull();
     coinbaseTx.vout.resize(1);
     coinbaseTx.vout[0].scriptPubKey = scriptPubKeyIn;
 
-    coinbaseTx.vout[0].nValue = nFees + miner_subsidy;
     coinbaseTx.vin[0].scriptSig = CScript() << nHeight << OP_0;
+
+    auto remaining_miner_subsidy = PayAmbassadors(previousBlockHash, subsidy.ambassador, chain_params.total_winning_ambassadors, coinbaseTx, nHeight);
+    auto miner_subsidy = subsidy.miner + remaining_miner_subsidy;
+
+    coinbaseTx.vout[0].nValue = nFees + miner_subsidy;
 
 
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
