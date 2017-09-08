@@ -90,9 +90,6 @@ public:
         return m_hash;
     }
 
-    // Compute a hash that includes both transaction and witness data
-    uint256 GetWitnessHash() const;
-
     /**
      * Get the total transaction size in bytes, including witness data.
      * "Total Size" defined in BIP141 and BIP144.
