@@ -7,13 +7,15 @@
 #include "consensus.h"
 #include "primitives/transaction.h"
 #include "script/interpreter.h"
+#include "script/standard.h"
 #include "validation.h"
 
 // TODO remove the following dependencies
 #include "chain.h"
 #include "coins.h"
+#include "referrals.h"
 #include "utilmoneystr.h"
- 
+
 bool IsFinalTx(const CTransaction &tx, int nBlockHeight, int64_t nBlockTime)
 {
     if (tx.nLockTime == 0)
@@ -200,6 +202,40 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state, bool fChe
         for (const auto& txin : tx.vin)
             if (txin.prevout.IsNull())
                 return state.DoS(10, false, REJECT_INVALID, "bad-txns-prevout-null");
+    }
+
+    return true;
+}
+
+bool Consensus::CheckTxOutputs(const CTransaction& tx, CValidationState& state, const ReferralsViewCache& referralsCache)
+{
+    // check addresses used for vouts are beaconed
+    for (const auto& txout: tx.vout) {
+        std::vector<std::vector<unsigned char>> vSolutions;
+        txnouttype whichType;
+        if (!Solver(txout.scriptPubKey, whichType, vSolutions)) {
+            return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-invalid-dest");
+        }
+
+        CKeyID pubKeyId;
+        CPubKey pubKey;
+
+        // check only in case if destinations ids TX_PUBKEY or TX_PUBKEYHASH
+        switch(whichType) {
+            case TX_PUBKEY:
+                pubKey.Set(vSolutions[0].begin(), vSolutions[0].end());
+                pubKeyId = pubKey.GetID();
+
+            case TX_PUBKEYHASH:
+                pubKeyId = CKeyID(uint160(vSolutions[0]));
+
+            default:
+                continue;
+        }
+
+        if (!referralsCache.WalletIdExists(pubKeyId)) {
+            return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-beaconed");
+        }
     }
 
     return true;
