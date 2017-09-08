@@ -24,7 +24,7 @@ namespace pog
     AnvDistribution::AnvDistribution(KeyANVs anvs) : m_inverted(anvs.size())
     {
         //It doesn't make sense to sample from an empty distribution.
-            assert(anvs.empty() == false);
+        assert(anvs.empty() == false);
 
         //index anvs by key id for convenience. 
         std::transform(std::begin(anvs), std::end(anvs), std::inserter(m_anvs, std::begin(m_anvs)),
@@ -42,9 +42,6 @@ namespace pog
 
         assert(m_inverted.size() == anvs.size());
 
-        //back will always return because we assume m_anvs is non-empty
-        m_max_anv = m_inverted.back().anv;
-
         //compute CDF by adding up all the ANVs 
         CAmount previous_anv = 0;
         std::transform(std::begin(anvs), std::end(anvs), std::begin(m_inverted),
@@ -53,6 +50,11 @@ namespace pog
                     previous_anv = w.anv;
                     return w;
                 });
+
+        //back will always return because we assume m_anvs is non-empty
+        m_max_anv = m_inverted.back().anv;
+
+        assert(m_max_anv >= 0);
     }
 
     const KeyANV& AnvDistribution::Sample(const uint256& hash) const
@@ -60,7 +62,7 @@ namespace pog
         assert(m_inverted.empty() == false);
 
         //TODO: Should we loop over whole hash?
-        auto selected_anv = hash.GetUint64(0) % m_max_anv;
+        CAmount selected_anv = hash.GetUint64(0) % m_max_anv;
 
         //find first inverted Wallet Anv that is greater or equal to the selected value.
         auto pos = std::lower_bound(std::begin(m_inverted), std::end(m_inverted), 
@@ -72,8 +74,8 @@ namespace pog
         assert(selected_anv < m_max_anv);
         assert(pos != std::end(m_inverted)); //it should be impossible to not find an anv
                                              //because selected_anv must be less than max
-
         auto selected_key = m_anvs.find(pos->key);
+
         assert(selected_key != std::end(m_anvs)); //all anvs in m_inverted must be in 
                                                     //our index
 
