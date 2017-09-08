@@ -8,6 +8,7 @@
 #include "primitives/referral.h"
 #include "refdb.h"
 #include "sync.h"
+#include "uint256.h"
 
 #include <unordered_map>
 #include <boost/optional.hpp>

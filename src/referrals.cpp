@@ -33,14 +33,14 @@ MaybeReferral ReferralsViewCache::GetReferral(const uint256& code) const
     return {};
 }
 
-void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const 
+void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
     //insert into referral cache
     m_referral_cache.insert(std::make_pair(ref.m_codeHash, ref));
 }
 
-bool ReferralsViewCache::ReferralCodeExists(const uint256& code) const 
+bool ReferralsViewCache::ReferralCodeExists(const uint256& code) const
 {
     {
         LOCK(m_cs_cache);
@@ -87,7 +87,7 @@ MaybeKeyID ReferralsViewCache::GetReferrer(const CKeyID& key) const
     }
     return {};
 }
-    
+
 bool ReferralsViewCache::WalletIdExists(const CKeyID& key) const
 {
     {
