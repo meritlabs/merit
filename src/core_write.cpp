@@ -224,7 +224,7 @@ void RefToUniv(const Referral& ref, const uint256& hashBlock, UniValue& entry, b
     entry.pushKV("version", ref.m_nVersion);
     entry.pushKV("codeHash", ref.m_codeHash.GetHex());
     entry.pushKV("parent", ref.m_previousReferral.GetHex());
-    entry.pushKV("key", ref.m_pubKeyId.GetHex());
+    entry.pushKV("key", EncodeDestination(ref.m_pubKeyId));
     entry.pushKV("size", (int)::GetSerializeSize(ref, SER_NETWORK, PROTOCOL_VERSION));
 
     if (!hashBlock.IsNull())
