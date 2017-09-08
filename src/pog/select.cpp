@@ -109,4 +109,9 @@ namespace pog
         return samples;
     }
 
+    size_t WalletSelector::Size() const
+    {
+        return m_distribution.Size();
+    }
+
 } // namespace pog

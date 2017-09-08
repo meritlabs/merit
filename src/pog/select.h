@@ -35,6 +35,8 @@ namespace pog
             WalletSelector(const KeyANVs& anvs);
 
             KeyANVs Select(uint256 hash, size_t n) const;
+
+            size_t Size() const;
         private:
             AnvDistribution m_distribution;
     };
