@@ -19,13 +19,15 @@
 #include "fs.h"
 #include "hash.h"
 #include "init.h"
+#include "pog/reward.h"
+#include "pog/select.h"
 #include "policy/fees.h"
 #include "policy/policy.h"
 #include "policy/rbf.h"
 #include "pow.h"
 #include "primitives/block.h"
-#include "primitives/transaction.h"
 #include "primitives/referral.h"
+#include "primitives/transaction.h"
 #include "random.h"
 #include "refdb.h"
 #include "referrals.h"
@@ -1121,9 +1123,9 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus
     return true;
 }
 
-CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
+CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params)
 {
-    int halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
+    int halvings = height / consensus_params.nSubsidyHalvingInterval;
     // Force block reward to zero when right shift is undefined.
     if (halvings >= 64)
         return 0;
@@ -1132,6 +1134,61 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
     // Subsidy is cut in half every 210,000 blocks which will occur approximately every 4 years.
     nSubsidy >>= halvings;
     return nSubsidy;
+}
+
+SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_params)
+{
+    assert(consensus_params.ambassador_percent_cut >= 0 && consensus_params.ambassador_percent_cut <= 100);
+    auto block_subsidy = GetBlockSubsidy(height, consensus_params);
+
+    auto ambassador_subsidy = (block_subsidy * 100) / 35; 
+    auto miner_subsidy = block_subsidy - ambassador_subsidy;
+
+    assert(ambassador_subsidy < miner_subsidy);
+    assert(miner_subsidy + ambassador_subsidy == block_subsidy);
+    return {miner_subsidy, ambassador_subsidy};
+}
+
+void PayAmbassador(const CTxDestination& ambassador, CAmount winnings, CMutableTransaction& tx, int height)
+{
+    if (!IsValidDestination(ambassador)) {
+        throw std::runtime_error{"invalid ambassador"};
+    }
+
+    auto script = GetScriptForDestination(ambassador);
+    tx.vout.push_back({winnings, script});
+}
+
+CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t desired_winners, CMutableTransaction& tx, int height)
+{
+    //validate sane winner amount
+    assert(height >= 0);
+    assert(desired_winners > 0);
+    assert(desired_winners < 100);
+    assert(prefviewdb != nullptr);
+
+    // Wallet selector will create a distribution from all the keys
+    pog::WalletSelector selector{pog::GetAllANVs(*prefviewdb)};
+
+    // We may have fewer keys in the distribution than the expected winners,
+    // so just pick smallest of the two.
+    desired_winners = std::min(desired_winners, selector.Size());
+
+    // Select the N winners using the previousBlockHash as the seed
+    auto winners = selector.Select(previousBlockHash, desired_winners);
+
+    assert(winners.size() <= desired_winners);
+
+    // Compute reward for all the winners
+    auto rewards = pog::RewardAmbassadors(winners, total);
+
+    // Pay them by adding a txout to the coinbase transaction;
+    for(const auto& reward : rewards.ambassadors) { 
+        PayAmbassador(reward.key, reward.amount, tx, height);
+    }
+
+    //Return the remainder which will be given to the miner;
+    return rewards.remainder;
 }
 
 bool IsInitialBlockDownload()
