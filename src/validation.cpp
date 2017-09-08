@@ -1141,7 +1141,7 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
     assert(consensus_params.ambassador_percent_cut >= 0 && consensus_params.ambassador_percent_cut <= 100);
     auto block_subsidy = GetBlockSubsidy(height, consensus_params);
 
-    auto ambassador_subsidy = (block_subsidy * 100) / 35; 
+    auto ambassador_subsidy = (block_subsidy * 100) / consensus_params.ambassador_percent_cut; 
     auto miner_subsidy = block_subsidy - ambassador_subsidy;
 
     assert(ambassador_subsidy < miner_subsidy);
