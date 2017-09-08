@@ -3191,8 +3191,8 @@ UniValue validatereferralcode(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1) {
         throw std::runtime_error(
-            "Validate referral code\n"
-            + HelpExampleCli("validatereferralcode", "")
+            "validatereferralcode \"code\"\n"
+            + HelpExampleCli("validatereferralcode", "code")
         );
     }
 
@@ -3213,7 +3213,7 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() != 1 || request.params[0].get_str().empty()) {
         throw std::runtime_error(
-            "unlockwallet\n"
+            "unlockwallet \"code\"\n"
             "Updates the wallet with referral code and beacons first key with associated referral.\n"
             "Returns an object containing various wallet state info.\n"
             "\nArguments:\n"
@@ -3333,7 +3333,7 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 2 || request.params[0].get_str().empty() || request.params[1].get_str().empty()) {
         throw std::runtime_error(
-            "unlockwalletwithaddress\n"
+            "unlockwalletwithaddress \"address\" \"code\"\n"
             "Updates the wallet with referral code and beacons first key with associated referral.\n"
             "Return information about the given bitcoin address..\n"
             "\nArguments:\n"
@@ -3509,8 +3509,8 @@ static const CRPCCommand commands[] =
     
     // merit specific commands
 
-    { "referral",           "validatereferralcode",     &validatereferralcode,     {} },
-    { "referral",           "unlockwallet",             &unlockwallet,             {"referralcode"} },
+    { "referral",           "validatereferralcode",     &validatereferralcode,     {"code"} },
+    { "referral",           "unlockwallet",             &unlockwallet,             {"code"} },
     { "referral",           "getanv",                   &getanv,                   {"address"} },
 #ifdef ENABLE_WALLET
     { "referral",           "unlockwalletwithaddress",  &unlockwalletwithaddress,  {"address", "referralcode"} }
