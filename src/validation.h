@@ -293,7 +293,27 @@ bool IsInitialBlockDownload();
 bool GetTransaction(const uint256 &hash, CTransactionRef &tx, const Consensus::Params& params, uint256 &hashBlock, bool fAllowSlow = false);
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
-CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
+
+CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params);
+
+/**
+ * We split the block subsidy between the miners and the ambassadors.
+ * Note a block has many ambassadors and they further split the ambassador
+ * cut.
+ */
+struct SplitSubsidy
+{
+    CAmount miner;
+    CAmount ambassador;
+};
+
+SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_params);
+
+/**
+ * Include ambassadors into the coinbase transaction and split the total payment between them.
+ * Any remainder is returned.
+ */
+CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t desired_winners, CMutableTransaction& tx, int height);
 
 /** Guess verification progress (as a fraction between 0.0=genesis and 1.0=current tip). */
 double GuessVerificationProgress(const ChainTxData& data, CBlockIndex* pindex);

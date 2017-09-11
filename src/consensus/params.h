@@ -61,6 +61,8 @@ struct Params {
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
+    int64_t ambassador_percent_cut;
+    size_t total_winning_ambassadors;
     uint256 nMinimumChainWork;
     uint256 defaultAssumeValid;
 };
