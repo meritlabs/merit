@@ -211,12 +211,6 @@ bool Consensus::CheckTxOutputs(const CTransaction& tx, CValidationState& state, 
 {
     // check addresses used for vouts are beaconed
     for (const auto& txout: tx.vout) {
-        std::vector<std::vector<unsigned char>> vSolutions;
-        txnouttype whichType;
-        if (!Solver(txout.scriptPubKey, whichType, vSolutions)) {
-            return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-invalid-dest");
-        }
-
         CTxDestination dest;
         if (!ExtractDestination(txout.scriptPubKey, dest) || !IsValidDestination(dest)) {
             return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-invalid-dest");
@@ -224,7 +218,7 @@ bool Consensus::CheckTxOutputs(const CTransaction& tx, CValidationState& state, 
 
         const CKeyID* pubKeyId = boost::get<CKeyID>(&dest);
 
-        // destination does not refera to a key
+        // destination does not refer to a key
         if (pubKeyId == nullptr) {
             return true;
         }

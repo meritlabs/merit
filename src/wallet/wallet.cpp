@@ -2833,6 +2833,15 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
 
         if (recipient.fSubtractFeeFromAmount)
             nSubtractFeeFromAmount++;
+
+        CTxDestination dest;
+        ExtractDestination(recipient.scriptPubKey, dest);
+        const CKeyID* pubKeyId = boost::get<CKeyID>(&dest);
+
+        if (pubKeyId && !prefviewcache->AddressBeaconed(*pubKeyId)) {
+            strFailReason = _("Transaction recipient address is not beaconed");
+            return false;
+        }
     }
     if (vecSend.empty())
     {
@@ -3216,6 +3225,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CCon
             if (!wtxNew.AcceptToMemoryPool(maxTxFee, state)) {
                 LogPrintf("CommitTransaction(): Transaction cannot be broadcast immediately, %s\n", state.GetRejectReason());
                 // TODO: if we expect the failure to be long term or permanent, instead delete wtx from the wallet and return failure.
+                return false;
             } else {
                 wtxNew.RelayWalletTransaction(connman);
             }
@@ -3522,8 +3532,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
         LogPrintf("missingExternal = %d\n", missingExternal);
 
         // skip generating external keys for now
-        // for (int64_t i = missingInternal + missingExternal; i--;)
-        for (int64_t i = missingInternal; i--;)
+        for (int64_t i = missingInternal + missingExternal; i--;)
         {
             if (i < missingInternal) {
                 internal = true;
@@ -3883,7 +3892,7 @@ void CWallet::GetScriptForMining(std::shared_ptr<CReserveScript> &script)
     // request internal key if wallet is not unlocked and we have only
     // HD master key and one derived from it (in case HD is enabled)
     // or one plain external key in case it's not after call to unlock
-    if (!rKey->GetReservedKey(pubkey, !IsReferred()))
+    if (!rKey->GetReservedKey(pubkey, true))
         return;
 
     script = rKey;
