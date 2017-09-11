@@ -183,11 +183,10 @@ ReferralRef CWallet::Unlock(const uint256& referredByHash)
 
     CWalletDB walletdb(*dbw);
 
-    bool internal = !IsHDEnabled() || !CanSupportFeature(FEATURE_HD_SPLIT);
+    bool internal = IsHDEnabled() && CanSupportFeature(FEATURE_HD_SPLIT);
     LogPrintf("Unlock wallet with %s key\n", internal ? "internal" : "external");
 
     LOCK(cs_wallet);
-
 
     // generate new key pair for the wallet
     CPubKey pubkey(GenerateNewKey(walletdb, internal));
@@ -3512,13 +3511,11 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
         int64_t missingExternal = std::max(std::max((int64_t) nTargetSize, (int64_t) 1) - (int64_t)setExternalKeyPool.size(), (int64_t) 0);
         int64_t missingInternal = std::max(std::max((int64_t) nTargetSize, (int64_t) 1) - (int64_t)setInternalKeyPool.size(), (int64_t) 0);
 
-        /*
         if (!IsHDEnabled() || !CanSupportFeature(FEATURE_HD_SPLIT))
         {
             // don't create extra internal keys
             missingInternal = 0;
         }
-        */
         bool internal = false;
 
         LogPrintf("missingInternal = %d\n", missingInternal);
@@ -3574,7 +3571,7 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRe
         if (!IsLocked() && IsReferred())
             TopUpKeyPool();
 
-        bool fReturningInternal = !IsHDEnabled() || !CanSupportFeature(FEATURE_HD_SPLIT) || fRequestedInternal;
+        bool fReturningInternal = IsHDEnabled() && CanSupportFeature(FEATURE_HD_SPLIT) && fRequestedInternal;
         std::set<int64_t>& setKeyPool = fReturningInternal ? setInternalKeyPool : setExternalKeyPool;
 
         // Get the oldest key
@@ -3883,7 +3880,10 @@ void CWallet::GetScriptForMining(std::shared_ptr<CReserveScript> &script)
 {
     std::shared_ptr<CReserveKey> rKey = std::make_shared<CReserveKey>(this);
     CPubKey pubkey;
-    if (!rKey->GetReservedKey(pubkey))
+    // request internal key if wallet is not unlocked and we have only
+    // HD master key and one derived from it (in case HD is enabled)
+    // or one plain external key in case it's not after call to unlock
+    if (!rKey->GetReservedKey(pubkey, !IsReferred()))
         return;
 
     script = rKey;
@@ -4178,22 +4178,18 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
             // ensure this wallet.dat can only be opened by clients supporting HD with chain split
             walletInstance->SetMinVersion(FEATURE_HD_SPLIT);
 
-            /*
-             * TODO: Generate master key on unlock
-             * DO NOT GENERATE KEYS ON FIRST RUN AS WALLET IS LOCKED
             // generate a new master key
             CPubKey masterPubKey = walletInstance->GenerateNewHDMasterKey();
             if (!walletInstance->SetHDMasterKey(masterPubKey))
                 throw std::runtime_error(std::string(__func__) + ": Storing master key failed");
-            */
         }
 
-        /* DO NOT GENERATE KEYS ON FIRST RUN AS WALLET IS LOCKED
-        if (!walletInstance->TopUpKeyPool()) {
-            InitError(_("Unable to generate initial keys") += "\n");
-            return NULL;
+        if (walletInstance->IsReferred()) {
+            if (!walletInstance->TopUpKeyPool()) {
+                InitError(_("Unable to generate initial keys") += "\n");
+                return NULL;
+            }
         }
-        */
 
         walletInstance->SetBestChain(chainActive.GetLocator());
     }
