@@ -164,8 +164,13 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
 
 ReferralRef CWallet::Unlock(const uint256& referredByHash)
 {
-    // check that wallet is not unlocked yet and there is no unlock referral transactions in the wallet yet
-    if (!IsReferred() && !mapWalletRTx.empty()) {
+    // check wallet is not unlocked yet
+    if (IsReferred()) {
+        throw std::runtime_error(std::string(__func__) + ": wallet is already unlocked");
+    }
+
+    // check that there is no unlock referral transactions in the wallet yet
+    if (!mapWalletRTx.empty()) {
         throw std::runtime_error(std::string(__func__) + ": wallet alredy have unconfirmed unlock referral transaction");
     }
 
@@ -178,9 +183,11 @@ ReferralRef CWallet::Unlock(const uint256& referredByHash)
 
     CWalletDB walletdb(*dbw);
 
-    bool internal = IsHDEnabled() && CanSupportFeature(FEATURE_HD_SPLIT);
+    bool internal = !IsHDEnabled() || !CanSupportFeature(FEATURE_HD_SPLIT);
+    LogPrintf("Unlock wallet with %s key\n", internal ? "internal" : "external");
 
     LOCK(cs_wallet);
+
 
     // generate new key pair for the wallet
     CPubKey pubkey(GenerateNewKey(walletdb, internal));
@@ -1071,7 +1078,7 @@ bool CWallet::AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose)
 
     // Set unlock referral tx in case this tx is root unlock tx, wallet us not unlocked yet and tx is in the blockchain, aka confirmed
     if (rtx.IsUnlockTx() && !IsReferred() && rtx.IsAccepted()) {
-        SetUnlockReferralTx(rtx);
+        SetUnlockReferralTx(rtx, true);
     }
 
     // Notify UI of new or updated transaction
@@ -1113,9 +1120,9 @@ bool CWallet::LoadToWallet(const CWalletTx& wtxIn)
 
 bool CWallet::LoadToWallet(const ReferralTx& rtxIn)
 {
-    // if (!IsReferred() && rtxIn.IsUnlockTx()) {
-    //     SetUnlockReferralTx(rtxIn);
-    // }
+    if (!IsReferred() && rtxIn.IsUnlockTx()) {
+        SetUnlockReferralTx(rtxIn);
+    }
 
     uint256 hash = rtxIn.GetHash();
 
@@ -1648,26 +1655,28 @@ ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy)
     return referral;
 }
 
-bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx)
+bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx, bool topUpKeyPool)
 {
     if (IsReferred() || !rtx.IsUnlockTx() || !rtx.IsAccepted()) {
         return false;
     }
 
-    LogPrintf("------ Setting unlock referral tx ------\n");
+    LogPrintf("Setting unlock referral tx\n");
 
     // set referral tx as unlock tx
     m_unlockReferralTx = rtx;
 
-    // top up keypool after unlocking wallet
-    TopUpKeyPool();
+    if (topUpKeyPool) {
+        // top up keypool after unlocking wallet
+        TopUpKeyPool();
+    }
 
     return true;
 }
 
 bool CWallet::IsReferred() const
 {
-    LogPrintf("+++++++ Wallet is referred? +++++++ %s\n", !m_unlockReferralTx.IsNull() ? "YESSSS!!!": "NOPE :(");
+    LogPrintf("Wallet is %sreferred\n", !m_unlockReferralTx.IsNull() ? "": "NOT ");
     return !m_unlockReferralTx.IsNull();
 }
 
@@ -3503,14 +3512,21 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
         int64_t missingExternal = std::max(std::max((int64_t) nTargetSize, (int64_t) 1) - (int64_t)setExternalKeyPool.size(), (int64_t) 0);
         int64_t missingInternal = std::max(std::max((int64_t) nTargetSize, (int64_t) 1) - (int64_t)setInternalKeyPool.size(), (int64_t) 0);
 
+        /*
         if (!IsHDEnabled() || !CanSupportFeature(FEATURE_HD_SPLIT))
         {
             // don't create extra internal keys
             missingInternal = 0;
         }
+        */
         bool internal = false;
 
-        for (int64_t i = missingInternal + missingExternal; i--;)
+        LogPrintf("missingInternal = %d\n", missingInternal);
+        LogPrintf("missingExternal = %d\n", missingExternal);
+
+        // skip generating external keys for now
+        // for (int64_t i = missingInternal + missingExternal; i--;)
+        for (int64_t i = missingInternal; i--;)
         {
             if (i < missingInternal) {
                 internal = true;
@@ -3543,6 +3559,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
                 setInternalKeyPool.size() + setExternalKeyPool.size(),
                 setInternalKeyPool.size());
         }
+
     }
     return true;
 }
@@ -3557,7 +3574,7 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRe
         if (!IsLocked() && IsReferred())
             TopUpKeyPool();
 
-        bool fReturningInternal = IsHDEnabled() && CanSupportFeature(FEATURE_HD_SPLIT) && fRequestedInternal;
+        bool fReturningInternal = !IsHDEnabled() || !CanSupportFeature(FEATURE_HD_SPLIT) || fRequestedInternal;
         std::set<int64_t>& setKeyPool = fReturningInternal ? setInternalKeyPool : setExternalKeyPool;
 
         // Get the oldest key
