@@ -191,6 +191,8 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     auto previousBlockHash = pindexPrev->GetBlockHash();
 
     auto subsidy = GetSplitSubsidy(nHeight, chain_params);
+    assert(subsidy.miner > 0);
+    assert(subsidy.ambassador > 0);
 
     coinbaseTx.vin.resize(1);
     coinbaseTx.vin[0].prevout.SetNull();
@@ -199,11 +201,28 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     coinbaseTx.vin[0].scriptSig = CScript() << nHeight << OP_0;
 
-    auto remaining_miner_subsidy = PayAmbassadors(previousBlockHash, subsidy.ambassador, chain_params.total_winning_ambassadors, coinbaseTx, nHeight);
+    /**
+     * Merit splits the coinbase between the miners and the ambassadors of the system.
+     * An ambassador is someone who brings a lot of people into the Merit system
+     * via referrals. PayAmbasssadors will insert new outputs into vout.
+     */
+    auto remaining_miner_subsidy = PayAmbassadors(
+            previousBlockHash,
+            subsidy.ambassador,
+            chain_params.total_winning_ambassadors,
+            coinbaseTx,
+            nHeight);
+    assert(remaining_miner_subsidy >= 0);
+
+    /**
+     * The miner recieves their subsidy and any remaining subsidy that was left
+     * over from paying the ambassadors. The reason there is a remaining subsidy
+     * is because we use integer math.
+     */
     auto miner_subsidy = subsidy.miner + remaining_miner_subsidy;
+    assert(miner_subsidy > 0);
 
     coinbaseTx.vout[0].nValue = nFees + miner_subsidy;
-
 
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
     pblocktemplate->vchCoinbaseCommitment = GenerateCoinbaseCommitment(*pblock, pindexPrev, chain_params);
