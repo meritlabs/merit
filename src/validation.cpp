@@ -820,7 +820,9 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             scriptVerifyFlags = gArgs.GetArg("-promiscuousmempoolflags", scriptVerifyFlags);
         }
 
-        Consensus::CheckTxOutputs(tx, state, *prefviewcache);
+        if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache)) {
+            return false;
+        }
 
         // Check against previous transactions
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.

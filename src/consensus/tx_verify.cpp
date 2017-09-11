@@ -217,20 +217,16 @@ bool Consensus::CheckTxOutputs(const CTransaction& tx, CValidationState& state, 
             return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-invalid-dest");
         }
 
-        CKeyID pubKeyId;
-        CPubKey pubKey;
+        CTxDestination dest;
+        if (!ExtractDestination(txout.scriptPubKey, dest) || !IsValidDestination(dest)) {
+            return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-invalid-dest");
+        }
 
-        // check only in case if destinations ids TX_PUBKEY or TX_PUBKEYHASH
-        switch(whichType) {
-            case TX_PUBKEY:
-                pubKey.Set(vSolutions[0].begin(), vSolutions[0].end());
-                pubKeyId = pubKey.GetID();
+        const CKeyID* pubKeyId = boost::get<CKeyID>(&dest);
 
-            case TX_PUBKEYHASH:
-                pubKeyId = CKeyID(uint160(vSolutions[0]));
-
-            default:
-                continue;
+        // destination does not refera to a key
+        if (pubKeyId == nullptr) {
+            return true;
         }
 
         if (!referralsCache.WalletIdExists(pubKeyId)) {
