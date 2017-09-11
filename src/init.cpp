@@ -1767,8 +1767,3 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     return !fRequestShutdown;
 }
-
-inline std::string flags::ConvertToCliFlag(const std::string flag)
-{
-    return "-" + flag;
-}

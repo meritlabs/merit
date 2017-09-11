@@ -3341,7 +3341,7 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
         // check if provided referral code hash is valid, i.e. exists in the blockchain
         if (!prefviewcache->ReferralCodeExists(codeHash))
         {
-            throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain");
+            throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain (RPC)");
         }
 
         CKeyID addressKey;
@@ -3453,7 +3453,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "removeprunedfunds",        &removeprunedfunds,        {"txid"} },
 
     { "generating",         "generate",                 &generate,                 {"nblocks","maxtries"} },
-    
+
     // merit specific commands
 
     { "referral",           "validatereferralcode",     &validatereferralcode,     {} },
