@@ -6,16 +6,14 @@
 
 import time
 
-from test_framework.test_framework import BitcoinTestFramework, BITCOIND_PROC_WAIT_TIMEOUT
+from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
     assert_raises_jsonrpc,
 )
 
 class WalletEncryptionTest(BitcoinTestFramework):
-
-    def __init__(self):
-        super().__init__()
+    def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 1
 
@@ -31,7 +29,7 @@ class WalletEncryptionTest(BitcoinTestFramework):
 
         # Encrypt the wallet
         self.nodes[0].node_encrypt_wallet(passphrase)
-        self.nodes[0] = self.start_node(0, self.options.tmpdir)
+        self.start_node(0)
 
         # Test that the wallet is encrypted
         assert_raises_jsonrpc(-13, "Please enter the wallet passphrase with walletpassphrase first", self.nodes[0].dumpprivkey, address)

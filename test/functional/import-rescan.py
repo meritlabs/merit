@@ -7,11 +7,11 @@
 Test rescan behavior of importaddress, importpubkey, importprivkey, and
 importmulti RPCs with different types of keys and rescan options.
 
-In the first part of the test, node 0 creates an address for each type of
-import RPC call and sends BTC to it. Then other nodes import the addresses,
-and the test makes listtransactions and getbalance calls to confirm that the
-importing node either did or did not execute rescans picking up the send
-transactions.
+In the first part of the test, node 1 creates an address for each type of
+import RPC call and node 0 sends BTC to it. Then other nodes import the
+addresses, and the test makes listtransactions and getbalance calls to confirm
+that the importing node either did or did not execute rescans picking up the
+send transactions.
 
 In the second part of the test, node 0 sends more BTC to each address, and the
 test makes more listtransactions and getbalance calls to confirm that the
@@ -111,8 +111,7 @@ TIMESTAMP_WINDOW = 2 * 60 * 60
 
 
 class ImportRescanTest(BitcoinTestFramework):
-    def __init__(self):
-        super().__init__()
+    def set_test_params(self):
         self.num_nodes = 2 + len(IMPORT_NODES)
 
     def setup_network(self):
@@ -121,7 +120,8 @@ class ImportRescanTest(BitcoinTestFramework):
             if import_node.prune:
                 extra_args[i] += ["-prune=1"]
 
-        self.nodes = self.start_nodes(self.num_nodes, self.options.tmpdir, extra_args)
+        self.add_nodes(self.num_nodes, extra_args)
+        self.start_nodes()
         for i in range(1, self.num_nodes):
             connect_nodes(self.nodes[i], 0)
 
@@ -161,7 +161,6 @@ class ImportRescanTest(BitcoinTestFramework):
                 variant.check()
 
         # Create new transactions sending to each address.
-        fee = self.nodes[0].getnetworkinfo()["relayfee"]
         for i, variant in enumerate(IMPORT_VARIANTS):
             variant.sent_amount = 10 - (2 * i + 1) / 8.0
             variant.sent_txid = self.nodes[0].sendtoaddress(variant.address["address"], variant.sent_amount)

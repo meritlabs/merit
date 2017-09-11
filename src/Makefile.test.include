@@ -64,6 +64,7 @@ BITCOIN_TESTS =\
   test/sanity_tests.cpp \
   test/scheduler_tests.cpp \
   test/script_P2SH_tests.cpp \
+  test/script_P2PKH_tests.cpp \
   test/script_tests.cpp \
   test/scriptnum_tests.cpp \
   test/serialize_tests.cpp \
@@ -74,8 +75,6 @@ BITCOIN_TESTS =\
   test/test_bitcoin.cpp \
   test/test_bitcoin.h \
   test/test_bitcoin_main.cpp \
-  test/testutil.cpp \
-  test/testutil.h \
   test/timedata_tests.cpp \
   test/torcontrol_tests.cpp \
   test/transaction_tests.cpp \

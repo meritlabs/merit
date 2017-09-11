@@ -88,6 +88,7 @@ enum RPCErrorCode
     // Referral engine errors
     RPC_REFERRER_IS_SET              = -100, //!< Wallet already has referal code and referrer set
     RPC_REFERRER_IS_NOT_SET          = -101, //!< Wallet does not have referal code and referrer set
+    RPC_CODE_DOES_NOT_EXIST          = -103, //!< Wallet does not have referal code and referrer set
 };
 
 UniValue JSONRPCRequestObj(const std::string& strMethod, const UniValue& params, const UniValue& id);
@@ -95,8 +96,6 @@ UniValue JSONRPCReplyObj(const UniValue& result, const UniValue& error, const Un
 std::string JSONRPCReply(const UniValue& result, const UniValue& error, const UniValue& id);
 UniValue JSONRPCError(int code, const std::string& message);
 
-/** Get name of RPC authentication cookie file */
-fs::path GetAuthCookieFile();
 /** Generate a new RPC authentication cookie and write it to disk */
 bool GenerateAuthCookie(std::string *cookie_out);
 /** Read the RPC authentication cookie from disk */

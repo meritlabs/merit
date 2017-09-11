@@ -1,5 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
+// Copyright (c) 2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,7 +9,6 @@
 #include "chain.h"
 #include "consensus/validation.h"
 #include "core_io.h"
-#include "init.h"
 #include "httpserver.h"
 #include "validation.h"
 #include "net.h"
@@ -16,8 +16,11 @@
 #include "policy/fees.h"
 #include "policy/policy.h"
 #include "policy/rbf.h"
+#include "referrals.h"
 #include "rpc/mining.h"
+#include "rpc/safemode.h"
 #include "rpc/server.h"
+#include "rpc/misc.h"
 #include "script/sign.h"
 #include "timedata.h"
 #include "util.h"
@@ -25,11 +28,13 @@
 #include "wallet/coincontrol.h"
 #include "wallet/feebumper.h"
 #include "wallet/wallet.h"
-#include "wallet/walletdb.h"
+#include "pog/anv.h"
+
+#include <init.h>  // For StartShutdown
 
 #include <stdint.h>
-
 #include <univalue.h>
+#include <numeric>
 
 static const std::string WALLET_ENDPOINT_BASE = "/wallet/";
 
@@ -172,18 +177,18 @@ UniValue getnewaddress(const JSONRPCRequest& request)
 
     pwallet->SetAddressBook(keyID, strAccount, "receive");
 
-    return CBitcoinAddress(keyID).ToString();
+    return EncodeDestination(keyID);
 }
 
 
-CBitcoinAddress GetAccountAddress(CWallet* const pwallet, std::string strAccount, bool bForceNew=false)
+CTxDestination GetAccountAddress(CWallet* const pwallet, std::string strAccount, bool bForceNew=false)
 {
     CPubKey pubKey;
     if (!pwallet->GetAccountPubkey(pubKey, strAccount, bForceNew)) {
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
     }
 
-    return CBitcoinAddress(pubKey.GetID());
+    return pubKey.GetID();
 }
 
 UniValue getaccountaddress(const JSONRPCRequest& request)
@@ -215,7 +220,7 @@ UniValue getaccountaddress(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VSTR);
 
-    ret = GetAccountAddress(pwallet, strAccount).ToString();
+    ret = EncodeDestination(GetAccountAddress(pwallet, strAccount));
     return ret;
 }
 
@@ -254,7 +259,7 @@ UniValue getrawchangeaddress(const JSONRPCRequest& request)
 
     CKeyID keyID = vchPubKey.GetID();
 
-    return CBitcoinAddress(keyID).ToString();
+    return EncodeDestination(keyID);
 }
 
 
@@ -279,24 +284,25 @@ UniValue setaccount(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    CBitcoinAddress address(request.params[0].get_str());
-    if (!address.IsValid())
+    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
+    }
 
     std::string strAccount;
-    if (request.params.size() > 1)
+    if (!request.params[1].isNull())
         strAccount = AccountFromValue(request.params[1]);
 
     // Only add the account if the address is yours.
-    if (IsMine(*pwallet, address.Get())) {
+    if (IsMine(*pwallet, dest)) {
         // Detect when changing the account of an address that is the 'unused current key' of another account:
-        if (pwallet->mapAddressBook.count(address.Get())) {
-            std::string strOldAccount = pwallet->mapAddressBook[address.Get()].name;
-            if (address == GetAccountAddress(pwallet, strOldAccount)) {
+        if (pwallet->mapAddressBook.count(dest)) {
+            std::string strOldAccount = pwallet->mapAddressBook[dest].name;
+            if (dest == GetAccountAddress(pwallet, strOldAccount)) {
                 GetAccountAddress(pwallet, strOldAccount, true);
             }
         }
-        pwallet->SetAddressBook(address.Get(), strAccount, "receive");
+        pwallet->SetAddressBook(dest, strAccount, "receive");
     }
     else
         throw JSONRPCError(RPC_MISC_ERROR, "setaccount can only be used with own address");
@@ -327,12 +333,13 @@ UniValue getaccount(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    CBitcoinAddress address(request.params[0].get_str());
-    if (!address.IsValid())
+    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
+    }
 
     std::string strAccount;
-    std::map<CTxDestination, CAddressBookData>::iterator mi = pwallet->mapAddressBook.find(address.Get());
+    std::map<CTxDestination, CAddressBookData>::iterator mi = pwallet->mapAddressBook.find(dest);
     if (mi != pwallet->mapAddressBook.end() && !(*mi).second.name.empty()) {
         strAccount = (*mi).second.name;
     }
@@ -369,11 +376,12 @@ UniValue getaddressesbyaccount(const JSONRPCRequest& request)
 
     // Find all addresses that have the given account
     UniValue ret(UniValue::VARR);
-    for (const std::pair<CBitcoinAddress, CAddressBookData>& item : pwallet->mapAddressBook) {
-        const CBitcoinAddress& address = item.first;
+    for (const std::pair<CTxDestination, CAddressBookData>& item : pwallet->mapAddressBook) {
+        const CTxDestination& dest = item.first;
         const std::string& strName = item.second.name;
-        if (strName == strAccount)
-            ret.push_back(address.ToString());
+        if (strName == strAccount) {
+            ret.push_back(EncodeDestination(dest));
+        }
     }
     return ret;
 }
@@ -453,11 +461,13 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
             + HelpExampleRpc("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\", 0.1, \"donation\", \"seans outpost\"")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    CBitcoinAddress address(request.params[0].get_str());
-    if (!address.IsValid())
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
+    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    if (!IsValidDestination(dest)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+    }
 
     // Amount
     CAmount nAmount = AmountFromValue(request.params[1]);
@@ -466,26 +476,26 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
 
     // Wallet comments
     CWalletTx wtx;
-    if (request.params.size() > 2 && !request.params[2].isNull() && !request.params[2].get_str().empty())
+    if (!request.params[2].isNull() && !request.params[2].get_str().empty())
         wtx.mapValue["comment"] = request.params[2].get_str();
-    if (request.params.size() > 3 && !request.params[3].isNull() && !request.params[3].get_str().empty())
+    if (!request.params[3].isNull() && !request.params[3].get_str().empty())
         wtx.mapValue["to"]      = request.params[3].get_str();
 
     bool fSubtractFeeFromAmount = false;
-    if (request.params.size() > 4 && !request.params[4].isNull()) {
+    if (!request.params[4].isNull()) {
         fSubtractFeeFromAmount = request.params[4].get_bool();
     }
 
     CCoinControl coin_control;
-    if (request.params.size() > 5 && !request.params[5].isNull()) {
+    if (!request.params[5].isNull()) {
         coin_control.signalRbf = request.params[5].get_bool();
     }
 
-    if (request.params.size() > 6 && !request.params[6].isNull()) {
+    if (!request.params[6].isNull()) {
         coin_control.m_confirm_target = ParseConfirmTarget(request.params[6]);
     }
 
-    if (request.params.size() > 7 && !request.params[7].isNull()) {
+    if (!request.params[7].isNull()) {
         if (!FeeModeFromString(request.params[7].get_str(), coin_control.m_fee_mode)) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid estimate_mode parameter");
         }
@@ -494,7 +504,7 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
 
     EnsureWalletIsUnlocked(pwallet);
 
-    SendMoney(pwallet, address.Get(), nAmount, fSubtractFeeFromAmount, wtx, coin_control);
+    SendMoney(pwallet, dest, nAmount, fSubtractFeeFromAmount, wtx, coin_control);
 
     return wtx.GetHash().GetHex();
 }
@@ -529,20 +539,21 @@ UniValue listaddressgroupings(const JSONRPCRequest& request)
             + HelpExampleRpc("listaddressgroupings", "")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     UniValue jsonGroupings(UniValue::VARR);
     std::map<CTxDestination, CAmount> balances = pwallet->GetAddressBalances();
-    for (std::set<CTxDestination> grouping : pwallet->GetAddressGroupings()) {
+    for (const std::set<CTxDestination>& grouping : pwallet->GetAddressGroupings()) {
         UniValue jsonGrouping(UniValue::VARR);
-        for (CTxDestination address : grouping)
+        for (const CTxDestination& address : grouping)
         {
             UniValue addressInfo(UniValue::VARR);
-            addressInfo.push_back(CBitcoinAddress(address).ToString());
+            addressInfo.push_back(EncodeDestination(address));
             addressInfo.push_back(ValueFromAmount(balances[address]));
             {
-                if (pwallet->mapAddressBook.find(CBitcoinAddress(address).Get()) != pwallet->mapAddressBook.end()) {
-                    addressInfo.push_back(pwallet->mapAddressBook.find(CBitcoinAddress(address).Get())->second.name);
+                if (pwallet->mapAddressBook.find(address) != pwallet->mapAddressBook.end()) {
+                    addressInfo.push_back(pwallet->mapAddressBook.find(address)->second.name);
                 }
             }
             jsonGrouping.push_back(addressInfo);
@@ -587,16 +598,18 @@ UniValue signmessage(const JSONRPCRequest& request)
     std::string strAddress = request.params[0].get_str();
     std::string strMessage = request.params[1].get_str();
 
-    CBitcoinAddress addr(strAddress);
-    if (!addr.IsValid())
+    CTxDestination dest = DecodeDestination(strAddress);
+    if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
+    }
 
-    CKeyID keyID;
-    if (!addr.GetKeyID(keyID))
+    const CKeyID *keyID = boost::get<CKeyID>(&dest);
+    if (!keyID) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Address does not refer to key");
+    }
 
     CKey key;
-    if (!pwallet->GetKey(keyID, key)) {
+    if (!pwallet->GetKey(*keyID, key)) {
         throw JSONRPCError(RPC_WALLET_ERROR, "Private key not available");
     }
 
@@ -638,13 +651,15 @@ UniValue getreceivedbyaddress(const JSONRPCRequest& request)
             + HelpExampleRpc("getreceivedbyaddress", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\", 6")
        );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     // Bitcoin address
-    CBitcoinAddress address = CBitcoinAddress(request.params[0].get_str());
-    if (!address.IsValid())
+    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
-    CScript scriptPubKey = GetScriptForDestination(address.Get());
+    }
+    CScript scriptPubKey = GetScriptForDestination(dest);
     if (!IsMine(*pwallet, scriptPubKey)) {
         return ValueFromAmount(0);
     }
@@ -698,6 +713,7 @@ UniValue getreceivedbyaccount(const JSONRPCRequest& request)
             + HelpExampleRpc("getreceivedbyaccount", "\"tabby\", 6")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     // Minimum confirmations
@@ -770,20 +786,34 @@ UniValue getbalance(const JSONRPCRequest& request)
             + HelpExampleRpc("getbalance", "\"*\", 6")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    if (request.params.size() == 0)
-        return  ValueFromAmount(pwallet->GetBalance());
+    const UniValue& account_value = request.params[0];
+    const UniValue& minconf = request.params[1];
+    const UniValue& include_watchonly = request.params[2];
 
-    const std::string& account_param = request.params[0].get_str();
+    if (account_value.isNull()) {
+        if (!minconf.isNull()) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER,
+                "getbalance minconf option is only currently supported if an account is specified");
+        }
+        if (!include_watchonly.isNull()) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER,
+                "getbalance include_watchonly option is only currently supported if an account is specified");
+        }
+        return ValueFromAmount(pwallet->GetBalance());
+    }
+
+    const std::string& account_param = account_value.get_str();
     const std::string* account = account_param != "*" ? &account_param : nullptr;
 
     int nMinDepth = 1;
-    if (!request.params[1].isNull())
-        nMinDepth = request.params[1].get_int();
+    if (!minconf.isNull())
+        nMinDepth = minconf.get_int();
     isminefilter filter = ISMINE_SPENDABLE;
-    if(!request.params[2].isNull())
-        if(request.params[2].get_bool())
+    if(!include_watchonly.isNull())
+        if(include_watchonly.get_bool())
             filter = filter | ISMINE_WATCH_ONLY;
 
     return ValueFromAmount(pwallet->GetLegacyBalance(filter, nMinDepth, account));
@@ -801,6 +831,7 @@ UniValue getunconfirmedbalance(const JSONRPCRequest &request)
                 "getunconfirmedbalance\n"
                 "Returns the server's total unconfirmed balance\n");
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     return ValueFromAmount(pwallet->GetUnconfirmedBalance());
@@ -835,6 +866,7 @@ UniValue movecmd(const JSONRPCRequest& request)
             + HelpExampleRpc("move", "\"timotei\", \"akiko\", 0.01, 6, \"happy birthday!\"")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     std::string strFrom = AccountFromValue(request.params[0]);
@@ -842,11 +874,11 @@ UniValue movecmd(const JSONRPCRequest& request)
     CAmount nAmount = AmountFromValue(request.params[2]);
     if (nAmount <= 0)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
-    if (request.params.size() > 3)
+    if (!request.params[3].isNull())
         // unused parameter, used to be nMinDepth, keep type-checking it though
         (void)request.params[3].get_int();
     std::string strComment;
-    if (request.params.size() > 4)
+    if (!request.params[4].isNull())
         strComment = request.params[4].get_str();
 
     if (!pwallet->AccountMove(strFrom, strTo, nAmount, strComment)) {
@@ -893,24 +925,26 @@ UniValue sendfrom(const JSONRPCRequest& request)
             + HelpExampleRpc("sendfrom", "\"tabby\", \"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\", 0.01, 6, \"donation\", \"seans outpost\"")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     std::string strAccount = AccountFromValue(request.params[0]);
-    CBitcoinAddress address(request.params[1].get_str());
-    if (!address.IsValid())
+    CTxDestination dest = DecodeDestination(request.params[1].get_str());
+    if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
+    }
     CAmount nAmount = AmountFromValue(request.params[2]);
     if (nAmount <= 0)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
     int nMinDepth = 1;
-    if (request.params.size() > 3)
+    if (!request.params[3].isNull())
         nMinDepth = request.params[3].get_int();
 
     CWalletTx wtx;
     wtx.strFromAccount = strAccount;
-    if (request.params.size() > 4 && !request.params[4].isNull() && !request.params[4].get_str().empty())
+    if (!request.params[4].isNull() && !request.params[4].get_str().empty())
         wtx.mapValue["comment"] = request.params[4].get_str();
-    if (request.params.size() > 5 && !request.params[5].isNull() && !request.params[5].get_str().empty())
+    if (!request.params[5].isNull() && !request.params[5].get_str().empty())
         wtx.mapValue["to"]      = request.params[5].get_str();
 
     EnsureWalletIsUnlocked(pwallet);
@@ -921,7 +955,7 @@ UniValue sendfrom(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Account has insufficient funds");
 
     CCoinControl no_coin_control; // This is a deprecated API
-    SendMoney(pwallet, address.Get(), nAmount, false, wtx, no_coin_control);
+    SendMoney(pwallet, dest, nAmount, false, wtx, no_coin_control);
 
     return wtx.GetHash().GetHex();
 }
@@ -976,6 +1010,7 @@ UniValue sendmany(const JSONRPCRequest& request)
             + HelpExampleRpc("sendmany", "\"\", \"{\\\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\\\":0.01,\\\"1353tsE8YMTA4EuV7dgUXGjNFf9KpVvKHz\\\":0.02}\", 6, \"testing\"")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     if (pwallet->GetBroadcastTransactions() && !g_connman) {
@@ -990,44 +1025,45 @@ UniValue sendmany(const JSONRPCRequest& request)
 
     CWalletTx wtx;
     wtx.strFromAccount = strAccount;
-    if (request.params.size() > 3 && !request.params[3].isNull() && !request.params[3].get_str().empty())
+    if (!request.params[3].isNull() && !request.params[3].get_str().empty())
         wtx.mapValue["comment"] = request.params[3].get_str();
 
     UniValue subtractFeeFromAmount(UniValue::VARR);
-    if (request.params.size() > 4 && !request.params[4].isNull())
+    if (!request.params[4].isNull())
         subtractFeeFromAmount = request.params[4].get_array();
 
     CCoinControl coin_control;
-    if (request.params.size() > 5 && !request.params[5].isNull()) {
+    if (!request.params[5].isNull()) {
         coin_control.signalRbf = request.params[5].get_bool();
     }
 
-    if (request.params.size() > 6 && !request.params[6].isNull()) {
+    if (!request.params[6].isNull()) {
         coin_control.m_confirm_target = ParseConfirmTarget(request.params[6]);
     }
 
-    if (request.params.size() > 7 && !request.params[7].isNull()) {
+    if (!request.params[7].isNull()) {
         if (!FeeModeFromString(request.params[7].get_str(), coin_control.m_fee_mode)) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid estimate_mode parameter");
         }
     }
 
-    std::set<CBitcoinAddress> setAddress;
+    std::set<CTxDestination> destinations;
     std::vector<CRecipient> vecSend;
 
     CAmount totalAmount = 0;
     std::vector<std::string> keys = sendTo.getKeys();
-    for (const std::string& name_ : keys)
-    {
-        CBitcoinAddress address(name_);
-        if (!address.IsValid())
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Bitcoin address: ")+name_);
+    for (const std::string& name_ : keys) {
+        CTxDestination dest = DecodeDestination(name_);
+        if (!IsValidDestination(dest)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Bitcoin address: ") + name_);
+        }
 
-        if (setAddress.count(address))
-            throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ")+name_);
-        setAddress.insert(address);
+        if (destinations.count(dest)) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ") + name_);
+        }
+        destinations.insert(dest);
 
-        CScript scriptPubKey = GetScriptForDestination(address.Get());
+        CScript scriptPubKey = GetScriptForDestination(dest);
         CAmount nAmount = AmountFromValue(sendTo[name_]);
         if (nAmount <= 0)
             throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
@@ -1109,7 +1145,7 @@ UniValue addmultisigaddress(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
 
     std::string strAccount;
-    if (request.params.size() > 2)
+    if (!request.params[2].isNull())
         strAccount = AccountFromValue(request.params[2]);
 
     // Construct using pay-to-script-hash:
@@ -1118,7 +1154,7 @@ UniValue addmultisigaddress(const JSONRPCRequest& request)
     pwallet->AddCScript(inner);
 
     pwallet->SetAddressBook(innerID, strAccount, "send");
-    return CBitcoinAddress(innerID).ToString();
+    return EncodeDestination(innerID);
 }
 
 class Witnessifier : public boost::static_visitor<bool>
@@ -1206,12 +1242,12 @@ UniValue addwitnessaddress(const JSONRPCRequest& request)
         }
     }
 
-    CBitcoinAddress address(request.params[0].get_str());
-    if (!address.IsValid())
+    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
+    }
 
     Witnessifier w(pwallet);
-    CTxDestination dest = address.Get();
     bool ret = boost::apply_visitor(w, dest);
     if (!ret) {
         throw JSONRPCError(RPC_WALLET_ERROR, "Public key or redeemscript not known to wallet, or the key is uncompressed");
@@ -1219,7 +1255,7 @@ UniValue addwitnessaddress(const JSONRPCRequest& request)
 
     pwallet->SetAddressBook(w.result, "", "receive");
 
-    return CBitcoinAddress(w.result).ToString();
+    return EncodeDestination(w.result);
 }
 
 struct tallyitem
@@ -1254,7 +1290,7 @@ UniValue ListReceived(CWallet * const pwallet, const UniValue& params, bool fByA
             filter = filter | ISMINE_WATCH_ONLY;
 
     // Tally
-    std::map<CBitcoinAddress, tallyitem> mapTally;
+    std::map<CTxDestination, tallyitem> mapTally;
     for (const std::pair<uint256, CWalletTx>& pairWtx : pwallet->mapWallet) {
         const CWalletTx& wtx = pairWtx.second;
 
@@ -1287,10 +1323,10 @@ UniValue ListReceived(CWallet * const pwallet, const UniValue& params, bool fByA
     // Reply
     UniValue ret(UniValue::VARR);
     std::map<std::string, tallyitem> mapAccountTally;
-    for (const std::pair<CBitcoinAddress, CAddressBookData>& item : pwallet->mapAddressBook) {
-        const CBitcoinAddress& address = item.first;
+    for (const std::pair<CTxDestination, CAddressBookData>& item : pwallet->mapAddressBook) {
+        const CTxDestination& dest = item.first;
         const std::string& strAccount = item.second.name;
-        std::map<CBitcoinAddress, tallyitem>::iterator it = mapTally.find(address);
+        std::map<CTxDestination, tallyitem>::iterator it = mapTally.find(dest);
         if (it == mapTally.end() && !fIncludeEmpty)
             continue;
 
@@ -1316,7 +1352,7 @@ UniValue ListReceived(CWallet * const pwallet, const UniValue& params, bool fByA
             UniValue obj(UniValue::VOBJ);
             if(fIsWatchonly)
                 obj.push_back(Pair("involvesWatchonly", true));
-            obj.push_back(Pair("address",       address.ToString()));
+            obj.push_back(Pair("address",       EncodeDestination(dest)));
             obj.push_back(Pair("account",       strAccount));
             obj.push_back(Pair("amount",        ValueFromAmount(nAmount)));
             obj.push_back(Pair("confirmations", (nConf == std::numeric_limits<int>::max() ? 0 : nConf)));
@@ -1393,6 +1429,7 @@ UniValue listreceivedbyaddress(const JSONRPCRequest& request)
             + HelpExampleRpc("listreceivedbyaddress", "6, true, true")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     return ListReceived(pwallet, request.params, false);
@@ -1432,6 +1469,7 @@ UniValue listreceivedbyaccount(const JSONRPCRequest& request)
             + HelpExampleRpc("listreceivedbyaccount", "6, true, true")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     return ListReceived(pwallet, request.params, true);
@@ -1439,9 +1477,9 @@ UniValue listreceivedbyaccount(const JSONRPCRequest& request)
 
 static void MaybePushAddress(UniValue & entry, const CTxDestination &dest)
 {
-    CBitcoinAddress addr;
-    if (addr.Set(dest))
-        entry.push_back(Pair("address", addr.ToString()));
+    if (IsValidDestination(dest)) {
+        entry.push_back(Pair("address", EncodeDestination(dest)));
+    }
 }
 
 /**
@@ -1619,6 +1657,7 @@ UniValue listtransactions(const JSONRPCRequest& request)
             + HelpExampleRpc("listtransactions", "\"*\", 20, 100")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     std::string strAccount = "*";
@@ -1712,13 +1751,14 @@ UniValue listaccounts(const JSONRPCRequest& request)
             + HelpExampleRpc("listaccounts", "6")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     int nMinDepth = 1;
-    if (request.params.size() > 0)
+    if (!request.params[0].isNull())
         nMinDepth = request.params[0].get_int();
     isminefilter includeWatchonly = ISMINE_SPENDABLE;
-    if(request.params.size() > 1)
+    if(!request.params[1].isNull())
         if(request.params[1].get_bool())
             includeWatchonly = includeWatchonly | ISMINE_WATCH_ONLY;
 
@@ -1820,6 +1860,7 @@ UniValue listsinceblock(const JSONRPCRequest& request)
             + HelpExampleRpc("listsinceblock", "\"000000000000000bacf66f7497b7dc45ef753ee9a7d38571037cdb1a57f663ad\", 6")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     const CBlockIndex* pindex = nullptr;    // Block index of the specified block or the common ancestor, if the block provided was in a deactivated chain.
@@ -1951,6 +1992,7 @@ UniValue gettransaction(const JSONRPCRequest& request)
             + HelpExampleRpc("gettransaction", "\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\"")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     uint256 hash;
@@ -2012,6 +2054,7 @@ UniValue abandontransaction(const JSONRPCRequest& request)
             + HelpExampleRpc("abandontransaction", "\"1075db55d416d3ca199f55b6084e2115b9345e16c5cf302fc80e9d5fbf5d48d\"")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     uint256 hash;
@@ -2367,18 +2410,17 @@ UniValue lockunspent(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    if (request.params.size() == 1)
-        RPCTypeCheck(request.params, {UniValue::VBOOL});
-    else
-        RPCTypeCheck(request.params, {UniValue::VBOOL, UniValue::VARR});
+    RPCTypeCheckArgument(request.params[0], UniValue::VBOOL);
 
     bool fUnlock = request.params[0].get_bool();
 
-    if (request.params.size() == 1) {
+    if (request.params[1].isNull()) {
         if (fUnlock)
             pwallet->UnlockAllCoins();
         return true;
     }
+
+    RPCTypeCheckArgument(request.params[1], UniValue::VARR);
 
     UniValue outputs = request.params[1].get_array();
     for (unsigned int idx = 0; idx < outputs.size(); idx++) {
@@ -2445,6 +2487,7 @@ UniValue listlockunspent(const JSONRPCRequest& request)
             + HelpExampleRpc("listlockunspent", "")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     std::vector<COutPoint> vOutpts;
@@ -2523,6 +2566,7 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
             + HelpExampleRpc("getwalletinfo", "")
         );
 
+    ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     UniValue obj(UniValue::VOBJ);
@@ -2675,35 +2719,38 @@ UniValue listunspent(const JSONRPCRequest& request)
             + HelpExampleRpc("listunspent", "6, 9999999, [] , true, { \"minimumAmount\": 0.005 } ")
         );
 
+    ObserveSafeMode();
+
     int nMinDepth = 1;
-    if (request.params.size() > 0 && !request.params[0].isNull()) {
+    if (!request.params[0].isNull()) {
         RPCTypeCheckArgument(request.params[0], UniValue::VNUM);
         nMinDepth = request.params[0].get_int();
     }
 
     int nMaxDepth = 9999999;
-    if (request.params.size() > 1 && !request.params[1].isNull()) {
+    if (!request.params[1].isNull()) {
         RPCTypeCheckArgument(request.params[1], UniValue::VNUM);
         nMaxDepth = request.params[1].get_int();
     }
 
-    std::set<CBitcoinAddress> setAddress;
-    if (request.params.size() > 2 && !request.params[2].isNull()) {
+    std::set<CTxDestination> destinations;
+    if (!request.params[2].isNull()) {
         RPCTypeCheckArgument(request.params[2], UniValue::VARR);
         UniValue inputs = request.params[2].get_array();
         for (unsigned int idx = 0; idx < inputs.size(); idx++) {
             const UniValue& input = inputs[idx];
-            CBitcoinAddress address(input.get_str());
-            if (!address.IsValid())
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Bitcoin address: ")+input.get_str());
-            if (setAddress.count(address))
-                throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ")+input.get_str());
-           setAddress.insert(address);
+            CTxDestination dest = DecodeDestination(input.get_str());
+            if (!IsValidDestination(dest)) {
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Bitcoin address: ") + input.get_str());
+            }
+            if (!destinations.insert(dest).second) {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ") + input.get_str());
+            }
         }
     }
 
     bool include_unsafe = true;
-    if (request.params.size() > 3 && !request.params[3].isNull()) {
+    if (!request.params[3].isNull()) {
         RPCTypeCheckArgument(request.params[3], UniValue::VBOOL);
         include_unsafe = request.params[3].get_bool();
     }
@@ -2740,7 +2787,7 @@ UniValue listunspent(const JSONRPCRequest& request)
         const CScript& scriptPubKey = out.tx->tx->vout[out.i].scriptPubKey;
         bool fValidAddress = ExtractDestination(scriptPubKey, address);
 
-        if (setAddress.size() && (!fValidAddress || !setAddress.count(address)))
+        if (destinations.size() && (!fValidAddress || !destinations.count(address)))
             continue;
 
         UniValue entry(UniValue::VOBJ);
@@ -2748,7 +2795,7 @@ UniValue listunspent(const JSONRPCRequest& request)
         entry.push_back(Pair("vout", out.i));
 
         if (fValidAddress) {
-            entry.push_back(Pair("address", CBitcoinAddress(address).ToString()));
+            entry.push_back(Pair("address", EncodeDestination(address)));
 
             if (pwallet->mapAddressBook.count(address)) {
                 entry.push_back(Pair("account", pwallet->mapAddressBook[address].name));
@@ -2803,7 +2850,7 @@ UniValue fundrawtransaction(const JSONRPCRequest& request)
                             "     \"changePosition\"         (numeric, optional, default random) The index of the change output\n"
                             "     \"includeWatching\"        (boolean, optional, default false) Also select inputs which are watch only\n"
                             "     \"lockUnspents\"           (boolean, optional, default false) Lock selected unspent outputs\n"
-                            "     \"feeRate\"                (numeric, optional, default not set: makes wallet determine the fee) Set a specific feerate (" + CURRENCY_UNIT + " per KB)\n"
+                            "     \"feeRate\"                (numeric, optional, default not set: makes wallet determine the fee) Set a specific fee rate in " + CURRENCY_UNIT + "/kB\n"
                             "     \"subtractFeeFromOutputs\" (array, optional) A json array of integers.\n"
                             "                              The fee will be equally deducted from the amount of each specified output.\n"
                             "                              The outputs are specified by their zero-based index, before any change output is added.\n"
@@ -2836,6 +2883,7 @@ UniValue fundrawtransaction(const JSONRPCRequest& request)
                             + HelpExampleCli("sendrawtransaction", "\"signedtransactionhex\"")
                             );
 
+    ObserveSafeMode();
     RPCTypeCheck(request.params, {UniValue::VSTR});
 
     CCoinControl coinControl;
@@ -2870,12 +2918,13 @@ UniValue fundrawtransaction(const JSONRPCRequest& request)
             true, true);
 
         if (options.exists("changeAddress")) {
-            CBitcoinAddress address(options["changeAddress"].get_str());
+            CTxDestination dest = DecodeDestination(options["changeAddress"].get_str());
 
-            if (!address.IsValid())
+            if (!IsValidDestination(dest)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "changeAddress must be a valid bitcoin address");
+            }
 
-            coinControl.destChange = address.Get();
+            coinControl.destChange = dest;
         }
 
         if (options.exists("changePosition"))
@@ -3118,7 +3167,7 @@ UniValue generate(const JSONRPCRequest& request)
 
     int num_generate = request.params[0].get_int();
     uint64_t max_tries = 1000000;
-    if (request.params.size() > 1 && !request.params[1].isNull()) {
+    if (!request.params[1].isNull()) {
         max_tries = request.params[1].get_int();
     }
 
@@ -3138,49 +3187,24 @@ UniValue generate(const JSONRPCRequest& request)
     return generateBlocks(coinbase_script, num_generate, max_tries, true);
 }
 
-UniValue generatereferralcode(const JSONRPCRequest& request) 
-{
-    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
-
-    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
-        return NullUniValue;
-    }
-
-    if (request.fHelp || request.params.size() != 0) {
-        throw std::runtime_error(
-            "Generate referral code for the wallet\n"
-            "\nResult:\n"
-            "\"referral\"    (string) The new referral code\n"
-            "\nExamples:\n"
-            "\nGenerate referral code for default wallet\n"
-            + HelpExampleCli("generatereferralcode", "")
-        );
-    }
-
-    if (!g_connman) {
-        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
-    }
-
-    UniValue result(UniValue::VBOOL);
-    result.push_back(SendReferralTx(g_connman.get()));
-
-    return result;
-}
-
 UniValue validatereferralcode(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() != 0) {
+    if (request.fHelp || request.params.size() != 1) {
         throw std::runtime_error(
-            "Validate referral code\n"
-            + HelpExampleCli("validatereferralcode", "")
+            "validatereferralcode \"code\"\n"
+            + HelpExampleCli("validatereferralcode", "code")
         );
     }
 
-    UniValue result(UniValue::VOBJ);
+    const std::string unlockCode = request.params[0].get_str();
+    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
+    bool is_valid = prefviewcache->ReferralCodeExists(codeHash);
+
+    UniValue result(is_valid);
     return result;
 }
 
-UniValue setreferralcode(const JSONRPCRequest& request) 
+UniValue unlockwallet(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
@@ -3189,9 +3213,11 @@ UniValue setreferralcode(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() != 1 || request.params[0].get_str().empty()) {
         throw std::runtime_error(
-            "setreferralcode\n"
-            "Updates the wallet with referral code and unlocks the wallet.\n"
+            "unlockwallet \"code\"\n"
+            "Updates the wallet with referral code and beacons first key with associated referral.\n"
             "Returns an object containing various wallet state info.\n"
+            "\nArguments:\n"
+            "1. code      (string, required) Referral code needed to unlock the wallet.\n"
             "\nResult:\n"
             "{\n"
             "  \"walletname\": xxxxx,             (string) the wallet name\n"
@@ -3206,49 +3232,213 @@ UniValue setreferralcode(const JSONRPCRequest& request)
             "  \"unlocked_until\": ttt,           (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
             "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
             "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
+            "  \"referralcode\":  \"<string>\"    (string) the referral code generated that can be shared with other users\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("setreferralcode", "\"referralcode\"")
-            + HelpExampleRpc("setreferralcode", "\"referralcode\"")
+            + HelpExampleCli("unlockwallet", "\"referralcode\"")
+            + HelpExampleRpc("unlockwallet", "\"referralcode\"")
         );
-    }
-
-    if (pwallet->IsReferred()) {
-        throw JSONRPCError(RPC_REFERRER_IS_SET, "Error: Referee is already set for the wallet.");
     }
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    auto code = request.params[0].get_str();
+    std::string unlockCode = request.params[0].get_str();
+    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
 
-    std::cout << "Called setreferral with code: " << code << std::endl;
+    ReferralRef referral = pwallet->Unlock(codeHash);
 
+    // TODO: Make this check more robust.
     UniValue obj(UniValue::VOBJ);
-    
+
     size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
-    obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
+    obj.push_back(Pair("balance", ValueFromAmount(pwallet->GetBalance())));
     obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
-    obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
-    obj.push_back(Pair("txcount",       (int)pwallet->mapWallet.size()));
+    obj.push_back(Pair("immature_balance", ValueFromAmount(pwallet->GetImmatureBalance())));
+    obj.push_back(Pair("txcount", (int)pwallet->mapWallet.size()));
     obj.push_back(Pair("keypoololdest", pwallet->GetOldestKeyPoolTime()));
     obj.push_back(Pair("keypoolsize", (int64_t)kpExternalSize));
     CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
-    
-    if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT)) 
-        obj.push_back(Pair("keypoolsize_hd_internal",   (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
 
-    if (pwallet->IsCrypted()) 
+    if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT))
+        obj.push_back(Pair("keypoolsize_hd_internal", (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
+
+    if (pwallet->IsCrypted())
         obj.push_back(Pair("unlocked_until", pwallet->nRelockTime));
-    
-    obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
-    
+
+    obj.push_back(Pair("paytxfee", ValueFromAmount(payTxFee.GetFeePerK())));
+
     if (!masterKeyID.IsNull())
         obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
-    
+
+    obj.push_back(Pair("referralcode", referral->m_code));
+
     return obj;
 }
+
+UniValue getanv(const JSONRPCRequest& request)
+{
+    assert(prefviewdb);
+
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp)
+        throw std::runtime_error(
+            "getanv ( key1, key2, ..., keyN )\n"
+            "\nIf keys are not specified , returns the wallet's available balance.\n"
+            "\nResult:\n"
+            "anv              (numeric) The total Aggregate Network Value in " + CURRENCY_UNIT + " received for the keys or wallet.\n"
+            "\nExamples:\n"
+            "\nThe total amount in the wallet with 1 or more confirmations\n"
+            + HelpExampleCli("getanv", "") +
+            "\nGet Aggregate Network Value for all keys listed"
+            + HelpExampleCli("getanv", "abc, xyz, ggg")
+        );
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    std::vector<CKeyID> keys;
+
+    //If we don't specify any key ids, collect keys from wallet.
+    if(request.params.empty()) {
+        //TODO, use addressbook in CWallet to figure out keys.
+        //For HD chains, likely the approach will have to be filtering all
+        //keys to figure out which are the persons.
+    } else {
+        keys.reserve(request.params.size());
+        for(size_t i = 0; i < request.params.size(); i++) {
+            auto key_hex_str = request.params[i].get_str();
+            auto dest = DecodeDestination(key_hex_str);
+            if(auto key = boost::get<CKeyID>(&dest)) {
+                std::cerr << "ADDIMG: " << key_hex_str<< std::endl;
+                keys.push_back(*key);
+            }
+        }
+    }
+
+    auto anvs = pog::GetANVs(keys, *prefviewdb);
+    auto total = std::accumulate(std::begin(anvs), std::end(anvs), CAmount{0}, 
+            [](CAmount total, const KeyANV& v){ return total + v.anv;});
+
+    return total;
+}
+
+#ifdef ENABLE_WALLET
+UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 2 || request.params[0].get_str().empty() || request.params[1].get_str().empty()) {
+        throw std::runtime_error(
+            "unlockwalletwithaddress \"address\" \"code\"\n"
+            "Updates the wallet with referral code and beacons first key with associated referral.\n"
+            "Return information about the given bitcoin address..\n"
+            "\nArguments:\n"
+            "1. address      (string, required) Address of the wallet to unlock.\n"
+            "2. code         (string, required) Referral code needed to unlock the wallet.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"isvalid\" : true|false,       (boolean) If the address is valid or not. If not, this is the only property returned.\n"
+            "  \"address\" : \"address\", (string) The bitcoin address validated\n"
+            "  \"scriptPubKey\" : \"hex\",       (string) The hex encoded scriptPubKey generated by the address\n"
+            "  \"ismine\" : true|false,        (boolean) If the address is yours or not\n"
+            "  \"iswatchonly\" : true|false,   (boolean) If the address is watchonly\n"
+            "  \"isscript\" : true|false,      (boolean) If the key is a script\n"
+            "  \"script\" : \"type\"             (string, optional) The output script type. Possible types: nonstandard, pubkey, pubkeyhash, scripthash, multisig, nulldata, witness_v0_keyhash, witness_v0_scripthash\n"
+            "  \"hex\" : \"hex\",                (string, optional) The redeemscript for the p2sh address\n"
+            "  \"addresses\"                   (string, optional) Array of addresses associated with the known redeemscript\n"
+            "    [\n"
+            "      \"address\"\n"
+            "      ,...\n"
+            "    ]\n"
+            "  \"sigsrequired\" : xxxxx        (numeric, optional) Number of signatures required to spend multisig output\n"
+            "  \"pubkey\" : \"publickeyhex\",    (string) The hex value of the raw public key\n"
+            "  \"iscompressed\" : true|false,  (boolean) If the address is compressed\n"
+            "  \"account\" : \"account\"         (string) DEPRECATED. The account associated with the address, \"\" is the default account\n"
+            "  \"timestamp\" : timestamp,        (number, optional) The creation time of the key if available in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"hdkeypath\" : \"keypath\"       (string, optional) The HD keypath if the key is HD and available\n"
+            "  \"hdmasterkeyid\" : \"<hash160>\" (string, optional) The Hash160 of the HD master pubkey\n"
+            "  \"referralcode\":  \"<string>\"    (string) the referral code generated that can be shared with other users\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("unlockwallet", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\" \"referralcode\"")
+            + HelpExampleRpc("unlockwallet", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\", \"referralcode\"")
+        );
+    }
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+
+    LOCK2(cs_main, pwallet ? &pwallet->cs_wallet : nullptr);
+
+    CBitcoinAddress address(request.params[0].get_str());
+    bool isValid = address.IsValid();
+
+    UniValue ret(UniValue::VOBJ);
+    ret.push_back(Pair("isvalid", isValid));
+
+    if (isValid)
+    {
+        CTxDestination dest = address.Get();
+        std::string currentAddress = address.ToString();
+        ret.push_back(Pair("address", currentAddress));
+
+        CScript scriptPubKey = GetScriptForDestination(dest);
+        ret.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
+
+        // Create referral trasnaction
+        std::string unlockCode = request.params[1].get_str();
+        uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
+
+        // check if provided referral code hash is valid, i.e. exists in the blockchain
+        if (!prefviewcache->ReferralCodeExists(codeHash))
+        {
+            throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain");
+        }
+
+        CKeyID addressKey;
+        if (!address.GetKeyID(addressKey))
+        {
+            throw std::runtime_error(std::string(__func__) + ": Address is invalid or is in wrong format.");
+        }
+
+        ReferralRef referral = MakeReferralRef(MutableReferral(addressKey, codeHash));
+        ReferralTx rtx(true);
+
+        CValidationState state;
+        pwallet->CreateTransaction(rtx, referral);
+        pwallet->CommitTransaction(rtx, g_connman.get(), state);
+
+        ret.push_back(Pair("referralcode", referral->m_code)); // referral->m_code
+
+        isminetype mine = pwallet ? IsMine(*pwallet, dest) : ISMINE_NO;
+        ret.push_back(Pair("ismine", bool(mine & ISMINE_SPENDABLE)));
+        ret.push_back(Pair("iswatchonly", bool(mine & ISMINE_WATCH_ONLY)));
+        UniValue detail = boost::apply_visitor(DescribeAddressVisitor(pwallet), dest);
+        ret.pushKVs(detail);
+        if (pwallet && pwallet->mapAddressBook.count(dest)) {
+            ret.push_back(Pair("account", pwallet->mapAddressBook[dest].name));
+        }
+        CKeyID keyID;
+        if (pwallet) {
+            const auto& meta = pwallet->mapKeyMetadata;
+            auto it = address.GetKeyID(keyID) ? meta.find(keyID) : meta.end();
+            if (it == meta.end()) {
+                it = meta.find(CScriptID(scriptPubKey));
+            }
+            if (it != meta.end()) {
+                ret.push_back(Pair("timestamp", it->second.nCreateTime));
+                if (!it->second.hdKeypath.empty()) {
+                    ret.push_back(Pair("hdkeypath", it->second.hdKeypath));
+                    ret.push_back(Pair("hdmasterkeyid", it->second.hdMasterKeyID.GetHex()));
+                }
+            }
+        }
+    }
+    return ret;
+}
+#endif
 
 extern UniValue abortrescan(const JSONRPCRequest& request); // in rpcdump.cpp
 extern UniValue dumpprivkey(const JSONRPCRequest& request); // in rpcdump.cpp
@@ -3262,66 +3452,69 @@ extern UniValue removeprunedfunds(const JSONRPCRequest& request);
 extern UniValue importmulti(const JSONRPCRequest& request);
 
 static const CRPCCommand commands[] =
-{ //  category              name                        actor (function)           okSafeMode
-    //  --------------------- ------------------------    -----------------------    ----------
-    { "rawtransactions",    "fundrawtransaction",       &fundrawtransaction,       false,  {"hexstring","options"} },
-    { "hidden",             "resendwallettransactions", &resendwallettransactions, true,   {} },
-    { "wallet",             "abandontransaction",       &abandontransaction,       false,  {"txid"} },
-    { "wallet",             "abortrescan",              &abortrescan,              false,  {} },
-    { "wallet",             "addmultisigaddress",       &addmultisigaddress,       true,   {"nrequired","keys","account"} },
-    { "wallet",             "addwitnessaddress",        &addwitnessaddress,        true,   {"address"} },
-    { "wallet",             "backupwallet",             &backupwallet,             true,   {"destination"} },
-    { "wallet",             "bumpfee",                  &bumpfee,                  true,   {"txid", "options"} },
-    { "wallet",             "dumpprivkey",              &dumpprivkey,              true,   {"address"}  },
-    { "wallet",             "dumpwallet",               &dumpwallet,               true,   {"filename"} },
-    { "wallet",             "encryptwallet",            &encryptwallet,            true,   {"passphrase"} },
-    { "wallet",             "getaccountaddress",        &getaccountaddress,        true,   {"account"} },
-    { "wallet",             "getaccount",               &getaccount,               true,   {"address"} },
-    { "wallet",             "getaddressesbyaccount",    &getaddressesbyaccount,    true,   {"account"} },
-    { "wallet",             "getbalance",               &getbalance,               false,  {"account","minconf","include_watchonly"} },
-    { "wallet",             "getnewaddress",            &getnewaddress,            true,   {"account"} },
-    { "wallet",             "getrawchangeaddress",      &getrawchangeaddress,      true,   {} },
-    { "wallet",             "getreceivedbyaccount",     &getreceivedbyaccount,     false,  {"account","minconf"} },
-    { "wallet",             "getreceivedbyaddress",     &getreceivedbyaddress,     false,  {"address","minconf"} },
-    { "wallet",             "gettransaction",           &gettransaction,           false,  {"txid","include_watchonly"} },
-    { "wallet",             "getunconfirmedbalance",    &getunconfirmedbalance,    false,  {} },
-    { "wallet",             "getwalletinfo",            &getwalletinfo,            false,  {} },
-    { "wallet",             "importmulti",              &importmulti,              true,   {"requests","options"} },
-    { "wallet",             "importprivkey",            &importprivkey,            true,   {"privkey","label","rescan"} },
-    { "wallet",             "importwallet",             &importwallet,             true,   {"filename"} },
-    { "wallet",             "importaddress",            &importaddress,            true,   {"address","label","rescan","p2sh"} },
-    { "wallet",             "importprunedfunds",        &importprunedfunds,        true,   {"rawtransaction","txoutproof"} },
-    { "wallet",             "importpubkey",             &importpubkey,             true,   {"pubkey","label","rescan"} },
-    { "wallet",             "keypoolrefill",            &keypoolrefill,            true,   {"newsize"} },
-    { "wallet",             "listaccounts",             &listaccounts,             false,  {"minconf","include_watchonly"} },
-    { "wallet",             "listaddressgroupings",     &listaddressgroupings,     false,  {} },
-    { "wallet",             "listlockunspent",          &listlockunspent,          false,  {} },
-    { "wallet",             "listreceivedbyaccount",    &listreceivedbyaccount,    false,  {"minconf","include_empty","include_watchonly"} },
-    { "wallet",             "listreceivedbyaddress",    &listreceivedbyaddress,    false,  {"minconf","include_empty","include_watchonly"} },
-    { "wallet",             "listsinceblock",           &listsinceblock,           false,  {"blockhash","target_confirmations","include_watchonly","include_removed"} },
-    { "wallet",             "listtransactions",         &listtransactions,         false,  {"account","count","skip","include_watchonly"} },
-    { "wallet",             "listunspent",              &listunspent,              false,  {"minconf","maxconf","addresses","include_unsafe","query_options"} },
-    { "wallet",             "listwallets",              &listwallets,              true,   {} },
-    { "wallet",             "lockunspent",              &lockunspent,              true,   {"unlock","transactions"} },
-    { "wallet",             "move",                     &movecmd,                  false,  {"fromaccount","toaccount","amount","minconf","comment"} },
-    { "wallet",             "sendfrom",                 &sendfrom,                 false,  {"fromaccount","toaddress","amount","minconf","comment","comment_to"} },
-    { "wallet",             "sendmany",                 &sendmany,                 false,  {"fromaccount","amounts","minconf","comment","subtractfeefrom","replaceable","conf_target","estimate_mode"} },
-    { "wallet",             "sendtoaddress",            &sendtoaddress,            false,  {"address","amount","comment","comment_to","subtractfeefromamount","replaceable","conf_target","estimate_mode"} },
-    { "wallet",             "setaccount",               &setaccount,               true,   {"address","account"} },
-    { "wallet",             "settxfee",                 &settxfee,                 true,   {"amount"} },
-    { "wallet",             "signmessage",              &signmessage,              true,   {"address","message"} },
-    { "wallet",             "walletlock",               &walletlock,               true,   {} },
-    { "wallet",             "walletpassphrasechange",   &walletpassphrasechange,   true,   {"oldpassphrase","newpassphrase"} },
-    { "wallet",             "walletpassphrase",         &walletpassphrase,         true,   {"passphrase","timeout"} },
-    { "wallet",             "removeprunedfunds",        &removeprunedfunds,        true,   {"txid"} },
+{ //  category              name                        actor (function)           argNames
+    //  --------------------- ------------------------    -----------------------  ----------
+    { "rawtransactions",    "fundrawtransaction",       &fundrawtransaction,       {"hexstring","options"} },
+    { "hidden",             "resendwallettransactions", &resendwallettransactions, {} },
+    { "wallet",             "abandontransaction",       &abandontransaction,       {"txid"} },
+    { "wallet",             "abortrescan",              &abortrescan,              {} },
+    { "wallet",             "addmultisigaddress",       &addmultisigaddress,       {"nrequired","keys","account"} },
+    { "wallet",             "addwitnessaddress",        &addwitnessaddress,        {"address"} },
+    { "wallet",             "backupwallet",             &backupwallet,             {"destination"} },
+    { "wallet",             "bumpfee",                  &bumpfee,                  {"txid", "options"} },
+    { "wallet",             "dumpprivkey",              &dumpprivkey,              {"address"}  },
+    { "wallet",             "dumpwallet",               &dumpwallet,               {"filename"} },
+    { "wallet",             "encryptwallet",            &encryptwallet,            {"passphrase"} },
+    { "wallet",             "getaccountaddress",        &getaccountaddress,        {"account"} },
+    { "wallet",             "getaccount",               &getaccount,               {"address"} },
+    { "wallet",             "getaddressesbyaccount",    &getaddressesbyaccount,    {"account"} },
+    { "wallet",             "getbalance",               &getbalance,               {"account","minconf","include_watchonly"} },
+    { "wallet",             "getnewaddress",            &getnewaddress,            {"account"} },
+    { "wallet",             "getrawchangeaddress",      &getrawchangeaddress,      {} },
+    { "wallet",             "getreceivedbyaccount",     &getreceivedbyaccount,     {"account","minconf"} },
+    { "wallet",             "getreceivedbyaddress",     &getreceivedbyaddress,     {"address","minconf"} },
+    { "wallet",             "gettransaction",           &gettransaction,           {"txid","include_watchonly"} },
+    { "wallet",             "getunconfirmedbalance",    &getunconfirmedbalance,    {} },
+    { "wallet",             "getwalletinfo",            &getwalletinfo,            {} },
+    { "wallet",             "importmulti",              &importmulti,              {"requests","options"} },
+    { "wallet",             "importprivkey",            &importprivkey,            {"privkey","label","rescan"} },
+    { "wallet",             "importwallet",             &importwallet,             {"filename"} },
+    { "wallet",             "importaddress",            &importaddress,            {"address","label","rescan","p2sh"} },
+    { "wallet",             "importprunedfunds",        &importprunedfunds,        {"rawtransaction","txoutproof"} },
+    { "wallet",             "importpubkey",             &importpubkey,             {"pubkey","label","rescan"} },
+    { "wallet",             "keypoolrefill",            &keypoolrefill,            {"newsize"} },
+    { "wallet",             "listaccounts",             &listaccounts,             {"minconf","include_watchonly"} },
+    { "wallet",             "listaddressgroupings",     &listaddressgroupings,     {} },
+    { "wallet",             "listlockunspent",          &listlockunspent,          {} },
+    { "wallet",             "listreceivedbyaccount",    &listreceivedbyaccount,    {"minconf","include_empty","include_watchonly"} },
+    { "wallet",             "listreceivedbyaddress",    &listreceivedbyaddress,    {"minconf","include_empty","include_watchonly"} },
+    { "wallet",             "listsinceblock",           &listsinceblock,           {"blockhash","target_confirmations","include_watchonly","include_removed"} },
+    { "wallet",             "listtransactions",         &listtransactions,         {"account","count","skip","include_watchonly"} },
+    { "wallet",             "listunspent",              &listunspent,              {"minconf","maxconf","addresses","include_unsafe","query_options"} },
+    { "wallet",             "listwallets",              &listwallets,              {} },
+    { "wallet",             "lockunspent",              &lockunspent,              {"unlock","transactions"} },
+    { "wallet",             "move",                     &movecmd,                  {"fromaccount","toaccount","amount","minconf","comment"} },
+    { "wallet",             "sendfrom",                 &sendfrom,                 {"fromaccount","toaddress","amount","minconf","comment","comment_to"} },
+    { "wallet",             "sendmany",                 &sendmany,                 {"fromaccount","amounts","minconf","comment","subtractfeefrom","replaceable","conf_target","estimate_mode"} },
+    { "wallet",             "sendtoaddress",            &sendtoaddress,            {"address","amount","comment","comment_to","subtractfeefromamount","replaceable","conf_target","estimate_mode"} },
+    { "wallet",             "setaccount",               &setaccount,               {"address","account"} },
+    { "wallet",             "settxfee",                 &settxfee,                 {"amount"} },
+    { "wallet",             "signmessage",              &signmessage,              {"address","message"} },
+    { "wallet",             "walletlock",               &walletlock,               {} },
+    { "wallet",             "walletpassphrasechange",   &walletpassphrasechange,   {"oldpassphrase","newpassphrase"} },
+    { "wallet",             "walletpassphrase",         &walletpassphrase,         {"passphrase","timeout"} },
+    { "wallet",             "removeprunedfunds",        &removeprunedfunds,        {"txid"} },
 
-    { "generating",         "generate",                 &generate,                 true,   {"nblocks","maxtries"} },
-
+    { "generating",         "generate",                 &generate,                 {"nblocks","maxtries"} },
+    
     // merit specific commands
 
-    { "referral",           "generatereferralcode",     &generatereferralcode,     true,   {} },
-    { "referral",           "validatereferralcode",     &validatereferralcode,     true,   {} },
-    { "referral",           "setreferralcode",          &setreferralcode,          false,  {} }
+    { "referral",           "validatereferralcode",     &validatereferralcode,     {"code"} },
+    { "referral",           "unlockwallet",             &unlockwallet,             {"code"} },
+    { "referral",           "getanv",                   &getanv,                   {"address"} },
+#ifdef ENABLE_WALLET
+    { "referral",           "unlockwalletwithaddress",  &unlockwalletwithaddress,  {"address", "referralcode"} }
+#endif
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)

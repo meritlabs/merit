@@ -12,10 +12,8 @@ MAX_ANCESTORS = 25
 MAX_DESCENDANTS = 25
 
 class MempoolPackagesTest(BitcoinTestFramework):
-    def __init__(self):
-        super().__init__()
+    def set_test_params(self):
         self.num_nodes = 2
-        self.setup_clean_chain = False
         self.extra_args = [["-maxorphantx=1000"], ["-maxorphantx=1000", "-limitancestorcount=5"]]
 
     # Build a transaction that spends parent_txid:vout
@@ -213,7 +211,7 @@ class MempoolPackagesTest(BitcoinTestFramework):
         value = send_value
 
         # Create tx1
-        (tx1_id, tx1_value) = self.chain_transaction(self.nodes[0], tx0_id, 0, value, fee, 1)
+        tx1_id, _ = self.chain_transaction(self.nodes[0], tx0_id, 0, value, fee, 1)
 
         # Create tx2-7
         vout = 1

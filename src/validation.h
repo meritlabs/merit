@@ -18,6 +18,9 @@
 #include "script/script_error.h"
 #include "sync.h"
 #include "versionbits.h"
+#include "spentindex.h"
+#include "addressindex.h"
+#include "timestampindex.h"
 
 #include <algorithm>
 #include <exception>
@@ -41,6 +44,8 @@ class CBlockPolicyEstimator;
 class CTxMemPool;
 class ReferralTxMemPool;
 class CValidationState;
+class ReferralsViewDB;
+class ReferralsViewCache;
 struct ChainTxData;
 
 struct PrecomputedTransactionData;
@@ -132,6 +137,11 @@ static const int64_t MAX_FEE_ESTIMATION_TIP_AGE = 3 * 60 * 60;
 static const bool DEFAULT_PERMIT_BAREMULTISIG = true;
 static const bool DEFAULT_CHECKPOINTS_ENABLED = true;
 static const bool DEFAULT_TXINDEX = false;
+static const bool DEFAULT_ADDRESSINDEX = false;
+static const bool DEFAULT_TIMESTAMPINDEX = false;
+static const bool DEFAULT_SPENTINDEX = false;
+static const unsigned int DEFAULT_DB_MAX_OPEN_FILES = 1000;
+static const bool DEFAULT_DB_COMPRESSION = true;
 static const unsigned int DEFAULT_BANSCORE_THRESHOLD = 100;
 /** Default for -persistmempool */
 static const bool DEFAULT_PERSIST_MEMPOOL = true;
@@ -174,6 +184,9 @@ extern std::atomic_bool fImporting;
 extern bool fReindex;
 extern int nScriptCheckThreads;
 extern bool fTxIndex;
+extern bool fAddressIndex;
+extern bool fSpentIndex;
+extern bool fTimestampIndex;
 extern bool fIsBareMultisigStd;
 extern bool fRequireStandard;
 extern bool fCheckBlockIndex;
@@ -189,6 +202,9 @@ extern bool fEnableReplacement;
 
 /** Block hash whose ancestors we will assume to have valid scripts without checking them. */
 extern uint256 hashAssumeValid;
+
+/** Minimum work we will assume exists on some valid chain. */
+extern arith_uint256 nMinimumChainWork;
 
 /** Best header we've seen so far (used for getheaders queries' starting points). */
 extern CBlockIndex *pindexBestHeader;
@@ -277,10 +293,35 @@ bool IsInitialBlockDownload();
 bool GetTransaction(const uint256 &hash, CTransactionRef &tx, const Consensus::Params& params, uint256 &hashBlock, bool fAllowSlow = false);
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
-CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
+
+CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params);
+
+/**
+ * We split the block subsidy between the miners and the ambassadors.
+ * Note a block has many ambassadors and they further split the ambassador
+ * cut.
+ */
+struct SplitSubsidy
+{
+    CAmount miner;
+    CAmount ambassador;
+};
+
+SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_params);
+
+/**
+ * Include ambassadors into the coinbase transaction and split the total payment between them.
+ * Any remainder is returned.
+ */
+CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t desired_winners, CMutableTransaction& tx, int height);
 
 /** Guess verification progress (as a fraction between 0.0=genesis and 1.0=current tip). */
 double GuessVerificationProgress(const ChainTxData& data, CBlockIndex* pindex);
+
+/**
+ *  Mark one block file as pruned.
+ */
+void PruneOneBlockFile(const int fileNumber);
 
 /**
  *  Mark one block file as pruned.
@@ -301,7 +342,7 @@ void PruneAndFlush();
 /** Prune block files up to a given height */
 void PruneBlockFilesManual(int nManualPruneHeight);
 
-bool AcceptToReferralMemoryPool(ReferralTxMemPool& pool, const ReferralRef& referral);
+bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, const ReferralRef& referral);
 
 /** (try to) add transaction to memory pool
  * plTxnReplaced will be appended to with all transactions replaced from mempool **/
@@ -392,6 +433,14 @@ public:
     ScriptError GetScriptError() const { return error; }
 };
 
+bool GetTimestampIndex(const unsigned int &high, const unsigned int &low, const bool fActiveOnly, std::vector<std::pair<uint256, unsigned int> > &hashes);
+bool GetSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value);
+bool HashOnchainActive(const uint256 &hash);
+bool GetAddressIndex(uint160 addressHash, int type,
+                     std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex,
+                     int start = 0, int end = 0);
+bool GetAddressUnspent(uint160 addressHash, int type,
+                       std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
 /** Initializes the script-execution cache */
 void InitScriptExecutionCache();
 
@@ -455,6 +504,12 @@ extern CCoinsViewCache *pcoinsTip;
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern CBlockTreeDB *pblocktree;
 
+/** Global variable that points to the Referral DB */
+extern ReferralsViewDB *prefviewdb;
+
+/** Global variable that points to the Referral Cache */
+extern ReferralsViewCache *prefviewcache;
+
 /**
  * Return the spend height, which is one more than the inputs.GetBestBlock().
  * While checking, GetBestBlock() refers to the parent block. (protected by cs_main)
@@ -480,8 +535,11 @@ static const unsigned int REJECT_HIGHFEE = 0x100;
 /** Get block file info entry for one block file */
 CBlockFileInfo* GetBlockFileInfo(size_t n);
 
+/** Get block file info entry for one block file */
+CBlockFileInfo* GetBlockFileInfo(size_t n);
+
 /** Dump the mempool to disk. */
-void DumpMempool();
+bool DumpMempool();
 
 /** Load the mempool from disk. */
 bool LoadMempool();
