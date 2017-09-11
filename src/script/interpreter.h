@@ -8,6 +8,7 @@
 
 #include "script_error.h"
 #include "primitives/transaction.h"
+#include "primitives/referral.h"
 
 #include <vector>
 #include <stdint.h>
@@ -123,6 +124,7 @@ enum SigVersion
     SIGVERSION_WITNESS_V0 = 1,
 };
 
+uint256 SignatureHash(const CScript &scriptCode, const ReferralRef& referral, int nHashType);
 uint256 SignatureHash(const CScript &scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType, const CAmount& amount, SigVersion sigversion, const PrecomputedTransactionData* cache = nullptr);
 
 class BaseSignatureChecker
@@ -144,6 +146,17 @@ public:
     }
 
     virtual ~BaseSignatureChecker() {}
+};
+
+class ReferralSignatureChecker : public BaseSignatureChecker
+{
+private:
+    const ReferralRef m_pReferral;
+
+public:
+    ReferralSignatureChecker(const ReferralRef& referralIn) : m_pReferral{referralIn} { }
+
+    bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const override;
 };
 
 class TransactionSignatureChecker : public BaseSignatureChecker

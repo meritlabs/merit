@@ -118,3 +118,4 @@ contrib/devtools/split-debug.sh
 .settings
 .tags*
 .vscode
+.history

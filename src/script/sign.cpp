@@ -12,8 +12,31 @@
 #include "script/standard.h"
 #include "uint256.h"
 
-
 typedef std::vector<unsigned char> valtype;
+
+ReferralSignatureCreator::ReferralSignatureCreator(const CKeyStore* keystoreIn, const ReferralRef& referralIn, int nHashTypeIn) :
+    BaseSignatureCreator{keystoreIn}, m_pReferral{referralIn}, m_nHashType{nHashTypeIn}, checker{referralIn} { }
+
+bool ReferralSignatureCreator::CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& address, const CScript& scriptCode, SigVersion sigversion) const
+{
+    CKey key;
+    if (!keystore->GetKey(address, key))
+        return false;
+
+    // Signing with uncompressed keys is disabled in witness scripts
+    if (sigversion == SIGVERSION_WITNESS_V0 && !key.IsCompressed())
+        return false;
+
+    uint256 hash = SignatureHash(scriptCode, m_pReferral, m_nHashType);
+
+    if (!key.Sign(hash, vchSig)) {
+        return false;
+    }
+
+    vchSig.push_back((unsigned char)m_nHashType);
+
+    return true;
+}
 
 TransactionSignatureCreator::TransactionSignatureCreator(const CKeyStore* keystoreIn, const CTransaction* txToIn, unsigned int nInIn, const CAmount& amountIn, int nHashTypeIn) : BaseSignatureCreator(keystoreIn), txTo(txToIn), nIn(nInIn), nHashType(nHashTypeIn), amount(amountIn), checker(txTo, nIn, amountIn) {}
 
@@ -71,8 +94,9 @@ static bool SignStep(const BaseSignatureCreator& creator, const CScript& scriptP
     ret.clear();
 
     std::vector<valtype> vSolutions;
-    if (!Solver(scriptPubKey, whichTypeRet, vSolutions))
+    if (!Solver(scriptPubKey, whichTypeRet, vSolutions)) {
         return false;
+    }
 
     CKeyID keyID;
     switch (whichTypeRet)
@@ -143,6 +167,7 @@ bool ProduceSignature(const BaseSignatureCreator& creator, const CScript& fromPu
     std::vector<valtype> result;
     txnouttype whichType;
     bool solved = SignStep(creator, script, result, whichType, SIGVERSION_BASE);
+
     bool P2SH = false;
     CScript subscript;
     sigdata.scriptWitness.stack.clear();

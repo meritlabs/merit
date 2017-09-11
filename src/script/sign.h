@@ -30,6 +30,21 @@ public:
     virtual bool CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& keyid, const CScript& scriptCode, SigVersion sigversion) const =0;
 };
 
+class ReferralSignatureCreator : public BaseSignatureCreator
+{
+private:
+    const ReferralRef m_pReferral;
+    int m_nHashType;
+    const ReferralSignatureChecker checker;
+
+public:
+    ReferralSignatureCreator(const CKeyStore* keyStoreIn, const ReferralRef& referralIn, int nHashTypeIn = SIGHASH_ALL);
+
+    const BaseSignatureChecker& Checker() const override { return checker; }
+
+    bool CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& keyid, const CScript& scriptCode, SigVersion sigversion) const override;
+};
+
 /** A signature creator for transactions. */
 class TransactionSignatureCreator : public BaseSignatureCreator {
     const CTransaction* txTo;
