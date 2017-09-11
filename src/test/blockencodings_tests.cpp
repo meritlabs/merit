@@ -117,8 +117,9 @@ class TestHeaderAndShortIDs {
 public:
     CBlockHeader header;
     uint64_t nonce;
-    std::vector<uint64_t> shorttxids;
-    std::vector<PrefilledTransaction> prefilledtxn;
+    std::vector<uint64_t> m_short_tx_ids;
+    std::vector<uint64_t> m_short_ref_ids;
+    std::vector<PrefilledTransaction> m_prefilled_txn;
 
     explicit TestHeaderAndShortIDs(const BlockHeaderAndShortIDs& orig) {
         CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
@@ -142,17 +143,33 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(header);
         READWRITE(nonce);
-        size_t shorttxids_size = shorttxids.size();
-        READWRITE(VARINT(shorttxids_size));
-        shorttxids.resize(shorttxids_size);
-        for (size_t i = 0; i < shorttxids.size(); i++) {
-            uint32_t lsb = shorttxids[i] & 0xffffffff;
-            uint16_t msb = (shorttxids[i] >> 32) & 0xffff;
+
+        size_t m_short_tx_ids_size = m_short_tx_ids.size();
+        size_t m_short_ref_ids_size = m_short_ref_ids.size();
+
+        READWRITE(VARINT(m_short_tx_ids_size));
+        READWRITE(VARINT(m_short_ref_ids_size));
+
+        m_short_tx_ids.resize(m_short_tx_ids_size);
+        m_short_ref_ids.resize(m_short_tx_ids_size);
+
+        for (size_t i = 0; i < m_short_tx_ids.size(); i++) {
+            uint32_t lsb = m_short_tx_ids[i] & 0xffffffff;
+            uint16_t msb = (m_short_tx_ids[i] >> 32) & 0xffff;
             READWRITE(lsb);
             READWRITE(msb);
-            shorttxids[i] = (uint64_t(msb) << 32) | uint64_t(lsb);
+            m_short_tx_ids[i] = (uint64_t(msb) << 32) | uint64_t(lsb);
         }
-        READWRITE(prefilledtxn);
+
+        for (size_t i = 0; i < m_short_ref_ids.size(); i++) {
+            uint32_t lsb = m_short_tx_ids[i] & 0xffffffff;
+            uint16_t msb = (m_short_tx_ids[i] >> 32) & 0xffff;
+            READWRITE(lsb);
+            READWRITE(msb);
+            m_short_ref_ids[i] = (uint64_t(msb) << 32) | uint64_t(lsb);
+        }
+
+        READWRITE(m_prefilled_txn);
     }
 };
 
@@ -171,11 +188,11 @@ BOOST_AUTO_TEST_CASE(NonCoinbasePreforwardRTTest)
     // Test with pre-forwarding tx 1, but not coinbase
     {
         TestHeaderAndShortIDs shortIDs(block);
-        shortIDs.prefilledtxn.resize(1);
-        shortIDs.prefilledtxn[0] = {1, block.vtx[1]};
-        shortIDs.shorttxids.resize(2);
-        shortIDs.shorttxids[0] = shortIDs.GetShortID(block.vtx[0]->GetHash());
-        shortIDs.shorttxids[1] = shortIDs.GetShortID(block.vtx[2]->GetHash());
+        shortIDs.m_prefilled_txn.resize(1);
+        shortIDs.m_prefilled_txn[0] = {1, block.vtx[1]};
+        shortIDs.m_short_tx_ids.resize(2);
+        shortIDs.m_short_tx_ids[0] = shortIDs.GetShortID(block.vtx[0]->GetHash());
+        shortIDs.m_short_tx_ids[1] = shortIDs.GetShortID(block.vtx[2]->GetHash());
 
         CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
         stream << shortIDs;
@@ -238,11 +255,11 @@ BOOST_AUTO_TEST_CASE(SufficientPreforwardRTTest)
     // Test with pre-forwarding coinbase + tx 2 with tx 1 in mempool
     {
         TestHeaderAndShortIDs shortIDs(block);
-        shortIDs.prefilledtxn.resize(2);
-        shortIDs.prefilledtxn[0] = {0, block.vtx[0]};
-        shortIDs.prefilledtxn[1] = {1, block.vtx[2]}; // id == 1 as it is 1 after index 1
-        shortIDs.shorttxids.resize(1);
-        shortIDs.shorttxids[0] = shortIDs.GetShortID(block.vtx[1]->GetHash());
+        shortIDs.m_prefilled_txn.resize(2);
+        shortIDs.m_prefilled_txn[0] = {0, block.vtx[0]};
+        shortIDs.m_prefilled_txn[1] = {1, block.vtx[2]}; // id == 1 as it is 1 after index 1
+        shortIDs.m_short_tx_ids.resize(1);
+        shortIDs.m_short_tx_ids[0] = shortIDs.GetShortID(block.vtx[1]->GetHash());
 
         CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
         stream << shortIDs;
