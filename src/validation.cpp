@@ -1842,7 +1842,10 @@ AddressPair ExtractAddress(const CTxOut& tout)
     uint160 hashBytes;
     int addressType = 0;
 
-    if (tout.scriptPubKey.IsPayToScriptHash()) {
+    if (tout.scriptPubKey.IsPayToPublicKey()) {
+        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin(), tout.scriptPubKey.begin()+20));
+        addressType = 3;
+    } else if (tout.scriptPubKey.IsPayToScriptHash()) {
         hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
         addressType = 2;
     } else if (tout.scriptPubKey.IsPayToPublicKeyHash()) {
@@ -1868,17 +1871,20 @@ void IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
         assert(txn);
 
         //debit senders
-        for (const auto& in :  txn->vin) {
-            const auto &in_out = view.AccessCoin(in.prevout).out;
-            auto address = ExtractAddress(in_out);
-            if(address.second == 0) continue;
+        if (!txn->IsCoinBase()) {
+            for (const auto& in :  txn->vin) {
+                const auto &in_out = view.AccessCoin(in.prevout).out;
+                auto address = ExtractAddress(in_out);
+                if(address.second == 0) continue;
 
-            debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * -1}});
+                debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * -1}});
+            }
         }
 
         //credit recipients
         for (const auto& out : txn->vout) {
             auto address = ExtractAddress(out);
+
             if(address.second == 0) continue;
 
             debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue}});
@@ -4333,14 +4339,16 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
 
     try {
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
-        // ToDo: there might be a better place for this code
-        prefviewdb->InsertReferral(*block.m_vRef[0]);
+
+        if (!prefviewdb->ReferralCodeExists(block.m_vRef[0]->m_codeHash)) {
+            IndexReferralsAndUpdateANV(block, *pcoinsTip);
+        }
 
         // Check whether we're already initialized by checking for genesis in
         // mapBlockIndex. Note that we can't use chainActive here, since it is
         // set based on the coins db, not the block index db, which is the only
         // thing loaded at this point.
-        if (mapBlockIndex.count(chainparams.GenesisBlock().GetHash()))
+        if (mapBlockIndex.count(block.GetHash()))
             return true;
 
         // Start new block file
