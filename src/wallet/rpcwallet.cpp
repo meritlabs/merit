@@ -406,7 +406,7 @@ static void SendMoney(CWallet * const pwallet, const CTxDestination &address, CA
 
     // Create and send the transaction
     CReserveKey reservekey(pwallet);
-    CAmount nFeeRequired;
+    CAmount nFeeRequired = 0;
     std::string strError;
     std::vector<CRecipient> vecSend;
     int nChangePosRet = -1;
@@ -3322,7 +3322,7 @@ UniValue getanv(const JSONRPCRequest& request)
     }
 
     auto anvs = pog::GetANVs(keys, *prefviewdb);
-    auto total = std::accumulate(std::begin(anvs), std::end(anvs), CAmount{0}, 
+    auto total = std::accumulate(std::begin(anvs), std::end(anvs), CAmount{0},
             [](CAmount total, const KeyANV& v){ return total + v.anv;});
 
     return total;
