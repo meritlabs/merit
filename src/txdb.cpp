@@ -600,7 +600,6 @@ bool CBlockTreeDB::GenesisReferralIndexExists(const CChainParams& chainparams)
 {
     CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
 
-    auto reftx = block.m_vRef[0];
-    std::cout << "Referral: " << reftx->ToString() << " , with code hash: " << (reftx->m_codeHash.ToString()) << std::endl;
+    const auto& reftx = block.m_vRef[0];
     return Exists(std::make_pair(DB_REFERRALSINDEX, reftx->m_codeHash));
 }

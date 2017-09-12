@@ -11,12 +11,15 @@
 #include "streams.h"
 #include "util.h"
 
-static const char *PUB_HASHBLOCK    = "pubhashblock";
-static const char *PUB_HASHTX       = "pubhashtx";
-static const char *PUB_HASHREFERRAL = "pubhashreferraltx";
-static const char *PUB_RAWBLOCK     = "pubrawblock";
-static const char *PUB_RAWTX        = "pubrawtx";
-static const char *PUB_RAWREFERRAL  = "pubrawreferraltx";
+namespace
+{
+    const char *PUB_HASHBLOCK    = "pubhashblock";
+    const char *PUB_HASHTX       = "pubhashtx";
+    const char *PUB_HASHREFERRAL = "pubhashreferraltx";
+    const char *PUB_RAWBLOCK     = "pubrawblock";
+    const char *PUB_RAWTX        = "pubrawtx";
+    const char *PUB_RAWREFERRAL  = "pubrawreferraltx";
+}
 
 void zmqError(const char *str)
 {
@@ -160,9 +163,9 @@ void CZMQNotificationInterface::TransactionAddedToMempool(const CTransactionRef&
     // all the same external callback.
     const CTransaction& tx = *ptx;
 
-    for (std::list<CZMQAbstractNotifier*>::iterator i = notifiers.begin(); i!=notifiers.end(); )
+    for (auto i = notifiers.begin(); i!=notifiers.end(); )
     {
-        CZMQAbstractNotifier *notifier = *i;
+        auto *notifier = *i;
         if (notifier->NotifyTransaction(tx))
         {
             i++;
@@ -201,9 +204,9 @@ void CZMQNotificationInterface::BlockDisconnected(const std::shared_ptr<const CB
 
 void CZMQNotificationInterface::ReferralTransactionAddedToMempool(const ReferralRef &rtx)
 {
-    for (std::list<CZMQAbstractNotifier*>::iterator i = notifiers.begin(); i!=notifiers.end(); )
+    for (auto i = notifiers.begin(); i!=notifiers.end(); )
     {
-        CZMQAbstractNotifier *notifier = *i;
+        auto *notifier = *i;
         if (notifier->NotifyReferral(rtx))
         {
             i++;
