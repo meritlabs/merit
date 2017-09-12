@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2014-2016 The Bitcoin Core developers
+# Copyright (c) 2017 The Merit Foundation developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,7 +12,9 @@
                 -zmqpubhashblock=tcp://127.0.0.1:28332 \
                 -zmqpubrawtx=tcp://127.0.0.1:28332 \
                 -zmqpubhashtx=tcp://127.0.0.1:28332 \
-                -zmqpubhashblock=tcp://127.0.0.1:28332
+                -zmqpubhashblock=tcp://127.0.0.1:28332 \
+                -zmqpubhashreferraltx=tcp://127.0.0.1:28332 \
+                -zmqpubrawreferraltx=tcp://127.0.0.1:28332
 
     We use the asyncio library here.  `self.handle()` installs itself as a
     future at the end of the function.  Since it never returns with the event
@@ -44,8 +47,10 @@ class ZMQHandler():
         self.zmqSubSocket = self.zmqContext.socket(zmq.SUB)
         self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "hashblock")
         self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "hashtx")
+        self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "hashreferraltx")
         self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "rawblock")
         self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "rawtx")
+        self.zmqSubSocket.setsockopt_string(zmq.SUBSCRIBE, "rawreferraltx")
         self.zmqSubSocket.connect("tcp://127.0.0.1:%i" % port)
 
     async def handle(self) :
@@ -62,11 +67,17 @@ class ZMQHandler():
         elif topic == b"hashtx":
             print('- HASH TX  ('+sequence+') -')
             print(binascii.hexlify(body))
+        elif topic == b"hashreferraltx":
+            print('- HASH REFERRAL TX  ('+sequence+') -')
+            print(binascii.hexlify(body))
         elif topic == b"rawblock":
             print('- RAW BLOCK HEADER ('+sequence+') -')
             print(binascii.hexlify(body[:80]))
         elif topic == b"rawtx":
             print('- RAW TX ('+sequence+') -')
+            print(binascii.hexlify(body))
+        elif topic == b"rawreferraltx":
+            print('- REFERRAL TX ('+sequence+') -')
             print(binascii.hexlify(body))
         # schedule ourselves to receive the next message
         asyncio.ensure_future(self.handle())

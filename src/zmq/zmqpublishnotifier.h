@@ -1,4 +1,5 @@
 // Copyright (c) 2015-2016 The Bitcoin Core developers
+// Copyright (c) 2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -6,6 +7,7 @@
 #define BITCOIN_ZMQ_ZMQPUBLISHNOTIFIER_H
 
 #include "zmqabstractnotifier.h"
+#include "util.h"
 
 class CBlockIndex;
 
@@ -31,25 +33,61 @@ public:
 class CZMQPublishHashBlockNotifier : public CZMQAbstractPublishNotifier
 {
 public:
+    CZMQPublishHashBlockNotifier() {
+        LogPrint(BCLog::ZMQ, "Starting Hash Block Notifier");
+    };
+
     bool NotifyBlock(const CBlockIndex *pindex) override;
 };
 
 class CZMQPublishHashTransactionNotifier : public CZMQAbstractPublishNotifier
 {
 public:
+    CZMQPublishHashTransactionNotifier() {
+        LogPrint(BCLog::ZMQ, "Starting Hash Transaction Notifier");
+    };
+
     bool NotifyTransaction(const CTransaction &transaction) override;
+};
+
+class CZMQPublishHashReferralNotifier : public CZMQAbstractPublishNotifier
+{
+public:
+    CZMQPublishHashReferralNotifier() {
+        LogPrint(BCLog::ZMQ, "Starting Hash Referral Notifier");
+    };
+
+    bool NotifyReferral(const ReferralRef &ref) override;
 };
 
 class CZMQPublishRawBlockNotifier : public CZMQAbstractPublishNotifier
 {
 public:
+    CZMQPublishRawBlockNotifier() {
+        LogPrint(BCLog::ZMQ, "Starting Raw Block Notifier");
+    };
+
     bool NotifyBlock(const CBlockIndex *pindex) override;
 };
 
 class CZMQPublishRawTransactionNotifier : public CZMQAbstractPublishNotifier
 {
 public:
+    CZMQPublishRawTransactionNotifier() {
+        LogPrint(BCLog::ZMQ, "Starting Raw Transaction Notifier");
+    };
+
     bool NotifyTransaction(const CTransaction &transaction) override;
+};
+
+class CZMQPublishRawReferralNotifier : public CZMQAbstractPublishNotifier
+{
+public:
+    CZMQPublishRawReferralNotifier() {
+        LogPrint(BCLog::ZMQ, "Starting Raw Referral Notifier");
+    };
+
+    bool NotifyReferral(const ReferralRef &ref) override;
 };
 
 #endif // BITCOIN_ZMQ_ZMQPUBLISHNOTIFIER_H

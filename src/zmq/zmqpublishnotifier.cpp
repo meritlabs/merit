@@ -1,4 +1,5 @@
 // Copyright (c) 2015-2016 The Bitcoin Core developers
+// Copyright (c) 2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -12,10 +13,12 @@
 
 static std::multimap<std::string, CZMQAbstractPublishNotifier*> mapPublishNotifiers;
 
-static const char *MSG_HASHBLOCK = "hashblock";
-static const char *MSG_HASHTX    = "hashtx";
-static const char *MSG_RAWBLOCK  = "rawblock";
-static const char *MSG_RAWTX     = "rawtx";
+static const char *MSG_HASHBLOCK    = "hashblock";
+static const char *MSG_HASHTX       = "hashtx";
+static const char *MSG_HASHREFERRAL = "hashreferraltx";
+static const char *MSG_RAWBLOCK     = "rawblock";
+static const char *MSG_RAWTX        = "rawtx";
+static const char *MSG_RAWREFERRAL  = "rawreferraltx";
 
 // Internal function to send multipart message
 static int zmq_send_multipart(void *sock, const void* data, size_t size, ...)
@@ -166,6 +169,16 @@ bool CZMQPublishHashTransactionNotifier::NotifyTransaction(const CTransaction &t
     return SendMessage(MSG_HASHTX, data, 32);
 }
 
+bool CZMQPublishHashReferralNotifier::NotifyReferral(const ReferralRef &ref)
+{
+    uint256 hash = ref->GetHash();
+    LogPrint(BCLog::ZMQ, "zmq: Publish hashreferraltx %s\n", hash.GetHex());
+    char data[32];
+    for (unsigned int i = 0; i < 32; i++)
+        data[31 - i] = hash.begin()[i];
+    return SendMessage(MSG_HASHREFERRAL, data, 32);
+}
+
 bool CZMQPublishRawBlockNotifier::NotifyBlock(const CBlockIndex *pindex)
 {
     LogPrint(BCLog::ZMQ, "zmq: Publish rawblock %s\n", pindex->GetBlockHash().GetHex());
@@ -194,4 +207,13 @@ bool CZMQPublishRawTransactionNotifier::NotifyTransaction(const CTransaction &tr
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION | RPCSerializationFlags());
     ss << transaction;
     return SendMessage(MSG_RAWTX, &(*ss.begin()), ss.size());
+}
+
+bool CZMQPublishRawReferralNotifier::NotifyReferral(const ReferralRef &ref)
+{
+    uint256 hash = ref->GetHash();
+    LogPrint(BCLog::ZMQ, "zmq: Publish referral %s\n", hash.GetHex());
+    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION | RPCSerializationFlags());
+    ss << ref;
+    return SendMessage(MSG_RAWREFERRAL, &(*ss.begin()), ss.size());
 }

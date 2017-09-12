@@ -29,6 +29,7 @@ static const char DB_TIMESTAMPINDEX = 's';
 static const char DB_BLOCKHASHINDEX = 'z';
 static const char DB_SPENTINDEX = 'p';
 static const char DB_BLOCK_INDEX = 'b';
+static const char DB_REFERRALSINDEX = 'r';
 
 static const char DB_BEST_BLOCK = 'B';
 static const char DB_HEAD_BLOCKS = 'H';
@@ -580,4 +581,26 @@ bool CCoinsViewDB::Upgrade() {
     uiInterface.SetProgressBreakAction(std::function<void(void)>());
     LogPrintf("[%s].\n", ShutdownRequested() ? "CANCELLED" : "DONE");
     return !ShutdownRequested();
+}
+
+bool CBlockTreeDB::ReadReferralTxIndex(const uint256 &txid, CDiskTxPos &pos)
+{
+    return Read(std::make_pair(DB_REFERRALSINDEX, txid), pos);
+}
+
+bool CBlockTreeDB::WriteReferralTxIndex(const std::vector<std::pair<uint256, CDiskTxPos> > &list)
+{
+    CDBBatch batch(*this);
+    for (std::vector<std::pair<uint256,CDiskTxPos> >::const_iterator it=list.begin(); it!=list.end(); it++)
+        batch.Write(std::make_pair(DB_REFERRALSINDEX, it->first), it->second);
+    return WriteBatch(batch);
+}
+
+bool CBlockTreeDB::GenesisReferralIndexExists(const CChainParams& chainparams)
+{
+    CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
+
+    auto reftx = block.m_vRef[0];
+    std::cout << "Referral: " << reftx->ToString() << " , with code hash: " << (reftx->m_codeHash.ToString()) << std::endl;
+    return Exists(std::make_pair(DB_REFERRALSINDEX, reftx->m_codeHash));
 }
