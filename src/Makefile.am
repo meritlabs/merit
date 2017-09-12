@@ -196,21 +196,24 @@ libbitcoin_server_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_server_a_SOURCES = \
   addrdb.cpp \
   addrman.cpp \
-  bloom.cpp \
   blockencodings.cpp \
+  bloom.cpp \
   chain.cpp \
   checkpoints.cpp \
-  consensus/tx_verify.cpp \
   consensus/ref_verify.cpp \
+  consensus/tx_verify.cpp \
+  dbwrapper.cpp \
   httprpc.cpp \
   httpserver.cpp \
   init.cpp \
-  dbwrapper.cpp \
   merkleblock.cpp \
   miner.cpp \
   net.cpp \
   net_processing.cpp \
   noui.cpp \
+  pog/anv.cpp \
+  pog/reward.cpp \
+  pog/select.cpp \
   policy/fees.cpp \
   policy/policy.cpp \
   policy/rbf.cpp \
@@ -224,8 +227,8 @@ libbitcoin_server_a_SOURCES = \
   rpc/rawtransaction.cpp \
   rpc/safemode.cpp \
   rpc/server.cpp \
-  script/sigcache.cpp \
   script/ismine.cpp \
+  script/sigcache.cpp \
   timedata.cpp \
   torcontrol.cpp \
   txdb.cpp \
@@ -307,12 +310,6 @@ libbitcoin_consensus_a_SOURCES = \
   primitives/transaction.cpp \
   primitives/transaction.h \
   primitives/referral.cpp \
-  pog/anv.cpp \
-  pog/anv.h \
-  pog/select.cpp \
-  pog/select.h \
-  pog/reward.cpp \
-  pog/reward.h \
   pubkey.cpp \
   pubkey.h \
   script/bitcoinconsensus.cpp \
