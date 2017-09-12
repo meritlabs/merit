@@ -268,7 +268,7 @@ bool CheckSequenceLocks(const CTransaction &tx, int flags, LockPoints* lp, bool 
 
     CBlockIndex* tip = chainActive.Tip();
     assert(tip != nullptr);
-    
+
     CBlockIndex index;
     index.pprev = tip;
     // CheckSequenceLocks() uses chainActive.Height()+1 to evaluate
@@ -820,6 +820,10 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             scriptVerifyFlags = gArgs.GetArg("-promiscuousmempoolflags", scriptVerifyFlags);
         }
 
+        if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache)) {
+            return false;
+        }
+
         // Check against previous transactions
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
         PrecomputedTransactionData txdata(tx);
@@ -1141,7 +1145,7 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
     assert(consensus_params.ambassador_percent_cut >= 0 && consensus_params.ambassador_percent_cut <= 100);
     auto block_subsidy = GetBlockSubsidy(height, consensus_params);
 
-    auto ambassador_subsidy = (block_subsidy * consensus_params.ambassador_percent_cut) / 100; 
+    auto ambassador_subsidy = (block_subsidy * consensus_params.ambassador_percent_cut) / 100;
     auto miner_subsidy = block_subsidy - ambassador_subsidy;
 
     assert(ambassador_subsidy < miner_subsidy);
@@ -1183,7 +1187,7 @@ CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t d
     auto rewards = pog::RewardAmbassadors(winners, total);
 
     // Pay them by adding a txout to the coinbase transaction;
-    for(const auto& reward : rewards.ambassadors) { 
+    for(const auto& reward : rewards.ambassadors) {
         PayAmbassador(reward.key, reward.amount, tx, height);
     }
 
@@ -1827,13 +1831,16 @@ AddressPair ExtractAddress(const CTxOut& tout)
     uint160 hashBytes;
     int addressType = 0;
 
-    if (tout.scriptPubKey.IsPayToScriptHash()) {
+    if (tout.scriptPubKey.IsPayToPublicKey()) {
+        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin(), tout.scriptPubKey.begin()+20));
+        addressType = 3;
+    } else if (tout.scriptPubKey.IsPayToScriptHash()) {
         hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
         addressType = 2;
     } else if (tout.scriptPubKey.IsPayToPublicKeyHash()) {
         hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+3, tout.scriptPubKey.begin()+23));
         addressType = 1;
-    } 
+    }
 
     return std::make_pair(hashBytes, addressType);
 }
@@ -1853,17 +1860,20 @@ void IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
         assert(txn);
 
         //debit senders
-        for (const auto& in :  txn->vin) {
-            const auto &in_out = view.AccessCoin(in.prevout).out;
-            auto address = ExtractAddress(in_out);
-            if(address.second == 0) continue;
+        if (!txn->IsCoinBase()) {
+            for (const auto& in :  txn->vin) {
+                const auto &in_out = view.AccessCoin(in.prevout).out;
+                auto address = ExtractAddress(in_out);
+                if(address.second == 0) continue;
 
-            debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * -1}});
+                debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * -1}});
+            }
         }
 
         //credit recipients
         for (const auto& out : txn->vout) {
             auto address = ExtractAddress(out);
+
             if(address.second == 0) continue;
 
             debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue}});
@@ -2075,6 +2085,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         if (!tx.IsCoinBase())
         {
             nFees += view.GetValueIn(tx)-tx.GetValueOut();
+
+            Consensus::CheckTxOutputs(tx, state, *prefviewcache);
 
             std::vector<CScriptCheck> vChecks;
             bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
@@ -2726,7 +2738,7 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
         // any disconnected transactions back to the mempool.
         UpdateMempoolForReorg(disconnectpool, true);
     }
-    mempool.check(pcoinsTip);
+    mempool.check(pcoinsTip, *prefviewcache);
 
     // Callbacks/notifications for a new best chain.
     if (fInvalidFound)
@@ -4293,8 +4305,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
         if (!ReceivedBlockTransactions(block, state, pindex, blockPos, chainparams.GetConsensus()))
             return error("%s: genesis block not accepted", __func__);
 
-        // TODO: Find a better place to write the genesis referral to the DB.
-        prefviewdb->InsertReferral(*block.m_vRef[0]);
+        IndexReferralsAndUpdateANV(block, *pcoinsTip);
 
     } catch (const std::runtime_error& e) {
         return error("%s: failed to write genesis block: %s", __func__, e.what());

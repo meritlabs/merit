@@ -1191,7 +1191,7 @@ public:
        this function). */
     bool SetHDMasterKey(const CPubKey& key);
 
-    bool SetUnlockReferralTx(const ReferralTx& rtx);
+    bool SetUnlockReferralTx(const ReferralTx& rtx, bool topUpKeyPool = false);
     ReferralRef GenerateNewReferral(CPubKey& pubkey, uint256 referredBy);
 
     bool IsReferred() const;
