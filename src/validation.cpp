@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
+// Copyright (c) 2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -80,6 +81,7 @@ bool fTxIndex = false;
 bool fAddressIndex = false;
 bool fTimestampIndex = false;
 bool fSpentIndex = false;
+bool fReferralIndex = false;
 bool fHavePruned = false;
 bool fPruneMode = false;
 bool fIsBareMultisigStd = DEFAULT_PERMIT_BAREMULTISIG;
@@ -268,7 +270,7 @@ bool CheckSequenceLocks(const CTransaction &tx, int flags, LockPoints* lp, bool 
 
     CBlockIndex* tip = chainActive.Tip();
     assert(tip != nullptr);
-    
+
     CBlockIndex index;
     index.pprev = tip;
     // CheckSequenceLocks() uses chainActive.Height()+1 to evaluate
@@ -990,6 +992,14 @@ bool GetAddressIndex(uint160 addressHash, int type,
     return true;
 }
 
+bool GetReferralIndex()
+{
+    if (!fReferralIndex)
+        return error("referral index is not enabled");
+
+    return true;
+}
+
 bool GetAddressUnspent(uint160 addressHash, int type,
                        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs)
 {
@@ -1018,7 +1028,8 @@ bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, const Consensus
 
     if (fTxIndex) {
         CDiskTxPos postx;
-        if (pblocktree->ReadTxIndex(hash, postx)) {
+        if (pblocktree->ReadTxIndex(hash, postx))
+        {
             CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
             if (file.IsNull())
                 return error("%s: OpenBlockFile failed", __func__);
@@ -1141,7 +1152,7 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
     assert(consensus_params.ambassador_percent_cut >= 0 && consensus_params.ambassador_percent_cut <= 100);
     auto block_subsidy = GetBlockSubsidy(height, consensus_params);
 
-    auto ambassador_subsidy = (block_subsidy * consensus_params.ambassador_percent_cut) / 100; 
+    auto ambassador_subsidy = (block_subsidy * consensus_params.ambassador_percent_cut) / 100;
     auto miner_subsidy = block_subsidy - ambassador_subsidy;
 
     assert(ambassador_subsidy < miner_subsidy);
@@ -1183,7 +1194,7 @@ CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t d
     auto rewards = pog::RewardAmbassadors(winners, total);
 
     // Pay them by adding a txout to the coinbase transaction;
-    for(const auto& reward : rewards.ambassadors) { 
+    for(const auto& reward : rewards.ambassadors) {
         PayAmbassador(reward.key, reward.amount, tx, height);
     }
 
@@ -1833,7 +1844,7 @@ AddressPair ExtractAddress(const CTxOut& tout)
     } else if (tout.scriptPubKey.IsPayToPublicKeyHash()) {
         hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+3, tout.scriptPubKey.begin()+23));
         addressType = 1;
-    } 
+    }
 
     return std::make_pair(hashBytes, addressType);
 }
@@ -1951,6 +1962,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // Now that the whole chain is irreversibly beyond that time it is applied to all blocks except the
     // two in the chain that violate it. This prevents exploiting the issue against nodes during their
     // initial block download.
+    // ToDo: remove init on block ids.
     bool fEnforceBIP30 = (!pindex->phashBlock) || // Enforce on CreateNewBlock invocations which don't have a hash.
                           !((pindex->nHeight==91842 && pindex->GetBlockHash() == uint256S("0x00000000000a4d0a398161ffc163c503763b1f4360639393e0e4c8e300e0caec")) ||
                            (pindex->nHeight==91880 && pindex->GetBlockHash() == uint256S("0x00000000000743f190a18c5577a3c2d2a1f610ae9601ac046a38084ccb7cd721")));
@@ -1996,9 +2008,13 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     CAmount nFees = 0;
     int nInputs = 0;
     int64_t nSigOpsCost = 0;
-    CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
+    const auto curBlockPos = pindex->GetBlockPos();
+    CDiskTxPos pos(curBlockPos, GetSizeOfCompactSize(block.vtx.size()));
+    CDiskTxPos refPos(curBlockPos, GetSizeOfCompactSize(block.m_vRef.size()));
     std::vector<std::pair<uint256, CDiskTxPos> > vPos;
+    std::vector<std::pair<uint256, CDiskTxPos> > vRefPos;
     vPos.reserve(block.vtx.size());
+    vRefPos.reserve(block.m_vRef.size());
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
     std::vector<PrecomputedTransactionData> txdata;
     txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
@@ -2112,8 +2128,24 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    if(!fJustCheck) {
+    if(!fJustCheck)
+    {
         IndexReferralsAndUpdateANV(block, view);
+    }
+
+    for (unsigned int i = 0; i < block.m_vRef.size(); i++)
+    {
+        const ReferralRef rtx = block.m_vRef[i];
+        const uint256 rtxhash = rtx->GetHash();
+
+        vRefPos.push_back(std::make_pair(rtxhash, refPos));
+        refPos.nTxOffset += ::GetSerializeSize(rtx, SER_DISK, CLIENT_VERSION);
+    }
+
+    // Record referrals into the referral DB
+    for (const auto& ref : block.m_vRef)
+    {
+        prefviewdb->InsertReferral(*ref);
     }
 
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
@@ -2190,6 +2222,11 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
         if (!pblocktree->WriteTimestampBlockIndex(CTimestampBlockIndexKey(pindex->GetBlockHash()), CTimestampBlockIndexValue(logicalTS)))
             return AbortNode(state, "Failed to write blockhash index");
+    }
+
+    if (fReferralIndex) {
+        if (!pblocktree->WriteReferralTxIndex(vRefPos))
+            return AbortNode(state, "Failed to write referral transaction index");
     }
 
     // add this block to the view's block chain
@@ -3884,20 +3921,24 @@ bool static LoadBlockIndexDB(const CChainParams& chainparams)
     fReindex |= fReindexing;
 
     // Check whether we have a transaction index
-    pblocktree->ReadFlag("txindex", fTxIndex);
+    pblocktree->ReadFlag(flags::txindex, fTxIndex);
     LogPrintf("%s: transaction index %s\n", __func__, fTxIndex ? "enabled" : "disabled");
 
     // Check whether we have an address index
-    pblocktree->ReadFlag("addressindex", fAddressIndex);
+    pblocktree->ReadFlag(flags::addressindex, fAddressIndex);
     LogPrintf("%s: address index %s\n", __func__, fAddressIndex ? "enabled" : "disabled");
 
     // Check whether we have a timestamp index
-    pblocktree->ReadFlag("timestampindex", fTimestampIndex);
+    pblocktree->ReadFlag(flags::timestampindex, fTimestampIndex);
     LogPrintf("%s: timestamp index %s\n", __func__, fTimestampIndex ? "enabled" : "disabled");
 
     // Check whether we have a spent index
-    pblocktree->ReadFlag("spentindex", fSpentIndex);
+    pblocktree->ReadFlag(flags::spentindex, fSpentIndex);
     LogPrintf("%s: spent index %s\n", __func__, fSpentIndex ? "enabled" : "disabled");
+
+    pblocktree->ReadFlag(flags::referralindex, fReferralIndex);
+    LogPrintf("%s: referral index %s\n", __func__, fReferralIndex ? "enabled" : "disabled");
+
     return true;
 }
 
@@ -4262,8 +4303,20 @@ bool LoadBlockIndex(const CChainParams& chainparams)
 
         LogPrintf("Initializing databases...\n");
         // Use the provided setting for -txindex in the new database
-        fTxIndex = gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX);
-        pblocktree->WriteFlag("txindex", fTxIndex);
+        fTxIndex = gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::txindex), DEFAULT_TXINDEX);
+        pblocktree->WriteFlag(flags::txindex, fTxIndex);
+
+        fAddressIndex = gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::addressindex), DEFAULT_ADDRESSINDEX);
+        pblocktree->WriteFlag(flags::addressindex, fAddressIndex);
+
+        fTimestampIndex = gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::timestampindex), DEFAULT_TIMESTAMPINDEX);
+        pblocktree->WriteFlag(flags::timestampindex, fTimestampIndex);
+
+        fSpentIndex = gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::spentindex), DEFAULT_SPENTINDEX);
+        pblocktree->WriteFlag(flags::spentindex, fSpentIndex);
+
+        fReferralIndex = gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::referralindex), DEFAULT_REFERRALINDEX);
+        pblocktree->WriteFlag(flags::referralindex, fReferralIndex);
     }
     return true;
 }
@@ -4272,15 +4325,18 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
 {
     LOCK(cs_main);
 
-    // Check whether we're already initialized by checking for genesis in
-    // mapBlockIndex. Note that we can't use chainActive here, since it is
-    // set based on the coins db, not the block index db, which is the only
-    // thing loaded at this point.
-    if (mapBlockIndex.count(chainparams.GenesisBlock().GetHash()))
-        return true;
-
     try {
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
+        // ToDo: there might be a better place for this code
+        prefviewdb->InsertReferral(*block.m_vRef[0]);
+
+        // Check whether we're already initialized by checking for genesis in
+        // mapBlockIndex. Note that we can't use chainActive here, since it is
+        // set based on the coins db, not the block index db, which is the only
+        // thing loaded at this point.
+        if (mapBlockIndex.count(chainparams.GenesisBlock().GetHash()))
+            return true;
+
         // Start new block file
         unsigned int nBlockSize = ::GetSerializeSize(block, SER_DISK, CLIENT_VERSION);
         CDiskBlockPos blockPos;
@@ -4292,9 +4348,6 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
         CBlockIndex *pindex = AddToBlockIndex(block);
         if (!ReceivedBlockTransactions(block, state, pindex, blockPos, chainparams.GetConsensus()))
             return error("%s: genesis block not accepted", __func__);
-
-        // TODO: Find a better place to write the genesis referral to the DB.
-        prefviewdb->InsertReferral(*block.m_vRef[0]);
 
     } catch (const std::runtime_error& e) {
         return error("%s: failed to write genesis block: %s", __func__, e.what());

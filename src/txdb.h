@@ -21,6 +21,7 @@
 class CBlockIndex;
 class CCoinsViewDBCursor;
 class uint256;
+class CChainParams;
 
 //! Compensate for extra memory peak (x1.5-x1.9) at flush time.
 static constexpr int DB_PEAK_USAGE_FACTOR = 2;
@@ -145,6 +146,11 @@ public:
     bool WriteFlag(const std::string &name, bool fValue);
     bool ReadFlag(const std::string &name, bool &fValue);
     bool LoadBlockIndexGuts(const Consensus::Params& consensusParams, std::function<CBlockIndex*(const uint256&)> insertBlockIndex);
+
+    // Referrals
+    bool ReadReferralTxIndex(const uint256 &txid, CDiskTxPos &pos);
+    bool WriteReferralTxIndex(const std::vector<std::pair<uint256, CDiskTxPos> > &list);
+    bool GenesisReferralIndexExists(const CChainParams& chainparams);
 };
 
 #endif // MERIT_TXDB_H
