@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_INIT_H
-#define BITCOIN_WALLET_INIT_H
+#ifndef MERIT_WALLET_INIT_H
+#define MERIT_WALLET_INIT_H
 
 #include <string>
 
@@ -22,4 +22,4 @@ bool WalletVerify();
 //! Load wallet databases.
 bool InitLoadWallet();
 
-#endif // BITCOIN_WALLET_INIT_H
+#endif // MERIT_WALLET_INIT_H

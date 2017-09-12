@@ -1,10 +1,10 @@
 
-## <summary>policy for bitcoin</summary>
+## <summary>policy for merit</summary>
 
 
 ########################################
 ## <summary>
-##	Transition to bitcoin.
+##	Transition to merit.
 ## </summary>
 ## <param name="domain">
 ## <summary>
@@ -12,19 +12,19 @@
 ## </summary>
 ## </param>
 #
-interface(`bitcoin_domtrans',`
+interface(`merit_domtrans',`
 	gen_require(`
-		type bitcoin_t, bitcoin_exec_t;
+		type merit_t, merit_exec_t;
 	')
 
 	corecmd_search_bin($1)
-	domtrans_pattern($1, bitcoin_exec_t, bitcoin_t)
+	domtrans_pattern($1, merit_exec_t, merit_t)
 ')
 
 
 ########################################
 ## <summary>
-##	Execute bitcoin server in the bitcoin domain.
+##	Execute merit server in the merit domain.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -32,18 +32,18 @@ interface(`bitcoin_domtrans',`
 ##	</summary>
 ## </param>
 #
-interface(`bitcoin_initrc_domtrans',`
+interface(`merit_initrc_domtrans',`
 	gen_require(`
-		type bitcoin_initrc_exec_t;
+		type merit_initrc_exec_t;
 	')
 
-	init_labeled_script_domtrans($1, bitcoin_initrc_exec_t)
+	init_labeled_script_domtrans($1, merit_initrc_exec_t)
 ')
 
 
 ########################################
 ## <summary>
-##	Search bitcoin lib directories.
+##	Search merit lib directories.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -51,18 +51,18 @@ interface(`bitcoin_initrc_domtrans',`
 ##	</summary>
 ## </param>
 #
-interface(`bitcoin_search_lib',`
+interface(`merit_search_lib',`
 	gen_require(`
-		type bitcoin_var_lib_t;
+		type merit_var_lib_t;
 	')
 
-	allow $1 bitcoin_var_lib_t:dir search_dir_perms;
+	allow $1 merit_var_lib_t:dir search_dir_perms;
 	files_search_var_lib($1)
 ')
 
 ########################################
 ## <summary>
-##	Read bitcoin lib files.
+##	Read merit lib files.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -70,18 +70,18 @@ interface(`bitcoin_search_lib',`
 ##	</summary>
 ## </param>
 #
-interface(`bitcoin_read_lib_files',`
+interface(`merit_read_lib_files',`
 	gen_require(`
-		type bitcoin_var_lib_t;
+		type merit_var_lib_t;
 	')
 
 	files_search_var_lib($1)
-	read_files_pattern($1, bitcoin_var_lib_t, bitcoin_var_lib_t)
+	read_files_pattern($1, merit_var_lib_t, merit_var_lib_t)
 ')
 
 ########################################
 ## <summary>
-##	Manage bitcoin lib files.
+##	Manage merit lib files.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -89,18 +89,18 @@ interface(`bitcoin_read_lib_files',`
 ##	</summary>
 ## </param>
 #
-interface(`bitcoin_manage_lib_files',`
+interface(`merit_manage_lib_files',`
 	gen_require(`
-		type bitcoin_var_lib_t;
+		type merit_var_lib_t;
 	')
 
 	files_search_var_lib($1)
-	manage_files_pattern($1, bitcoin_var_lib_t, bitcoin_var_lib_t)
+	manage_files_pattern($1, merit_var_lib_t, merit_var_lib_t)
 ')
 
 ########################################
 ## <summary>
-##	Manage bitcoin lib directories.
+##	Manage merit lib directories.
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -108,20 +108,20 @@ interface(`bitcoin_manage_lib_files',`
 ##	</summary>
 ## </param>
 #
-interface(`bitcoin_manage_lib_dirs',`
+interface(`merit_manage_lib_dirs',`
 	gen_require(`
-		type bitcoin_var_lib_t;
+		type merit_var_lib_t;
 	')
 
 	files_search_var_lib($1)
-	manage_dirs_pattern($1, bitcoin_var_lib_t, bitcoin_var_lib_t)
+	manage_dirs_pattern($1, merit_var_lib_t, merit_var_lib_t)
 ')
 
 
 ########################################
 ## <summary>
 ##	All of the rules required to administrate
-##	a bitcoin environment
+##	a merit environment
 ## </summary>
 ## <param name="domain">
 ##	<summary>
@@ -135,23 +135,23 @@ interface(`bitcoin_manage_lib_dirs',`
 ## </param>
 ## <rolecap/>
 #
-interface(`bitcoin_admin',`
+interface(`merit_admin',`
 	gen_require(`
-		type bitcoin_t;
-		type bitcoin_initrc_exec_t;
-		type bitcoin_var_lib_t;
+		type merit_t;
+		type merit_initrc_exec_t;
+		type merit_var_lib_t;
 	')
 
-	allow $1 bitcoin_t:process { ptrace signal_perms };
-	ps_process_pattern($1, bitcoin_t)
+	allow $1 merit_t:process { ptrace signal_perms };
+	ps_process_pattern($1, merit_t)
 
-	bitcoin_initrc_domtrans($1)
+	merit_initrc_domtrans($1)
 	domain_system_change_exemption($1)
-	role_transition $2 bitcoin_initrc_exec_t system_r;
+	role_transition $2 merit_initrc_exec_t system_r;
 	allow $2 system_r;
 
 	files_search_var_lib($1)
-	admin_pattern($1, bitcoin_var_lib_t)
+	admin_pattern($1, merit_var_lib_t)
 
 ')
 

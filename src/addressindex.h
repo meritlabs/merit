@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_ADDRESSINDEX_H
-#define BITCOIN_ADDRESSINDEX_H
+#ifndef MERIT_ADDRESSINDEX_H
+#define MERIT_ADDRESSINDEX_H
 
 #include "uint256.h"
 #include "amount.h"
@@ -292,4 +292,4 @@ struct CMempoolAddressDeltaKeyCompare
     }
 };
 
-#endif // BITCOIN_ADDRESSINDEX_H
+#endif // MERIT_ADDRESSINDEX_H

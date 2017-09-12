@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_SYNC_H
-#define BITCOIN_SYNC_H
+#ifndef MERIT_SYNC_H
+#define MERIT_SYNC_H
 
 #include "threadsafety.h"
 
@@ -286,4 +286,4 @@ public:
     }
 };
 
-#endif // BITCOIN_SYNC_H
+#endif // MERIT_SYNC_H

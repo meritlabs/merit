@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_FEES_H
-#define BITCOIN_WALLET_FEES_H
+#ifndef MERIT_WALLET_FEES_H
+#define MERIT_WALLET_FEES_H
 
 #include "amount.h"
 
@@ -31,4 +31,4 @@ CAmount GetMinimumFee(unsigned int nTxBytes, const CCoinControl& coin_control, c
  */
 CFeeRate GetDiscardRate(const CBlockPolicyEstimator& estimator);
 
-#endif // BITCOIN_WALLET_FEES_H
+#endif // MERIT_WALLET_FEES_H

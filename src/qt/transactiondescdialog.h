@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_TRANSACTIONDESCDIALOG_H
-#define BITCOIN_QT_TRANSACTIONDESCDIALOG_H
+#ifndef MERIT_QT_TRANSACTIONDESCDIALOG_H
+#define MERIT_QT_TRANSACTIONDESCDIALOG_H
 
 #include <QDialog>
 
@@ -28,4 +28,4 @@ private:
     Ui::TransactionDescDialog *ui;
 };
 
-#endif // BITCOIN_QT_TRANSACTIONDESCDIALOG_H
+#endif // MERIT_QT_TRANSACTIONDESCDIALOG_H

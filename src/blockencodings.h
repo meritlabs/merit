@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_BLOCK_ENCODINGS_H
-#define BITCOIN_BLOCK_ENCODINGS_H
+#ifndef MERIT_BLOCK_ENCODINGS_H
+#define MERIT_BLOCK_ENCODINGS_H
 
 #include "primitives/block.h"
 

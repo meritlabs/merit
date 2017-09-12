@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UINT256_H
-#define BITCOIN_UINT256_H
+#ifndef MERIT_UINT256_H
+#define MERIT_UINT256_H
 
 #include <assert.h>
 #include <cstring>
@@ -177,4 +177,4 @@ inline uint256 uint256S(const std::string& str)
     return rv;
 }
 
-#endif // BITCOIN_UINT256_H
+#endif // MERIT_UINT256_H

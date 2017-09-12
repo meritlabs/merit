@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UNDO_H
-#define BITCOIN_UNDO_H
+#ifndef MERIT_UNDO_H
+#define MERIT_UNDO_H
 
 #include "compressor.h" 
 #include "consensus/consensus.h"
@@ -109,4 +109,4 @@ public:
     }
 };
 
-#endif // BITCOIN_UNDO_H
+#endif // MERIT_UNDO_H

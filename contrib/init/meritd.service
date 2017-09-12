@@ -1,15 +1,15 @@
 [Unit]
-Description=Bitcoin's distributed currency daemon
+Description=Merit's distributed currency daemon
 After=network.target
 
 [Service]
-User=bitcoin
-Group=bitcoin
+User=merit
+Group=merit
 
 Type=forking
-PIDFile=/var/lib/bitcoind/bitcoind.pid
-ExecStart=/usr/bin/bitcoind -daemon -pid=/var/lib/bitcoind/bitcoind.pid \
--conf=/etc/bitcoin/bitcoin.conf -datadir=/var/lib/bitcoind -disablewallet
+PIDFile=/var/lib/meritd/meritd.pid
+ExecStart=/usr/bin/meritd -daemon -pid=/var/lib/meritd/meritd.pid \
+-conf=/etc/merit/merit.conf -datadir=/var/lib/meritd -disablewallet
 
 Restart=always
 PrivateTmp=true

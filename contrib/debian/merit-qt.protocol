@@ -1,6 +1,6 @@
 [Protocol]
-exec=bitcoin-qt '%u'
-protocol=bitcoin
+exec=merit-qt '%u'
+protocol=merit
 input=none
 output=none
 helper=true
