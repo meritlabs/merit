@@ -1,3 +1,4 @@
+// Copyright (c) 2017 The Merit Foundation developers
 #include "crypto/finite_field.h"
 
 #include <numeric>

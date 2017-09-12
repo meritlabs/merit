@@ -1,3 +1,4 @@
+// Copyright (c) 2017 The Merit Foundation developers
 // Taken from https://gist.github.com/arvidsson/7231973
 
 #ifndef MERIT_REVERSE_ITERATOR_H

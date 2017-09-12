@@ -1,3 +1,4 @@
+// Copyright (c) 2014-2017 The Merit Foundation developers
 // tinyformat.h
 // Copyright (C) 2011, Chris Foster [chris42f (at) gmail (d0t) com]
 //

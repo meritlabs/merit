@@ -1,3 +1,4 @@
+// Copyright (c) 2017 The Merit Foundation developers
 #ifndef LEGENDRE_H
 
 #include "finite_field.h"

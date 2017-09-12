@@ -1,3 +1,4 @@
+// Copyright (c) 2017 The Merit Foundation developers
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>

@@ -1,3 +1,4 @@
+// Copyright (c) 2017 The Merit Foundation developers
 #include "safemode.h"
 
 #include "rpc/protocol.h"

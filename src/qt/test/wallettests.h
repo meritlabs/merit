@@ -1,3 +1,4 @@
+// Copyright (c) 2017 The Merit Foundation developers
 #ifndef MERIT_QT_TEST_WALLETTESTS_H
 #define MERIT_QT_TEST_WALLETTESTS_H
 

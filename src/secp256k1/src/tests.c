@@ -1,3 +1,4 @@
+// Copyright (c) 2014-2017 The Merit Foundation developers
 /**********************************************************************
  * Copyright (c) 2013, 2014, 2015 Pieter Wuille, Gregory Maxwell      *
  * Distributed under the MIT software license, see the accompanying   *
