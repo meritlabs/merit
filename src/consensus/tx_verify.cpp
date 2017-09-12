@@ -218,12 +218,7 @@ bool Consensus::CheckTxOutputs(const CTransaction& tx, CValidationState& state, 
 
         const CKeyID* pubKeyId = boost::get<CKeyID>(&dest);
 
-        // destination does not refer to a key
-        if (pubKeyId == nullptr) {
-            return true;
-        }
-
-        if (!referralsCache.WalletIdExists(pubKeyId)) {
+        if (pubKeyId && !referralsCache.WalletIdExists(*pubKeyId)) {
             return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-beaconed");
         }
     }
