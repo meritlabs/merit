@@ -1,4 +1,3 @@
-// Copyright (c) 2015 The Merit Foundation developers
 #ifndef _SECP256K1_ECDH_
 # define _SECP256K1_ECDH_
 

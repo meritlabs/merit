@@ -1,4 +1,3 @@
-// Copyright (c) 2015 The Merit Foundation developers
 /**********************************************************************
  * Copyright (c) 2013, 2014, 2015 Thomas Daede, Cory Fields           *
  * Distributed under the MIT software license, see the accompanying   *

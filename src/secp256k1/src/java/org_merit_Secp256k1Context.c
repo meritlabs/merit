@@ -1,4 +1,3 @@
-// Copyright (c) 2017 The Merit Foundation developers
 #include <stdlib.h>
 #include <stdint.h>
 #include "org_merit_Secp256k1Context.h"
