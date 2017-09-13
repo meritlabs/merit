@@ -4,7 +4,7 @@
 
 #include "refdb.h"
 
-namespace 
+namespace
 {
 const char DB_CHILDREN = 'c';
 const char DB_REFERRALS = 'r';
@@ -19,14 +19,14 @@ ReferralsViewDB::ReferralsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) :
 
 MaybeReferral ReferralsViewDB::GetReferral(const uint256& code_hash) const {
      MutableReferral referral;
-     return m_db.Read(std::make_pair(DB_REFERRALS,code_hash), referral) ? 
+     return m_db.Read(std::make_pair(DB_REFERRALS,code_hash), referral) ?
          MaybeReferral{referral} : MaybeReferral{};
 }
 
 MaybeKeyID ReferralsViewDB::GetReferrer(const CKeyID& key) const
 {
     CKeyID parent;
-    return m_db.Read(std::make_pair(DB_PARENT_KEY, key), parent) ? 
+    return m_db.Read(std::make_pair(DB_PARENT_KEY, key), parent) ?
         MaybeKeyID{parent} : MaybeKeyID{};
 }
 
@@ -52,7 +52,7 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral) {
     if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.m_pubKeyId), parent_key))
         return false;
 
-    // Now we update the children of the parent key by inserting into the 
+    // Now we update the children of the parent key by inserting into the
     // child key array for the parent.
     ChildKeys children;
     m_db.Read(std::make_pair(DB_CHILDREN, parent_key), children);
@@ -74,7 +74,7 @@ bool ReferralsViewDB::WalletIdExists(const CKeyID& key) const
 }
 
 /**
- * Updates ANV for the key and all parents. Note change can be negative if 
+ * Updates ANV for the key and all parents. Note change can be negative if
  * there was a debit.
  */
 bool ReferralsViewDB::UpdateANV(const CKeyID& start_key, CAmount change)
@@ -92,7 +92,7 @@ bool ReferralsViewDB::UpdateANV(const CKeyID& start_key, CAmount change)
         anv += change;
         if(!m_db.Write(std::make_pair(DB_ANV, *key), anv)) {
             //TODO: Do we rollback anv computation for already processed keys?
-            // likely if we can't write then rollback will fail too. 
+            // likely if we can't write then rollback will fail too.
             // figure out how to mark database as corrupt.
             return false;
         }
@@ -101,7 +101,7 @@ bool ReferralsViewDB::UpdateANV(const CKeyID& start_key, CAmount change)
         levels++;
     }
 
-    // We should never have cycles in the DB. 
+    // We should never have cycles in the DB.
     // Hacked? Bug?
     assert(levels < MAX_LEVELS && "reached max levels. Referral DB cycle detected");
     return true;
@@ -123,7 +123,7 @@ KeyANVs ReferralsViewDB::GetAllANVs() const
     while(iter->Valid())
     {
         //filter non ANV keys
-        if(!iter->GetKey(key)) { 
+        if(!iter->GetKey(key)) {
             iter->Next();
             continue;
         }

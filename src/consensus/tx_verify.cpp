@@ -7,13 +7,15 @@
 #include "consensus.h"
 #include "primitives/transaction.h"
 #include "script/interpreter.h"
+#include "script/standard.h"
 #include "validation.h"
 
 // TODO remove the following dependencies
 #include "chain.h"
 #include "coins.h"
+#include "referrals.h"
 #include "utilmoneystr.h"
- 
+
 bool IsFinalTx(const CTransaction &tx, int nBlockHeight, int64_t nBlockTime)
 {
     if (tx.nLockTime == 0)
@@ -200,6 +202,33 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state, bool fChe
         for (const auto& txin : tx.vin)
             if (txin.prevout.IsNull())
                 return state.DoS(10, false, REJECT_INVALID, "bad-txns-prevout-null");
+    }
+
+    return true;
+}
+
+bool Consensus::CheckTxOutputs(const CTransaction& tx, CValidationState& state, const ReferralsViewCache& referralsCache)
+{
+    // check addresses used for vouts are beaconed
+    for (const auto& txout: tx.vout) {
+        CTxDestination dest;
+        if (!ExtractDestination(txout.scriptPubKey, dest) || !IsValidDestination(dest)) {
+            return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-invalid-dest");
+        }
+
+        const auto pubKeyId = boost::get<CKeyID>(&dest);
+
+        if (pubKeyId && !referralsCache.WalletIdExists(*pubKeyId)) {
+            return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-beaconed");
+        }
+
+        if (!pubKeyId) {
+            const auto scriptKeyId = boost::get<CScriptID>(&dest);
+
+            if (scriptKeyId) {
+                assert(false && "TODO: Handle CSriptID case in transaction addresses validation");
+            }
+        }
     }
 
     return true;
