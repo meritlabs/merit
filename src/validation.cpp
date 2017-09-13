@@ -1202,6 +1202,53 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
     }
 }
 
+struct RewardComp
+{
+    bool operator()(const pog::AmbassadorReward& a, const pog::AmbassadorReward& b) {
+        if(a.key < b.key) return true;
+        if(a.key == b.key) return a.amount < b.amount;
+        return false;
+    }
+};
+
+void SortRewards(pog::Rewards& rewards) 
+{
+    std::sort(std::begin(rewards), std::end(rewards), RewardComp()); 
+}
+
+bool AreExpectedLotteryAmbassadorsPaid(const pog::AmbassadorLottery& lottery, const CTransaction& coinbase) {
+    assert(coinbase.IsCoinBase());
+
+    //quick test before doing more expensive validation
+    if(coinbase.vout.size() < 1 + lottery.winners.size())
+        return false;
+
+    //Transform vouts to rewards
+    pog::Rewards sorted_outs(coinbase.vout.size());
+    std::transform(std::begin(coinbase.vout), std::end(coinbase.vout), std::begin(sorted_outs),
+            [](const CTxOut& out) -> pog::AmbassadorReward {
+                CTxDestination dest;
+                if(!ExtractDestination(out.scriptPubKey, dest)) return {{}, out.nValue};
+
+                const auto* key = boost::get<CKeyID>(&dest);
+                if(!key) return {{}, out.nValue};
+
+                return {*key, out.nValue};
+            });
+    SortRewards(sorted_outs);
+
+    //Sort winners
+    auto sorted_winners = lottery.winners;
+    SortRewards(sorted_winners);
+
+    // Make sure all expected rewards are exist in the set of all rewards given in 
+    // the block.
+    return std::includes(
+            std::begin(sorted_outs), std::end(sorted_outs), 
+            std::begin(sorted_winners), std::end(sorted_winners), 
+            RewardComp());
+}
+
 bool IsInitialBlockDownload()
 {
     // Once this function has returned false, it must remain false.
@@ -2160,11 +2207,12 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
-    auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
+    //Figure out split subsidy and make sure the coinbase pays the expceted amount.
+    const auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
     assert(subsidy.miner > 0);
     assert(subsidy.ambassador > 0);
 
-    CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
+    const CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
 
     assert(!block.vtx.empty()); 
     const CTransaction& coinbase_tx = *block.vtx[0];
@@ -2175,21 +2223,19 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                coinbase_tx.GetValueOut(), block_reward),
                                REJECT_INVALID, "bad-cb-amount");
 
-    auto lottery = RewardAmbassadors(
+    // Figure out which ambassadors should be rewarded and check to make sure
+    // they are paid the expected amount.
+    const auto lottery = RewardAmbassadors(
             hashPrevBlock,
             subsidy.ambassador,
             chainparams.GetConsensus().total_winning_ambassadors);
     assert(lottery.remainder >= 0);
 
-    // check to make sure the vout is at least the miner plus all the ambassador winners
-    auto expected_recipients = 1 + lottery.winners.size();
-    if(coinbase_tx.vout.size() < expected_recipients)
+    if(!AreExpectedLotteryAmbassadorsPaid(lottery, coinbase_tx))
         return state.DoS(100,
-                         error("ConnectBlock(): coinbase must pay at least the miners and ambassadors",
+                         error("ConnectBlock(): coinbase did not pay the expected ambassadors",
                                coinbase_tx.vout.size(), block_reward),
-                               REJECT_INVALID, "bad-cb-out-size");
-
-        //CHECK TO MAKE SURE ALL AMBASSADORS ARE PAID
+                               REJECT_INVALID, "bad-cb-bad-ambassadors");
 
     if (!control.Wait())
         return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");

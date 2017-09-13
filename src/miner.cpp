@@ -196,9 +196,9 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     coinbaseTx.vin[0].scriptSig = CScript() << nHeight << OP_0;
 
-    auto previousBlockHash = pindexPrev->GetBlockHash();
+    const auto previousBlockHash = pindexPrev->GetBlockHash();
 
-    auto subsidy = GetSplitSubsidy(nHeight, chain_params);
+    const auto subsidy = GetSplitSubsidy(nHeight, chain_params);
     assert(subsidy.miner > 0);
     assert(subsidy.ambassador > 0);
 
@@ -208,7 +208,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
      * via referrals. The rewards are given out in a lottery where the probability
      * of winning is based on an ambassadors referral network.
      */
-    auto lottery = RewardAmbassadors(previousBlockHash, subsidy.ambassador, chain_params.total_winning_ambassadors);
+    const auto lottery = RewardAmbassadors(previousBlockHash, subsidy.ambassador, chain_params.total_winning_ambassadors);
     assert(lottery.remainder >= 0);
 
     /**
@@ -221,7 +221,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
      * over from paying the ambassadors. The reason there is a remaining subsidy
      * is because we use integer math.
      */
-    auto miner_subsidy = subsidy.miner + lottery.remainder;
+    const auto miner_subsidy = subsidy.miner + lottery.remainder;
     assert(miner_subsidy > 0);
 
     coinbaseTx.vout[0].nValue = nFees + miner_subsidy;
