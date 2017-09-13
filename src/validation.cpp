@@ -1945,6 +1945,8 @@ bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
         if(!prefviewdb->UpdateANV(key, amount))
             return false;
     }
+
+    return true;
 }
 
 bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos)
