@@ -1024,8 +1024,7 @@ bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, const Consensus
 
     if (fTxIndex) {
         CDiskTxPos postx;
-        if (pblocktree->ReadTxIndex(hash, postx))
-        {
+        if (pblocktree->ReadTxIndex(hash, postx)) {
             CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
             if (file.IsNull())
                 return error("%s: OpenBlockFile failed", __func__);
@@ -1156,20 +1155,9 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
     return {miner_subsidy, ambassador_subsidy};
 }
 
-void PayAmbassador(const CTxDestination& ambassador, CAmount winnings, CMutableTransaction& tx, int height)
-{
-    if (!IsValidDestination(ambassador)) {
-        throw std::runtime_error{"invalid ambassador"};
-    }
-
-    auto script = GetScriptForDestination(ambassador);
-    tx.vout.push_back({winnings, script});
-}
-
-CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t desired_winners, CMutableTransaction& tx, int height)
+pog::AmbassadorLottery RewardAmbassadors(const uint256& previousBlockHash, CAmount total, size_t desired_winners)
 {
     //validate sane winner amount
-    assert(height >= 0);
     assert(desired_winners > 0);
     assert(desired_winners < 100);
     assert(prefviewdb != nullptr);
@@ -1181,6 +1169,10 @@ CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t d
     // so just pick smallest of the two.
     desired_winners = std::min(desired_winners, selector.Size());
 
+    //If we have an empty distribution, for example in some of the unit
+    //tests, we return the whole ambassador amount back to the miner
+    if(desired_winners == 0) return {{}, total};
+
     // Select the N winners using the previousBlockHash as the seed
     auto winners = selector.Select(previousBlockHash, desired_winners);
 
@@ -1189,13 +1181,73 @@ CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t d
     // Compute reward for all the winners
     auto rewards = pog::RewardAmbassadors(winners, total);
 
-    // Pay them by adding a txout to the coinbase transaction;
-    for(const auto& reward : rewards.ambassadors) {
-        PayAmbassador(reward.key, reward.amount, tx, height);
-    }
-
     //Return the remainder which will be given to the miner;
-    return rewards.remainder;
+    assert(rewards.remainder <= total);
+    assert(rewards.remainder >= 0);
+
+    return rewards;
+}
+
+void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx, int height)
+{
+    assert(height >= 0);
+
+    // Pay them by adding a txout to the coinbase transaction;
+    for(const auto& winner : lottery.winners) { 
+        if (!IsValidDestination(winner.key)) {
+            throw std::runtime_error{"invalid ambassador"};
+        }
+
+        auto script = GetScriptForDestination(winner.key);
+        tx.vout.push_back({winner.amount, script});
+    }
+}
+
+struct RewardComp
+{
+    bool operator()(const pog::AmbassadorReward& a, const pog::AmbassadorReward& b) {
+        if(a.key < b.key) return true;
+        if(a.key == b.key) return a.amount < b.amount;
+        return false;
+    }
+};
+
+void SortRewards(pog::Rewards& rewards) 
+{
+    std::sort(std::begin(rewards), std::end(rewards), RewardComp()); 
+}
+
+bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const CTransaction& coinbase) {
+    assert(coinbase.IsCoinBase());
+
+    //quick test before doing more expensive validation
+    if(coinbase.vout.size() < 1 + lottery.winners.size())
+        return false;
+
+    //Transform vouts to rewards
+    pog::Rewards sorted_outs(coinbase.vout.size());
+    std::transform(std::begin(coinbase.vout), std::end(coinbase.vout), std::begin(sorted_outs),
+            [](const CTxOut& out) -> pog::AmbassadorReward {
+                CTxDestination dest;
+                if(!ExtractDestination(out.scriptPubKey, dest)) return {{}, out.nValue};
+
+                const auto* key = boost::get<CKeyID>(&dest);
+                if(!key) return {{}, out.nValue};
+
+                return {*key, out.nValue};
+            });
+    SortRewards(sorted_outs);
+
+    //Sort winners
+    auto sorted_winners = lottery.winners;
+    SortRewards(sorted_winners);
+
+    // Make sure all expected rewards exist in the set of all rewards given in 
+    // the block.
+    return std::includes(
+            std::begin(sorted_outs), std::end(sorted_outs), 
+            std::begin(sorted_winners), std::end(sorted_winners), 
+            RewardComp());
 }
 
 bool IsInitialBlockDownload()
@@ -1848,13 +1900,17 @@ AddressPair ExtractAddress(const CTxOut& tout)
     return std::make_pair(hashBytes, addressType);
 }
 
-void IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
+using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
+using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
+
+bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
 {
     assert(prefviewdb);
 
-    // Record referrals into the referral DB
-    for (const auto& ref : block.m_vRef) {
-        prefviewdb->InsertReferral(*ref);
+    // Update offset and Record referrals into the referral DB
+    for (const auto& rtx : block.m_vRef) {
+        if(!prefviewdb->InsertReferral(*rtx))
+            return false;
     }
 
     // Debit and Credit all ANVs of keys in the block
@@ -1887,8 +1943,28 @@ void IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
     for (const auto& t : debits_and_credits) {
         const auto& key = t.first;
         const auto amount = t.second;
-        prefviewdb->UpdateANV(key, amount);
+        if(!prefviewdb->UpdateANV(key, amount))
+            return false;
     }
+
+    return true;
+}
+
+bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos)
+{ 
+    // Update offsets for referrals so they can be recorded.
+    CDiskTxPos pos{cur_block_pos, GetSizeOfCompactSize(block.m_vRef.size())};
+    RefPositions positions(block.m_vRef.size());
+
+    std::transform(std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(positions), 
+            [&pos](const ReferralRef& rtx) {
+                assert(rtx);
+                auto p = std::make_pair(rtx->GetHash(), pos);
+                pos.nTxOffset += ::GetSerializeSize(rtx, SER_DISK, CLIENT_VERSION);
+                return p;
+            });
+
+    return pblocktree->WriteReferralTxIndex(positions);
 }
 
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins.
@@ -1964,7 +2040,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // Now that the whole chain is irreversibly beyond that time it is applied to all blocks except the
     // two in the chain that violate it. This prevents exploiting the issue against nodes during their
     // initial block download.
-    // ToDo: remove init on block ids.
     bool fEnforceBIP30 = (!pindex->phashBlock) || // Enforce on CreateNewBlock invocations which don't have a hash.
                           !((pindex->nHeight==91842 && pindex->GetBlockHash() == uint256S("0x00000000000a4d0a398161ffc163c503763b1f4360639393e0e4c8e300e0caec")) ||
                            (pindex->nHeight==91880 && pindex->GetBlockHash() == uint256S("0x00000000000743f190a18c5577a3c2d2a1f610ae9601ac046a38084ccb7cd721")));
@@ -2012,11 +2087,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int64_t nSigOpsCost = 0;
     const auto curBlockPos = pindex->GetBlockPos();
     CDiskTxPos pos{curBlockPos, GetSizeOfCompactSize(block.vtx.size())};
-    CDiskTxPos refPos{curBlockPos, GetSizeOfCompactSize(block.m_vRef.size())};
-    std::vector<std::pair<uint256, CDiskTxPos> > vPos;
-    std::vector<std::pair<uint256, CDiskTxPos> > vRefPos;
+    TxnPositions vPos;
     vPos.reserve(block.vtx.size());
-    vRefPos.reserve(block.m_vRef.size());
+
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
     std::vector<PrecomputedTransactionData> txdata;
     txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
@@ -2134,31 +2207,38 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    if(!fJustCheck)
-    {
-        IndexReferralsAndUpdateANV(block, view);
-    }
-
-    // Record referrals into the referral DB
-    for (const auto& ref : block.m_vRef)
-    {
-        const uint256 rtxhash = ref->GetHash();
-
-        vRefPos.push_back(std::make_pair(rtxhash, refPos));
-        refPos.nTxOffset += ::GetSerializeSize(ref, SER_DISK, CLIENT_VERSION);
-
-        prefviewdb->InsertReferral(*ref);
-    }
-
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
-    CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
-    if (block.vtx[0]->GetValueOut() > blockReward)
+    //Figure out split subsidy and make sure the coinbase pays the expceted amount.
+    const auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
+    assert(subsidy.miner > 0);
+    assert(subsidy.ambassador > 0);
+
+    const CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
+
+    assert(!block.vtx.empty()); 
+    const CTransaction& coinbase_tx = *block.vtx[0];
+
+    if (coinbase_tx.GetValueOut() > block_reward)
         return state.DoS(100,
                          error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
-                               block.vtx[0]->GetValueOut(), blockReward),
+                               coinbase_tx.GetValueOut(), block_reward),
                                REJECT_INVALID, "bad-cb-amount");
+
+    // Figure out which ambassadors should be rewarded and check to make sure
+    // they are paid the expected amount.
+    const auto lottery = RewardAmbassadors(
+            hashPrevBlock,
+            subsidy.ambassador,
+            chainparams.GetConsensus().total_winning_ambassadors);
+    assert(lottery.remainder >= 0);
+
+    if(!AreExpectedLotteryWinnersPaid(lottery, coinbase_tx))
+        return state.DoS(100,
+                         error("ConnectBlock(): coinbase did not pay the expected ambassadors",
+                               coinbase_tx.vout.size(), lottery.winners.size()),
+                               REJECT_INVALID, "bad-cb-bad-ambassadors");
 
     if (!control.Wait())
         return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
@@ -2227,12 +2307,17 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     }
 
     if (fReferralIndex) {
-        if (!pblocktree->WriteReferralTxIndex(vRefPos))
+        if (!UpdateAndIndexReferralOffset(block, curBlockPos))
             return AbortNode(state, "Failed to write referral transaction index");
     }
 
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
+
+    // Update referral tree and ANV cache.
+    if(!IndexReferralsAndUpdateANV(block, view)) {
+        return AbortNode(state, "Failed to write referral and ANV index");
+    }
 
     int64_t nTime5 = GetTimeMicros(); nTimeIndex += nTime5 - nTime4;
     LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime5 - nTime4), nTimeIndex * MICRO, nTimeIndex * MILLI / nBlocksTotal);

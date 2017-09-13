@@ -14,8 +14,8 @@ const size_t MAX_LEVELS = 10000000000;
 }
 
 
-ReferralsViewDB::ReferralsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) :
-    m_db(GetDataDir() / "referrals", nCacheSize, fMemory, fWipe, true) {}
+ReferralsViewDB::ReferralsViewDB(size_t nCacheSize, bool fMemory, bool fWipe, const std::string& db_name) :
+    m_db(GetDataDir() / db_name, nCacheSize, fMemory, fWipe, true) {}
 
 MaybeReferral ReferralsViewDB::GetReferral(const uint256& code_hash) const {
      MutableReferral referral;

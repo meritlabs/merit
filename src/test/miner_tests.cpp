@@ -18,6 +18,7 @@
 #include "uint256.h"
 #include "util.h"
 #include "utilstrencodings.h"
+#include "refdb.h"
 
 #include "test/test_merit.h"
 
@@ -29,7 +30,16 @@ BOOST_FIXTURE_TEST_SUITE(miner_tests, TestingSetup)
 
 static CFeeRate blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
 
+void InitTestDB()
+{
+    if(prefviewdb != nullptr) return;
+
+    prefviewdb = new ReferralsViewDB{0, true, true, "testreferrals"};
+}
+
+
 static BlockAssembler AssemblerForTest(const CChainParams& params) {
+    InitTestDB();
     BlockAssembler::Options options;
 
     options.nBlockMaxWeight = MAX_BLOCK_WEIGHT;
@@ -38,6 +48,7 @@ static BlockAssembler AssemblerForTest(const CChainParams& params) {
     return BlockAssembler(params, options);
 }
 
+//TODO: We need to update blockinfo table or replace tests with other ones.
 static
 struct {
     unsigned char extranonce;
