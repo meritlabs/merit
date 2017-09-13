@@ -996,14 +996,6 @@ bool GetAddressIndex(uint160 addressHash, int type,
     return true;
 }
 
-bool GetReferralIndex()
-{
-    if (!fReferralIndex)
-        return error("referral index is not enabled");
-
-    return true;
-}
-
 bool GetAddressUnspent(uint160 addressHash, int type,
                        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs)
 {
@@ -2019,8 +2011,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int nInputs = 0;
     int64_t nSigOpsCost = 0;
     const auto curBlockPos = pindex->GetBlockPos();
-    CDiskTxPos pos(curBlockPos, GetSizeOfCompactSize(block.vtx.size()));
-    CDiskTxPos refPos(curBlockPos, GetSizeOfCompactSize(block.m_vRef.size()));
+    CDiskTxPos pos{curBlockPos, GetSizeOfCompactSize(block.vtx.size())};
+    CDiskTxPos refPos{curBlockPos, GetSizeOfCompactSize(block.m_vRef.size())};
     std::vector<std::pair<uint256, CDiskTxPos> > vPos;
     std::vector<std::pair<uint256, CDiskTxPos> > vRefPos;
     vPos.reserve(block.vtx.size());
@@ -2147,18 +2139,14 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         IndexReferralsAndUpdateANV(block, view);
     }
 
-    for (unsigned int i = 0; i < block.m_vRef.size(); i++)
-    {
-        const ReferralRef rtx = block.m_vRef[i];
-        const uint256 rtxhash = rtx->GetHash();
-
-        vRefPos.push_back(std::make_pair(rtxhash, refPos));
-        refPos.nTxOffset += ::GetSerializeSize(rtx, SER_DISK, CLIENT_VERSION);
-    }
-
     // Record referrals into the referral DB
     for (const auto& ref : block.m_vRef)
     {
+        const uint256 rtxhash = ref->GetHash();
+
+        vRefPos.push_back(std::make_pair(rtxhash, refPos));
+        refPos.nTxOffset += ::GetSerializeSize(ref, SER_DISK, CLIENT_VERSION);
+
         prefviewdb->InsertReferral(*ref);
     }
 

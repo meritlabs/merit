@@ -77,7 +77,7 @@ namespace flags
     const std::string spentindex = "spentindex";
     const std::string referralindex = "referralindex";
 
-    inline std::string ConvertToCliFlag(const std::string flag)
+    inline std::string ConvertToCliFlag(const std::string& flag)
     {
         return "-" + flag;
     }
