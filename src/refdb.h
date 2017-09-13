@@ -42,6 +42,7 @@ public:
     KeyANVs GetAllANVs() const;
 
     bool InsertReferral(const Referral&);
+    bool RemoveReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;
     bool WalletIdExists(const CKeyID&) const;
 };
