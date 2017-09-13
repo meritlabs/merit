@@ -22,6 +22,7 @@
 #include "spentindex.h"
 #include "addressindex.h"
 #include "timestampindex.h"
+#include "pog/reward.h"
 
 #include <algorithm>
 #include <exception>
@@ -312,11 +313,18 @@ struct SplitSubsidy
 
 SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_params);
 
+
+/**
+ * Ambassadors are people who bring others into the Merit system. They are rewarded
+ * with part of the block subsidy based on a deterministic lottery. RewardAmbassadors
+ * returns a vector of key -> reward pairs. Any remainder not allocated is returned.
+ */
+pog::AmbassadorLottery RewardAmbassadors(const uint256& previousBlockHash, CAmount total, size_t desired_winners);
+
 /**
  * Include ambassadors into the coinbase transaction and split the total payment between them.
- * Any remainder is returned.
  */
-CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t desired_winners, CMutableTransaction& tx, int height);
+void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx, int height);
 
 /** Guess verification progress (as a fraction between 0.0=genesis and 1.0=current tip). */
 double GuessVerificationProgress(const ChainTxData& data, CBlockIndex* pindex);

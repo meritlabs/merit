@@ -188,12 +188,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     // Create coinbase transaction.
     CMutableTransaction coinbaseTx;
 
-    auto previousBlockHash = pindexPrev->GetBlockHash();
-
-    auto subsidy = GetSplitSubsidy(nHeight, chain_params);
-    assert(subsidy.miner > 0);
-    assert(subsidy.ambassador > 0);
-
     coinbaseTx.vin.resize(1);
     coinbaseTx.vin[0].prevout.SetNull();
     coinbaseTx.vout.resize(1);
@@ -201,25 +195,32 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     coinbaseTx.vin[0].scriptSig = CScript() << nHeight << OP_0;
 
+    auto previousBlockHash = pindexPrev->GetBlockHash();
+
+    auto subsidy = GetSplitSubsidy(nHeight, chain_params);
+    assert(subsidy.miner > 0);
+    assert(subsidy.ambassador > 0);
+
     /**
      * Merit splits the coinbase between the miners and the ambassadors of the system.
      * An ambassador is someone who brings a lot of people into the Merit system
-     * via referrals. PayAmbasssadors will insert new outputs into vout.
+     * via referrals. The rewards are given out in a lottery where the probability
+     * of winning is based on an ambassadors referral network.
      */
-    auto remaining_miner_subsidy = PayAmbassadors(
-            previousBlockHash,
-            subsidy.ambassador,
-            chain_params.total_winning_ambassadors,
-            coinbaseTx,
-            nHeight);
-    assert(remaining_miner_subsidy >= 0);
+    auto lottery = RewardAmbassadors(previousBlockHash, subsidy.ambassador, chain_params.total_winning_ambassadors);
+    assert(lottery.remainder >= 0);
+
+    /**
+     * Update the coinbase transaction vout with rewards.
+     */
+    PayAmbassadors(lottery, coinbaseTx, nHeight);
 
     /**
      * The miner recieves their subsidy and any remaining subsidy that was left
      * over from paying the ambassadors. The reason there is a remaining subsidy
      * is because we use integer math.
      */
-    auto miner_subsidy = subsidy.miner + remaining_miner_subsidy;
+    auto miner_subsidy = subsidy.miner + lottery.remainder;
     assert(miner_subsidy > 0);
 
     coinbaseTx.vout[0].nValue = nFees + miner_subsidy;

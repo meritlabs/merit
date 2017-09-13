@@ -31,7 +31,7 @@ class ReferralsViewDB
 protected:
     mutable CDBWrapper m_db;
 public:
-    explicit ReferralsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+    explicit ReferralsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false, const std::string& name = "referrals");
 
     MaybeReferral GetReferral(const uint256&) const;
     MaybeKeyID GetReferrer(const CKeyID&) const;

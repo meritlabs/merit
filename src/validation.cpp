@@ -1,6 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -1028,8 +1027,7 @@ bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, const Consensus
 
     if (fTxIndex) {
         CDiskTxPos postx;
-        if (pblocktree->ReadTxIndex(hash, postx))
-        {
+        if (pblocktree->ReadTxIndex(hash, postx)) {
             CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
             if (file.IsNull())
                 return error("%s: OpenBlockFile failed", __func__);
@@ -1160,20 +1158,9 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
     return {miner_subsidy, ambassador_subsidy};
 }
 
-void PayAmbassador(const CTxDestination& ambassador, CAmount winnings, CMutableTransaction& tx, int height)
-{
-    if (!IsValidDestination(ambassador)) {
-        throw std::runtime_error{"invalid ambassador"};
-    }
-
-    auto script = GetScriptForDestination(ambassador);
-    tx.vout.push_back({winnings, script});
-}
-
-CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t desired_winners, CMutableTransaction& tx, int height)
+pog::AmbassadorLottery RewardAmbassadors(const uint256& previousBlockHash, CAmount total, size_t desired_winners)
 {
     //validate sane winner amount
-    assert(height >= 0);
     assert(desired_winners > 0);
     assert(desired_winners < 100);
     assert(prefviewdb != nullptr);
@@ -1185,6 +1172,10 @@ CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t d
     // so just pick smallest of the two.
     desired_winners = std::min(desired_winners, selector.Size());
 
+    //If we have an empty distribution, for example in some of the unit
+    //tests, we return the whole ambassador amount back to the miner
+    if(desired_winners == 0) return {{}, total};
+
     // Select the N winners using the previousBlockHash as the seed
     auto winners = selector.Select(previousBlockHash, desired_winners);
 
@@ -1193,13 +1184,26 @@ CAmount PayAmbassadors(const uint256& previousBlockHash, CAmount total, size_t d
     // Compute reward for all the winners
     auto rewards = pog::RewardAmbassadors(winners, total);
 
-    // Pay them by adding a txout to the coinbase transaction;
-    for(const auto& reward : rewards.ambassadors) {
-        PayAmbassador(reward.key, reward.amount, tx, height);
-    }
-
     //Return the remainder which will be given to the miner;
-    return rewards.remainder;
+    assert(rewards.remainder <= total);
+    assert(rewards.remainder >= 0);
+
+    return rewards;
+}
+
+void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx, int height)
+{
+    assert(height >= 0);
+
+    // Pay them by adding a txout to the coinbase transaction;
+    for(const auto& winner : lottery.winners) { 
+        if (!IsValidDestination(winner.key)) {
+            throw std::runtime_error{"invalid ambassador"};
+        }
+
+        auto script = GetScriptForDestination(winner.key);
+        tx.vout.push_back({winner.amount, script});
+    }
 }
 
 bool IsInitialBlockDownload()
@@ -1849,13 +1853,21 @@ AddressPair ExtractAddress(const CTxOut& tout)
     return std::make_pair(hashBytes, addressType);
 }
 
-void IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
+using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
+using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
+
+void IndexReferralsAndUpdateANV(const CBlock& block, RefPositions& ref_positions, CDiskTxPos& ref_pos, CCoinsViewCache& view)
 {
     assert(prefviewdb);
 
-    // Record referrals into the referral DB
-    for (const auto& ref : block.m_vRef) {
-        prefviewdb->InsertReferral(*ref);
+    // Update offset and Record referrals into the referral DB
+    for (const auto& rtx : block.m_vRef) {
+
+        const uint256 rtxhash = rtx->GetHash();
+        ref_positions.push_back(std::make_pair(rtxhash, ref_pos));
+        ref_pos.nTxOffset += ::GetSerializeSize(rtx, SER_DISK, CLIENT_VERSION);
+
+        prefviewdb->InsertReferral(*rtx);
     }
 
     // Debit and Credit all ANVs of keys in the block
@@ -1962,7 +1974,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // Now that the whole chain is irreversibly beyond that time it is applied to all blocks except the
     // two in the chain that violate it. This prevents exploiting the issue against nodes during their
     // initial block download.
-    // ToDo: remove init on block ids.
     bool fEnforceBIP30 = (!pindex->phashBlock) || // Enforce on CreateNewBlock invocations which don't have a hash.
                           !((pindex->nHeight==91842 && pindex->GetBlockHash() == uint256S("0x00000000000a4d0a398161ffc163c503763b1f4360639393e0e4c8e300e0caec")) ||
                            (pindex->nHeight==91880 && pindex->GetBlockHash() == uint256S("0x00000000000743f190a18c5577a3c2d2a1f610ae9601ac046a38084ccb7cd721")));
@@ -2011,8 +2022,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     const auto curBlockPos = pindex->GetBlockPos();
     CDiskTxPos pos(curBlockPos, GetSizeOfCompactSize(block.vtx.size()));
     CDiskTxPos refPos(curBlockPos, GetSizeOfCompactSize(block.m_vRef.size()));
-    std::vector<std::pair<uint256, CDiskTxPos> > vPos;
-    std::vector<std::pair<uint256, CDiskTxPos> > vRefPos;
+    TxnPositions vPos;
+    RefPositions vRefPos;
     vPos.reserve(block.vtx.size());
     vRefPos.reserve(block.m_vRef.size());
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
@@ -2128,35 +2139,39 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    if(!fJustCheck)
-    {
-        IndexReferralsAndUpdateANV(block, view);
-    }
-
-    for (unsigned int i = 0; i < block.m_vRef.size(); i++)
-    {
-        const ReferralRef rtx = block.m_vRef[i];
-        const uint256 rtxhash = rtx->GetHash();
-
-        vRefPos.push_back(std::make_pair(rtxhash, refPos));
-        refPos.nTxOffset += ::GetSerializeSize(rtx, SER_DISK, CLIENT_VERSION);
-    }
-
-    // Record referrals into the referral DB
-    for (const auto& ref : block.m_vRef)
-    {
-        prefviewdb->InsertReferral(*ref);
-    }
-
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
-    CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
-    if (block.vtx[0]->GetValueOut() > blockReward)
+    auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
+    assert(subsidy.miner > 0);
+    assert(subsidy.ambassador > 0);
+
+    CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
+
+    assert(!block.vtx.empty()); 
+    const CTransaction& coinbase_tx = *block.vtx[0];
+
+    if (coinbase_tx.GetValueOut() > block_reward)
         return state.DoS(100,
                          error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
-                               block.vtx[0]->GetValueOut(), blockReward),
+                               coinbase_tx.GetValueOut(), block_reward),
                                REJECT_INVALID, "bad-cb-amount");
+
+    auto lottery = RewardAmbassadors(
+            hashPrevBlock,
+            subsidy.ambassador,
+            chainparams.GetConsensus().total_winning_ambassadors);
+    assert(lottery.remainder >= 0);
+
+    // check to make sure the vout is at least the miner plus all the ambassador winners
+    auto expected_recipients = 1 + lottery.winners.size();
+    if(coinbase_tx.vout.size() < expected_recipients)
+        return state.DoS(100,
+                         error("ConnectBlock(): coinbase must pay at least the miners and ambassadors",
+                               coinbase_tx.vout.size(), block_reward),
+                               REJECT_INVALID, "bad-cb-out-size");
+
+        //CHECK TO MAKE SURE ALL AMBASSADORS ARE PAID
 
     if (!control.Wait())
         return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
@@ -2165,6 +2180,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     if (fJustCheck)
         return true;
+
+    IndexReferralsAndUpdateANV(block, vRefPos, refPos, view);
 
     // Write undo information to disk
     if (pindex->GetUndoPos().IsNull() || !pindex->IsValid(BLOCK_VALID_SCRIPTS))

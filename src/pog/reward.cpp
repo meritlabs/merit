@@ -10,7 +10,7 @@
 namespace pog 
 {
 
-    AmbassadorRewards RewardAmbassadors(const KeyANVs& winners, CAmount total_reward)
+    AmbassadorLottery RewardAmbassadors(const KeyANVs& winners, CAmount total_reward)
     {
         CAmount total_anv = 
             std::accumulate(std::begin(winners), std::end(winners), CAmount{0}, 

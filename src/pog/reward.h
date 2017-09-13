@@ -17,13 +17,13 @@ namespace pog
 
     using Rewards = std::vector<AmbassadorReward>;
 
-    struct AmbassadorRewards
+    struct AmbassadorLottery
     {
-        Rewards ambassadors;
+        Rewards winners;
         CAmount remainder;
     };
 
-    AmbassadorRewards RewardAmbassadors(const KeyANVs& winners, CAmount total); 
+    AmbassadorLottery RewardAmbassadors(const KeyANVs& winners, CAmount total); 
 
 } // namespace pog
 
