@@ -6,13 +6,13 @@
 
 import time
 
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 from test_framework.util import (
     assert_equal,
     assert_raises_jsonrpc,
 )
 
-class WalletEncryptionTest(BitcoinTestFramework):
+class WalletEncryptionTest(MeritTestFramework):
     def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 1

@@ -9,7 +9,7 @@ update-locale LANG=en_US.UTF-8
 export LANG='en_US.UTF-8'
 export LC_ALL='en_US.UTF-8'
 umask 002
-export OUTDIR=/bitcoin/out
+export OUTDIR=/merit/out
 rm -rf $OUTDIR
 mkdir $OUTDIR
 chmod a+rwx $OUTDIR
@@ -67,7 +67,7 @@ EOF
 chmod +x ${WRAP_DIR}/${prog}
 done
 
-cd bitcoin
+cd merit
 BASEPREFIX=`pwd`/depends
 # Build dependencies for each host
 for i in $HOSTS; do
@@ -86,13 +86,13 @@ export PATH=${WRAP_DIR}:${PATH}
 ./autogen.sh
 CONFIG_SITE=${BASEPREFIX}/`echo "${HOSTS}" | awk '{print $1;}'`/share/config.site ./configure --prefix=/
 make dist
-SOURCEDIST=`echo bitcoin-*.tar.gz`
+SOURCEDIST=`echo merit-*.tar.gz`
 DISTNAME=`echo ${SOURCEDIST} | sed 's/.tar.*//'`
 # Correct tar file order
 mkdir -p temp
 pushd temp
 tar xf ../$SOURCEDIST
-find bitcoin-* | sort | tar --no-recursion --mode='u+rw,go+r-w,a+X' --owner=0 --group=0 -c -T - | gzip -9n > ../$SOURCEDIST
+find merit-* | sort | tar --no-recursion --mode='u+rw,go+r-w,a+X' --owner=0 --group=0 -c -T - | gzip -9n > ../$SOURCEDIST
 popd
 
 ORIGPATH="$PATH"

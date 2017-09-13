@@ -1,10 +1,11 @@
+// Copyright (c) 2016-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_SPENTINDEX_H
-#define BITCOIN_SPENTINDEX_H
+#ifndef MERIT_SPENTINDEX_H
+#define MERIT_SPENTINDEX_H
 
 #include "uint256.h"
 #include "amount.h"
@@ -95,4 +96,4 @@ struct CSpentIndexKeyCompare
     }
 };
 
-#endif // BITCOIN_SPENTINDEX_H
+#endif // MERIT_SPENTINDEX_H

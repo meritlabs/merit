@@ -1,9 +1,10 @@
+// Copyright (c) 2011-2017 The Merit Foundation developers
 // Copyright (c) 2011-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_SENDCOINSDIALOG_H
-#define BITCOIN_QT_SENDCOINSDIALOG_H
+#ifndef MERIT_QT_SENDCOINSDIALOG_H
+#define MERIT_QT_SENDCOINSDIALOG_H
 
 #include "walletmodel.h"
 
@@ -25,7 +26,7 @@ QT_BEGIN_NAMESPACE
 class QUrl;
 QT_END_NAMESPACE
 
-/** Dialog for sending bitcoins */
+/** Dialog for sending merits */
 class SendCoinsDialog : public QDialog
 {
     Q_OBJECT
@@ -120,4 +121,4 @@ private:
     int secDelay;
 };
 
-#endif // BITCOIN_QT_SENDCOINSDIALOG_H
+#endif // MERIT_QT_SENDCOINSDIALOG_H

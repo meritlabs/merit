@@ -1,3 +1,4 @@
+// Copyright (c) 2012-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -781,7 +782,7 @@ void CTxMemPool::clear()
     _clear();
 }
 
-void CTxMemPool::check(const CCoinsViewCache *pcoins) const
+void CTxMemPool::check(const CCoinsViewCache *pcoins, const ReferralsViewCache& referralsCache) const
 {
     if (nCheckFrequency == 0)
         return;
@@ -876,7 +877,8 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins) const
         else {
             CValidationState state;
             bool fCheckResult = tx.IsCoinBase() ||
-                Consensus::CheckTxInputs(tx, state, mempoolDuplicate, nSpendHeight);
+                (Consensus::CheckTxInputs(tx, state, mempoolDuplicate, nSpendHeight) &&
+                Consensus::CheckTxOutputs(tx, state, referralsCache));
             assert(fCheckResult);
             UpdateCoins(tx, mempoolDuplicate, 1000000);
         }
@@ -892,7 +894,8 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins) const
             assert(stepsSinceLastRemove < waitingOnDependants.size());
         } else {
             bool fCheckResult = entry->GetTx().IsCoinBase() ||
-                Consensus::CheckTxInputs(entry->GetTx(), state, mempoolDuplicate, nSpendHeight);
+                (Consensus::CheckTxInputs(entry->GetTx(), state, mempoolDuplicate, nSpendHeight) &&
+                Consensus::CheckTxOutputs(entry->GetTx(), state, referralsCache));
             assert(fCheckResult);
             UpdateCoins(entry->GetTx(), mempoolDuplicate, 1000000);
             stepsSinceLastRemove = 0;

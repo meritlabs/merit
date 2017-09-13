@@ -1,0 +1,92 @@
+#!/sbin/runscript
+
+# backward compatibility for existing gentoo layout 
+#
+if [ -d "/var/lib/merit/.merit" ]; then
+	MERITD_DEFAULT_DATADIR="/var/lib/merit/.merit"
+else
+	MERITD_DEFAULT_DATADIR="/var/lib/meritd"
+fi
+
+MERITD_CONFIGFILE=${MERITD_CONFIGFILE:-/etc/merit/merit.conf}
+MERITD_PIDDIR=${MERITD_PIDDIR:-/var/run/meritd}
+MERITD_PIDFILE=${MERITD_PIDFILE:-${MERITD_PIDDIR}/meritd.pid}
+MERITD_DATADIR=${MERITD_DATADIR:-${MERITD_DEFAULT_DATADIR}}
+MERITD_USER=${MERITD_USER:-${MERIT_USER:-merit}}
+MERITD_GROUP=${MERITD_GROUP:-merit}
+MERITD_BIN=${MERITD_BIN:-/usr/bin/meritd}
+MERITD_NICE=${MERITD_NICE:-${NICELEVEL:-0}}
+MERITD_OPTS="${MERITD_OPTS:-${MERIT_OPTS}}"
+
+name="Merit Core Daemon"
+description="Merit cryptocurrency P2P network daemon"
+
+command="/usr/bin/meritd"
+command_args="-pid=\"${MERITD_PIDFILE}\" \
+		-conf=\"${MERITD_CONFIGFILE}\" \
+		-datadir=\"${MERITD_DATADIR}\" \
+		-daemon \
+		${MERITD_OPTS}"
+
+required_files="${MERITD_CONFIGFILE}"
+start_stop_daemon_args="-u ${MERITD_USER} \
+			-N ${MERITD_NICE} -w 2000"
+pidfile="${MERITD_PIDFILE}"
+
+# The retry schedule to use when stopping the daemon. Could be either
+# a timeout in seconds or multiple signal/timeout pairs (like
+# "SIGKILL/180 SIGTERM/300")
+retry="${MERITD_SIGTERM_TIMEOUT}"
+
+depend() {
+	need localmount net
+}
+
+# verify
+# 1) that the datadir exists and is writable (or create it)
+# 2) that a directory for the pid exists and is writable
+# 3) ownership and permissions on the config file
+start_pre() {
+	checkpath \
+	-d \
+	--mode 0750 \
+	--owner "${MERITD_USER}:${MERITD_GROUP}" \
+	"${MERITD_DATADIR}"
+
+	checkpath \
+	-d \
+	--mode 0755 \
+	--owner "${MERITD_USER}:${MERITD_GROUP}" \
+	"${MERITD_PIDDIR}"
+
+	checkpath -f \
+	-o ${MERITD_USER}:${MERITD_GROUP} \
+	-m 0660 \
+	${MERITD_CONFIGFILE}
+
+	checkconfig || return 1
+}
+
+checkconfig()
+{
+	if ! grep -qs '^rpcpassword=' "${MERITD_CONFIGFILE}" ; then
+		eerror ""
+		eerror "ERROR: You must set a secure rpcpassword to run meritd."
+		eerror "The setting must appear in ${MERITD_CONFIGFILE}"
+		eerror ""
+		eerror "This password is security critical to securing wallets "
+		eerror "and must not be the same as the rpcuser setting."
+		eerror "You can generate a suitable random password using the following "
+		eerror "command from the shell:"
+		eerror ""
+		eerror "bash -c 'tr -dc a-zA-Z0-9 < /dev/urandom | head -c32 && echo'"
+		eerror ""
+		eerror "It is recommended that you also set alertnotify so you are "
+		eerror "notified of problems:"
+		eerror ""
+		eerror "ie: alertnotify=echo %%s | mail -s \"Merit Alert\"" \
+			"admin@foo.com"
+		eerror ""
+		return 1
+	fi
+}

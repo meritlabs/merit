@@ -1,12 +1,13 @@
+// Copyright (c) 2016-2017 The Merit Foundation developers
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NETADDRESS_H
-#define BITCOIN_NETADDRESS_H
+#ifndef MERIT_NETADDRESS_H
+#define MERIT_NETADDRESS_H
 
 #if defined(HAVE_CONFIG_H)
-#include "config/bitcoin-config.h"
+#include "config/merit-config.h"
 #endif
 
 #include "compat.h"
@@ -174,4 +175,4 @@ class CService : public CNetAddr
         }
 };
 
-#endif // BITCOIN_NETADDRESS_H
+#endif // MERIT_NETADDRESS_H

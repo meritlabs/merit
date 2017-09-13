@@ -1,5 +1,6 @@
-#ifndef BITCOIN_QT_TEST_WALLETTESTS_H
-#define BITCOIN_QT_TEST_WALLETTESTS_H
+// Copyright (c) 2017 The Merit Foundation developers
+#ifndef MERIT_QT_TEST_WALLETTESTS_H
+#define MERIT_QT_TEST_WALLETTESTS_H
 
 #include <QObject>
 #include <QTest>
@@ -12,4 +13,4 @@ private Q_SLOTS:
     void walletTests();
 };
 
-#endif // BITCOIN_QT_TEST_WALLETTESTS_H
+#endif // MERIT_QT_TEST_WALLETTESTS_H

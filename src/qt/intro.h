@@ -1,9 +1,10 @@
+// Copyright (c) 2013-2017 The Merit Foundation developers
 // Copyright (c) 2011-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_INTRO_H
-#define BITCOIN_QT_INTRO_H
+#ifndef MERIT_QT_INTRO_H
+#define MERIT_QT_INTRO_H
 
 #include <QDialog>
 #include <QMutex>
@@ -75,4 +76,4 @@ private:
     friend class FreespaceChecker;
 };
 
-#endif // BITCOIN_QT_INTRO_H
+#endif // MERIT_QT_INTRO_H

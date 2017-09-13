@@ -1,3 +1,4 @@
+// Copyright (c) 2017 The Merit Foundation developers
 #include "legendre.h"
 #include <numeric>
 #include <vector>

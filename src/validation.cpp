@@ -56,7 +56,7 @@
 #include <boost/thread.hpp>
 
 #if defined(NDEBUG)
-# error "Bitcoin cannot be compiled without assertions."
+# error "Merit cannot be compiled without assertions."
 #endif
 
 #define MICRO 0.000001
@@ -107,7 +107,7 @@ static void CheckBlockIndex(const Consensus::Params& consensusParams);
 /** Constant stuff for coinbase transactions we create: */
 CScript COINBASE_FLAGS;
 
-const std::string strMessageMagic = "Bitcoin Signed Message:\n";
+const std::string strMessageMagic = "Merit Signed Message:\n";
 
 // Internal stuff
 namespace {
@@ -821,6 +821,10 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             scriptVerifyFlags = gArgs.GetArg("-promiscuousmempoolflags", scriptVerifyFlags);
         }
 
+        if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache)) {
+            return false;
+        }
+
         // Check against previous transactions
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
         PrecomputedTransactionData txdata(tx);
@@ -874,7 +878,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         // Remove conflicting transactions from the mempool
         for (const CTxMemPool::txiter it : allConflicting)
         {
-            LogPrint(BCLog::MEMPOOL, "replacing tx %s with %s for %s BTC additional fees, %d delta bytes\n",
+            LogPrint(BCLog::MEMPOOL, "replacing tx %s with %s for %s MRT additional fees, %d delta bytes\n",
                     it->GetTx().GetHash().ToString(),
                     hash.ToString(),
                     FormatMoney(nModifiedFees - nConflictingFees),
@@ -987,14 +991,6 @@ bool GetAddressIndex(uint160 addressHash, int type,
 
     if (!pblocktree->ReadAddressIndex(addressHash, type, addressIndex, start, end))
         return error("unable to get txids for address");
-
-    return true;
-}
-
-bool GetReferralIndex()
-{
-    if (!fReferralIndex)
-        return error("referral index is not enabled");
 
     return true;
 }
@@ -1742,7 +1738,7 @@ static bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, 
 static CCheckQueue<CScriptCheck> scriptcheckqueue(128);
 
 void ThreadScriptCheck() {
-    RenameThread("bitcoin-scriptch");
+    RenameThread("merit-scriptch");
     scriptcheckqueue.Thread();
 }
 
@@ -1842,7 +1838,10 @@ AddressPair ExtractAddress(const CTxOut& tout)
     uint160 hashBytes;
     int addressType = 0;
 
-    if (tout.scriptPubKey.IsPayToScriptHash()) {
+    if (tout.scriptPubKey.IsPayToPublicKey()) {
+        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin(), tout.scriptPubKey.begin()+20));
+        addressType = 3;
+    } else if (tout.scriptPubKey.IsPayToScriptHash()) {
         hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
         addressType = 2;
     } else if (tout.scriptPubKey.IsPayToPublicKeyHash()) {
@@ -1856,18 +1855,14 @@ AddressPair ExtractAddress(const CTxOut& tout)
 using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 
-void IndexReferralsAndUpdateANV(const CBlock& block, RefPositions& ref_positions, CDiskTxPos& ref_pos, CCoinsViewCache& view)
+bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
 {
     assert(prefviewdb);
 
     // Update offset and Record referrals into the referral DB
     for (const auto& rtx : block.m_vRef) {
-
-        const uint256 rtxhash = rtx->GetHash();
-        ref_positions.push_back(std::make_pair(rtxhash, ref_pos));
-        ref_pos.nTxOffset += ::GetSerializeSize(rtx, SER_DISK, CLIENT_VERSION);
-
-        prefviewdb->InsertReferral(*rtx);
+        if(!prefviewdb->InsertReferral(*rtx))
+            return false;
     }
 
     // Debit and Credit all ANVs of keys in the block
@@ -1876,17 +1871,20 @@ void IndexReferralsAndUpdateANV(const CBlock& block, RefPositions& ref_positions
         assert(txn);
 
         //debit senders
-        for (const auto& in :  txn->vin) {
-            const auto &in_out = view.AccessCoin(in.prevout).out;
-            auto address = ExtractAddress(in_out);
-            if(address.second == 0) continue;
+        if (!txn->IsCoinBase()) {
+            for (const auto& in :  txn->vin) {
+                const auto &in_out = view.AccessCoin(in.prevout).out;
+                auto address = ExtractAddress(in_out);
+                if(address.second == 0) continue;
 
-            debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * -1}});
+                debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * -1}});
+            }
         }
 
         //credit recipients
         for (const auto& out : txn->vout) {
             auto address = ExtractAddress(out);
+
             if(address.second == 0) continue;
 
             debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue}});
@@ -1897,8 +1895,26 @@ void IndexReferralsAndUpdateANV(const CBlock& block, RefPositions& ref_positions
     for (const auto& t : debits_and_credits) {
         const auto& key = t.first;
         const auto amount = t.second;
-        prefviewdb->UpdateANV(key, amount);
+        if(!prefviewdb->UpdateANV(key, amount))
+            return false;
     }
+}
+
+bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos)
+{ 
+    // Update offsets for referrals so they can be recorded.
+    CDiskTxPos pos{cur_block_pos, GetSizeOfCompactSize(block.m_vRef.size())};
+    RefPositions positions(block.m_vRef.size());
+
+    std::transform(std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(positions), 
+            [&pos](const ReferralRef& rtx) {
+                assert(rtx);
+                auto p = std::make_pair(rtx->GetHash(), pos);
+                pos.nTxOffset += ::GetSerializeSize(rtx, SER_DISK, CLIENT_VERSION);
+                return p;
+            });
+
+    return pblocktree->WriteReferralTxIndex(positions);
 }
 
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins.
@@ -2020,12 +2036,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int nInputs = 0;
     int64_t nSigOpsCost = 0;
     const auto curBlockPos = pindex->GetBlockPos();
-    CDiskTxPos pos(curBlockPos, GetSizeOfCompactSize(block.vtx.size()));
-    CDiskTxPos refPos(curBlockPos, GetSizeOfCompactSize(block.m_vRef.size()));
+    CDiskTxPos pos{curBlockPos, GetSizeOfCompactSize(block.vtx.size())};
     TxnPositions vPos;
-    RefPositions vRefPos;
     vPos.reserve(block.vtx.size());
-    vRefPos.reserve(block.m_vRef.size());
+
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
     std::vector<PrecomputedTransactionData> txdata;
     txdata.reserve(block.vtx.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
@@ -2102,6 +2116,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         if (!tx.IsCoinBase())
         {
             nFees += view.GetValueIn(tx)-tx.GetValueOut();
+
+            if (Consensus::CheckTxOutputs(tx, state, *prefviewcache)) {
+                return false;
+            }
 
             std::vector<CScriptCheck> vChecks;
             bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
@@ -2181,8 +2199,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     if (fJustCheck)
         return true;
 
-    IndexReferralsAndUpdateANV(block, vRefPos, refPos, view);
-
     // Write undo information to disk
     if (pindex->GetUndoPos().IsNull() || !pindex->IsValid(BLOCK_VALID_SCRIPTS))
     {
@@ -2242,12 +2258,17 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     }
 
     if (fReferralIndex) {
-        if (!pblocktree->WriteReferralTxIndex(vRefPos))
+        if (!UpdateAndIndexReferralOffset(block, curBlockPos))
             return AbortNode(state, "Failed to write referral transaction index");
     }
 
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
+
+    // Update referral tree and ANV cache.
+    if(!IndexReferralsAndUpdateANV(block, view)) {
+        return AbortNode(state, "Failed to write referral and ANV index");
+    }
 
     int64_t nTime5 = GetTimeMicros(); nTimeIndex += nTime5 - nTime4;
     LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime5 - nTime4), nTimeIndex * MICRO, nTimeIndex * MILLI / nBlocksTotal);
@@ -2780,7 +2801,7 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
         // any disconnected transactions back to the mempool.
         UpdateMempoolForReorg(disconnectpool, true);
     }
-    mempool.check(pcoinsTip);
+    mempool.check(pcoinsTip, *prefviewcache);
 
     // Callbacks/notifications for a new best chain.
     if (fInvalidFound)
@@ -4344,14 +4365,16 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
 
     try {
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
-        // ToDo: there might be a better place for this code
-        prefviewdb->InsertReferral(*block.m_vRef[0]);
+
+        if (!prefviewdb->ReferralCodeExists(block.m_vRef[0]->m_codeHash)) {
+            IndexReferralsAndUpdateANV(block, *pcoinsTip);
+        }
 
         // Check whether we're already initialized by checking for genesis in
         // mapBlockIndex. Note that we can't use chainActive here, since it is
         // set based on the coins db, not the block index db, which is the only
         // thing loaded at this point.
-        if (mapBlockIndex.count(chainparams.GenesisBlock().GetHash()))
+        if (mapBlockIndex.count(block.GetHash()))
             return true;
 
         // Start new block file

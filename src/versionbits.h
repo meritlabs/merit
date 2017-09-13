@@ -1,9 +1,10 @@
+// Copyright (c) 2016-2017 The Merit Foundation developers
 // Copyright (c) 2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CONSENSUS_VERSIONBITS
-#define BITCOIN_CONSENSUS_VERSIONBITS
+#ifndef MERIT_CONSENSUS_VERSIONBITS
+#define MERIT_CONSENSUS_VERSIONBITS
 
 #include "chain.h"
 #include <map>

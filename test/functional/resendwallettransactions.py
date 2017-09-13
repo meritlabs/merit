@@ -4,10 +4,10 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test resendwallettransactions RPC."""
 
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 from test_framework.util import assert_equal, assert_raises_jsonrpc
 
-class ResendWalletTransactionsTest(BitcoinTestFramework):
+class ResendWalletTransactionsTest(MeritTestFramework):
     def set_test_params(self):
         self.num_nodes = 1
         self.extra_args = [['--walletbroadcast=false']]

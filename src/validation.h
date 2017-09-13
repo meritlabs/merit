@@ -4,11 +4,11 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_VALIDATION_H
-#define BITCOIN_VALIDATION_H
+#ifndef MERIT_VALIDATION_H
+#define MERIT_VALIDATION_H
 
 #if defined(HAVE_CONFIG_H)
-#include "config/bitcoin-config.h"
+#include "config/merit-config.h"
 #endif
 
 #include "amount.h"
@@ -452,7 +452,6 @@ bool GetAddressIndex(uint160 addressHash, int type,
                      int start = 0, int end = 0);
 bool GetAddressUnspent(uint160 addressHash, int type,
                        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
-bool GetReferralIndex();
 /** Initializes the script-execution cache */
 void InitScriptExecutionCache();
 
@@ -562,4 +561,4 @@ bool LoadReferralMempool();
 /** Dump referral mempool to disk. */
 void DumpReferralMempool();
 
-#endif // BITCOIN_VALIDATION_H
+#endif // MERIT_VALIDATION_H

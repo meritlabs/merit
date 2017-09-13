@@ -1,3 +1,4 @@
+// Copyright (c) 2014-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -164,8 +165,13 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
 
 ReferralRef CWallet::Unlock(const uint256& referredByHash)
 {
-    // check that wallet is not unlocked yet and there is no unlock referral transactions in the wallet yet
-    if (!IsReferred() && !mapWalletRTx.empty()) {
+    // check wallet is not unlocked yet
+    if (IsReferred()) {
+        throw std::runtime_error(std::string(__func__) + ": wallet is already unlocked");
+    }
+
+    // check that there is no unlock referral transactions in the wallet yet
+    if (!mapWalletRTx.empty()) {
         throw std::runtime_error(std::string(__func__) + ": wallet alredy have unconfirmed unlock referral transaction");
     }
 
@@ -179,6 +185,7 @@ ReferralRef CWallet::Unlock(const uint256& referredByHash)
     CWalletDB walletdb(*dbw);
 
     bool internal = IsHDEnabled() && CanSupportFeature(FEATURE_HD_SPLIT);
+    LogPrintf("Unlock wallet with %s key\n", internal ? "internal" : "external");
 
     LOCK(cs_wallet);
 
@@ -1071,7 +1078,7 @@ bool CWallet::AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose)
 
     // Set unlock referral tx in case this tx is root unlock tx, wallet us not unlocked yet and tx is in the blockchain, aka confirmed
     if (rtx.IsUnlockTx() && !IsReferred() && rtx.IsAccepted()) {
-        SetUnlockReferralTx(rtx);
+        SetUnlockReferralTx(rtx, true);
     }
 
     // Notify UI of new or updated transaction
@@ -1113,9 +1120,9 @@ bool CWallet::LoadToWallet(const CWalletTx& wtxIn)
 
 bool CWallet::LoadToWallet(const ReferralTx& rtxIn)
 {
-    // if (!IsReferred() && rtxIn.IsUnlockTx()) {
-    //     SetUnlockReferralTx(rtxIn);
-    // }
+    if (!IsReferred() && rtxIn.IsUnlockTx()) {
+        SetUnlockReferralTx(rtxIn);
+    }
 
     uint256 hash = rtxIn.GetHash();
 
@@ -1648,26 +1655,28 @@ ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy)
     return referral;
 }
 
-bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx)
+bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx, bool topUpKeyPool)
 {
     if (IsReferred() || !rtx.IsUnlockTx() || !rtx.IsAccepted()) {
         return false;
     }
 
-    LogPrintf("------ Setting unlock referral tx ------\n");
+    LogPrintf("Setting unlock referral tx\n");
 
     // set referral tx as unlock tx
     m_unlockReferralTx = rtx;
 
-    // top up keypool after unlocking wallet
-    TopUpKeyPool();
+    if (topUpKeyPool) {
+        // top up keypool after unlocking wallet
+        TopUpKeyPool();
+    }
 
     return true;
 }
 
 bool CWallet::IsReferred() const
 {
-    LogPrintf("+++++++ Wallet is referred? +++++++ %s\n", !m_unlockReferralTx.IsNull() ? "YESSSS!!!": "NOPE :(");
+    LogPrintf("Wallet is %sreferred\n", !m_unlockReferralTx.IsNull() ? "": "NOT ");
     return !m_unlockReferralTx.IsNull();
 }
 
@@ -2825,6 +2834,23 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
 
         if (recipient.fSubtractFeeFromAmount)
             nSubtractFeeFromAmount++;
+
+        CTxDestination dest;
+        ExtractDestination(recipient.scriptPubKey, dest);
+        const CKeyID* pubKeyId = boost::get<CKeyID>(&dest);
+
+        if (pubKeyId && !prefviewcache->WalletIdExists(*pubKeyId)) {
+            strFailReason = _("Transaction recipient address is not beaconed");
+            return false;
+        }
+
+        if (!pubKeyId) {
+            const auto scriptKeyId = boost::get<CScriptID>(&dest);
+
+            if (scriptKeyId) {
+                assert(false && "TODO: Handle CSriptID case in transaction addresses validation");
+            }
+        }
     }
     if (vecSend.empty())
     {
@@ -2879,7 +2905,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
 
             // Create change script that will be used if we need change
             // TODO: pass in scriptChange instead of reservekey so
-            // change transaction isn't always pay-to-bitcoin-address
+            // change transaction isn't always pay-to-merit-address
             CScript scriptChange;
 
             // coin control: send change to custom address
@@ -3208,6 +3234,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CCon
             if (!wtxNew.AcceptToMemoryPool(maxTxFee, state)) {
                 LogPrintf("CommitTransaction(): Transaction cannot be broadcast immediately, %s\n", state.GetRejectReason());
                 // TODO: if we expect the failure to be long term or permanent, instead delete wtx from the wallet and return failure.
+                return false;
             } else {
                 wtxNew.RelayWalletTransaction(connman);
             }
@@ -3510,6 +3537,10 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
         }
         bool internal = false;
 
+        LogPrintf("missingInternal = %d\n", missingInternal);
+        LogPrintf("missingExternal = %d\n", missingExternal);
+
+        // skip generating external keys for now
         for (int64_t i = missingInternal + missingExternal; i--;)
         {
             if (i < missingInternal) {
@@ -3543,6 +3574,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
                 setInternalKeyPool.size() + setExternalKeyPool.size(),
                 setInternalKeyPool.size());
         }
+
     }
     return true;
 }
@@ -3866,7 +3898,10 @@ void CWallet::GetScriptForMining(std::shared_ptr<CReserveScript> &script)
 {
     std::shared_ptr<CReserveKey> rKey = std::make_shared<CReserveKey>(this);
     CPubKey pubkey;
-    if (!rKey->GetReservedKey(pubkey))
+    // request internal key if wallet is not unlocked and we have only
+    // HD master key and one derived from it (in case HD is enabled)
+    // or one plain external key in case it's not after call to unlock
+    if (!rKey->GetReservedKey(pubkey, true))
         return;
 
     script = rKey;
@@ -4161,22 +4196,18 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
             // ensure this wallet.dat can only be opened by clients supporting HD with chain split
             walletInstance->SetMinVersion(FEATURE_HD_SPLIT);
 
-            /*
-             * TODO: Generate master key on unlock
-             * DO NOT GENERATE KEYS ON FIRST RUN AS WALLET IS LOCKED
             // generate a new master key
             CPubKey masterPubKey = walletInstance->GenerateNewHDMasterKey();
             if (!walletInstance->SetHDMasterKey(masterPubKey))
                 throw std::runtime_error(std::string(__func__) + ": Storing master key failed");
-            */
         }
 
-        /* DO NOT GENERATE KEYS ON FIRST RUN AS WALLET IS LOCKED
-        if (!walletInstance->TopUpKeyPool()) {
-            InitError(_("Unable to generate initial keys") += "\n");
-            return NULL;
+        if (walletInstance->IsReferred()) {
+            if (!walletInstance->TopUpKeyPool()) {
+                InitError(_("Unable to generate initial keys") += "\n");
+                return NULL;
+            }
         }
-        */
 
         walletInstance->SetBestChain(chainActive.GetLocator());
     }

@@ -1,9 +1,10 @@
+// Copyright (c) 2016-2017 The Merit Foundation developers
 // Copyright (c) 2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_RPCWALLET_H
-#define BITCOIN_WALLET_RPCWALLET_H
+#ifndef MERIT_WALLET_RPCWALLET_H
+#define MERIT_WALLET_RPCWALLET_H
 
 #include "wallet/walletdb.h"
 
@@ -25,4 +26,4 @@ std::string HelpRequiringPassphrase(CWallet *);
 void EnsureWalletIsUnlocked(CWallet *);
 bool EnsureWalletIsAvailable(CWallet *, bool avoidException);
 
-#endif //BITCOIN_WALLET_RPCWALLET_H
+#endif //MERIT_WALLET_RPCWALLET_H
