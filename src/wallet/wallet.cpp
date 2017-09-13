@@ -2842,6 +2842,14 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
             strFailReason = _("Transaction recipient address is not beaconed");
             return false;
         }
+
+        if (!pubKeyId) {
+            const auto scriptKeyId = boost::get<CScriptID>(&dest);
+
+            if (scriptKeyId) {
+                assert(false && "TODO: Handle CSriptID case in transaction addresses validation");
+            }
+        }
     }
     if (vecSend.empty())
     {

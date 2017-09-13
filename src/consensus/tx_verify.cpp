@@ -216,10 +216,18 @@ bool Consensus::CheckTxOutputs(const CTransaction& tx, CValidationState& state, 
             return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-invalid-dest");
         }
 
-        const CKeyID* pubKeyId = boost::get<CKeyID>(&dest);
+        const auto pubKeyId = boost::get<CKeyID>(&dest);
 
         if (pubKeyId && !referralsCache.WalletIdExists(*pubKeyId)) {
             return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-beaconed");
+        }
+
+        if (!pubKeyId) {
+            const auto scriptKeyId = boost::get<CScriptID>(&dest);
+
+            if (scriptKeyId) {
+                assert(false && "TODO: Handle CSriptID case in transaction addresses validation");
+            }
         }
     }
 

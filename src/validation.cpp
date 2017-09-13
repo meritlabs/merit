@@ -2102,7 +2102,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         {
             nFees += view.GetValueIn(tx)-tx.GetValueOut();
 
-            Consensus::CheckTxOutputs(tx, state, *prefviewcache);
+            if (Consensus::CheckTxOutputs(tx, state, *prefviewcache)) {
+                return false;
+            }
 
             std::vector<CScriptCheck> vChecks;
             bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
