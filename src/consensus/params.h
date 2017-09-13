@@ -1,10 +1,11 @@
+// Copyright (c) 2015-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CONSENSUS_PARAMS_H
-#define BITCOIN_CONSENSUS_PARAMS_H
+#ifndef MERIT_CONSENSUS_PARAMS_H
+#define MERIT_CONSENSUS_PARAMS_H
 
 #include "uint256.h"
 #include <map>
@@ -68,4 +69,4 @@ struct Params {
 };
 } // namespace Consensus
 
-#endif // BITCOIN_CONSENSUS_PARAMS_H
+#endif // MERIT_CONSENSUS_PARAMS_H

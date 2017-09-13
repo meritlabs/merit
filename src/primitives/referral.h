@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_PRIMITIVES_REFERRAL_H
-#define BITCOIN_PRIMITIVES_REFERRAL_H
+#ifndef MERIT_PRIMITIVES_REFERRAL_H
+#define MERIT_PRIMITIVES_REFERRAL_H
 
 #include <stdint.h>
 #include "pubkey.h"
@@ -166,4 +166,4 @@ template <typename Ref> static inline ReferralRef MakeReferralRef(Ref&& referral
      return std::make_shared<const Referral>(std::forward<Ref>(referralIn));
 }
 
-#endif // BITCOIN_PRIMITIVES_REFERRAL_H
+#endif // MERIT_PRIMITIVES_REFERRAL_H

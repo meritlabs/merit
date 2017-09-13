@@ -4,11 +4,11 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test transaction signing using the signrawtransaction RPC."""
 
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 from test_framework.util import *
 
 
-class SignRawTransactionsTest(BitcoinTestFramework):
+class SignRawTransactionsTest(MeritTestFramework):
     def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 1

@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_ZMQ_ZMQPUBLISHNOTIFIER_H
-#define BITCOIN_ZMQ_ZMQPUBLISHNOTIFIER_H
+#ifndef MERIT_ZMQ_ZMQPUBLISHNOTIFIER_H
+#define MERIT_ZMQ_ZMQPUBLISHNOTIFIER_H
 
 #include "zmqabstractnotifier.h"
 #include "util.h"
@@ -90,4 +90,4 @@ public:
     bool NotifyReferral(const ReferralRef &ref) override;
 };
 
-#endif // BITCOIN_ZMQ_ZMQPUBLISHNOTIFIER_H
+#endif // MERIT_ZMQ_ZMQPUBLISHNOTIFIER_H

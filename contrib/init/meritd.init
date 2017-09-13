@@ -1,0 +1,67 @@
+#!/bin/bash
+#
+#  meritd The merit core server.
+#
+#
+# chkconfig: 345 80 20
+# description: meritd
+# processname: meritd
+#
+
+# Source function library.
+. /etc/init.d/functions
+
+# you can override defaults in /etc/sysconfig/meritd, see below
+if [ -f /etc/sysconfig/meritd ]; then
+        . /etc/sysconfig/meritd
+fi
+
+RETVAL=0
+
+prog=meritd
+# you can override the lockfile via MERITD_LOCKFILE in /etc/sysconfig/meritd
+lockfile=${MERITD_LOCKFILE-/var/lock/subsys/meritd}
+
+# meritd defaults to /usr/bin/meritd, override with MERITD_BIN
+meritd=${MERITD_BIN-/usr/bin/meritd}
+
+# meritd opts default to -disablewallet, override with MERITD_OPTS
+meritd_opts=${MERITD_OPTS--disablewallet}
+
+start() {
+    echo -n $"Starting $prog: "
+    daemon $DAEMONOPTS $meritd $meritd_opts
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch $lockfile
+    return $RETVAL
+}
+
+stop() {
+    echo -n $"Stopping $prog: "
+    killproc $prog
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && rm -f $lockfile
+    return $RETVAL
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    status)
+        status $prog
+        ;;
+    restart)
+        stop
+        start
+        ;;
+    *)
+        echo "Usage: service $prog {start|stop|status|restart}"
+        exit 1
+        ;;
+esac

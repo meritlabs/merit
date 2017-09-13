@@ -13,10 +13,6 @@ with no central authority: managing transactions and issuing money are carried
 out collectively by the network. Merit Core is the name of open source
 software which enables the use of this currency.
 
-For more information, as well as an immediately useable, binary version of
-the Merit Core software, see https://Merit.org/en/download, or read the
-[original whitepaper](https://Meritcore.org/Merit.pdf).
-
 License
 -------
 
@@ -25,11 +21,11 @@ information or see https://opensource.org/licenses/MIT.
 
 TestNet
 -------------------
-You should create a long RPCpassword as instructed here: https://github.com/bitcoin/bitcoin/blob/master/doc/build-osx.md#running
+You should create a long RPCpassword as instructed here: https://github.com/merit/merit/blob/master/doc/build-osx.md#running
 
-You will want a bitcoin.conf that looks like:
+You will want a merit.conf that looks like:
 ```
-rpcuser=bitcoinrpc
+rpcuser=meritrpc
 rpcpassword=<randomLongPassword>
 
 #--- Network

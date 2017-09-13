@@ -1,9 +1,10 @@
+// Copyright (c) 2011-2017 The Merit Foundation developers
 // Copyright (c) 2011-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_EDITADDRESSDIALOG_H
-#define BITCOIN_QT_EDITADDRESSDIALOG_H
+#ifndef MERIT_QT_EDITADDRESSDIALOG_H
+#define MERIT_QT_EDITADDRESSDIALOG_H
 
 #include <QDialog>
 
@@ -54,4 +55,4 @@ private:
     QString address;
 };
 
-#endif // BITCOIN_QT_EDITADDRESSDIALOG_H
+#endif // MERIT_QT_EDITADDRESSDIALOG_H

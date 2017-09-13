@@ -1,3 +1,4 @@
+// Copyright (c) 2015 The Merit Foundation developers
 #ifndef _SECP256K1_RECOVERY_
 # define _SECP256K1_RECOVERY_
 

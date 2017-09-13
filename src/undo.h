@@ -1,10 +1,11 @@
+// Copyright (c) 2014-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UNDO_H
-#define BITCOIN_UNDO_H
+#ifndef MERIT_UNDO_H
+#define MERIT_UNDO_H
 
 #include "compressor.h" 
 #include "consensus/consensus.h"
@@ -109,4 +110,4 @@ public:
     }
 };
 
-#endif // BITCOIN_UNDO_H
+#endif // MERIT_UNDO_H

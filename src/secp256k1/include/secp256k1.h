@@ -1,3 +1,4 @@
+// Copyright (c) 2014-2017 The Merit Foundation developers
 #ifndef _SECP256K1_
 # define _SECP256K1_
 

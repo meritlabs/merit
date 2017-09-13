@@ -1,3 +1,4 @@
+// Copyright (c) 2016-2017 The Merit Foundation developers
 /***********************************************************************
  * Copyright (c) 2016 Andrew Poelstra                                 *
  * Distributed under the MIT software license, see the accompanying   *

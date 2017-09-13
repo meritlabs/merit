@@ -1,0 +1,8 @@
+/usr/bin/merit-cli		--	gen_context(system_u:object_r:merit_exec_t,s0)
+/usr/sbin/meritd		--	gen_context(system_u:object_r:merit_exec_t,s0)
+/usr/lib(64)?/merit/meritd		--	gen_context(system_u:object_r:merit_exec_t,s0)
+
+/etc/merit(/.*)?		gen_context(system_u:object_r:merit_conf_t,s0)
+/var/lib/merit(/.*)?		gen_context(system_u:object_r:merit_var_lib_t,s0)
+
+(/var)?/run/meritd(/.*)?   gen_context(system_u:object_r:merit_var_run_t,s0)
