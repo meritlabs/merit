@@ -1681,6 +1681,19 @@ AddressPair ExtractAddress(const CTxOut& tout)
 
 using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
+using DebitsAndCredits = std::vector<std::pair<CKeyID, CAmount>>;
+
+bool DebitAndCreditANV(const DebitsAndCredits& debits_and_credits)
+{
+    //apply the debit and credits to the addresses in the block transactions.
+    for (const auto& t : debits_and_credits) {
+        const auto& key = t.first;
+        const auto amount = t.second;
+        if(!prefviewdb->UpdateANV(key, amount))
+            return false;
+    }
+    return true;
+}
 
 bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
 {
@@ -1718,15 +1731,7 @@ bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
         }
     }
 
-    //apply the debit and credits to the addresses in the block transactions.
-    for (const auto& t : debits_and_credits) {
-        const auto& key = t.first;
-        const auto amount = t.second;
-        if(!prefviewdb->UpdateANV(key, amount))
-            return false;
-    }
-
-    return true;
+    return DebitAndCreditANV(debits_and_credits);
 }
 
 bool RemoveReferralsAndUndoANV(const CBlock& block, CCoinsViewCache& view)
@@ -1749,7 +1754,7 @@ bool RemoveReferralsAndUndoANV(const CBlock& block, CCoinsViewCache& view)
             }
         }
 
-        //debig recipients
+        //debit recipients
         for (const auto& out : txn->vout) {
             auto address = ExtractAddress(out);
 
@@ -1759,12 +1764,8 @@ bool RemoveReferralsAndUndoANV(const CBlock& block, CCoinsViewCache& view)
         }
     }
 
-    //apply the debit and credits to the addresses in the block transactions.
-    for (const auto& t : debits_and_credits) {
-        const auto& key = t.first;
-        const auto amount = t.second;
-        if(!prefviewdb->UpdateANV(key, amount))
-            return false;
+    if(!DebitAndCreditANV(debits_and_credits)) {
+        return false;
     }
 
     // Update offset and Record referrals into the referral DB
