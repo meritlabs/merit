@@ -1241,7 +1241,7 @@ bool AreExpectedLotteryAmbassadorsPaid(const pog::AmbassadorLottery& lottery, co
     auto sorted_winners = lottery.winners;
     SortRewards(sorted_winners);
 
-    // Make sure all expected rewards are exist in the set of all rewards given in 
+    // Make sure all expected rewards exist in the set of all rewards given in 
     // the block.
     return std::includes(
             std::begin(sorted_outs), std::end(sorted_outs), 
