@@ -1658,11 +1658,133 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
 
+using AddressPair = std::pair<uint160, int>;
+
+AddressPair ExtractAddress(const CTxOut& tout)
+{
+    uint160 hashBytes;
+    int addressType = 0;
+
+    if (tout.scriptPubKey.IsPayToPublicKey()) {
+        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin(), tout.scriptPubKey.begin()+20));
+        addressType = 3;
+    } else if (tout.scriptPubKey.IsPayToScriptHash()) {
+        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
+        addressType = 2;
+    } else if (tout.scriptPubKey.IsPayToPublicKeyHash()) {
+        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+3, tout.scriptPubKey.begin()+23));
+        addressType = 1;
+    }
+
+    return std::make_pair(hashBytes, addressType);
+}
+
+using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
+using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
+
+bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
+{
+    assert(prefviewdb);
+
+    // Update offset and Record referrals into the referral DB
+    for (const auto& rtx : block.m_vRef) {
+        if(!prefviewdb->InsertReferral(*rtx))
+            return false;
+    }
+
+    // Debit and Credit all ANVs of keys in the block
+    std::vector<std::pair<CKeyID, CAmount>> debits_and_credits;
+    for (const auto& txn : block.vtx) {
+        assert(txn);
+
+        //debit senders
+        if (!txn->IsCoinBase()) {
+            for (const auto& in :  txn->vin) {
+                const auto &in_out = view.AccessCoin(in.prevout).out;
+                auto address = ExtractAddress(in_out);
+                if(address.second == 0) continue;
+
+                debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * -1}});
+            }
+        }
+
+        //credit recipients
+        for (const auto& out : txn->vout) {
+            auto address = ExtractAddress(out);
+
+            if(address.second == 0) continue;
+
+            debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue}});
+        }
+    }
+
+    //apply the debit and credits to the addresses in the block transactions.
+    for (const auto& t : debits_and_credits) {
+        const auto& key = t.first;
+        const auto amount = t.second;
+        if(!prefviewdb->UpdateANV(key, amount))
+            return false;
+    }
+
+    return true;
+}
+
+bool RemoveReferralsAndUndoANV(const CBlock& block, CCoinsViewCache& view)
+{
+    assert(prefviewdb);
+
+    // Debit and Credit all ANVs of keys in the block
+    std::vector<std::pair<CKeyID, CAmount>> debits_and_credits;
+    for (const auto& txn : block.vtx) {
+        assert(txn);
+
+        //credit senders
+        if (!txn->IsCoinBase()) {
+            for (const auto& in :  txn->vin) {
+                const auto &in_out = view.AccessCoin(in.prevout).out;
+                auto address = ExtractAddress(in_out);
+                if(address.second == 0) continue;
+
+                debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue}});
+            }
+        }
+
+        //debig recipients
+        for (const auto& out : txn->vout) {
+            auto address = ExtractAddress(out);
+
+            if(address.second == 0) continue;
+
+            debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue * -1}});
+        }
+    }
+
+    //apply the debit and credits to the addresses in the block transactions.
+    for (const auto& t : debits_and_credits) {
+        const auto& key = t.first;
+        const auto amount = t.second;
+        if(!prefviewdb->UpdateANV(key, amount))
+            return false;
+    }
+
+    // Update offset and Record referrals into the referral DB
+    for (const auto& rtx : block.m_vRef) {
+        if(!prefviewdb->RemoveReferral(*rtx))
+            return false;
+    }
+    return true;
+}
+
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  When FAILED is returned, view is left in an indeterminate state. */
 static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view)
 {
     bool fClean = true;
+
+    if(!RemoveReferralsAndUndoANV(block, view)){ 
+        error("DisconnectBlock(): unable to undo referrals");
+        return DISCONNECT_FAILED;
+    }
 
     CBlockUndo blockUndo;
     CDiskBlockPos pos = pindex->GetUndoPos();
@@ -1750,7 +1872,6 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
             // At this point, all of txundo.vprevout should have been moved out.
         }
     }
-
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
@@ -1878,77 +1999,6 @@ static int64_t nTimeIndex = 0;
 static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
-
-using AddressPair = std::pair<uint160, int>;
-
-AddressPair ExtractAddress(const CTxOut& tout)
-{
-    uint160 hashBytes;
-    int addressType = 0;
-
-    if (tout.scriptPubKey.IsPayToPublicKey()) {
-        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin(), tout.scriptPubKey.begin()+20));
-        addressType = 3;
-    } else if (tout.scriptPubKey.IsPayToScriptHash()) {
-        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
-        addressType = 2;
-    } else if (tout.scriptPubKey.IsPayToPublicKeyHash()) {
-        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+3, tout.scriptPubKey.begin()+23));
-        addressType = 1;
-    }
-
-    return std::make_pair(hashBytes, addressType);
-}
-
-using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
-using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
-
-bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
-{
-    assert(prefviewdb);
-
-    // Update offset and Record referrals into the referral DB
-    for (const auto& rtx : block.m_vRef) {
-        if(!prefviewdb->InsertReferral(*rtx))
-            return false;
-    }
-
-    // Debit and Credit all ANVs of keys in the block
-    std::vector<std::pair<CKeyID, CAmount>> debits_and_credits;
-    for (const auto& txn : block.vtx) {
-        assert(txn);
-
-        //debit senders
-        if (!txn->IsCoinBase()) {
-            for (const auto& in :  txn->vin) {
-                const auto &in_out = view.AccessCoin(in.prevout).out;
-                auto address = ExtractAddress(in_out);
-                if(address.second == 0) continue;
-
-                debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * -1}});
-            }
-        }
-
-        //credit recipients
-        for (const auto& out : txn->vout) {
-            auto address = ExtractAddress(out);
-
-            if(address.second == 0) continue;
-
-            debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue}});
-        }
-    }
-
-    //apply the debit and credits to the addresses in the block transactions.
-    for (const auto& t : debits_and_credits) {
-        const auto& key = t.first;
-        const auto amount = t.second;
-        if(!prefviewdb->UpdateANV(key, amount))
-            return false;
-    }
-
-    return true;
-}
 
 bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos)
 { 
