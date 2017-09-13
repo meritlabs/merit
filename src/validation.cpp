@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
+// Copyright (c) 2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -1216,7 +1217,7 @@ void SortRewards(pog::Rewards& rewards)
     std::sort(std::begin(rewards), std::end(rewards), RewardComp()); 
 }
 
-bool AreExpectedLotteryAmbassadorsPaid(const pog::AmbassadorLottery& lottery, const CTransaction& coinbase) {
+bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const CTransaction& coinbase) {
     assert(coinbase.IsCoinBase());
 
     //quick test before doing more expensive validation
@@ -2233,10 +2234,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             chainparams.GetConsensus().total_winning_ambassadors);
     assert(lottery.remainder >= 0);
 
-    if(!AreExpectedLotteryAmbassadorsPaid(lottery, coinbase_tx))
+    if(!AreExpectedLotteryWinnersPaid(lottery, coinbase_tx))
         return state.DoS(100,
                          error("ConnectBlock(): coinbase did not pay the expected ambassadors",
-                               coinbase_tx.vout.size(), block_reward),
+                               coinbase_tx.vout.size(), lottery.winners.size()),
                                REJECT_INVALID, "bad-cb-bad-ambassadors");
 
     if (!control.Wait())
