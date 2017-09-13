@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <algorithm>
 #include <iterator>
 #include <type_traits>
 
