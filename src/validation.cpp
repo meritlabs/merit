@@ -2287,9 +2287,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     if(!AreExpectedLotteryWinnersPaid(lottery, coinbase_tx))
         return state.DoS(100,
-                         error("ConnectBlock(): coinbase did not pay the expected ambassadors",
-                               coinbase_tx.vout.size(), lottery.winners.size()),
-                               REJECT_INVALID, "bad-cb-bad-ambassadors");
+                error("ConnectBlock(): coinbase did not pay the expected ambassadors."),
+                REJECT_INVALID, "bad-cb-bad-ambassadors");
 
     if (!control.Wait())
         return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
