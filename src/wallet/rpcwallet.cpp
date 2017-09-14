@@ -3315,7 +3315,6 @@ UniValue getanv(const JSONRPCRequest& request)
             auto key_hex_str = request.params[i].get_str();
             auto dest = DecodeDestination(key_hex_str);
             if(auto key = boost::get<CKeyID>(&dest)) {
-                std::cerr << "ADDIMG: " << key_hex_str<< std::endl;
                 keys.push_back(*key);
             }
         }

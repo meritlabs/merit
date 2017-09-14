@@ -12,6 +12,6 @@ class CValidationState;
 /** Referral validation functions */
 
 /** Context-independent validity checks */
-bool CheckReferral(const Referral& tx, const ReferralsViewCache& refView, CValidationState& state);
+bool CheckReferral(const Referral& tx, CValidationState& state);
 
 #endif // MERIT_CONSENSUS_REF_VERIFY_H

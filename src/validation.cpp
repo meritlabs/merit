@@ -460,8 +460,9 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
 bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState &state, const ReferralRef& referral)
 {
     LOCK(pool.cs);
+    assert(referral);
 
-    if (!CheckReferral(*referral, *prefviewcache, state)) {
+    if (!CheckReferral(*referral, state)) {
         return false;
     }
 
@@ -2024,7 +2025,6 @@ bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_
 static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex,
                   CCoinsViewCache& view, const CChainParams& chainparams, bool fJustCheck = false)
 {
-
     AssertLockHeld(cs_main);
     assert(pindex);
     // pindex->phashBlock can be null if called by CreateNewBlock/TestBlockValidity
@@ -2043,8 +2043,12 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // Special case for the genesis block, skipping connection of its transactions
     // (its coinbase is unspendable)
     if (block.GetHash() == chainparams.GetConsensus().hashGenesisBlock) {
-        if (!fJustCheck)
+        if (!fJustCheck) {
             view.SetBestBlock(pindex->GetBlockHash());
+            if(!IndexReferralsAndUpdateANV(block, view)) {
+                return AbortNode(state, "Failed to write referral and ANV index");
+            }
+        }
         return true;
     }
 
@@ -2715,6 +2719,7 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
     } else {
         pthisBlock = pblock;
     }
+
     const CBlock& blockConnecting = *pthisBlock;
     // Apply the block atomically to the chain state.
     int64_t nTime2 = GetTimeMicros(); nTimeReadFromDisk += nTime2 - nTime1;
@@ -3299,7 +3304,6 @@ static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state,
 bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW, bool fCheckMerkleRoot)
 {
     // These are checks that are independent of context.
-
     if (block.fChecked)
         return true;
 
@@ -3346,9 +3350,9 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
                                  strprintf("Transaction check failed (tx hash %s) %s", tx->GetHash().ToString(), state.GetDebugMessage()));
 
     for (const auto& ref : block.m_vRef) {
-        if (!CheckReferral(*ref, *prefviewcache, state)) {
+        if (!CheckReferral(*ref, state)) {
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
-                strprintf("Referral check failed (ref hash %s) %s", ref->GetHash().ToString(), state.GetDebugMessage()));
+                strprintf("Referral check failed (ref hash %s) %s", ref->m_codeHash.GetHex(), state.GetDebugMessage()));
         }
     }
 
