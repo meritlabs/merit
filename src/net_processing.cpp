@@ -2034,8 +2034,36 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
         CValidationState state;
 
-        if (!AlreadyHave(inv) && AcceptReferralToMemoryPool(mempoolReferral, state, prtx)) {
+        bool fMissingReferrer = false;
+
+        if (!AlreadyHave(inv) && AcceptReferralToMemoryPool(mempoolReferral, state, prtx, &fMissingReferrer)) {
+            mempoolReferral.Check(*prefviewcache);
+
             RelayReferral(rtx, connman);
+        } else if (fMissingReferrer) {
+            LogPrintf(">>>>>>> Missing referrer <<<<<<<<<\n");
+
+            bool fRejectedParents = false; // It may be the case that the orphans parents have all been rejected
+
+            if (recentRejects->contains(rtx.GetHash())) {
+                fRejectedParents = true;
+            }
+
+            if (!fRejectedParents) {
+                CInv _inv(MSG_REFERRAL, rtx.GetHash());
+                pfrom->AddInventoryKnown(_inv);
+
+                if (!AlreadyHave(_inv)) {
+                    pfrom->AskFor(_inv);
+                }
+
+                // TODO: add orphan referral tx to map
+            } else {
+                LogPrint(BCLog::REFMEMPOOL, "not keeping orphan with rejected parents %s\n",rtx.GetHash().ToString());
+                // We will continue to reject this tx since it has rejected
+                // parents so avoid re-requesting it from other peers.
+                recentRejects->insert(rtx.GetHash());
+            }
         }
     }
 

@@ -457,7 +457,7 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
     return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata);
 }
 
-bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState &state, const ReferralRef& referral)
+bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState &state, const ReferralRef& referral, bool* pfMissingReferrer)
 {
     LOCK(pool.cs);
     assert(referral);
@@ -466,6 +466,22 @@ bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState &state
         return false;
     }
 
+    const uint256 hash = referral->GetHash();
+
+    // is it already in the memory pool?
+    if (pool.exists(hash)) {
+        return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
+    }
+
+    if (!prefviewcache->ReferralCodeExists(referral->m_previousReferral)) {
+        if (pfMissingReferrer) {
+            *pfMissingReferrer = true;
+        }
+
+        return false;
+    }
+
+    LOCK(pool.cs);
     // TODO: check mempool(and maybe not only pool) for referral consistency
     pool.AddUnchecked(referral->GetHash(), referral);
 
@@ -5002,7 +5018,7 @@ bool LoadReferralMempool()
             CValidationState state;
 
             LOCK(cs_main);
-            AcceptReferralToMemoryPool(mempoolReferral, state, ref);
+            AcceptReferralToMemoryPool(mempoolReferral, state, ref, nullptr);
 
             if (state.IsValid()) {
                 ++count;
