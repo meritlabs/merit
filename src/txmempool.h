@@ -351,6 +351,9 @@ public:
     bool AddUnchecked(const uint256& hash, const ReferralRef entry);
     void RemoveForBlock(const std::vector<ReferralRef>& vRefs);
 
+    /** check referrals are consistent */
+    void Check(const ReferralsViewCache& referralsCache);
+
     bool exists(uint256 hash) const
     {
         LOCK(cs);

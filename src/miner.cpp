@@ -176,8 +176,12 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
-    addPackageTxs(nPackagesSelected, nDescendantsUpdated);
+
+    // add referrals to the block before transactions to check if not beaconed transactions
+    // are used in txouts
     AddReferrals();
+
+    addPackageTxs(nPackagesSelected, nDescendantsUpdated);
 
     int64_t nTime1 = GetTimeMicros();
 
@@ -260,6 +264,19 @@ void BlockAssembler::onlyUnconfirmed(CTxMemPool::setEntries& testSet)
         }
         else {
             iit++;
+        }
+    }
+}
+
+void BlockAssembler::onlyWithReferrals(CTxMemPool::setEntries& testSet)
+{
+    for (const CTxMemPool::txiter it: testSet) {
+        CValidationState dummy;
+        if (!Consensus::CheckTxOutputs(it->GetTx(), dummy, *prefviewcache)) {
+            LogPrintf(">>> Referral NOT found for transaction\n");
+            testSet.erase(it);
+        } else {
+            LogPrintf(">>> Referral found for transaction\n");
         }
     }
 }
@@ -490,6 +507,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         mempool.CalculateMemPoolAncestors(*iter, ancestors, nNoLimit, nNoLimit, nNoLimit, nNoLimit, dummy, false);
 
         onlyUnconfirmed(ancestors);
+        onlyWithReferrals(ancestors);
         ancestors.insert(iter);
 
         // Test if all tx's are Final

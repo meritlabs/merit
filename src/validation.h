@@ -353,6 +353,9 @@ void PruneAndFlush();
 /** Prune block files up to a given height */
 void PruneBlockFilesManual(int nManualPruneHeight);
 
+/** Update ANV using given transaction */
+bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo = false);
+
 bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, const ReferralRef& referral);
 
 /** (try to) add transaction to memory pool

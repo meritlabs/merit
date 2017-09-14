@@ -1194,7 +1194,7 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
     assert(height >= 0);
 
     // Pay them by adding a txout to the coinbase transaction;
-    for(const auto& winner : lottery.winners) { 
+    for(const auto& winner : lottery.winners) {
         if (!IsValidDestination(winner.key)) {
             throw std::runtime_error{"invalid ambassador"};
         }
@@ -1213,9 +1213,9 @@ struct RewardComp
     }
 };
 
-void SortRewards(pog::Rewards& rewards) 
+void SortRewards(pog::Rewards& rewards)
 {
-    std::sort(std::begin(rewards), std::end(rewards), RewardComp()); 
+    std::sort(std::begin(rewards), std::end(rewards), RewardComp());
 }
 
 bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const CTransaction& coinbase) {
@@ -1243,11 +1243,11 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
     auto sorted_winners = lottery.winners;
     SortRewards(sorted_winners);
 
-    // Make sure all expected rewards exist in the set of all rewards given in 
+    // Make sure all expected rewards exist in the set of all rewards given in
     // the block.
     return std::includes(
-            std::begin(sorted_outs), std::end(sorted_outs), 
-            std::begin(sorted_winners), std::end(sorted_winners), 
+            std::begin(sorted_outs), std::end(sorted_outs),
+            std::begin(sorted_winners), std::end(sorted_winners),
             RewardComp());
 }
 
@@ -1690,91 +1690,95 @@ bool DebitAndCreditANV(const DebitsAndCredits& debits_and_credits)
     for (const auto& t : debits_and_credits) {
         const auto& key = t.first;
         const auto amount = t.second;
-        if(!prefviewdb->UpdateANV(key, amount))
+        if(!prefviewdb->UpdateANV(key, amount)) {
             return false;
+        }
     }
+
     return true;
 }
 
-bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
+bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo)
 {
-    assert(prefviewdb);
-
-    // Update offset and Record referrals into the referral DB
-    for (const auto& rtx : block.m_vRef) {
-        if(!prefviewdb->InsertReferral(*rtx))
-            return false;
-    }
+    assert(tx);
 
     // Debit and Credit all ANVs of keys in the block
     std::vector<std::pair<CKeyID, CAmount>> debits_and_credits;
-    for (const auto& txn : block.vtx) {
-        assert(txn);
 
-        //debit senders
-        if (!txn->IsCoinBase()) {
-            for (const auto& in :  txn->vin) {
-                const auto &in_out = view.AccessCoin(in.prevout).out;
-                auto address = ExtractAddress(in_out);
-                if(address.second == 0) continue;
+    auto debitDir = !undo ? -1 : 1;
+    auto creditDir = !undo ? 1 : -1;
 
-                debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * -1}});
-            }
-        }
-
-        //credit recipients
-        for (const auto& out : txn->vout) {
-            auto address = ExtractAddress(out);
-
+    //debit senders
+    if (!tx->IsCoinBase()) {
+        for (const auto& in :  tx->vin) {
+            const auto &in_out = view.AccessCoin(in.prevout).out;
+            auto address = ExtractAddress(in_out);
             if(address.second == 0) continue;
 
-            debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue}});
+            debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * debitDir}});
         }
+    }
+
+    //credit recipients
+    for (const auto& out : tx->vout) {
+        auto address = ExtractAddress(out);
+
+        if(address.second == 0) continue;
+
+        debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue * creditDir}});
     }
 
     return DebitAndCreditANV(debits_and_credits);
 }
 
-bool RemoveReferralsAndUndoANV(const CBlock& block, CCoinsViewCache& view)
+bool IndexReferralsAndUpdateANV(const std::vector<CTransactionRef> vtx, const std::vector<ReferralRef> vref, CCoinsViewCache& view)
 {
     assert(prefviewdb);
 
-    // Debit and Credit all ANVs of keys in the block
-    std::vector<std::pair<CKeyID, CAmount>> debits_and_credits;
-    for (const auto& txn : block.vtx) {
-        assert(txn);
-
-        //credit senders
-        if (!txn->IsCoinBase()) {
-            for (const auto& in :  txn->vin) {
-                const auto &in_out = view.AccessCoin(in.prevout).out;
-                auto address = ExtractAddress(in_out);
-                if(address.second == 0) continue;
-
-                debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue}});
-            }
-        }
-
-        //debit recipients
-        for (const auto& out : txn->vout) {
-            auto address = ExtractAddress(out);
-
-            if(address.second == 0) continue;
-
-            debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue * -1}});
+    // Update offset and Record referrals into the referral DB
+    for (const auto& rtx : vref) {
+        if(!prefviewdb->InsertReferral(*rtx)) {
+            return false;
         }
     }
 
-    if(!DebitAndCreditANV(debits_and_credits)) {
-        return false;
+    // Debit and Credit all ANVs of keys in transactions set
+    for (const auto& txn : vtx) {
+        if (!UpdateANV(txn, view)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
+{
+    return IndexReferralsAndUpdateANV(block.vtx, block.m_vRef, view);
+}
+
+bool RemoveReferralsAndUndoANV(const std::vector<CTransactionRef> vtx, const std::vector<ReferralRef> vref, CCoinsViewCache& view)
+{
+    assert(prefviewdb);
+
+    // Debit and Credit all ANVs of keys in transactions set
+    for (const auto& txn : vtx) {
+        if (!UpdateANV(txn, view, true)) {
+            return false;
+        }
     }
 
     // Update offset and Record referrals into the referral DB
-    for (const auto& rtx : block.m_vRef) {
+    for (const auto& rtx : vref) {
         if(!prefviewdb->RemoveReferral(*rtx))
             return false;
     }
     return true;
+}
+
+bool RemoveReferralsAndUndoANV(const CBlock& block, CCoinsViewCache& view)
+{
+    return RemoveReferralsAndUndoANV(block.vtx, block.m_vRef, view);
 }
 
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
@@ -1785,7 +1789,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
 
     bool fClean = true;
 
-    if(!memory_only && !RemoveReferralsAndUndoANV(block, view)){ 
+    if(!memory_only && !RemoveReferralsAndUndoANV(block, view)){
         error("DisconnectBlock(): unable to undo referrals");
         return DISCONNECT_FAILED;
     }
@@ -2005,12 +2009,12 @@ static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
 
 bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos)
-{ 
+{
     // Update offsets for referrals so they can be recorded.
     CDiskTxPos pos{cur_block_pos, GetSizeOfCompactSize(block.m_vRef.size())};
     RefPositions positions(block.m_vRef.size());
 
-    std::transform(std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(positions), 
+    std::transform(std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(positions),
             [&pos](const ReferralRef& rtx) {
                 assert(rtx);
                 auto p = std::make_pair(rtx->GetHash(), pos);
@@ -2275,7 +2279,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     const CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
 
-    assert(!block.vtx.empty()); 
+    assert(!block.vtx.empty());
     const CTransaction& coinbase_tx = *block.vtx[0];
 
     if (coinbase_tx.GetValueOut() > block_reward)
@@ -3386,9 +3390,9 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 }
 
 // Check if an address is valid (beaconed)
-bool CheckAddress(const CKeyID& address) 
+bool CheckAddress(const CKeyID& address)
 {
-    return prefviewdb->WalletIdExists(address);    
+    return prefviewdb->WalletIdExists(address);
 }
 
 bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params)

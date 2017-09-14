@@ -36,23 +36,23 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const ReferralRef refe
 /**
  * Called when a block is connected. Removes referrals from mempool.
  */
- void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
- {
-     LOCK(cs);
+void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
+{
+    LOCK(cs);
 
-     for (const auto& ref : vRefs) {
-         auto it = mapRTx.find(ref->GetHash());
+    for (const auto& ref : vRefs) {
+        auto it = mapRTx.find(ref->GetHash());
 
-         if (it != mapRTx.end()) {
-             ReferralRef ref = it->second;
+        if (it != mapRTx.end()) {
+            ReferralRef ref = it->second;
 
-             NotifyEntryRemoved(ref, MemPoolRemovalReason::BLOCK);
+            NotifyEntryRemoved(ref, MemPoolRemovalReason::BLOCK);
 
-             mapRTx.erase(it);
-             m_nReferralsUpdated++;
-         }
-     }
- }
+            mapRTx.erase(it);
+            m_nReferralsUpdated++;
+        }
+    }
+}
 
 CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
                                  int64_t _nTime, unsigned int _entryHeight,
@@ -782,6 +782,46 @@ void CTxMemPool::clear()
     _clear();
 }
 
+void ReferralTxMemPool::Check(const ReferralsViewCache& referralsCache)
+{
+    std::list<const ReferralRef> waitingOnDependants;
+
+    for (const auto& iit : mapRTx) {
+        const auto ref = iit.second;
+        const auto it = mapRTx.find(ref->GetHash());
+
+        bool fDependsWait = false;
+
+        if (it != mapRTx.end()) {
+            fDependsWait = true;
+            ReferralRef referrer = it->second;
+        } else {
+            assert(referralsCache.ReferralCodeExists(ref->m_previousReferral));
+        }
+
+        if (fDependsWait)
+            waitingOnDependants.push_back(ref);
+        else {
+            prefviewdb->InsertReferral(*ref);
+        }
+    }
+
+    unsigned int stepsSinceLastRemove = 0;
+    while (!waitingOnDependants.empty()) {
+        const ReferralRef ref = waitingOnDependants.front();
+        waitingOnDependants.pop_front();
+
+        if (!referralsCache.ReferralCodeExists(ref->m_previousReferral)) {
+            waitingOnDependants.push_back(ref);
+            stepsSinceLastRemove++;
+            assert(stepsSinceLastRemove < waitingOnDependants.size());
+        } else {
+            prefviewdb->InsertReferral(*ref);
+            stepsSinceLastRemove = 0;
+        }
+    }
+}
+
 void CTxMemPool::check(const CCoinsViewCache *pcoins, const ReferralsViewCache& referralsCache) const
 {
     if (nCheckFrequency == 0)
@@ -881,6 +921,7 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins, const ReferralsViewCache& 
                 Consensus::CheckTxOutputs(tx, state, referralsCache));
             assert(fCheckResult);
             UpdateCoins(tx, mempoolDuplicate, 1000000);
+            UpdateANV(it->GetSharedTx(), mempoolDuplicate);
         }
     }
     unsigned int stepsSinceLastRemove = 0;
@@ -898,6 +939,7 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins, const ReferralsViewCache& 
                 Consensus::CheckTxOutputs(entry->GetTx(), state, referralsCache));
             assert(fCheckResult);
             UpdateCoins(entry->GetTx(), mempoolDuplicate, 1000000);
+            UpdateANV(entry->GetSharedTx(), mempoolDuplicate);
             stepsSinceLastRemove = 0;
         }
     }
