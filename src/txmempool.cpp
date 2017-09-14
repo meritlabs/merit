@@ -784,7 +784,7 @@ void CTxMemPool::clear()
 
 void ReferralTxMemPool::Check(const ReferralsViewCache& referralsCache)
 {
-    std::list<const ReferralRef> waitingOnDependants;
+    std::list<ReferralRef> waitingOnDependants;
 
     for (const auto& iit : mapRTx) {
         const auto ref = iit.second;
