@@ -174,6 +174,12 @@ UniValue validateaddress(const JSONRPCRequest& request)
     ret.push_back(Pair("isvalid", isValid));
     if (isValid)
     {
+        const auto* key = boost::get<CKeyID>(&dest);
+        
+        if (key) {
+            bool isBeaconed = CheckAddress(*key);
+            ret.push_back(Pair("isbeaconed", isBeaconed));
+        }
         std::string currentAddress = EncodeDestination(dest);
         ret.push_back(Pair("address", currentAddress));
 
@@ -236,7 +242,6 @@ UniValue isaddressbeaconed(const JSONRPCRequest& request)
 
     CTxDestination dest = DecodeDestination(request.params[0].get_str());
     bool isValid = IsValidDestination(dest);
-    bool isBeaconed = false; 
 
     const auto* key = boost::get<CKeyID>(&dest);
     
