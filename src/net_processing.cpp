@@ -689,16 +689,20 @@ int static EraseOrphanTx(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 void EraseOrphansFor(NodeId peer)
 {
     int nErased = 0;
-    std::map<uint256, COrphanTx>::iterator iter = mapOrphanTransactions.begin();
-    while (iter != mapOrphanTransactions.end())
-    {
-        std::map<uint256, COrphanTx>::iterator maybeErase = iter++; // increment to avoid iterator becoming invalid
-        if (maybeErase->second.fromPeer == peer)
-        {
-            nErased += EraseOrphanTx(maybeErase->second.tx->GetHash());
+    for (const auto& it: mapOrphanTransactions) {
+        if (it.second.fromPeer == peer) {
+            nErased += EraseOrphanTx(it.second.tx->GetHash());
         }
     }
     if (nErased > 0) LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx from peer=%d\n", nErased, peer);
+
+    nErased = 0;
+    for (const auto& it: mapOrphanReferrals) {
+        if (it.second.fromPeer == peer) {
+            nErased += EraseOrphanReferral(it.second.ref->GetHash());
+        }
+    }
+    if (nErased > 0) LogPrint(BCLog::REFMEMPOOL, "Erased %d orphan referrals from peer=%d\n", nErased, peer);
 }
 
 
