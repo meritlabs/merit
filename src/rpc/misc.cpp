@@ -212,6 +212,45 @@ UniValue validateaddress(const JSONRPCRequest& request)
 // Needed even with !ENABLE_WALLET, to pass (ignored) pointers around
 class CWallet;
 
+
+UniValue isaddressbeaconed(const JSONRPCRequest& request) 
+{
+    if (request.fHelp || request.params.size() != 1)
+    throw std::runtime_error(
+        "isaddressbeaconed \"address\"\n"
+        "\nReturn information about the given merit address.\n"
+        "\nArguments:\n"
+        "1. \"address\"     (string, required) The merit address to validate\n"
+        "\nResult:\n"
+        "{\n"
+        "  \"isvalid\" : true|false,       (boolean) If the address is valid or not. If not, this is the only property returned.\n"
+        "  \"isbeaconed\" : true|false,       (boolean) If the address has been beaconed to the network or not or not. If not, this is the only property returned.\n"
+        "\nExamples:\n"
+        + HelpExampleCli("isaddressbeaconed", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\"")
+        + HelpExampleRpc("isaddressbeaconed", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\"")
+    );
+
+    LOCK(cs_main);
+
+    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    bool isValid = IsValidDestination(dest);
+    bool isBeaconed = false; 
+
+    const auto* key = boost::get<CKeyID>(&dest);
+    
+    if (key) {
+        bool isBeaconed = CheckAddress(key);
+    }
+    
+
+    UniValue ret(UniValue::VOBJ);
+    ret.push_back(Pair("isvalid"), isValid);
+    ret.push_back(Pair("isbeaconed"), isBeaconed);
+    
+    return ret;
+}
+
+
 /**
  * Used by addmultisigaddress / createmultisig:
  */
