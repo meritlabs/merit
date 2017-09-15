@@ -360,6 +360,12 @@ public:
         return (mapRTx.count(hash) != 0);
     }
 
+    unsigned long size()
+    {
+        LOCK(cs);
+        return mapRTx.size();
+    }
+
     boost::signals2::signal<void (ReferralRef)> NotifyEntryAdded;
     boost::signals2::signal<void (ReferralRef, MemPoolRemovalReason)> NotifyEntryRemoved;
 };
