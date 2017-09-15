@@ -109,7 +109,7 @@ bool ReferralsViewDB::WalletIdExists(const CKeyID& key) const
  */
 bool ReferralsViewDB::UpdateANV(const CKeyID& start_key, CAmount change)
 {
-    debug("\tUpdateANV: %s -> %d", start_key.GetHex(), change); 
+    debug("\tUpdateANV: %s -> %d", EncodeDestination(start_key), change);
     MaybeKeyID key = start_key;
     size_t levels = 0;
 
