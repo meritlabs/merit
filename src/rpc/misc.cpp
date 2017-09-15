@@ -174,6 +174,12 @@ UniValue validateaddress(const JSONRPCRequest& request)
     ret.push_back(Pair("isvalid", isValid));
     if (isValid)
     {
+        const auto* key = boost::get<CKeyID>(&dest);
+        
+        if (key) {
+            bool isBeaconed = CheckAddress(*key);
+            ret.push_back(Pair("isbeaconed", isBeaconed));
+        }
         std::string currentAddress = EncodeDestination(dest);
         ret.push_back(Pair("address", currentAddress));
 
@@ -211,6 +217,44 @@ UniValue validateaddress(const JSONRPCRequest& request)
 
 // Needed even with !ENABLE_WALLET, to pass (ignored) pointers around
 class CWallet;
+
+
+UniValue isaddressbeaconed(const JSONRPCRequest& request) 
+{
+    if (request.fHelp || request.params.size() != 1)
+    throw std::runtime_error(
+        "isaddressbeaconed \"address\"\n"
+        "\nReturn information about the given merit address.\n"
+        "\nArguments:\n"
+        "1. \"address\"     (string, required) The merit address to validate\n"
+        "\nResult:\n"
+        "{\n"
+        "  \"isvalid\" : true|false,       (boolean) If the address is valid or not. If not, this is the only property returned.\n"
+        "  \"isbeaconed\" : true|false,       (boolean) If the address has been beaconed to the network or not or not. If not, this is the only property returned.\n"
+        "\nExamples:\n"
+        + HelpExampleCli("isaddressbeaconed", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\"")
+        + HelpExampleRpc("isaddressbeaconed", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\"")
+    );
+
+    LOCK(cs_main);
+
+    UniValue ret(UniValue::VOBJ);
+
+    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    bool isValid = IsValidDestination(dest);
+
+    const auto* key = boost::get<CKeyID>(&dest);
+    
+    if (key) {
+        bool isBeaconed = CheckAddress(*key);
+        ret.push_back(Pair("isbeaconed", isBeaconed));
+    }
+    
+    ret.push_back(Pair("isvalid", isValid));
+    
+    return ret;
+}
+
 
 /**
  * Used by addmultisigaddress / createmultisig:
@@ -1140,6 +1184,7 @@ static const CRPCCommand commands[] =
     { "control",            "getinfo",                &getinfo,                {} }, /* uses wallet if enabled */
     { "control",            "getmemoryinfo",          &getmemoryinfo,          {"mode"} },
     { "util",               "validateaddress",        &validateaddress,        {"address"} }, /* uses wallet if enabled */
+    { "util",               "isaddressbeaconed",      &isaddressbeaconed,      {"address"} },
     { "util",               "createmultisig",         &createmultisig,         {"nrequired","keys"} },
     { "util",               "verifymessage",          &verifymessage,          {"address","signature","message"} },
     { "util",               "signmessagewithprivkey", &signmessagewithprivkey, {"privkey","message"} },

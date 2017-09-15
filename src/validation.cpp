@@ -3385,6 +3385,12 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
     return true;
 }
 
+// Check if an address is valid (beaconed)
+bool CheckAddress(const CKeyID& address) 
+{
+    return prefviewdb->WalletIdExists(address);    
+}
+
 bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params)
 {
     LOCK(cs_main);

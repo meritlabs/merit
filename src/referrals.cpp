@@ -88,6 +88,7 @@ MaybeKeyID ReferralsViewCache::GetReferrer(const CKeyID& key) const
     return {};
 }
 
+// TODO: Consider naming here.  
 bool ReferralsViewCache::WalletIdExists(const CKeyID& key) const
 {
     {
