@@ -63,7 +63,7 @@ struct OrphanReferral {
 std::map<uint256, COrphanTx> mapOrphanTransactions GUARDED_BY(cs_main);
 std::map<uint256, OrphanReferral> mapOrphanReferrals GUARDED_BY(cs_main);
 std::map<COutPoint, std::set<std::map<uint256, COrphanTx>::iterator, IteratorComparator>> mapOrphanTransactionsByPrev GUARDED_BY(cs_main);
-std::map<uint256, std::set<std::map<uint256, OrphanReferral>::iterator, IteratorComparator>> mapOrphanReferralByPrev GUARDED_BY(cs_main);
+std::map<uint256, std::set<std::map<uint256, OrphanReferral>::iterator, IteratorComparator>> mapOrphanReferralsByPrev GUARDED_BY(cs_main);
 void EraseOrphansFor(NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 static size_t vExtraTxnForCompactIt = 0;
@@ -613,9 +613,9 @@ bool AddOrphanReferral(const ReferralRef& ref, NodeId peer) EXCLUSIVE_LOCKS_REQU
     auto ret = mapOrphanReferrals.emplace(hash, OrphanReferral{ref, peer, GetTime() + ORPHAN_TX_EXPIRE_TIME});
     assert(ret.second);
 
-    mapOrphanReferralByPrev[ref->m_previousReferral].insert(ret.first);
+    mapOrphanReferralsByPrev[ref->m_previousReferral].insert(ret.first);
 
-    LogPrint(BCLog::REFMEMPOOL, "stored orphan referral %s (mapsz %u prevsz)\n", hash.ToString(), mapOrphanReferrals.size(), mapOrphanReferralByPrev.size());
+    LogPrint(BCLog::REFMEMPOOL, "stored orphan referral %s (mapsz %u prevsz)\n", hash.ToString(), mapOrphanReferrals.size(), mapOrphanReferralsByPrev.size());
 }
 
 bool AddOrphanTx(const CTransactionRef& tx, NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
@@ -653,18 +653,21 @@ bool AddOrphanTx(const CTransactionRef& tx, NodeId peer) EXCLUSIVE_LOCKS_REQUIRE
 
 int static EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
-    std::map<uint256, OrphanReferral>::iterator it = mapOrphanReferrals.find(hash);
+    auto it = mapOrphanReferrals.find(hash);
     if (it == mapOrphanReferrals.end()) {
         return 0;
     }
 
-    auto itPrev = mapOrphanReferralByPrev.find(it->second.ref->m_previousReferral);
-    if (itPrev != mapOrphanReferralByPrev.end())
+    auto itPrev = mapOrphanReferralsByPrev.find(it->second.ref->m_previousReferral);
+    if (itPrev != mapOrphanReferralsByPrev.end())
         itPrev->second.erase(it);
+
+    // erase map for prevRef in case it has no orphan referral that depends on it
     if (itPrev->second.empty())
-        mapOrphanReferralByPrev.erase(itPrev);
+        mapOrphanReferralsByPrev.erase(itPrev);
 
     mapOrphanReferrals.erase(it);
+
     return 1;
 }
 
@@ -789,6 +792,7 @@ void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pb
 
         // Which orphan pool entries must we evict?
         for (const auto& txin : tx.vin) {
+            // TODO: figure out why txin.prevout used here instead txouts
             auto itByPrev = mapOrphanTransactionsByPrev.find(txin.prevout);
             if (itByPrev == mapOrphanTransactionsByPrev.end()) continue;
             for (auto mi = itByPrev->second.begin(); mi != itByPrev->second.end(); ++mi) {
@@ -806,6 +810,28 @@ void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pb
             nErased += EraseOrphanTx(orphanHash);
         }
         LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx included or conflicted by block\n", nErased);
+    }
+
+    std::vector<uint256> vOrphanReferralsErase;
+
+    for (const ReferralRef& ref: pblock->m_vRef) {
+        auto itByPrev = mapOrphanReferralsByPrev.find(ref->GetHash());
+        if (itByPrev != mapOrphanReferralsByPrev.end()) {
+            for (const auto& it: itByPrev->second) {
+                const ReferralRef& orphanRef = it->second.ref;
+                const uint256& orphanHash = orphanRef->GetHash();
+                vOrphanErase.push_back(orphanHash);
+            }
+        }
+    }
+
+    // Erase orphan referrals include by this block
+    if (vOrphanReferralsErase.size()) {
+        int nErased = 0;
+        for (uint256 &orphanHash : vOrphanErase) {
+            nErased += EraseOrphanReferral(orphanHash);
+        }
+        LogPrint(BCLog::REFMEMPOOL, "Erased %d orphan referrals included or conflicted by block\n", nErased);
     }
 }
 
@@ -2100,10 +2126,10 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             // Recursively process any orphan referral that depended on this one
             std::set<NodeId> setMisbehaving;
             while (!vWorkQueue.empty()) {
-                auto itByPrev = mapOrphanReferralByPrev.find(vWorkQueue.front());
+                auto itByPrev = mapOrphanReferralsByPrev.find(vWorkQueue.front());
                 vWorkQueue.pop_front();
 
-                if (itByPrev == mapOrphanReferralByPrev.end()) {
+                if (itByPrev == mapOrphanReferralsByPrev.end()) {
                     continue;
                 }
 
