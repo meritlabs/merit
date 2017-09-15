@@ -51,3 +51,13 @@ zmqpubhashblock=tcp://127.0.0.1:28332
 zmqpubrawblock=tcp://127.0.0.1:28332
 zmqpubhashtx=tcp://127.0.0.1:28332
 ```
+
+Building
+-------------------
+
+If you want to build with debug statements make sure to make a debug build
+
+```
+    ./configure --enable-debug
+```
+

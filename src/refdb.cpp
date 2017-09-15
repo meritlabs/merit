@@ -4,6 +4,8 @@
 
 #include "refdb.h"
 
+#include "base58.h"
+
 namespace
 {
 const char DB_CHILDREN = 'c';
@@ -38,6 +40,7 @@ ChildKeys ReferralsViewDB::GetChildren(const CKeyID& key) const
 }
 
 bool ReferralsViewDB::InsertReferral(const Referral& referral) {
+    debug("\tInsertReferral: %s -> %s key: %s", referral.m_previousReferral.GetHex(), referral.m_codeHash.GetHex(), EncodeDestination(referral.m_pubKeyId)); 
     //write referral
     if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.m_codeHash), referral))
         return false;
@@ -106,6 +109,7 @@ bool ReferralsViewDB::WalletIdExists(const CKeyID& key) const
  */
 bool ReferralsViewDB::UpdateANV(const CKeyID& start_key, CAmount change)
 {
+    debug("\tUpdateANV: %s -> %d", EncodeDestination(start_key), change);
     MaybeKeyID key = start_key;
     size_t levels = 0;
 
@@ -115,6 +119,8 @@ bool ReferralsViewDB::UpdateANV(const CKeyID& start_key, CAmount change)
         //it's possible key didn't exist yet so an ANV of 0 is assumed.
         CAmount anv = 0;
         m_db.Read(std::make_pair(DB_ANV, *key), anv);
+
+        debug("\t\t %d %s %d -> %d", levels, EncodeDestination(*key), anv, change); 
 
         anv += change;
         if(!m_db.Write(std::make_pair(DB_ANV, *key), anv)) {

@@ -25,8 +25,9 @@ namespace pog
     {
         //index anvs by key id for convenience. 
         std::transform(std::begin(anvs), std::end(anvs), std::inserter(m_anvs, std::begin(m_anvs)),
-                [](const KeyANV& anv) {
-                    return std::make_pair(anv.key, anv);
+                [](const KeyANV& v) {
+                    assert(v.anv >= 0);
+                    return std::make_pair(v.key, v);
                 });
 
         assert(m_anvs.size() == anvs.size());
@@ -69,7 +70,8 @@ namespace pog
                     return a.anv < selected;
                 });
 
-        assert(selected_anv < m_max_anv);
+        assert(m_max_anv >= 0);
+        assert(selected_anv < static_cast<uint64_t>(m_max_anv));
         assert(pos != std::end(m_inverted)); //it should be impossible to not find an anv
                                              //because selected_anv must be less than max
         auto selected_key = m_anvs.find(pos->key);
