@@ -165,7 +165,7 @@ bool error(const char* fmt, const Args&... args)
 template<typename... Args>
 void debug(const char* fmt, const Args&... args)
 {
-#ifdef DEBUG_PRINT
+#ifdef DEBUG
     LogPrintStr("DEBUG: " + tfm::format(fmt, args...) + "\n");
 #endif
 }
