@@ -469,7 +469,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
 
 /** Check that an address is valid and ready to send to */
-bool CheckAddress(CKeyID address); 
+bool CheckAddress(const CKeyID& address); 
 
 /** Check whether witness commitments are required for block. */
 bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params);

@@ -3371,7 +3371,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 }
 
 // Check if an address is valid (beaconed)
-bool CheckAddress(CKeyID address) 
+bool CheckAddress(const CKeyID& address) 
 {
     return prefviewdb->WalletIdExists(address);    
 }

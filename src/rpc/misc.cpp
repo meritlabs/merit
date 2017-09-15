@@ -232,6 +232,8 @@ UniValue isaddressbeaconed(const JSONRPCRequest& request)
 
     LOCK(cs_main);
 
+    UniValue ret(UniValue::VOBJ);
+
     CTxDestination dest = DecodeDestination(request.params[0].get_str());
     bool isValid = IsValidDestination(dest);
     bool isBeaconed = false; 
@@ -239,13 +241,11 @@ UniValue isaddressbeaconed(const JSONRPCRequest& request)
     const auto* key = boost::get<CKeyID>(&dest);
     
     if (key) {
-        bool isBeaconed = CheckAddress(key);
+        bool isBeaconed = CheckAddress(*key);
+        ret.push_back(Pair("isbeaconed", isBeaconed));
     }
     
-
-    UniValue ret(UniValue::VOBJ);
-    ret.push_back(Pair("isvalid"), isValid);
-    ret.push_back(Pair("isbeaconed"), isBeaconed);
+    ret.push_back(Pair("isvalid", isValid));
     
     return ret;
 }
@@ -1179,6 +1179,7 @@ static const CRPCCommand commands[] =
     { "control",            "getinfo",                &getinfo,                {} }, /* uses wallet if enabled */
     { "control",            "getmemoryinfo",          &getmemoryinfo,          {"mode"} },
     { "util",               "validateaddress",        &validateaddress,        {"address"} }, /* uses wallet if enabled */
+    { "util",               "isaddressbeaconed",      &isaddressbeaconed,      {"address"} },
     { "util",               "createmultisig",         &createmultisig,         {"nrequired","keys"} },
     { "util",               "verifymessage",          &verifymessage,          {"address","signature","message"} },
     { "util",               "signmessagewithprivkey", &signmessagewithprivkey, {"privkey","message"} },
