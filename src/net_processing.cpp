@@ -615,7 +615,7 @@ bool AddOrphanReferral(const ReferralRef& ref, NodeId peer) EXCLUSIVE_LOCKS_REQU
 
     mapOrphanReferralsByPrev[ref->m_previousReferral].insert(ret.first);
 
-    LogPrint(BCLog::REFMEMPOOL, "stored orphan referral %s (mapsz %u prevsz)\n", hash.ToString(), mapOrphanReferrals.size(), mapOrphanReferralsByPrev.size());
+    LogPrint(BCLog::REFMEMPOOL, "stored orphan referral %s (mapsz %u prevsz)\n", hash.ToString(), mapOrphanReferrals.size());
 }
 
 bool AddOrphanTx(const CTransactionRef& tx, NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
@@ -982,7 +982,10 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         return mapBlockIndex.count(inv.hash);
     case MSG_REFERRAL:
         // TODO: add to recentRejects if referral code is not valid
-        return mempoolReferral.exists(inv.hash);
+        return recentRejects->contains(inv.hash) ||
+            mempoolReferral.exists(inv.hash) ||
+            mapOrphanReferrals.count(inv.hash) ||
+            prefviewcache->ReferralCodeExists(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
