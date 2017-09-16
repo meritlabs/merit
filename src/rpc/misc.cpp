@@ -654,9 +654,9 @@ UniValue echo(const JSONRPCRequest& request)
 bool getAddressFromIndex(const int &type, const uint160 &hash, std::string &address)
 {
     if (type == 2) {
-        address = DecodeDestination(CScriptID(hash).ToString());
+        address = DecodeDestination(CScriptID(hash).ToString()).ToString();
     } else if (type == 1) {
-        address = DecodeDestination(CKeyID(hash).ToString());
+        address = DecodeDestination(CKeyID(hash).ToString())ToString();
     } else {
         return false;
     }
@@ -667,13 +667,11 @@ bool getAddressesFromParams(const UniValue& params, std::vector<std::pair<uint16
 {
     if (params[0].isStr()) {
         CMeritAddress address(params[0].get_str());
-        
-        if !IsValidDestination(address) { 
+        uint160 hashBytes;
+        int type = 0;
+        if (!address.GetIndexKey(hashBytes, type)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
-        } 
-        addresses.push_back(address.ToString()));
-        
-        
+        }
         addresses.push_back(std::make_pair(hashBytes, type));
     } else if (params[0].isObject()) {
 
