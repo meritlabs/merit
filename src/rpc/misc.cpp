@@ -654,9 +654,9 @@ UniValue echo(const JSONRPCRequest& request)
 bool getAddressFromIndex(const int &type, const uint160 &hash, std::string &address)
 {
     if (type == 2) {
-        address = DecodeDestination(CScriptID(hash).ToString()).ToString();
+        address = EncodeDestination(CScriptID(hash));
     } else if (type == 1) {
-        address = DecodeDestination(CKeyID(hash).ToString())ToString();
+        address = EncodeDestination(CKeyID(hash));
     } else {
         return false;
     }
