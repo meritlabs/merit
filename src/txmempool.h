@@ -354,11 +354,13 @@ public:
     /** check referrals are consistent */
     void Check(const ReferralsViewCache& referralsCache);
 
-    bool exists(uint256 hash) const
+    bool exists(const uint256& hash) const
     {
         LOCK(cs);
         return (mapRTx.count(hash) != 0);
     }
+
+    ReferralRef get(const uint256& hash) const;
 
     unsigned long size()
     {

@@ -457,7 +457,7 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
     return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata);
 }
 
-bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState &state, const ReferralRef& referral, bool* pfMissingReferrer)
+bool AcceptReferralToMemoryPoolWorker(ReferralTxMemPool& pool, CValidationState &state, const ReferralRef& referral, bool* pfMissingReferrer, std::vector<ReferralRef>& vReferralsToUncache)
 {
     LOCK(pool.cs);
     assert(referral);
@@ -474,8 +474,12 @@ bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState &state
     }
 
     if (!prefviewcache->ReferralCodeExists(referral->m_previousReferral)) {
-        if (pfMissingReferrer) {
-            *pfMissingReferrer = true;
+        vReferralsToUncache.push_back(referral);
+
+        if (!pool.exists(referral->m_previousReferral)) {
+            if (pfMissingReferrer) {
+                *pfMissingReferrer = true;
+            }
         }
 
         return false;
@@ -489,6 +493,20 @@ bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState &state
 
     return true;
 }
+
+bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, const ReferralRef& referral, bool* pfMissingReferrer)
+{
+    std::vector<ReferralRef> referralsToUncache;
+
+    bool res = AcceptReferralToMemoryPoolWorker(pool, state, referral, pfMissingReferrer, referralsToUncache);
+    if (!res) {
+        for (const auto& refToUncache : referralsToUncache)
+            prefviewcache->Uncache(*refToUncache);
+    }
+
+    return res;
+}
+
 
 static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool& pool, CValidationState& state, const CTransactionRef& ptx, bool fLimitFree,
                               bool* pfMissingInputs, int64_t nAcceptTime, std::list<CTransactionRef>* plTxnReplaced,

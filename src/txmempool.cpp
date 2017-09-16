@@ -54,6 +54,17 @@ void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
     }
 }
 
+ReferralRef ReferralTxMemPool::get(const uint256& hash) const
+{
+    LOCK(cs);
+    auto it = mapRTx.find(hash);
+
+    if (it == mapRTx.end())
+        return nullptr;
+
+    return it->second;
+}
+
 CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
                                  int64_t _nTime, unsigned int _entryHeight,
                                  bool _spendsCoinbase, int64_t _sigOpsCost, LockPoints lp):
@@ -786,22 +797,25 @@ void ReferralTxMemPool::Check(const ReferralsViewCache& referralsCache)
 {
     std::list<ReferralRef> waitingOnDependants;
 
-    for (const auto& iit : mapRTx) {
-        const auto ref = iit.second;
-        const auto it = mapRTx.find(ref->GetHash());
+    // check that every referral in the memplool is referred by exising referral or other mempool referral
+    for (const auto& it : mapRTx) {
+        const auto ref = it.second;
+        const auto itPrev = mapRTx.find(ref->m_previousReferral);
 
         bool fDependsWait = false;
 
-        if (it != mapRTx.end()) {
+        if (itPrev != mapRTx.end()) {
             fDependsWait = true;
-            ReferralRef referrer = it->second;
+            ReferralRef referrer = itPrev->second;
         } else {
             assert(referralsCache.ReferralCodeExists(ref->m_previousReferral));
         }
 
-        if (fDependsWait)
+        if (fDependsWait) {
+            LogPrintf("%s: previous referral Not found in chain. Adding referral to waitingOnDependants\n", __func__);
             waitingOnDependants.push_back(ref);
-        else {
+        } else {
+            LogPrintf("%s: previous referral found in chain. Adding referral to cache\n", __func__);
             prefviewdb->InsertReferral(*ref);
         }
     }
@@ -811,6 +825,7 @@ void ReferralTxMemPool::Check(const ReferralsViewCache& referralsCache)
         const ReferralRef ref = waitingOnDependants.front();
         waitingOnDependants.pop_front();
 
+        // TODO: referralsCache should be backed by mempool as in the case of tx and mempoolDuplicate
         if (!referralsCache.ReferralCodeExists(ref->m_previousReferral)) {
             waitingOnDependants.push_back(ref);
             stepsSinceLastRemove++;
