@@ -2119,7 +2119,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
             vWorkQueue.emplace_back(inv.hash);
 
-            pfrom->nLastTXTime = GetTime();
+            pfrom->nLastRefTime = GetTime();
 
             LogPrint(BCLog::REFMEMPOOL, "AcceptToMemoryPool: peer=%d: accepted %s (poolsz %u refs)\n",
                 pfrom->GetId(),

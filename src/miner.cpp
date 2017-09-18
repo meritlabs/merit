@@ -273,10 +273,7 @@ void BlockAssembler::onlyWithReferrals(CTxMemPool::setEntries& testSet)
     for (const CTxMemPool::txiter it: testSet) {
         CValidationState dummy;
         if (!Consensus::CheckTxOutputs(it->GetTx(), dummy, *prefviewcache)) {
-            LogPrintf(">>> Referral NOT found for transaction\n");
             testSet.erase(it);
-        } else {
-            LogPrintf(">>> Referral found for transaction\n");
         }
     }
 }

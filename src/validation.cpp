@@ -2268,8 +2268,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         {
             nFees += view.GetValueIn(tx)-tx.GetValueOut();
 
-            if (Consensus::CheckTxOutputs(tx, state, *prefviewcache)) {
-                return false;
+            if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache)) {
+                return error("ConnectBlock(): CheckTxOutputs on %s failed with %s",
+                tx.GetHash().ToString(), FormatStateMessage(state));
             }
 
             std::vector<CScriptCheck> vChecks;
