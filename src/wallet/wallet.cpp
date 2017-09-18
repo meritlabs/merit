@@ -118,7 +118,8 @@ public:
 
 bool ReferralTx::RelayWalletTransaction(CConnman *connman)
 {
-    assert(m_pWallet->GetBroadcastTransactions());
+    if(m_pWallet)
+        assert(m_pWallet->GetBroadcastTransactions());
     if (!isAbandoned() && GetDepthInMainChain() == 0)
     {
         CValidationState state;

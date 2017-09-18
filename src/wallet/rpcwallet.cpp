@@ -3367,74 +3367,51 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
             + HelpExampleRpc("unlockwallet", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\", \"referralcode\"")
         );
     }
-    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
 
-    LOCK2(cs_main, pwallet ? &pwallet->cs_wallet : nullptr);
+    LOCK(cs_main);
 
     CMeritAddress address(request.params[0].get_str());
     bool isValid = address.IsValid();
 
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("isvalid", isValid));
+    if (!isValid)
+        throw std::runtime_error("address is not valid");
 
-    if (isValid)
+    CTxDestination dest = address.Get();
+    std::string currentAddress = address.ToString();
+    ret.push_back(Pair("address", currentAddress));
+
+    CScript scriptPubKey = GetScriptForDestination(dest);
+    ret.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
+
+    // Create referral trasnaction
+    std::string unlockCode = request.params[1].get_str();
+    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
+
+    // check if provided referral code hash is valid, i.e. exists in the blockchain
+    if (!prefviewcache->ReferralCodeExists(codeHash))
     {
-        CTxDestination dest = address.Get();
-        std::string currentAddress = address.ToString();
-        ret.push_back(Pair("address", currentAddress));
-
-        CScript scriptPubKey = GetScriptForDestination(dest);
-        ret.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
-
-        // Create referral trasnaction
-        std::string unlockCode = request.params[1].get_str();
-        uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
-
-        // check if provided referral code hash is valid, i.e. exists in the blockchain
-        if (!prefviewcache->ReferralCodeExists(codeHash))
-        {
-            throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain (RPC)");
-        }
-
-        CKeyID addressKey;
-        if (!address.GetKeyID(addressKey))
-        {
-            throw std::runtime_error(std::string(__func__) + ": Address is invalid or is in wrong format.");
-        }
-
-        ReferralRef referral = MakeReferralRef(MutableReferral(addressKey, codeHash));
-        ReferralTx rtx(true);
-
-        CValidationState state;
-        pwallet->CreateTransaction(rtx, referral);
-        pwallet->CommitTransaction(rtx, g_connman.get(), state);
-
-        ret.push_back(Pair("referralcode", referral->m_code)); // referral->m_code
-
-        isminetype mine = pwallet ? IsMine(*pwallet, dest) : ISMINE_NO;
-        ret.push_back(Pair("ismine", bool(mine & ISMINE_SPENDABLE)));
-        ret.push_back(Pair("iswatchonly", bool(mine & ISMINE_WATCH_ONLY)));
-        UniValue detail = boost::apply_visitor(DescribeAddressVisitor(pwallet), dest);
-        ret.pushKVs(detail);
-        if (pwallet && pwallet->mapAddressBook.count(dest)) {
-            ret.push_back(Pair("account", pwallet->mapAddressBook[dest].name));
-        }
-        CKeyID keyID;
-        if (pwallet) {
-            const auto& meta = pwallet->mapKeyMetadata;
-            auto it = address.GetKeyID(keyID) ? meta.find(keyID) : meta.end();
-            if (it == meta.end()) {
-                it = meta.find(CScriptID(scriptPubKey));
-            }
-            if (it != meta.end()) {
-                ret.push_back(Pair("timestamp", it->second.nCreateTime));
-                if (!it->second.hdKeypath.empty()) {
-                    ret.push_back(Pair("hdkeypath", it->second.hdKeypath));
-                    ret.push_back(Pair("hdmasterkeyid", it->second.hdMasterKeyID.GetHex()));
-                }
-            }
-        }
+        throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain (RPC)");
     }
+
+    CKeyID addressKey;
+    if (!address.GetKeyID(addressKey))
+    {
+        throw std::runtime_error(std::string(__func__) + ": Address is invalid or is in wrong format.");
+    }
+
+    ReferralRef referral = MakeReferralRef(MutableReferral(addressKey, codeHash));
+    ReferralTx rtx(true);
+
+    CValidationState state;
+    rtx.SetReferral(referral);
+    rtx.AcceptToMemoryPool(state);
+    rtx.BindWallet(nullptr);
+    rtx.RelayWalletTransaction(g_connman.get());
+
+    ret.push_back(Pair("referralcode", referral->m_code)); // referral->m_code
+
     return ret;
 }
 #endif
