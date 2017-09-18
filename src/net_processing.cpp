@@ -2121,7 +2121,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
             pfrom->nLastTXTime = GetTime();
 
-            LogPrint(BCLog::REFMEMPOOL, "AcceptToMemoryPool: peer=%d: accepted %s (poolsz %u txn)\n",
+            LogPrint(BCLog::REFMEMPOOL, "AcceptToMemoryPool: peer=%d: accepted %s (poolsz %u refs)\n",
                 pfrom->GetId(),
                 hash.ToString(),
                 mempoolReferral.size());

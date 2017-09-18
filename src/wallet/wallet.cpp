@@ -123,10 +123,11 @@ bool ReferralTx::RelayWalletTransaction(CConnman *connman)
     {
         CValidationState state;
         if (InMempool() || AcceptToMemoryPool(state)) {
+            mempoolReferral.Check(*prefviewcache);
             if (connman) {
                 CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
 
-                LogPrint(BCLog::NET, "Relaying referral %s\n", m_pReferral->GetHash().ToString());
+                LogPrint(BCLog::NET, "Relaying referral %s\n", m_pReferral->GetHash().GetHex());
                 connman->ForEachNode([&inv](CNode* pnode) {
                     pnode->PushInventory(inv);
                 });

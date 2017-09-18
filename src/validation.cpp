@@ -2970,6 +2970,7 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
         UpdateMempoolForReorg(disconnectpool, true);
     }
     mempool.check(pcoinsTip, *prefviewcache);
+    mempoolReferral.Check(*prefviewcache);
 
     // Callbacks/notifications for a new best chain.
     if (fInvalidFound)
@@ -5100,7 +5101,7 @@ void DumpReferralMempool()
         file << (uint64_t)vReferral.size();
         for (const auto& i : vReferral) {
             file << i;
-            prefviewdb->InsertReferral(*i);
+            // prefviewdb->InsertReferral(*i);
         }
 
         FileCommit(file.Get());
