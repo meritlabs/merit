@@ -480,8 +480,7 @@ bool AcceptReferralToMemoryPoolWorker(ReferralTxMemPool& pool, CValidationState 
     if (!prefviewcache->ReferralCodeExists(referral->m_previousReferral)) {
         vReferralsToUncache.push_back(referral);
 
-        if (!pool.exists(referral->m_previousReferral)) {
-
+        if (!pool.ExistsWithCodeHash(referral->m_previousReferral)) {
             if (pfMissingReferrer) {
                 *pfMissingReferrer = true;
             }

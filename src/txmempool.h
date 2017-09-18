@@ -360,6 +360,9 @@ public:
         return (mapRTx.count(hash) != 0);
     }
 
+    bool ExistsWithCodeHash(const uint256& hash) const;
+    ReferralRef GetWithCodeHash(const uint256& codeHash) const;
+
     ReferralRef get(const uint256& hash) const;
 
     unsigned long size()

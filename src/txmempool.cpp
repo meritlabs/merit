@@ -65,6 +65,62 @@ ReferralRef ReferralTxMemPool::get(const uint256& hash) const
     return it->second;
 }
 
+ReferralRef ReferralTxMemPool::GetWithCodeHash(const uint256& codeHash) const
+{
+    LOCK(cs);
+    for (const auto& it: mapRTx) {
+        if (it.second->m_codeHash == codeHash) {
+            return it.second;
+        }
+    }
+
+    return nullptr;
+}
+
+bool ReferralTxMemPool::ExistsWithCodeHash(const uint256& codeHash) const
+{
+    if (GetWithCodeHash(codeHash) != nullptr) {
+        return true;
+    }
+
+    return false;
+}
+
+void ReferralTxMemPool::Check(const ReferralsViewCache& referralsCache)
+{
+    std::list<ReferralRef> waitingOnDependants;
+
+    // check that every referral in the memplool is referred by exising referral or other mempool referral
+    for (const auto& it : mapRTx) {
+        const auto ref = it.second;
+
+        if (ExistsWithCodeHash(ref->m_previousReferral)) {
+            // if referrer is in the mempool, push this referral to waitingOnDependants
+            waitingOnDependants.push_back(ref);
+        } else {
+            // if referrer not found in the mempool, assume it's in the blockchain
+            assert(referralsCache.ReferralCodeExists(ref->m_previousReferral));
+            prefviewdb->InsertReferral(*ref);
+        }
+    }
+
+    unsigned int stepsSinceLastRemove = 0;
+    while (!waitingOnDependants.empty()) {
+        const ReferralRef ref = waitingOnDependants.front();
+        waitingOnDependants.pop_front();
+
+        // TODO: referralsCache should be backed by mempool as in the case of tx and mempoolDuplicate
+        if (!referralsCache.ReferralCodeExists(ref->m_previousReferral)) {
+            waitingOnDependants.push_back(ref);
+            stepsSinceLastRemove++;
+            assert(stepsSinceLastRemove < waitingOnDependants.size());
+        } else {
+            prefviewdb->InsertReferral(*ref);
+            stepsSinceLastRemove = 0;
+        }
+    }
+}
+
 CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
                                  int64_t _nTime, unsigned int _entryHeight,
                                  bool _spendsCoinbase, int64_t _sigOpsCost, LockPoints lp):
@@ -791,50 +847,6 @@ void CTxMemPool::clear()
 {
     LOCK(cs);
     _clear();
-}
-
-void ReferralTxMemPool::Check(const ReferralsViewCache& referralsCache)
-{
-    std::list<ReferralRef> waitingOnDependants;
-
-    // check that every referral in the memplool is referred by exising referral or other mempool referral
-    for (const auto& it : mapRTx) {
-        const auto ref = it.second;
-        const auto itPrev = mapRTx.find(ref->m_previousReferral);
-
-        bool fDependsWait = false;
-
-        if (itPrev != mapRTx.end()) {
-            fDependsWait = true;
-            ReferralRef referrer = itPrev->second;
-        } else {
-            assert(referralsCache.ReferralCodeExists(ref->m_previousReferral));
-        }
-
-        if (fDependsWait) {
-            LogPrintf("%s: previous referral Not found in chain. Adding referral to waitingOnDependants\n", __func__);
-            waitingOnDependants.push_back(ref);
-        } else {
-            LogPrintf("%s: previous referral found in chain. Adding referral to cache\n", __func__);
-            prefviewdb->InsertReferral(*ref);
-        }
-    }
-
-    unsigned int stepsSinceLastRemove = 0;
-    while (!waitingOnDependants.empty()) {
-        const ReferralRef ref = waitingOnDependants.front();
-        waitingOnDependants.pop_front();
-
-        // TODO: referralsCache should be backed by mempool as in the case of tx and mempoolDuplicate
-        if (!referralsCache.ReferralCodeExists(ref->m_previousReferral)) {
-            waitingOnDependants.push_back(ref);
-            stepsSinceLastRemove++;
-            assert(stepsSinceLastRemove < waitingOnDependants.size());
-        } else {
-            prefviewdb->InsertReferral(*ref);
-            stepsSinceLastRemove = 0;
-        }
-    }
 }
 
 void CTxMemPool::check(const CCoinsViewCache *pcoins, const ReferralsViewCache& referralsCache) const
