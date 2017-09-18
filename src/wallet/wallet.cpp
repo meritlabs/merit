@@ -142,7 +142,7 @@ bool ReferralTx::RelayWalletTransaction(CConnman *connman)
 bool ReferralTx::InMempool() const
 {
     LOCK(mempoolReferral.cs);
-    return mempoolReferral.mapRTx.count(GetHash());
+    return mempoolReferral.exists(GetHash());
 }
 
 bool ReferralTx::AcceptToMemoryPool(CValidationState& state) {

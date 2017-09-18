@@ -462,6 +462,10 @@ bool AcceptReferralToMemoryPoolWorker(ReferralTxMemPool& pool, CValidationState 
     LOCK(pool.cs);
     assert(referral);
 
+    if (pfMissingReferrer) {
+        *pfMissingReferrer = false;
+    }
+
     if (!CheckReferral(*referral, state)) {
         return false;
     }
@@ -477,12 +481,13 @@ bool AcceptReferralToMemoryPoolWorker(ReferralTxMemPool& pool, CValidationState 
         vReferralsToUncache.push_back(referral);
 
         if (!pool.exists(referral->m_previousReferral)) {
+
             if (pfMissingReferrer) {
                 *pfMissingReferrer = true;
             }
-        }
 
-        return false;
+            return false;
+        }
     }
 
     LOCK(pool.cs);
@@ -500,8 +505,9 @@ bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state
 
     bool res = AcceptReferralToMemoryPoolWorker(pool, state, referral, pfMissingReferrer, referralsToUncache);
     if (!res) {
-        for (const auto& refToUncache : referralsToUncache)
+        for (const auto& refToUncache : referralsToUncache) {
             prefviewcache->Uncache(*refToUncache);
+        }
     }
 
     return res;
