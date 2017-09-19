@@ -175,9 +175,9 @@ UniValue validateaddress(const JSONRPCRequest& request)
     if (isValid)
     {
         const auto* key = boost::get<CKeyID>(&dest);
-        
+
         if (key) {
-            bool isBeaconed = CheckAddress(*key);
+            bool isBeaconed = CheckAddressBeaconed(*key);
             ret.push_back(Pair("isbeaconed", isBeaconed));
         }
         std::string currentAddress = EncodeDestination(dest);
@@ -219,7 +219,7 @@ UniValue validateaddress(const JSONRPCRequest& request)
 class CWallet;
 
 
-UniValue isaddressbeaconed(const JSONRPCRequest& request) 
+UniValue isaddressbeaconed(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1)
     throw std::runtime_error(
@@ -244,14 +244,14 @@ UniValue isaddressbeaconed(const JSONRPCRequest& request)
     bool isValid = IsValidDestination(dest);
 
     const auto* key = boost::get<CKeyID>(&dest);
-    
+
     if (key) {
-        bool isBeaconed = CheckAddress(*key);
+        bool isBeaconed = CheckAddressBeaconed(*key);
         ret.push_back(Pair("isbeaconed", isBeaconed));
     }
-    
+
     ret.push_back(Pair("isvalid", isValid));
-    
+
     return ret;
 }
 

@@ -3381,9 +3381,12 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
     }
 
     CKeyID addressKey;
-    if (!address.GetKeyID(addressKey))
-    {
+    if (!address.GetKeyID(addressKey)) {
         throw std::runtime_error(std::string(__func__) + ": Address is invalid or is in wrong format.");
+    }
+
+    if (CheckAddressBeaconed(addressKey)) {
+        throw std::runtime_error(std::string(__func__) + ": Address is already beaconed.");
     }
 
     ReferralRef referral = MakeReferralRef(MutableReferral(addressKey, codeHash));

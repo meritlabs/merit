@@ -356,7 +356,7 @@ void PruneBlockFilesManual(int nManualPruneHeight);
 /** Update ANV using given transaction */
 bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo = false);
 
-bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, 
+bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state,
         const ReferralRef& referral, bool& pfMissingReferrer);
 
 /** (try to) add transaction to memory pool
@@ -473,7 +473,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
 
 /** Check that an address is valid and ready to send to */
-bool CheckAddress(const CKeyID& address); 
+bool CheckAddressBeaconed(const CKeyID& address, bool checkMempool = true);
 
 /** Check whether witness commitments are required for block. */
 bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params);
