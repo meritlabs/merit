@@ -36,23 +36,44 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const ReferralRef refe
 /**
  * Called when a block is connected. Removes referrals from mempool.
  */
- void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
- {
-     LOCK(cs);
+void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
+{
+    LOCK(cs);
 
-     for (const auto& ref : vRefs) {
-         auto it = mapRTx.find(ref->GetHash());
+    for (const auto& ref : vRefs) {
+        auto it = mapRTx.find(ref->GetHash());
 
-         if (it != mapRTx.end()) {
-             ReferralRef ref = it->second;
+        if (it != mapRTx.end()) {
+            ReferralRef ref = it->second;
 
-             NotifyEntryRemoved(ref, MemPoolRemovalReason::BLOCK);
+            NotifyEntryRemoved(ref, MemPoolRemovalReason::BLOCK);
 
-             mapRTx.erase(it);
-             m_nReferralsUpdated++;
-         }
-     }
- }
+            mapRTx.erase(it);
+            m_nReferralsUpdated++;
+        }
+    }
+}
+
+ReferralRef ReferralTxMemPool::GetWithCodeHash(const uint256& codeHash) const
+{
+    LOCK(cs);
+    for (const auto& it : mapRTx) {
+        if (it.second->m_codeHash == codeHash) {
+            return it.second;
+        }
+    }
+
+    return nullptr;
+}
+
+bool ReferralTxMemPool::ExistsWithCodeHash(const uint256& codeHash) const
+{
+    if (GetWithCodeHash(codeHash) != nullptr) {
+        return true;
+    }
+
+    return false;
+}
 
 CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
                                  int64_t _nTime, unsigned int _entryHeight,
