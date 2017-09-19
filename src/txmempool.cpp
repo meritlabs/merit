@@ -90,7 +90,7 @@ std::vector<ReferralRef> ReferralTxMemPool::GetReferrals() const
     std::transform(mapRTx.begin(), mapRTx.end(), refs.begin(),
             [](const ReferralRefMap::value_type& p) {
                 return p.second;
-            }); 
+            });
 
     return refs;
 }

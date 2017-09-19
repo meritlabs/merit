@@ -3803,7 +3803,7 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
         return error("%s: Consensus::ContextualCheckBlock: %s", __func__, FormatStateMessage(state));
 
     if (!ConnectBlock(block, state, &indexDummy, viewNew, chainparams, true))
-        return false;
+        return error("%s: ConnectBlock: %s", __func__, FormatStateMessage(state));
     assert(state.IsValid());
 
     return true;

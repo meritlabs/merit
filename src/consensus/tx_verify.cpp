@@ -241,7 +241,7 @@ bool Consensus::CheckTxOutputs(const CTransaction& tx, CValidationState& state, 
             const auto scriptKeyId = boost::get<CScriptID>(&dest);
 
             if (scriptKeyId) {
-                assert(false && "TODO: Handle CSriptID case in transaction addresses validation");
+                return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-scriptid-not-supported-for-beacon");
             }
         }
     }
