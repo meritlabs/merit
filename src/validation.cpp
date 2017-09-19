@@ -457,9 +457,8 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
     return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata);
 }
 
-bool AcceptReferralToMemoryPoolWorker(ReferralTxMemPool& pool, CValidationState &state, const ReferralRef& referral, bool* pfMissingReferrer, std::vector<ReferralRef>& vReferralsToUncache)
+bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, const ReferralRef& referral, bool* pfMissingReferrer)
 {
-    LOCK(pool.cs);
     assert(referral);
 
     if (pfMissingReferrer) {
@@ -472,44 +471,32 @@ bool AcceptReferralToMemoryPoolWorker(ReferralTxMemPool& pool, CValidationState 
 
     const uint256 hash = referral->GetHash();
 
-    // is it already in the memory pool?
-    if (pool.exists(hash)) {
-        return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
-    }
+    {
+        LOCK(pool.cs);
 
-    if (!prefviewcache->ReferralCodeExists(referral->m_previousReferral)) {
-        vReferralsToUncache.push_back(referral);
-
-        if (!pool.ExistsWithCodeHash(referral->m_previousReferral)) {
-            if (pfMissingReferrer) {
-                *pfMissingReferrer = true;
-            }
-
-            return false;
+        // is it already in the memory pool?
+        if (pool.exists(hash)) {
+            return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
+
+        if (!prefviewcache->ReferralCodeExists(referral->m_previousReferral)) {
+            if (!pool.ExistsWithCodeHash(referral->m_previousReferral)) {
+                if (pfMissingReferrer) {
+                    *pfMissingReferrer = true;
+                }
+
+                return false;
+            }
+        }
+
+        // TODO: check mempool(and maybe not only pool) for referral consistency
+        pool.AddUnchecked(referral->GetHash(), referral);
     }
 
-    LOCK(pool.cs);
-    // TODO: check mempool(and maybe not only pool) for referral consistency
-    pool.AddUnchecked(referral->GetHash(), referral);
 
     GetMainSignals().ReferralAddedToMempool(referral);
 
     return true;
-}
-
-bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, const ReferralRef& referral, bool* pfMissingReferrer)
-{
-    std::vector<ReferralRef> referralsToUncache;
-
-    bool res = AcceptReferralToMemoryPoolWorker(pool, state, referral, pfMissingReferrer, referralsToUncache);
-    if (!res) {
-        for (const auto& refToUncache : referralsToUncache) {
-            prefviewcache->Uncache(*refToUncache);
-        }
-    }
-
-    return res;
 }
 
 
@@ -862,7 +849,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             scriptVerifyFlags = gArgs.GetArg("-promiscuousmempoolflags", scriptVerifyFlags);
         }
 
-        if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache)) {
+        if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache, mempoolReferral.GetReferrals())) {
             return false;
         }
 
@@ -1238,6 +1225,8 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
             throw std::runtime_error{"invalid ambassador"};
         }
 
+        LogPrintf("PayAmbassadors: key=%s\n", winner.key.GetHex());
+
         auto script = GetScriptForDestination(winner.key);
         tx.vout.push_back({winner.amount, script});
     }
@@ -1281,6 +1270,14 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
     //Sort winners
     auto sorted_winners = lottery.winners;
     SortRewards(sorted_winners);
+
+    for (const auto& out: sorted_outs) {
+        LogPrintf("out.key=%s, out.value=%f\n", out.key.GetHex(), out.amount);
+    }
+
+    for (const auto& winner: sorted_winners) {
+        LogPrintf("winner.key=%s, winner.value=%f\n", winner.key.GetHex(), winner.amount);
+    }
 
     // Make sure all expected rewards exist in the set of all rewards given in
     // the block.
@@ -2268,7 +2265,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         {
             nFees += view.GetValueIn(tx)-tx.GetValueOut();
 
-            if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache)) {
+            if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache, block.m_vRef)) {
                 return error("ConnectBlock(): CheckTxOutputs on %s failed with %s",
                 tx.GetHash().ToString(), FormatStateMessage(state));
             }
@@ -2971,7 +2968,6 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
         UpdateMempoolForReorg(disconnectpool, true);
     }
     mempool.check(pcoinsTip, *prefviewcache);
-    mempoolReferral.Check(*prefviewcache);
 
     // Callbacks/notifications for a new best chain.
     if (fInvalidFound)
@@ -5102,7 +5098,6 @@ void DumpReferralMempool()
         file << (uint64_t)vReferral.size();
         for (const auto& i : vReferral) {
             file << i;
-            // prefviewdb->InsertReferral(*i);
         }
 
         FileCommit(file.Get());

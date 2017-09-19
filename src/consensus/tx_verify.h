@@ -6,6 +6,8 @@
 #ifndef MERIT_CONSENSUS_TX_VERIFY_H
 #define MERIT_CONSENSUS_TX_VERIFY_H
 
+#include "primitives/referral.h"
+
 #include <stdint.h>
 #include <vector>
 
@@ -31,7 +33,7 @@ bool CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoins
 /**
  * Check weather all outputs of this transaction are valid (addresses are beaconed)
  */
-bool CheckTxOutputs(const CTransaction& tx, CValidationState& state, const ReferralsViewCache& referralsCache);
+bool CheckTxOutputs(const CTransaction& tx, CValidationState& state, const ReferralsViewCache& referralsCache, const std::vector<ReferralRef>& vExtraReferrals);
 } // namespace Consensus
 
 /** Auxiliary functions for transaction validation (ideally should not be exposed) */

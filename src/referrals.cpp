@@ -105,7 +105,7 @@ bool ReferralsViewCache::WalletIdExists(const CKeyID& key) const
     return false;
 }
 
-void ReferralsViewCache::Uncache(const Referral& ref) const
+void ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
     const auto it = m_referral_cache.find(ref.m_codeHash);
 

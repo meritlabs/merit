@@ -37,7 +37,7 @@ public:
     bool ReferralCodeExists(const uint256&) const;
     bool WalletIdExists(const CKeyID&) const;
 
-    void Uncache(const Referral&) const;
+    void RemoveReferral(const Referral&) const;
 
     void Flush();
 };

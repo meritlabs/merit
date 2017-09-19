@@ -86,39 +86,17 @@ bool ReferralTxMemPool::ExistsWithCodeHash(const uint256& codeHash) const
     return false;
 }
 
-void ReferralTxMemPool::Check(const ReferralsViewCache& referralsCache)
+std::vector<ReferralRef> ReferralTxMemPool::GetReferrals() const
 {
-    std::list<ReferralRef> waitingOnDependants;
+    LOCK(cs);
 
-    // check that every referral in the memplool is referred by exising referral or other mempool referral
+    std::vector<ReferralRef> refs;
+
     for (const auto& it : mapRTx) {
-        const auto ref = it.second;
-
-        if (ExistsWithCodeHash(ref->m_previousReferral)) {
-            // if referrer is in the mempool, push this referral to waitingOnDependants
-            waitingOnDependants.push_back(ref);
-        } else {
-            // if referrer not found in the mempool, assume it's in the blockchain
-            assert(referralsCache.ReferralCodeExists(ref->m_previousReferral));
-            prefviewdb->InsertReferral(*ref);
-        }
+        refs.push_back(it.second);
     }
 
-    unsigned int stepsSinceLastRemove = 0;
-    while (!waitingOnDependants.empty()) {
-        const ReferralRef ref = waitingOnDependants.front();
-        waitingOnDependants.pop_front();
-
-        // TODO: referralsCache should be backed by mempool as in the case of tx and mempoolDuplicate
-        if (!referralsCache.ReferralCodeExists(ref->m_previousReferral)) {
-            waitingOnDependants.push_back(ref);
-            stepsSinceLastRemove++;
-            assert(stepsSinceLastRemove < waitingOnDependants.size());
-        } else {
-            prefviewdb->InsertReferral(*ref);
-            stepsSinceLastRemove = 0;
-        }
-    }
+    return refs;
 }
 
 CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
@@ -865,6 +843,8 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins, const ReferralsViewCache& 
     CCoinsViewCache mempoolDuplicate(const_cast<CCoinsViewCache*>(pcoins));
     const int64_t nSpendHeight = GetSpendHeight(mempoolDuplicate);
 
+    const auto refs = mempoolReferral.GetReferrals();
+
     LOCK(cs);
     std::list<const CTxMemPoolEntry*> waitingOnDependants;
     for (indexed_transaction_set::const_iterator it = mapTx.begin(); it != mapTx.end(); it++) {
@@ -945,10 +925,9 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins, const ReferralsViewCache& 
             CValidationState state;
             bool fCheckResult = tx.IsCoinBase() ||
                 (Consensus::CheckTxInputs(tx, state, mempoolDuplicate, nSpendHeight) &&
-                Consensus::CheckTxOutputs(tx, state, referralsCache));
+                Consensus::CheckTxOutputs(tx, state, referralsCache, refs));
             assert(fCheckResult);
             UpdateCoins(tx, mempoolDuplicate, 1000000);
-            UpdateANV(it->GetSharedTx(), mempoolDuplicate);
         }
     }
     unsigned int stepsSinceLastRemove = 0;
@@ -963,10 +942,9 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins, const ReferralsViewCache& 
         } else {
             bool fCheckResult = entry->GetTx().IsCoinBase() ||
                 (Consensus::CheckTxInputs(entry->GetTx(), state, mempoolDuplicate, nSpendHeight) &&
-                Consensus::CheckTxOutputs(entry->GetTx(), state, referralsCache));
+                Consensus::CheckTxOutputs(entry->GetTx(), state, referralsCache, refs));
             assert(fCheckResult);
             UpdateCoins(entry->GetTx(), mempoolDuplicate, 1000000);
-            UpdateANV(entry->GetSharedTx(), mempoolDuplicate);
             stepsSinceLastRemove = 0;
         }
     }

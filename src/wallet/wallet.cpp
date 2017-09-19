@@ -123,7 +123,7 @@ bool ReferralTx::RelayWalletTransaction(CConnman *connman)
     {
         CValidationState state;
         if (InMempool() || AcceptToMemoryPool(state)) {
-            mempoolReferral.Check(*prefviewcache);
+            // mempoolReferral.Check(*prefviewcache);
             if (connman) {
                 CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
 

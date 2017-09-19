@@ -2114,7 +2114,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         bool fMissingReferrer = false;
 
         if (!AlreadyHave(inv) && AcceptReferralToMemoryPool(mempoolReferral, state, pref, &fMissingReferrer)) {
-            mempoolReferral.Check(*prefviewcache);
             RelayReferral(*pref, connman);
 
             vWorkQueue.emplace_back(inv.hash);
@@ -2172,8 +2171,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                         LogPrint(BCLog::REFMEMPOOL, "   removed orphan referral %s\n", orphanHash.ToString());
                         vEraseQueue.push_back(orphanHash);
                     }
-
-                    mempoolReferral.Check(*prefviewcache);
                 }
             }
 

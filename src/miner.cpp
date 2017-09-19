@@ -272,7 +272,7 @@ void BlockAssembler::onlyWithReferrals(CTxMemPool::setEntries& testSet)
 {
     for (const CTxMemPool::txiter it: testSet) {
         CValidationState dummy;
-        if (!Consensus::CheckTxOutputs(it->GetTx(), dummy, *prefviewcache)) {
+        if (!Consensus::CheckTxOutputs(it->GetTx(), dummy, *prefviewcache, pblock->m_vRef)) {
             testSet.erase(it);
         }
     }

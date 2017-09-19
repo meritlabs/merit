@@ -351,9 +351,6 @@ public:
     bool AddUnchecked(const uint256& hash, const ReferralRef entry);
     void RemoveForBlock(const std::vector<ReferralRef>& vRefs);
 
-    /** check referrals are consistent */
-    void Check(const ReferralsViewCache& referralsCache);
-
     bool exists(const uint256& hash) const
     {
         LOCK(cs);
@@ -370,6 +367,8 @@ public:
         LOCK(cs);
         return mapRTx.size();
     }
+
+    std::vector<ReferralRef> GetReferrals() const;
 
     boost::signals2::signal<void (ReferralRef)> NotifyEntryAdded;
     boost::signals2::signal<void (ReferralRef, MemPoolRemovalReason)> NotifyEntryRemoved;
