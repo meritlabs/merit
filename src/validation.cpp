@@ -3421,8 +3421,8 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 bool CheckAddressBeaconed(const CKeyID& address, bool checkMempool)
 {
     if (!prefviewcache->WalletIdExists(address) && checkMempool) {
+        // check mempool referrals for beaconed address
         const auto refsInMempool = mempoolReferral.GetReferrals();
-        // check vExtraReferrals vector for beaconed address
         const auto it = std::find_if(refsInMempool.begin(), refsInMempool.end(), boost::bind(&Referral::m_pubKeyId, _1) == address);
 
         if (it == refsInMempool.end()) {
