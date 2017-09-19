@@ -126,7 +126,7 @@ bool ReferralTx::RelayWalletTransaction(CConnman *connman)
             if (connman) {
                 CInv inv(MSG_REFERRAL, m_pReferral->GetHash());
 
-                LogPrint(BCLog::NET, "Relaying referral %s\n", m_pReferral->GetHash().ToString());
+                LogPrint(BCLog::NET, "Relaying referral %s\n", m_pReferral->GetHash().GetHex());
                 connman->ForEachNode([&inv](CNode* pnode) {
                     pnode->PushInventory(inv);
                 });
@@ -142,11 +142,12 @@ bool ReferralTx::RelayWalletTransaction(CConnman *connman)
 bool ReferralTx::InMempool() const
 {
     LOCK(mempoolReferral.cs);
-    return mempoolReferral.mapRTx.count(GetHash());
+    return mempoolReferral.exists(GetHash());
 }
 
 bool ReferralTx::AcceptToMemoryPool(CValidationState& state) {
-    return ::AcceptReferralToMemoryPool(mempoolReferral, state, GetReferral());
+    bool dummy;
+    return ::AcceptReferralToMemoryPool(mempoolReferral, state, GetReferral(), dummy);
 }
 
 bool ReferralTx::IsAccepted() const
@@ -175,8 +176,8 @@ ReferralRef CWallet::Unlock(const uint256& referredByHash)
         throw std::runtime_error(std::string(__func__) + ": wallet alredy have unconfirmed unlock referral transaction");
     }
 
-    // check if provided referral code hash is valid, i.e. exists in the blockchain
-    if (!prefviewcache->ReferralCodeExists(referredByHash)) {
+    // check if provided referral code hash is valid, i.e. exists in the blockchain or mempool
+    if (!prefviewcache->ReferralCodeExists(referredByHash) && !mempoolReferral.ExistsWithCodeHash(referredByHash)) {
         throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain");
     }
 

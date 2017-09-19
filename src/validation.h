@@ -353,7 +353,11 @@ void PruneAndFlush();
 /** Prune block files up to a given height */
 void PruneBlockFilesManual(int nManualPruneHeight);
 
-bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, const ReferralRef& referral);
+/** Update ANV using given transaction */
+bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo = false);
+
+bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, 
+        const ReferralRef& referral, bool& pfMissingReferrer);
 
 /** (try to) add transaction to memory pool
  * plTxnReplaced will be appended to with all transactions replaced from mempool **/
