@@ -338,12 +338,14 @@ public:
     }
 };
 
+using ReferralRefMap =std::map<uint256, ReferralRef>;
+
 class ReferralTxMemPool
 {
 public:
     unsigned int m_nReferralsUpdated;
 
-    std::map<uint256, ReferralRef> mapRTx;
+    ReferralRefMap mapRTx;
     mutable CCriticalSection cs;
 
     ReferralTxMemPool() : m_nReferralsUpdated(0) {};

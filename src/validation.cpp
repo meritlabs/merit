@@ -457,13 +457,11 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
     return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata);
 }
 
-bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, const ReferralRef& referral, bool* pfMissingReferrer)
+bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, const ReferralRef& referral, bool& missingReferrer)
 {
     assert(referral);
 
-    if (pfMissingReferrer) {
-        *pfMissingReferrer = false;
-    }
+    missingReferrer = false;
 
     if (!CheckReferral(*referral, state)) {
         return false;
@@ -479,14 +477,10 @@ bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
 
-        if (!prefviewcache->ReferralCodeExists(referral->m_previousReferral)) {
-            if (!pool.ExistsWithCodeHash(referral->m_previousReferral)) {
-                if (pfMissingReferrer) {
-                    *pfMissingReferrer = true;
-                }
-
+        if (!(prefviewcache->ReferralCodeExists(referral->m_previousReferral) || 
+             pool.ExistsWithCodeHash(referral->m_previousReferral))) {
+                missingReferrer = true;
                 return false;
-            }
         }
 
         // TODO: check mempool(and maybe not only pool) for referral consistency
@@ -1738,6 +1732,7 @@ bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo)
     if (!tx->IsCoinBase()) {
         for (const auto& in :  tx->vin) {
             const auto &in_out = view.AccessCoin(in.prevout).out;
+
             auto address = ExtractAddress(in_out);
             if(address.second == 0) continue;
 
@@ -1748,7 +1743,6 @@ bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo)
     //credit recipients
     for (const auto& out : tx->vout) {
         auto address = ExtractAddress(out);
-
         if(address.second == 0) continue;
 
         debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue * creditDir}});
@@ -5036,7 +5030,8 @@ bool LoadReferralMempool()
             CValidationState state;
 
             LOCK(cs_main);
-            AcceptReferralToMemoryPool(mempoolReferral, state, ref, nullptr);
+            bool dummy;
+            AcceptReferralToMemoryPool(mempoolReferral, state, ref, dummy);
 
             if (state.IsValid()) {
                 ++count;

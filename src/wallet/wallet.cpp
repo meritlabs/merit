@@ -146,7 +146,8 @@ bool ReferralTx::InMempool() const
 }
 
 bool ReferralTx::AcceptToMemoryPool(CValidationState& state) {
-    return ::AcceptReferralToMemoryPool(mempoolReferral, state, GetReferral(), nullptr);
+    bool dummy;
+    return ::AcceptReferralToMemoryPool(mempoolReferral, state, GetReferral(), dummy);
 }
 
 bool ReferralTx::IsAccepted() const

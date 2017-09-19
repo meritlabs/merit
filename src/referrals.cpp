@@ -107,10 +107,6 @@ bool ReferralsViewCache::WalletIdExists(const CKeyID& key) const
 
 void ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
-    const auto it = m_referral_cache.find(ref.m_codeHash);
-
-    if (it != m_referral_cache.end()) {
-        m_referral_cache.erase(it);
-        m_db->RemoveReferral(ref);
-    }
+    m_referral_cache.erase(ref.m_codeHash);
+    m_db->RemoveReferral(ref);
 }

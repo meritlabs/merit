@@ -19,6 +19,8 @@
 #include "utilmoneystr.h"
 #include "utiltime.h"
 
+#include <algorithm>
+
 
 bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const ReferralRef referral)
 {
@@ -42,15 +44,12 @@ void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
 
     for (const auto& ref : vRefs) {
         auto it = mapRTx.find(ref->GetHash());
+        if(it == mapRTx.end()) continue;
 
-        if (it != mapRTx.end()) {
-            ReferralRef ref = it->second;
+        NotifyEntryRemoved(it->second, MemPoolRemovalReason::BLOCK);
 
-            NotifyEntryRemoved(ref, MemPoolRemovalReason::BLOCK);
-
-            mapRTx.erase(it);
-            m_nReferralsUpdated++;
-        }
+        mapRTx.erase(it);
+        m_nReferralsUpdated++;
     }
 }
 
@@ -58,11 +57,7 @@ ReferralRef ReferralTxMemPool::get(const uint256& hash) const
 {
     LOCK(cs);
     auto it = mapRTx.find(hash);
-
-    if (it == mapRTx.end())
-        return nullptr;
-
-    return it->second;
+    return it != mapRTx.end() ? it->second : nullptr;
 }
 
 ReferralRef ReferralTxMemPool::GetWithCodeHash(const uint256& codeHash) const
@@ -90,11 +85,12 @@ std::vector<ReferralRef> ReferralTxMemPool::GetReferrals() const
 {
     LOCK(cs);
 
-    std::vector<ReferralRef> refs;
+    std::vector<ReferralRef> refs(mapRTx.size());
 
-    for (const auto& it : mapRTx) {
-        refs.push_back(it.second);
-    }
+    std::transform(mapRTx.begin(), mapRTx.end(), refs.begin(),
+            [](const ReferralRefMap::value_type& p) {
+                return p.second;
+            }); 
 
     return refs;
 }
