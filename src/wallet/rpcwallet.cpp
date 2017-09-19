@@ -3394,9 +3394,9 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
     }
 
     CValidationState state;
-    bool fMissingReferrer = false;
-    if (!AcceptReferralToMemoryPool(mempoolReferral, state, referral)) {
-        if (fMissingReferrer) {
+    bool missingReferrer = false;
+    if (!AcceptReferralToMemoryPool(mempoolReferral, state, referral, missingReferrer)) {
+        if (missingReferrer) {
             throw JSONRPCError(RPC_REFERRAL_REJECTED, "Missing referrer");
         }
 
