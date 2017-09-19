@@ -3342,6 +3342,8 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
             "2. code         (string, required) Referral code needed to unlock the wallet.\n"
             "\nResult:\n"
             "{\n"
+            "  \"isvalid\":  true|false           (boolean) if address is a valid merit address\n"
+            "  \"address\":  \"<string>\"         (string) merit address\n"
             "  \"referralcode\":  \"<string>\"    (string) the referral code generated that can be shared with other users\n"
             "  \"codehash\":  \"<string>\"        (string) the referral code hash generated that is stored on blockchain\n"
             "}\n"
