@@ -3366,8 +3366,8 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
             "  \"codehash\":  \"<string>\"        (string) the referral code hash generated that is stored on blockchain\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("unlockwallet", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\" \"referralcode\"")
-            + HelpExampleRpc("unlockwallet", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\", \"referralcode\"")
+            + HelpExampleCli("unlockwalletwithaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\" \"referralcode\"")
+            + HelpExampleRpc("unlockwalletwithaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\", \"referralcode\"")
         );
     }
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
