@@ -88,7 +88,7 @@ MaybeKeyID ReferralsViewCache::GetReferrer(const CKeyID& key) const
     return {};
 }
 
-// TODO: Consider naming here.  
+// TODO: Consider naming here.
 bool ReferralsViewCache::WalletIdExists(const CKeyID& key) const
 {
     {
@@ -103,4 +103,10 @@ bool ReferralsViewCache::WalletIdExists(const CKeyID& key) const
         return true;
     }
     return false;
+}
+
+void ReferralsViewCache::RemoveReferral(const Referral& ref) const
+{
+    m_referral_cache.erase(ref.m_codeHash);
+    m_db->RemoveReferral(ref);
 }

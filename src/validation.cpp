@@ -457,22 +457,42 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
     return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata);
 }
 
-bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState &state, const ReferralRef& referral)
+bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, const ReferralRef& referral, bool& missingReferrer)
 {
-    LOCK(pool.cs);
     assert(referral);
+
+    missingReferrer = false;
 
     if (!CheckReferral(*referral, state)) {
         return false;
     }
 
-    // TODO: check mempool(and maybe not only pool) for referral consistency
-    pool.AddUnchecked(referral->GetHash(), referral);
+    const uint256 hash = referral->GetHash();
+
+    {
+        LOCK(pool.cs);
+
+        // is it already in the memory pool?
+        if (pool.exists(hash)) {
+            return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
+        }
+
+        if (!(prefviewcache->ReferralCodeExists(referral->m_previousReferral) || 
+             pool.ExistsWithCodeHash(referral->m_previousReferral))) {
+                missingReferrer = true;
+                return false;
+        }
+
+        // TODO: check mempool(and maybe not only pool) for referral consistency
+        pool.AddUnchecked(referral->GetHash(), referral);
+    }
+
 
     GetMainSignals().ReferralAddedToMempool(referral);
 
     return true;
 }
+
 
 static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool& pool, CValidationState& state, const CTransactionRef& ptx, bool fLimitFree,
                               bool* pfMissingInputs, int64_t nAcceptTime, std::list<CTransactionRef>* plTxnReplaced,
@@ -823,7 +843,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             scriptVerifyFlags = gArgs.GetArg("-promiscuousmempoolflags", scriptVerifyFlags);
         }
 
-        if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache)) {
+        if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache, mempoolReferral.GetReferrals())) {
             return false;
         }
 
@@ -1194,7 +1214,7 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
     assert(height >= 0);
 
     // Pay them by adding a txout to the coinbase transaction;
-    for(const auto& winner : lottery.winners) { 
+    for(const auto& winner : lottery.winners) {
         if (!IsValidDestination(winner.key)) {
             throw std::runtime_error{"invalid ambassador"};
         }
@@ -1213,9 +1233,9 @@ struct RewardComp
     }
 };
 
-void SortRewards(pog::Rewards& rewards) 
+void SortRewards(pog::Rewards& rewards)
 {
-    std::sort(std::begin(rewards), std::end(rewards), RewardComp()); 
+    std::sort(std::begin(rewards), std::end(rewards), RewardComp());
 }
 
 bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const CTransaction& coinbase) {
@@ -1243,11 +1263,11 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
     auto sorted_winners = lottery.winners;
     SortRewards(sorted_winners);
 
-    // Make sure all expected rewards exist in the set of all rewards given in 
+    // Make sure all expected rewards exist in the set of all rewards given in
     // the block.
     return std::includes(
-            std::begin(sorted_outs), std::end(sorted_outs), 
-            std::begin(sorted_winners), std::end(sorted_winners), 
+            std::begin(sorted_outs), std::end(sorted_outs),
+            std::begin(sorted_winners), std::end(sorted_winners),
             RewardComp());
 }
 
@@ -1690,91 +1710,95 @@ bool DebitAndCreditANV(const DebitsAndCredits& debits_and_credits)
     for (const auto& t : debits_and_credits) {
         const auto& key = t.first;
         const auto amount = t.second;
-        if(!prefviewdb->UpdateANV(key, amount))
+        if(!prefviewdb->UpdateANV(key, amount)) {
             return false;
+        }
     }
+
     return true;
 }
 
-bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
+bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo)
 {
-    assert(prefviewdb);
-
-    // Update offset and Record referrals into the referral DB
-    for (const auto& rtx : block.m_vRef) {
-        if(!prefviewdb->InsertReferral(*rtx))
-            return false;
-    }
+    assert(tx);
 
     // Debit and Credit all ANVs of keys in the block
     std::vector<std::pair<CKeyID, CAmount>> debits_and_credits;
-    for (const auto& txn : block.vtx) {
-        assert(txn);
 
-        //debit senders
-        if (!txn->IsCoinBase()) {
-            for (const auto& in :  txn->vin) {
-                const auto &in_out = view.AccessCoin(in.prevout).out;
-                auto address = ExtractAddress(in_out);
-                if(address.second == 0) continue;
+    auto debitDir = !undo ? -1 : 1;
+    auto creditDir = !undo ? 1 : -1;
 
-                debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * -1}});
-            }
-        }
+    //debit senders
+    if (!tx->IsCoinBase()) {
+        for (const auto& in :  tx->vin) {
+            const auto &in_out = view.AccessCoin(in.prevout).out;
 
-        //credit recipients
-        for (const auto& out : txn->vout) {
-            auto address = ExtractAddress(out);
-
+            auto address = ExtractAddress(in_out);
             if(address.second == 0) continue;
 
-            debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue}});
+            debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * debitDir}});
         }
+    }
+
+    //credit recipients
+    for (const auto& out : tx->vout) {
+        auto address = ExtractAddress(out);
+        if(address.second == 0) continue;
+
+        debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue * creditDir}});
     }
 
     return DebitAndCreditANV(debits_and_credits);
 }
 
-bool RemoveReferralsAndUndoANV(const CBlock& block, CCoinsViewCache& view)
+bool IndexReferralsAndUpdateANV(const std::vector<CTransactionRef> vtx, const std::vector<ReferralRef> vref, CCoinsViewCache& view)
 {
     assert(prefviewdb);
 
-    // Debit and Credit all ANVs of keys in the block
-    std::vector<std::pair<CKeyID, CAmount>> debits_and_credits;
-    for (const auto& txn : block.vtx) {
-        assert(txn);
-
-        //credit senders
-        if (!txn->IsCoinBase()) {
-            for (const auto& in :  txn->vin) {
-                const auto &in_out = view.AccessCoin(in.prevout).out;
-                auto address = ExtractAddress(in_out);
-                if(address.second == 0) continue;
-
-                debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue}});
-            }
-        }
-
-        //debit recipients
-        for (const auto& out : txn->vout) {
-            auto address = ExtractAddress(out);
-
-            if(address.second == 0) continue;
-
-            debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue * -1}});
+    // Update offset and Record referrals into the referral DB
+    for (const auto& rtx : vref) {
+        if(!prefviewdb->InsertReferral(*rtx)) {
+            return false;
         }
     }
 
-    if(!DebitAndCreditANV(debits_and_credits)) {
-        return false;
+    // Debit and Credit all ANVs of keys in transactions set
+    for (const auto& txn : vtx) {
+        if (!UpdateANV(txn, view)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
+{
+    return IndexReferralsAndUpdateANV(block.vtx, block.m_vRef, view);
+}
+
+bool RemoveReferralsAndUndoANV(const std::vector<CTransactionRef> vtx, const std::vector<ReferralRef> vref, CCoinsViewCache& view)
+{
+    assert(prefviewdb);
+
+    // Debit and Credit all ANVs of keys in transactions set
+    for (const auto& txn : vtx) {
+        if (!UpdateANV(txn, view, true)) {
+            return false;
+        }
     }
 
     // Update offset and Record referrals into the referral DB
-    for (const auto& rtx : block.m_vRef) {
+    for (const auto& rtx : vref) {
         if(!prefviewdb->RemoveReferral(*rtx))
             return false;
     }
     return true;
+}
+
+bool RemoveReferralsAndUndoANV(const CBlock& block, CCoinsViewCache& view)
+{
+    return RemoveReferralsAndUndoANV(block.vtx, block.m_vRef, view);
 }
 
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
@@ -1785,7 +1809,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
 
     bool fClean = true;
 
-    if(!memory_only && !RemoveReferralsAndUndoANV(block, view)){ 
+    if(!memory_only && !RemoveReferralsAndUndoANV(block, view)){
         error("DisconnectBlock(): unable to undo referrals");
         return DISCONNECT_FAILED;
     }
@@ -2005,12 +2029,12 @@ static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
 
 bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos)
-{ 
+{
     // Update offsets for referrals so they can be recorded.
     CDiskTxPos pos{cur_block_pos, GetSizeOfCompactSize(block.m_vRef.size())};
     RefPositions positions(block.m_vRef.size());
 
-    std::transform(std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(positions), 
+    std::transform(std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(positions),
             [&pos](const ReferralRef& rtx) {
                 assert(rtx);
                 auto p = std::make_pair(rtx->GetHash(), pos);
@@ -2225,8 +2249,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         {
             nFees += view.GetValueIn(tx)-tx.GetValueOut();
 
-            if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache)) {
-                return error("%s: Consensus::CheckTxOutputs: %s", __func__, FormatStateMessage(state));
+            if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache, block.m_vRef)) {
+                return error("ConnectBlock(): CheckTxOutputs on %s failed with %s",
+                tx.GetHash().ToString(), FormatStateMessage(state));
             }
 
             std::vector<CScriptCheck> vChecks;
@@ -2275,7 +2300,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     const CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
 
-    assert(!block.vtx.empty()); 
+    assert(!block.vtx.empty());
     const CTransaction& coinbase_tx = *block.vtx[0];
 
     if (coinbase_tx.GetValueOut() > block_reward)
@@ -2283,6 +2308,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                          error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
                                coinbase_tx.GetValueOut(), block_reward),
                                REJECT_INVALID, "bad-cb-amount");
+
+    int64_t nTime4 = GetTimeMicros(); nTimeVerify += nTime4 - nTime3;
+    LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n", nInputs - 1, MILLI * (nTime4 - nTime3), nInputs <= 1 ? 0 : MILLI * (nTime4 - nTime3) / (nInputs-1), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
 
     // Figure out which ambassadors should be rewarded and check to make sure
     // they are paid the expected amount.
@@ -2299,8 +2327,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     if (!control.Wait())
         return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
-    int64_t nTime4 = GetTimeMicros(); nTimeVerify += nTime4 - nTime2;
-    LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n", nInputs - 1, MILLI * (nTime4 - nTime2), nInputs <= 1 ? 0 : MILLI * (nTime4 - nTime2) / (nInputs-1), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
+
+    int64_t nTime5 = GetTimeMicros(); nTimeVerify += nTime5 - nTime4;
+    LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime5 - nTime4), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
 
     if (fJustCheck)
         return true;
@@ -2376,11 +2405,14 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         return AbortNode(state, "Failed to write referral and ANV index");
     }
 
-    int64_t nTime5 = GetTimeMicros(); nTimeIndex += nTime5 - nTime4;
-    LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime5 - nTime4), nTimeIndex * MICRO, nTimeIndex * MILLI / nBlocksTotal);
+    int64_t nTime6 = GetTimeMicros(); nTimeConnect += nTime6 - nTime5;
+    LogPrint(BCLog::BENCH, "    - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n", (unsigned)block.m_vRef.size(), MILLI * (nTime6 - nTime5), MILLI * (nTime6 - nTime5) / block.m_vRef.size(), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
-    int64_t nTime6 = GetTimeMicros(); nTimeCallbacks += nTime6 - nTime5;
-    LogPrint(BCLog::BENCH, "    - Callbacks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime6 - nTime5), nTimeCallbacks * MICRO, nTimeCallbacks * MILLI / nBlocksTotal);
+    int64_t nTime7 = GetTimeMicros(); nTimeIndex += nTime7 - nTime6;
+    LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime7 - nTime6), nTimeIndex * MICRO, nTimeIndex * MILLI / nBlocksTotal);
+
+    int64_t nTime8 = GetTimeMicros(); nTimeCallbacks += nTime8 - nTime7;
+    LogPrint(BCLog::BENCH, "    - Callbacks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime8 - nTime7), nTimeCallbacks * MICRO, nTimeCallbacks * MILLI / nBlocksTotal);
 
     return true;
 }
@@ -3386,9 +3418,9 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 }
 
 // Check if an address is valid (beaconed)
-bool CheckAddress(const CKeyID& address) 
+bool CheckAddress(const CKeyID& address)
 {
-    return prefviewdb->WalletIdExists(address);    
+    return prefviewdb->WalletIdExists(address);
 }
 
 bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params)
@@ -4998,7 +5030,8 @@ bool LoadReferralMempool()
             CValidationState state;
 
             LOCK(cs_main);
-            AcceptReferralToMemoryPool(mempoolReferral, state, ref);
+            bool dummy;
+            AcceptReferralToMemoryPool(mempoolReferral, state, ref, dummy);
 
             if (state.IsValid()) {
                 ++count;
@@ -5048,7 +5081,6 @@ void DumpReferralMempool()
         file << (uint64_t)vReferral.size();
         for (const auto& i : vReferral) {
             file << i;
-            prefviewdb->InsertReferral(*i);
         }
 
         FileCommit(file.Get());

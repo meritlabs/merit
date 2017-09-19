@@ -89,6 +89,7 @@ enum RPCErrorCode
     // Referral engine errors
     RPC_REFERRER_IS_SET              = -100, //!< Wallet already has referal code and referrer set
     RPC_REFERRER_IS_NOT_SET          = -101, //!< Wallet does not have referal code and referrer set
+    RPC_REFERRAL_REJECTED            = -102, //!< Referral is rejected in mempool
     RPC_CODE_DOES_NOT_EXIST          = -103, //!< Wallet does not have referal code and referrer set
 };
 

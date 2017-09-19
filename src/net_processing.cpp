@@ -32,6 +32,9 @@
 #include "utilstrencodings.h"
 #include "validationinterface.h"
 
+#include <algorithm>
+#include <iterator>
+
 #if defined(NDEBUG)
 # error "Merit cannot be compiled without assertions."
 #endif
@@ -53,8 +56,24 @@ struct COrphanTx {
     NodeId fromPeer;
     int64_t nTimeExpire;
 };
-std::map<uint256, COrphanTx> mapOrphanTransactions GUARDED_BY(cs_main);
-std::map<COutPoint, std::set<std::map<uint256, COrphanTx>::iterator, IteratorComparator>> mapOrphanTransactionsByPrev GUARDED_BY(cs_main);
+
+struct OrphanReferral {
+    ReferralRef ref;
+    NodeId fromPeer;
+    int64_t nTimeExpire;
+};
+
+using OrphanedTransactionMap = std::map<uint256, COrphanTx>;
+using OrphanedReferralMap = std::map<uint256, OrphanReferral>;
+
+OrphanedTransactionMap mapOrphanTransactions GUARDED_BY(cs_main);
+OrphanedReferralMap mapOrphanReferrals GUARDED_BY(cs_main);
+
+using OrphanedTransactionIterSet = std::set<OrphanedTransactionMap::iterator, IteratorComparator>;
+std::map<COutPoint, OrphanedTransactionIterSet> mapOrphanTransactionsByPrev GUARDED_BY(cs_main);
+
+using OrphanedReferralIterSet = std::set<OrphanedReferralMap::iterator, IteratorComparator>;
+std::map<uint256, OrphanedReferralIterSet> mapOrphanReferralsByPrev GUARDED_BY(cs_main);
 void EraseOrphansFor(NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 static size_t vExtraTxnForCompactIt = 0;
@@ -594,6 +613,23 @@ void AddToCompactExtraTransactions(const CTransactionRef& tx)
     vExtraTxnForCompactIt = (vExtraTxnForCompactIt + 1) % max_extra_txn;
 }
 
+bool AddOrphanReferral(const ReferralRef& ref, NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+{
+    const uint256& hash = ref->GetHash();
+    if (mapOrphanReferrals.count(hash)) {
+        return false;
+    }
+
+    auto ret = mapOrphanReferrals.emplace(hash, OrphanReferral{ref, peer, GetTime() + ORPHAN_TX_EXPIRE_TIME});
+    assert(ret.second);
+
+    mapOrphanReferralsByPrev[ref->m_previousReferral].insert(ret.first);
+
+    LogPrint(BCLog::REFMEMPOOL, "stored orphan referral %s (mapsz %u prevsz)\n", hash.ToString(), mapOrphanReferrals.size());
+
+    return true;
+}
+
 bool AddOrphanTx(const CTransactionRef& tx, NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
     const uint256& hash = tx->GetHash();
@@ -627,6 +663,29 @@ bool AddOrphanTx(const CTransactionRef& tx, NodeId peer) EXCLUSIVE_LOCKS_REQUIRE
     return true;
 }
 
+int static EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+{
+    auto it = mapOrphanReferrals.find(hash);
+    if (it == mapOrphanReferrals.end()) {
+        return 0;
+    }
+
+    mapOrphanReferrals.erase(it);
+
+    auto itPrev = mapOrphanReferralsByPrev.find(it->second.ref->m_previousReferral);
+
+    if (itPrev != mapOrphanReferralsByPrev.end()) { 
+        itPrev->second.erase(it);
+
+        // erase map for prevRef in case it has no orphan referral that depends on it
+        if (itPrev->second.empty()) {
+            mapOrphanReferralsByPrev.erase(itPrev);
+        }
+    }
+
+    return 1;
+}
+
 int static EraseOrphanTx(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
     std::map<uint256, COrphanTx>::iterator it = mapOrphanTransactions.find(hash);
@@ -648,16 +707,20 @@ int static EraseOrphanTx(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 void EraseOrphansFor(NodeId peer)
 {
     int nErased = 0;
-    std::map<uint256, COrphanTx>::iterator iter = mapOrphanTransactions.begin();
-    while (iter != mapOrphanTransactions.end())
-    {
-        std::map<uint256, COrphanTx>::iterator maybeErase = iter++; // increment to avoid iterator becoming invalid
-        if (maybeErase->second.fromPeer == peer)
-        {
-            nErased += EraseOrphanTx(maybeErase->second.tx->GetHash());
+    for (const auto& it: mapOrphanTransactions) {
+        if (it.second.fromPeer == peer) {
+            nErased += EraseOrphanTx(it.second.tx->GetHash());
         }
     }
     if (nErased > 0) LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx from peer=%d\n", nErased, peer);
+
+    nErased = 0;
+    for (const auto& it: mapOrphanReferrals) {
+        if (it.second.fromPeer == peer) {
+            nErased += EraseOrphanReferral(it.second.ref->GetHash());
+        }
+    }
+    if (nErased > 0) LogPrint(BCLog::REFMEMPOOL, "Erased %d orphan referrals from peer=%d\n", nErased, peer);
 }
 
 
@@ -739,28 +802,59 @@ void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pb
 
     std::vector<uint256> vOrphanErase;
 
-    for (const CTransactionRef& ptx : pblock->vtx) {
+    for (const auto& ptx : pblock->vtx) {
+        assert(ptx);
         const CTransaction& tx = *ptx;
 
         // Which orphan pool entries must we evict?
         for (const auto& txin : tx.vin) {
+            // TODO: figure out why txin.prevout used here instead txouts
             auto itByPrev = mapOrphanTransactionsByPrev.find(txin.prevout);
             if (itByPrev == mapOrphanTransactionsByPrev.end()) continue;
-            for (auto mi = itByPrev->second.begin(); mi != itByPrev->second.end(); ++mi) {
-                const CTransaction& orphanTx = *(*mi)->second.tx;
-                const uint256& orphanHash = orphanTx.GetHash();
-                vOrphanErase.push_back(orphanHash);
-            }
+
+            std::transform(
+                    std::begin(itByPrev->second), std::end(itByPrev->second), 
+                    std::back_inserter(vOrphanErase),
+                    [](const OrphanedTransactionIterSet::value_type& v) {
+                        assert(v->second.tx);
+                        return v->second.tx->GetHash();
+                    });
         }
     }
 
     // Erase orphan transactions include or precluded by this block
-    if (vOrphanErase.size()) {
+    {
         int nErased = 0;
         for (uint256 &orphanHash : vOrphanErase) {
             nErased += EraseOrphanTx(orphanHash);
         }
-        LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx included or conflicted by block\n", nErased);
+        if(nErased > 0) LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx included or conflicted by block\n", nErased);
+    }
+
+    std::vector<uint256> vOrphanReferralsErase;
+
+    for (const auto& ref: pblock->m_vRef) {
+        assert(ref);
+
+        auto itByPrev = mapOrphanReferralsByPrev.find(ref->GetHash());
+        if (itByPrev == mapOrphanReferralsByPrev.end()) continue;
+
+        std::transform(
+                std::begin(itByPrev->second), std::end(itByPrev->second),
+                std::back_inserter(vOrphanReferralsErase), 
+                [](const OrphanedReferralIterSet::value_type& p) {
+                    assert(p->second.ref);
+                    return p->second.ref->GetHash();
+                });
+    }
+
+    // Erase orphan referrals include by this block
+    {
+        int nErased = 0;
+        for (uint256 &orphanHash : vOrphanErase) {
+            nErased += EraseOrphanReferral(orphanHash);
+        }
+        if(nErased > 0) LogPrint(BCLog::REFMEMPOOL, "Erased %d orphan referrals included or conflicted by block\n", nErased);
     }
 }
 
@@ -911,7 +1005,10 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         return mapBlockIndex.count(inv.hash);
     case MSG_REFERRAL:
         // TODO: add to recentRejects if referral code is not valid
-        return mempoolReferral.exists(inv.hash);
+        return recentRejects->contains(inv.hash) ||
+            mempoolReferral.exists(inv.hash) ||
+            mapOrphanReferrals.count(inv.hash) ||
+            prefviewcache->ReferralCodeExists(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -2012,16 +2109,16 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             return true;
         }
 
-        ReferralRef prtx;
-        vRecv >> prtx;
+        ReferralRef pref;
+        vRecv >> pref;
 
-        if(prtx == nullptr)
+        if(pref == nullptr)
         {
             LogPrint(BCLog::NET, "unable to decode referral =%d\n", pfrom->GetId());
             return true;
         }
 
-        const Referral& rtx = *prtx;
+        const uint256 hash = pref->GetHash();
 
         LogPrintf("Referral message received\n");
 
@@ -2029,13 +2126,105 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
         // mark that we got the referral from pfrom
         // and make sure not to ask again.
-        CInv inv(MSG_REFERRAL, rtx.GetHash());
+        CInv inv(MSG_REFERRAL, hash);
         MarkGotInventoryFrom(pfrom, inv);
 
         CValidationState state;
 
-        if (!AlreadyHave(inv) && AcceptReferralToMemoryPool(mempoolReferral, state, prtx)) {
-            RelayReferral(rtx, connman);
+        bool fMissingReferrer = false;
+
+        if (!AlreadyHave(inv) && AcceptReferralToMemoryPool(mempoolReferral, state, pref, fMissingReferrer)) {
+            RelayReferral(*pref, connman);
+
+            std::deque<uint256> vWorkQueue;
+            std::vector<uint256> vEraseQueue;
+
+            vWorkQueue.emplace_back(inv.hash);
+
+            pfrom->nLastRefTime = GetTime();
+
+            LogPrint(BCLog::REFMEMPOOL, "AcceptToMemoryPool: peer=%d: accepted %s (poolsz %u refs)\n",
+                pfrom->GetId(),
+                hash.ToString(),
+                mempoolReferral.size());
+
+            // Recursively process any orphan referral that depended on this one
+            std::set<NodeId> setMisbehaving;
+            while (!vWorkQueue.empty()) {
+                auto itByPrev = mapOrphanReferralsByPrev.find(vWorkQueue.front());
+                vWorkQueue.pop_front();
+
+                if (itByPrev == mapOrphanReferralsByPrev.end()) {
+                    continue;
+                }
+
+                for (const auto& mi : itByPrev->second) {
+
+                    const auto fromPeerId = (*mi).second.fromPeer;
+
+                    if (setMisbehaving.count(fromPeerId)) {
+                        continue;
+                    }
+
+                    const auto& porphanRef = (*mi).second.ref;
+                    const auto& orphanRef = *porphanRef;
+                    const auto& orphanHash = orphanRef.GetHash();
+
+                    CValidationState stateDummy;
+                    bool fMissingReferrer2 = false;
+
+                    if (AcceptReferralToMemoryPool(mempoolReferral, stateDummy, porphanRef, fMissingReferrer2)) {
+                        LogPrint(BCLog::REFMEMPOOL, "   accepted orphan referral %s\n", orphanHash.ToString());
+                        RelayReferral(orphanRef, connman);
+
+                        vWorkQueue.emplace_back(orphanHash);
+                        vEraseQueue.push_back(orphanHash);
+
+                    } else if (!fMissingReferrer2) {
+                        int nDos = 0;
+                        if (stateDummy.IsInvalid(nDos) && nDos > 0)
+                        {
+                            Misbehaving(fromPeerId, nDos);
+                            setMisbehaving.insert(fromPeerId);
+                            LogPrint(BCLog::REFMEMPOOL, "   invalid orphan referral %s\n", orphanHash.ToString());
+                        }
+
+                        // Has inputs but not accepted to mempool
+                        LogPrint(BCLog::REFMEMPOOL, "   removed orphan referral %s\n", orphanHash.ToString());
+                        vEraseQueue.push_back(orphanHash);
+                    }
+                }
+            }
+
+            for (uint256 hash: vEraseQueue)
+                EraseOrphanReferral(hash);
+
+        } else if (fMissingReferrer) {
+            LogPrintf(">>>>>>> Missing referrer <<<<<<<<<\n");
+
+            bool fRejectedParents = false; // It may be the case that the orphans parents have all been rejected
+
+            if (recentRejects->contains(hash)) {
+                fRejectedParents = true;
+            }
+
+            if (!fRejectedParents) {
+                CInv _inv(MSG_REFERRAL, hash);
+                pfrom->AddInventoryKnown(_inv);
+
+                if (!AlreadyHave(_inv)) {
+                    pfrom->AskFor(_inv);
+                }
+
+                AddOrphanReferral(pref, pfrom->GetId());
+
+                // TODO: add orphan referral tx to map
+            } else {
+                LogPrint(BCLog::REFMEMPOOL, "not keeping orphan with rejected parents %s\n", hash.ToString());
+                // We will continue to reject this tx since it has rejected
+                // parents so avoid re-requesting it from other peers.
+                recentRejects->insert(hash);
+            }
         }
     }
 

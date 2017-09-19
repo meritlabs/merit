@@ -338,12 +338,14 @@ public:
     }
 };
 
+using ReferralRefMap =std::map<uint256, ReferralRef>;
+
 class ReferralTxMemPool
 {
 public:
     unsigned int m_nReferralsUpdated;
 
-    std::map<uint256, ReferralRef> mapRTx;
+    ReferralRefMap mapRTx;
     mutable CCriticalSection cs;
 
     ReferralTxMemPool() : m_nReferralsUpdated(0) {};
@@ -351,11 +353,24 @@ public:
     bool AddUnchecked(const uint256& hash, const ReferralRef entry);
     void RemoveForBlock(const std::vector<ReferralRef>& vRefs);
 
-    bool exists(uint256 hash) const
+    bool exists(const uint256& hash) const
     {
         LOCK(cs);
         return (mapRTx.count(hash) != 0);
     }
+
+    bool ExistsWithCodeHash(const uint256& hash) const;
+    ReferralRef GetWithCodeHash(const uint256& codeHash) const;
+
+    ReferralRef get(const uint256& hash) const;
+
+    unsigned long size()
+    {
+        LOCK(cs);
+        return mapRTx.size();
+    }
+
+    std::vector<ReferralRef> GetReferrals() const;
 
     boost::signals2::signal<void (ReferralRef)> NotifyEntryAdded;
     boost::signals2::signal<void (ReferralRef, MemPoolRemovalReason)> NotifyEntryRemoved;

@@ -208,7 +208,7 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state, bool fChe
     return true;
 }
 
-bool Consensus::CheckTxOutputs(const CTransaction& tx, CValidationState& state, const ReferralsViewCache& referralsCache)
+bool Consensus::CheckTxOutputs(const CTransaction& tx, CValidationState& state, const ReferralsViewCache& referralsCache, const std::vector<ReferralRef>& vExtraReferrals)
 {
     // check addresses used for vouts are beaconed
     for (const auto& txout: tx.vout) {
@@ -219,8 +219,22 @@ bool Consensus::CheckTxOutputs(const CTransaction& tx, CValidationState& state, 
 
         const auto pubKeyId = boost::get<CKeyID>(&dest);
 
-        if (pubKeyId && !referralsCache.WalletIdExists(*pubKeyId)) {
-            return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-beaconed");
+        if (pubKeyId) {
+            bool addressBeaconed = false;
+
+            // check cache for beaconed address
+            if (!referralsCache.WalletIdExists(*pubKeyId)) {
+                // check vExtraReferrals vector for beaconed address
+                const auto it = std::find_if(vExtraReferrals.begin(), vExtraReferrals.end(), boost::bind(&Referral::m_pubKeyId, _1) == *pubKeyId);
+
+                addressBeaconed = it != vExtraReferrals.end();
+            } else {
+                addressBeaconed = true;
+            }
+
+            if (!addressBeaconed) {
+                return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-beaconed");
+            }
         }
 
         if (!pubKeyId) {
