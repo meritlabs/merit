@@ -1225,8 +1225,6 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
             throw std::runtime_error{"invalid ambassador"};
         }
 
-        LogPrintf("PayAmbassadors: key=%s\n", winner.key.GetHex());
-
         auto script = GetScriptForDestination(winner.key);
         tx.vout.push_back({winner.amount, script});
     }
@@ -1270,14 +1268,6 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
     //Sort winners
     auto sorted_winners = lottery.winners;
     SortRewards(sorted_winners);
-
-    for (const auto& out: sorted_outs) {
-        LogPrintf("out.key=%s, out.value=%f\n", out.key.GetHex(), out.amount);
-    }
-
-    for (const auto& winner: sorted_winners) {
-        LogPrintf("winner.key=%s, winner.value=%f\n", winner.key.GetHex(), winner.amount);
-    }
 
     // Make sure all expected rewards exist in the set of all rewards given in
     // the block.
@@ -2309,16 +2299,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
-
-    // Update referral tree and ANV cache.
-    if(!IndexReferralsAndUpdateANV(block, view)) {
-        return AbortNode(state, "Failed to write referral and ANV index");
-    }
-
-    int64_t nTime4 = GetTimeMicros(); nTimeConnect += nTime4 - nTime3;
-    LogPrint(BCLog::BENCH, "      - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n", (unsigned)block.m_vRef.size(), MILLI * (nTime4 - nTime3), MILLI * (nTime4 - nTime3) / block.m_vRef.size(), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
-
-
     //Figure out split subsidy and make sure the coinbase pays the expceted amount.
     const auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
     assert(subsidy.miner > 0);
@@ -2335,8 +2315,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                coinbase_tx.GetValueOut(), block_reward),
                                REJECT_INVALID, "bad-cb-amount");
 
-    int64_t nTime5 = GetTimeMicros(); nTimeVerify += nTime5 - nTime3;
-    LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n", nInputs - 1, MILLI * (nTime5 - nTime3), nInputs <= 1 ? 0 : MILLI * (nTime5 - nTime3) / (nInputs-1), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
+    int64_t nTime4 = GetTimeMicros(); nTimeVerify += nTime4 - nTime3;
+    LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n", nInputs - 1, MILLI * (nTime4 - nTime3), nInputs <= 1 ? 0 : MILLI * (nTime4 - nTime3) / (nInputs-1), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
 
     // Figure out which ambassadors should be rewarded and check to make sure
     // they are paid the expected amount.
@@ -2354,8 +2334,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     if (!control.Wait())
         return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
 
-    int64_t nTime6 = GetTimeMicros(); nTimeVerify += nTime6 - nTime5;
-    LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime6 - nTime5), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
+    int64_t nTime5 = GetTimeMicros(); nTimeVerify += nTime5 - nTime4;
+    LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime5 - nTime4), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
 
     if (fJustCheck)
         return true;
@@ -2425,6 +2405,14 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
+
+    // Update referral tree and ANV cache.
+    if(!IndexReferralsAndUpdateANV(block, view)) {
+        return AbortNode(state, "Failed to write referral and ANV index");
+    }
+
+    int64_t nTime6 = GetTimeMicros(); nTimeConnect += nTime6 - nTime5;
+    LogPrint(BCLog::BENCH, "    - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n", (unsigned)block.m_vRef.size(), MILLI * (nTime6 - nTime5), MILLI * (nTime6 - nTime5) / block.m_vRef.size(), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
     int64_t nTime7 = GetTimeMicros(); nTimeIndex += nTime7 - nTime6;
     LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime7 - nTime6), nTimeIndex * MICRO, nTimeIndex * MILLI / nBlocksTotal);
