@@ -477,7 +477,7 @@ bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
 
-        if (!(prefviewcache->ReferralCodeExists(referral->m_previousReferral) || 
+        if (!(prefviewcache->ReferralCodeExists(referral->m_previousReferral) ||
              pool.ExistsWithCodeHash(referral->m_previousReferral))) {
                 missingReferrer = true;
                 return false;
@@ -3418,9 +3418,19 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 }
 
 // Check if an address is valid (beaconed)
-bool CheckAddress(const CKeyID& address)
+bool CheckAddressBeaconed(const CKeyID& address, bool checkMempool)
 {
-    return prefviewdb->WalletIdExists(address);
+    if (!prefviewcache->WalletIdExists(address) && checkMempool) {
+        // check mempool referrals for beaconed address
+        const auto refsInMempool = mempoolReferral.GetReferrals();
+        const auto it = std::find_if(refsInMempool.begin(), refsInMempool.end(), boost::bind(&Referral::m_pubKeyId, _1) == address);
+
+        if (it == refsInMempool.end()) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params)

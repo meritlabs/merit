@@ -2841,8 +2841,9 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
         ExtractDestination(recipient.scriptPubKey, dest);
         const CKeyID* pubKeyId = boost::get<CKeyID>(&dest);
 
-        if (pubKeyId && !prefviewcache->WalletIdExists(*pubKeyId)) {
+        if (pubKeyId && !CheckAddressBeaconed(*pubKeyId)) {
             strFailReason = _("Transaction recipient address is not beaconed");
+
             return false;
         }
 
