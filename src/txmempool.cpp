@@ -1132,7 +1132,10 @@ void CTxMemPool::RemoveStaged(setEntries &stage, bool updateDescendants, MemPool
     AssertLockHeld(cs);
     UpdateForRemoveFromMempool(stage, updateDescendants);
     for (const txiter& it : stage) {
+        const auto hash = it->GetTx().GetHash();
+
         removeUnchecked(it, reason);
+        removeAddressIndex(hash);
     }
 }
 
