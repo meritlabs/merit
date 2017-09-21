@@ -10,6 +10,7 @@ namespace
 {
 const char DB_CHILDREN = 'c';
 const char DB_REFERRALS = 'r';
+const char DB_REFERRALS_BY_KEY_ID = 'k';
 const char DB_PARENT_KEY = 'p';
 const char DB_ANV = 'a';
 const size_t MAX_LEVELS = 10000000000;
@@ -41,7 +42,7 @@ ChildKeys ReferralsViewDB::GetChildren(const CKeyID& key) const
 
 bool ReferralsViewDB::InsertReferral(const Referral& referral) {
     debug("\tInsertReferral: %s -> %s key: %s", referral.m_previousReferral.GetHex(), referral.m_codeHash.GetHex(), EncodeDestination(referral.m_pubKeyId));
-    //write referral
+    //write referral by code hash
     if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.m_codeHash), referral))
         return false;
 
@@ -68,13 +69,9 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral) {
 }
 
 bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
-    //write referral
     if(!m_db.Erase(std::make_pair(DB_REFERRALS, referral.m_codeHash)))
         return false;
 
-    // Typically because the referral should be written in order we should
-    // be able to find the parent referral. We can then write the child->parent
-    // mapping of public keys
     CKeyID parent_key;
     if(auto parent_referral = GetReferral(referral.m_previousReferral))
         parent_key = parent_referral->m_pubKeyId;
@@ -82,8 +79,6 @@ bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
     if(!m_db.Erase(std::make_pair(DB_PARENT_KEY, referral.m_pubKeyId)))
         return false;
 
-    // Now we update the children of the parent key by inserting into the
-    // child key array for the parent.
     ChildKeys children;
     m_db.Read(std::make_pair(DB_CHILDREN, parent_key), children);
 

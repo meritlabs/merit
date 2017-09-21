@@ -77,9 +77,16 @@ static bool verify_flags(unsigned int flags)
     return (flags & ~(meritconsensus_SCRIPT_FLAGS_VERIFY_ALL)) == 0;
 }
 
-static int verify_script(const unsigned char *scriptPubKey, unsigned int scriptPubKeyLen, CAmount amount,
-                                    const unsigned char *txTo        , unsigned int txToLen,
-                                    unsigned int nIn, unsigned int flags, meritconsensus_error* err)
+static int verify_script(
+        const unsigned char *scriptPubKey,
+        unsigned int scriptPubKeyLen,
+        CAmount amount,
+        const unsigned char *txTo,
+        unsigned int txToLen,
+        unsigned int nIn,
+        const int blockHeight,
+        unsigned int flags,
+        meritconsensus_error* err)
 {
     if (!verify_flags(flags)) {
         return meritconsensus_ERR_INVALID_FLAGS;
@@ -96,31 +103,69 @@ static int verify_script(const unsigned char *scriptPubKey, unsigned int scriptP
         set_error(err, meritconsensus_ERR_OK);
 
         PrecomputedTransactionData txdata(tx);
-        return VerifyScript(tx.vin[nIn].scriptSig, CScript(scriptPubKey, scriptPubKey + scriptPubKeyLen), &tx.vin[nIn].scriptWitness, flags, TransactionSignatureChecker(&tx, nIn, amount, txdata), nullptr);
+
+        return VerifyScript(
+                tx.vin[nIn].scriptSig,
+                CScript(scriptPubKey, scriptPubKey + scriptPubKeyLen),
+                &tx.vin[nIn].scriptWitness,
+                flags,
+                TransactionSignatureChecker(&tx, nIn, amount, blockHeight, txdata),
+                nullptr);
     } catch (const std::exception&) {
         return set_error(err, meritconsensus_ERR_TX_DESERIALIZE); // Error deserializing
     }
 }
 
-int meritconsensus_verify_script_with_amount(const unsigned char *scriptPubKey, unsigned int scriptPubKeyLen, int64_t amount,
-                                    const unsigned char *txTo        , unsigned int txToLen,
-                                    unsigned int nIn, unsigned int flags, meritconsensus_error* err)
+int meritconsensus_verify_script_with_amount(
+        const unsigned char *scriptPubKey,
+        unsigned int scriptPubKeyLen,
+        int64_t amount,
+        const unsigned char *txTo        ,
+        unsigned int txToLen,
+        unsigned int nIn,
+        const int blockHeight,
+        unsigned int flags,
+        meritconsensus_error* err)
 {
     CAmount am(amount);
-    return ::verify_script(scriptPubKey, scriptPubKeyLen, am, txTo, txToLen, nIn, flags, err);
+    return ::verify_script(
+            scriptPubKey,
+            scriptPubKeyLen,
+            am,
+            txTo,
+            txToLen,
+            nIn,
+            blockHeight,
+            flags,
+            err);
 }
 
 
-int meritconsensus_verify_script(const unsigned char *scriptPubKey, unsigned int scriptPubKeyLen,
-                                   const unsigned char *txTo        , unsigned int txToLen,
-                                   unsigned int nIn, unsigned int flags, meritconsensus_error* err)
+int meritconsensus_verify_script(
+        const unsigned char *scriptPubKey,
+        unsigned int scriptPubKeyLen,
+        const unsigned char *txTo        ,
+        unsigned int txToLen,
+        unsigned int nIn,
+        const int blockHeight,
+        unsigned int flags,
+        meritconsensus_error* err)
 {
     if (flags & meritconsensus_SCRIPT_FLAGS_VERIFY_WITNESS) {
         return set_error(err, meritconsensus_ERR_AMOUNT_REQUIRED);
     }
 
     CAmount am(0);
-    return ::verify_script(scriptPubKey, scriptPubKeyLen, am, txTo, txToLen, nIn, flags, err);
+    return ::verify_script(
+            scriptPubKey,
+            scriptPubKeyLen,
+            am,
+            txTo,
+            txToLen,
+            nIn,
+            blockHeight,
+            flags,
+            err);
 }
 
 unsigned int meritconsensus_version()

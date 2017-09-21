@@ -210,7 +210,18 @@ enum FlushStateMode {
 static bool FlushStateToDisk(const CChainParams& chainParams, CValidationState &state, FlushStateMode mode, int nManualPruneHeight=0);
 static void FindFilesToPruneManual(std::set<int>& setFilesToPrune, int nManualPruneHeight);
 static void FindFilesToPrune(std::set<int>& setFilesToPrune, uint64_t nPruneAfterHeight);
-bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsViewCache &inputs, bool fScriptChecks, unsigned int flags, bool cacheSigStore, bool cacheFullScriptStore, PrecomputedTransactionData& txdata, std::vector<CScriptCheck> *pvChecks = nullptr);
+
+bool CheckInputs(const CTransaction& tx,
+        CValidationState &state,
+        const CCoinsViewCache &inputs,
+        const int blockHeight,
+        bool fScriptChecks,
+        unsigned int flags,
+        bool cacheSigStore,
+        bool cacheFullScriptStore,
+        PrecomputedTransactionData& txdata,
+        std::vector<CScriptCheck> *pvChecks = nullptr);
+
 static FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 
 bool CheckFinalTx(const CTransaction &tx, int flags)
@@ -423,8 +434,17 @@ void UpdateMempoolForReorg(DisconnectedBlockTransactions &disconnectpool, bool f
 
 // Used to avoid mempool polluting consensus critical paths if CCoinsViewMempool
 // were somehow broken and returning the wrong scriptPubKeys
-static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationState &state, const CCoinsViewCache &view, CTxMemPool& pool,
-                 unsigned int flags, bool cacheSigStore, PrecomputedTransactionData& txdata) {
+static bool CheckInputsFromMempoolAndCache(
+        const CTransaction& tx,
+        CValidationState &state,
+        const CCoinsViewCache &view,
+        CTxMemPool& pool,
+        const int blockHeight,
+        unsigned int flags,
+        bool cacheSigStore,
+        PrecomputedTransactionData& txdata) 
+{
+
     AssertLockHeld(cs_main);
 
     // pool.cs should be locked already, but go ahead and re-take the lock here
@@ -433,6 +453,7 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
     LOCK(pool.cs);
 
     assert(!tx.IsCoinBase());
+
     for (const CTxIn& txin : tx.vin) {
         const Coin& coin = view.AccessCoin(txin.prevout);
 
@@ -454,7 +475,16 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
         }
     }
 
-    return CheckInputs(tx, state, view, true, flags, cacheSigStore, true, txdata);
+    return CheckInputs(
+            tx,
+            state,
+            view,
+            blockHeight,
+            true,
+            flags,
+            cacheSigStore,
+            true,
+            txdata);
 }
 
 bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, const ReferralRef& referral, bool& missingReferrer)
@@ -494,9 +524,18 @@ bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state
 }
 
 
-static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool& pool, CValidationState& state, const CTransactionRef& ptx, bool fLimitFree,
-                              bool* pfMissingInputs, int64_t nAcceptTime, std::list<CTransactionRef>* plTxnReplaced,
-                              bool fOverrideMempoolLimit, const CAmount& nAbsurdFee, std::vector<COutPoint>& coins_to_uncache)
+static bool AcceptToMemoryPoolWorker(
+        const CChainParams& chainparams,
+        CTxMemPool& pool,
+        CValidationState& state,
+        const CTransactionRef& ptx,
+        bool fLimitFree,
+        bool* pfMissingInputs,
+        int64_t nAcceptTime,
+        std::list<CTransactionRef>* plTxnReplaced,
+        bool fOverrideMempoolLimit,
+        const CAmount& nAbsurdFee,
+        std::vector<COutPoint>& coins_to_uncache)
 {
     const CTransaction& tx = *ptx;
     const uint256 hash = tx.GetHash();
@@ -511,9 +550,16 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
     if (tx.IsCoinBase())
         return state.DoS(100, false, REJECT_INVALID, "coinbase");
 
-    // Reject transactions with witness before segregated witness activates (override with -prematurewitness)
-    bool witnessEnabled = IsWitnessEnabled(chainActive.Tip(), chainparams.GetConsensus());
-    if (!gArgs.GetBoolArg("-prematurewitness", false) && tx.HasWitness() && !witnessEnabled) {
+    // Reject transactions with witness before segregated witness 
+    // activates (override with -prematurewitness)
+    bool witnessEnabled = 
+        IsWitnessEnabled(chainActive.Tip(), chainparams.GetConsensus());
+
+    if (
+            !gArgs.GetBoolArg("-prematurewitness", false) &&
+            tx.HasWitness() &&
+            !witnessEnabled) {
+
         return state.DoS(0, false, REJECT_NONSTANDARD, "no-witness-yet", true);
     }
 
@@ -535,16 +581,16 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
 
     // Check for conflicts with in-memory transactions
     std::set<uint256> setConflicts;
+
     {
     LOCK(pool.cs); // protect pool.mapNextTx
-    for (const CTxIn &txin : tx.vin)
-    {
+    for (const CTxIn &txin : tx.vin) {
+
         auto itConflicting = pool.mapNextTx.find(txin.prevout);
-        if (itConflicting != pool.mapNextTx.end())
-        {
+        if (itConflicting != pool.mapNextTx.end()) {
+
             const CTransaction *ptxConflicting = itConflicting->second;
-            if (!setConflicts.count(ptxConflicting->GetHash()))
-            {
+            if (!setConflicts.count(ptxConflicting->GetHash())) {
                 // Allow opt-out of transaction replacement by setting
                 // nSequence > MAX_BIP125_RBF_SEQUENCE (SEQUENCE_FINAL-2) on all inputs.
                 //
@@ -558,19 +604,19 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                 // unconfirmed ancestors anyway; doing otherwise is hopelessly
                 // insecure.
                 bool fReplacementOptOut = true;
-                if (fEnableReplacement)
-                {
-                    for (const CTxIn &_txin : ptxConflicting->vin)
-                    {
-                        if (_txin.nSequence <= MAX_BIP125_RBF_SEQUENCE)
-                        {
+                if (fEnableReplacement) {
+                    for (const CTxIn &_txin : ptxConflicting->vin) {
+                        if (_txin.nSequence <= MAX_BIP125_RBF_SEQUENCE) {
                             fReplacementOptOut = false;
                             break;
                         }
                     }
                 }
                 if (fReplacementOptOut) {
-                    return state.Invalid(false, REJECT_DUPLICATE, "txn-mempool-conflict");
+                    return state.Invalid(
+                            false,
+                            REJECT_DUPLICATE,
+                            "txn-mempool-conflict");
                 }
 
                 setConflicts.insert(ptxConflicting->GetHash());
@@ -600,14 +646,22 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                 for (size_t out = 0; out < tx.vout.size(); out++) {
                     // Optimistically just do efficient check of cache for outputs
                     if (pcoinsTip->HaveCoinInCache(COutPoint(hash, out))) {
-                        return state.Invalid(false, REJECT_DUPLICATE, "txn-already-known");
+                        return state.Invalid(
+                                false,
+                                REJECT_DUPLICATE,
+                                "txn-already-known");
                     }
                 }
-                // Otherwise assume this might be an orphan tx for which we just haven't seen parents yet
+                
+                // Otherwise assume this might be an orphan tx for which we 
+                // just haven't seen parents yet
                 if (pfMissingInputs) {
                     *pfMissingInputs = true;
                 }
-                return false; // fMissingInputs and !state.IsInvalid() is used to detect this condition, don't set state.Invalid()
+
+                return false; // fMissingInputs and !state.IsInvalid() 
+                              // is used to detect this condition, 
+                              // don't set state.Invalid()
             }
         }
 
@@ -616,27 +670,39 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
 
         nValueIn = view.GetValueIn(tx);
 
-        // we have all inputs cached now, so switch back to dummy, so we don't need to keep lock on mempool
+        // we have all inputs cached now, so switch back to dummy, 
+        // so we don't need to keep lock on mempool
         view.SetBackend(dummy);
 
-        // Only accept BIP68 sequence locked transactions that can be mined in the next
-        // block; we don't want our mempool filled up with transactions that can't
-        // be mined yet.
-        // Must keep pool.cs for this unless we change CheckSequenceLocks to take a
-        // CoinsViewCache instead of create its own
+        // Only accept BIP68 sequence locked transactions that can be mined 
+        // in the next block; we don't want our mempool filled up with 
+        // transactions that can't be mined yet. Must keep pool.cs for this 
+        // unless we change CheckSequenceLocks to take a CoinsViewCache 
+        // instead of create its own
         if (!CheckSequenceLocks(tx, STANDARD_LOCKTIME_VERIFY_FLAGS, &lp))
             return state.DoS(0, false, REJECT_NONSTANDARD, "non-BIP68-final");
         }
 
         // Check for non-standard pay-to-script-hash in inputs
-        if (fRequireStandard && !AreInputsStandard(tx, view))
-            return state.Invalid(false, REJECT_NONSTANDARD, "bad-txns-nonstandard-inputs");
+        if (fRequireStandard && !AreInputsStandard(tx, view)) {
+            return state.Invalid(
+                    false,
+                    REJECT_NONSTANDARD,
+                    "bad-txns-nonstandard-inputs");
+        }
 
         // Check for non-standard witness in P2WSH
-        if (tx.HasWitness() && fRequireStandard && !IsWitnessStandard(tx, view))
-            return state.DoS(0, false, REJECT_NONSTANDARD, "bad-witness-nonstandard", true);
+        if (tx.HasWitness() && fRequireStandard && !IsWitnessStandard(tx, view)) {
+            return state.DoS(
+                    0,
+                    false,
+                    REJECT_NONSTANDARD,
+                    "bad-witness-nonstandard",
+                    true);
+        }
 
-        int64_t nSigOpsCost = GetTransactionSigOpCost(tx, view, STANDARD_SCRIPT_VERIFY_FLAGS);
+        int64_t nSigOpsCost = 
+            GetTransactionSigOpCost(tx, view, STANDARD_SCRIPT_VERIFY_FLAGS);
 
         CAmount nValueOut = tx.GetValueOut();
         CAmount nFees = nValueIn-nValueOut;
@@ -664,13 +730,30 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         // itself can contain sigops MAX_STANDARD_TX_SIGOPS is less than
         // MAX_BLOCK_SIGOPS; we still consider this an invalid rather than
         // merely non-standard transaction.
-        if (nSigOpsCost > MAX_STANDARD_TX_SIGOPS_COST)
-            return state.DoS(0, false, REJECT_NONSTANDARD, "bad-txns-too-many-sigops", false,
-                strprintf("%d", nSigOpsCost));
+        if (nSigOpsCost > MAX_STANDARD_TX_SIGOPS_COST) {
+            return state.DoS(
+                    0,
+                    false,
+                    REJECT_NONSTANDARD,
+                    "bad-txns-too-many-sigops",
+                    false,
+                    strprintf("%d", nSigOpsCost));
+        }
 
-        CAmount mempoolRejectFee = pool.GetMinFee(gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000).GetFee(nSize);
+        CAmount mempoolRejectFee = 
+            pool.GetMinFee(
+                    gArgs.GetArg( "-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) 
+                    * 1000000)
+            .GetFee(nSize);
+
         if (mempoolRejectFee > 0 && nModifiedFees < mempoolRejectFee) {
-            return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "mempool min fee not met", false, strprintf("%d < %d", nFees, mempoolRejectFee));
+            return state.DoS(
+                    0,
+                    false,
+                    REJECT_INSUFFICIENTFEE,
+                    "mempool min fee not met",
+                    false,
+                    strprintf("%d < %d", nFees, mempoolRejectFee));
         }
 
         // No transactions are allowed below minRelayTxFee except from disconnected blocks
@@ -679,18 +762,33 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         }
 
         if (nAbsurdFee && nFees > nAbsurdFee)
-            return state.Invalid(false,
-                REJECT_HIGHFEE, "absurdly-high-fee",
-                strprintf("%d > %d", nFees, nAbsurdFee));
+            return state.Invalid(
+                    false,
+                    REJECT_HIGHFEE,
+                    "absurdly-high-fee",
+                    strprintf("%d > %d", nFees, nAbsurdFee));
 
         // Calculate in-mempool ancestors, up to a limit.
         CTxMemPool::setEntries setAncestors;
-        size_t nLimitAncestors = gArgs.GetArg("-limitancestorcount", DEFAULT_ANCESTOR_LIMIT);
-        size_t nLimitAncestorSize = gArgs.GetArg("-limitancestorsize", DEFAULT_ANCESTOR_SIZE_LIMIT)*1000;
-        size_t nLimitDescendants = gArgs.GetArg("-limitdescendantcount", DEFAULT_DESCENDANT_LIMIT);
-        size_t nLimitDescendantSize = gArgs.GetArg("-limitdescendantsize", DEFAULT_DESCENDANT_SIZE_LIMIT)*1000;
+        size_t nLimitAncestors = 
+            gArgs.GetArg("-limitancestorcount", DEFAULT_ANCESTOR_LIMIT);
+        size_t nLimitAncestorSize = 
+            gArgs.GetArg("-limitancestorsize", DEFAULT_ANCESTOR_SIZE_LIMIT)*1000;
+        size_t nLimitDescendants = 
+            gArgs.GetArg("-limitdescendantcount", DEFAULT_DESCENDANT_LIMIT);
+        size_t nLimitDescendantSize = 
+            gArgs.GetArg("-limitdescendantsize", DEFAULT_DESCENDANT_SIZE_LIMIT)*1000;
+
         std::string errString;
-        if (!pool.CalculateMemPoolAncestors(entry, setAncestors, nLimitAncestors, nLimitAncestorSize, nLimitDescendants, nLimitDescendantSize, errString)) {
+        if (!pool.CalculateMemPoolAncestors(
+                    entry,
+                    setAncestors,
+                    nLimitAncestors,
+                    nLimitAncestorSize,
+                    nLimitDescendants,
+                    nLimitDescendantSize,
+                    errString)) {
+
             return state.DoS(0, false, REJECT_NONSTANDARD, "too-long-mempool-chain", false, errString);
         }
 
@@ -703,11 +801,15 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             const uint256 &hashAncestor = ancestorIt->GetTx().GetHash();
             if (setConflicts.count(hashAncestor))
             {
-                return state.DoS(10, false,
-                                 REJECT_INVALID, "bad-txns-spends-conflicting-tx", false,
-                                 strprintf("%s spends conflicting transaction %s",
-                                           hash.ToString(),
-                                           hashAncestor.ToString()));
+                return state.DoS(
+                        10,
+                        false,
+                        REJECT_INVALID,
+                        "bad-txns-spends-conflicting-tx", false,
+                        strprintf(
+                            "%s spends conflicting transaction %s",
+                            hash.ToString(),
+                            hashAncestor.ToString()));
             }
         }
 
@@ -757,12 +859,16 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                 CFeeRate oldFeeRate(mi->GetModifiedFee(), mi->GetTxSize());
                 if (newFeeRate <= oldFeeRate)
                 {
-                    return state.DoS(0, false,
-                            REJECT_INSUFFICIENTFEE, "insufficient fee", false,
-                            strprintf("rejecting replacement %s; new feerate %s <= old feerate %s",
-                                  hash.ToString(),
-                                  newFeeRate.ToString(),
-                                  oldFeeRate.ToString()));
+                    return state.DoS(
+                            0,
+                            false,
+                            REJECT_INSUFFICIENTFEE,
+                            "insufficient fee", false,
+                            strprintf(
+                                "rejecting replacement %s; new feerate %s <= old feerate %s",
+                                hash.ToString(),
+                                newFeeRate.ToString(),
+                                oldFeeRate.ToString()));
                 }
 
                 for (const CTxIn &txin : mi->GetTx().vin)
@@ -786,9 +892,13 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                     nConflictingSize += it->GetTxSize();
                 }
             } else {
-                return state.DoS(0, false,
-                        REJECT_NONSTANDARD, "too many potential replacements", false,
-                        strprintf("rejecting replacement %s; too many potential replacements (%d > %d)\n",
+                return state.DoS(
+                        0,
+                        false,
+                        REJECT_NONSTANDARD,
+                        "too many potential replacements", false,
+                        strprintf(
+                            "rejecting replacement %s; too many potential replacements (%d > %d)\n",
                             hash.ToString(),
                             nConflictingCount,
                             maxDescendantsToVisit));
@@ -806,10 +916,15 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                     // it's cheaper to just check if the new input refers to a
                     // tx that's in the mempool.
                     if (pool.mapTx.find(tx.vin[j].prevout.hash) != pool.mapTx.end())
-                        return state.DoS(0, false,
-                                         REJECT_NONSTANDARD, "replacement-adds-unconfirmed", false,
-                                         strprintf("replacement %s adds unconfirmed input, idx %d",
-                                                  hash.ToString(), j));
+                        return state.DoS(
+                                0,
+                                false,
+                                REJECT_NONSTANDARD,
+                                "replacement-adds-unconfirmed", false,
+                                strprintf(
+                                    "replacement %s adds unconfirmed input, idx %d",
+                                    hash.ToString(),
+                                    j));
                 }
             }
 
@@ -818,10 +933,16 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             // transactions would not be paid for.
             if (nModifiedFees < nConflictingFees)
             {
-                return state.DoS(0, false,
-                                 REJECT_INSUFFICIENTFEE, "insufficient fee", false,
-                                 strprintf("rejecting replacement %s, less fees than conflicting txs; %s < %s",
-                                          hash.ToString(), FormatMoney(nModifiedFees), FormatMoney(nConflictingFees)));
+                return state.DoS(
+                        0, 
+                        false,
+                        REJECT_INSUFFICIENTFEE,
+                        "insufficient fee", false,
+                        strprintf(
+                            "rejecting replacement %s, less fees than conflicting txs; %s < %s",
+                            hash.ToString(),
+                            FormatMoney(nModifiedFees),
+                            FormatMoney(nConflictingFees)));
             }
 
             // Finally in addition to paying more fees than the conflicts the
@@ -829,21 +950,31 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             CAmount nDeltaFees = nModifiedFees - nConflictingFees;
             if (nDeltaFees < ::incrementalRelayFee.GetFee(nSize))
             {
-                return state.DoS(0, false,
-                        REJECT_INSUFFICIENTFEE, "insufficient fee", false,
-                        strprintf("rejecting replacement %s, not enough additional fees to relay; %s < %s",
-                              hash.ToString(),
-                              FormatMoney(nDeltaFees),
-                              FormatMoney(::incrementalRelayFee.GetFee(nSize))));
+                return state.DoS(
+                        0, 
+                        false,
+                        REJECT_INSUFFICIENTFEE, 
+                        "insufficient fee", false,
+                        strprintf(
+                            "rejecting replacement %s, not enough additional fees to relay; %s < %s",
+                            hash.ToString(),
+                            FormatMoney(nDeltaFees),
+                            FormatMoney(::incrementalRelayFee.GetFee(nSize))));
             }
         }
 
         unsigned int scriptVerifyFlags = STANDARD_SCRIPT_VERIFY_FLAGS;
         if (!chainparams.RequireStandard()) {
-            scriptVerifyFlags = gArgs.GetArg("-promiscuousmempoolflags", scriptVerifyFlags);
+            scriptVerifyFlags = 
+                gArgs.GetArg("-promiscuousmempoolflags", scriptVerifyFlags);
         }
 
-        if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache, mempoolReferral.GetReferrals())) {
+        if (!Consensus::CheckTxOutputs(
+                    tx,
+                    state,
+                    *prefviewcache,
+                    mempoolReferral.GetReferrals())) {
+
             return false;
         }
 
@@ -855,8 +986,26 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             // need to turn both off, and compare against just turning off CLEANSTACK
             // to see if the failure is specifically due to witness validation.
             CValidationState stateDummy; // Want reported failures to be from first CheckInputs
-            if (!tx.HasWitness() && CheckInputs(tx, stateDummy, view, true, scriptVerifyFlags & ~(SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK), true, false, txdata) &&
-                !CheckInputs(tx, stateDummy, view, true, scriptVerifyFlags & ~SCRIPT_VERIFY_CLEANSTACK, true, false, txdata)) {
+            if (
+                    !tx.HasWitness() && 
+                    CheckInputs(
+                        tx,
+                        stateDummy,
+                        view,
+                        true,
+                        scriptVerifyFlags & ~(SCRIPT_VERIFY_WITNESS | SCRIPT_VERIFY_CLEANSTACK),
+                        true,
+                        false,
+                        txdata) &&
+                    !CheckInputs(
+                        tx,
+                        stateDummy,
+                        view,
+                        true,
+                        scriptVerifyFlags & ~SCRIPT_VERIFY_CLEANSTACK,
+                        true,
+                        false,
+                        txdata)) {
                 // Only the witness is missing, so the transaction itself may be fine.
                 state.SetCorruptionPossible();
             }
@@ -878,21 +1027,53 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         // There is a similar check in CreateNewBlock() to prevent creating
         // invalid blocks (using TestBlockValidity), however allowing such
         // transactions into the mempool can be exploited as a DoS attack.
-        unsigned int currentBlockScriptVerifyFlags = GetBlockScriptFlags(chainActive.Tip(), Params().GetConsensus());
-        if (!CheckInputsFromMempoolAndCache(tx, state, view, pool, currentBlockScriptVerifyFlags, true, txdata))
+        unsigned int currentBlockScriptVerifyFlags = 
+            GetBlockScriptFlags(chainActive.Tip(), Params().GetConsensus());
+
+        if (!CheckInputsFromMempoolAndCache(
+                    tx,
+                    state,
+                    view,
+                    pool,
+                    chainActive.Height(),
+                    currentBlockScriptVerifyFlags,
+                    true,
+                    txdata))
         {
             // If we're using promiscuousmempoolflags, we may hit this normally
             // Check if current block has some flags that scriptVerifyFlags
             // does not before printing an ominous warning
             if (!(~scriptVerifyFlags & currentBlockScriptVerifyFlags)) {
-                return error("%s: BUG! PLEASE REPORT THIS! ConnectInputs failed against latest-block but not STANDARD flags %s, %s",
-                    __func__, hash.ToString(), FormatStateMessage(state));
+
+                return error(
+                        "%s: BUG! PLEASE REPORT THIS! ConnectInputs failed "
+                        "against latest-block but not STANDARD flags %s, %s",
+                        __func__,
+                        hash.ToString(),
+                        FormatStateMessage(state));
+
             } else {
-                if (!CheckInputs(tx, state, view, true, MANDATORY_SCRIPT_VERIFY_FLAGS, true, false, txdata)) {
-                    return error("%s: ConnectInputs failed against MANDATORY but not STANDARD flags due to promiscuous mempool %s, %s",
-                        __func__, hash.ToString(), FormatStateMessage(state));
+                if (!CheckInputs(
+                            tx,
+                            state,
+                            view,
+                            chainActive.Height(),
+                            true,
+                            MANDATORY_SCRIPT_VERIFY_FLAGS,
+                            true,
+                            false,
+                            txdata)) {
+
+                    return error(
+                            "%s: ConnectInputs failed against MANDATORY but not"
+                            "STANDARD flags due to promiscuous mempool %s, %s",
+                            __func__,
+                            hash.ToString(),
+                            FormatStateMessage(state));
                 } else {
-                    LogPrintf("Warning: -promiscuousmempool flags set to not include currently enforced soft forks, this may break mining or otherwise cause instability!\n");
+                    LogPrintf("Warning: -promiscuousmempool flags set to not "
+                            "include currently enforced soft forks, this may "
+                            "break mining or otherwise cause instability!\n");
                 }
             }
         }
@@ -900,7 +1081,9 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         // Remove conflicting transactions from the mempool
         for (const CTxMemPool::txiter it : allConflicting)
         {
-            LogPrint(BCLog::MEMPOOL, "replacing tx %s with %s for %s MRT additional fees, %d delta bytes\n",
+            LogPrint(
+                    BCLog::MEMPOOL, 
+                    "replacing tx %s with %s for %s MRT ""additional fees, %d delta bytes\n",
                     it->GetTx().GetHash().ToString(),
                     hash.ToString(),
                     FormatMoney(nModifiedFees - nConflictingFees),
@@ -914,7 +1097,10 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         // BIP 125 replacement transaction (may not be widely supported), the
         // node is not behind, and the transaction is not dependent on any other
         // transactions in the mempool.
-        bool validForFeeEstimation = !fReplacementTransaction && IsCurrentForFeeEstimation() && pool.HasNoInputsOf(tx);
+        bool validForFeeEstimation = 
+            !fReplacementTransaction && 
+            IsCurrentForFeeEstimation() && 
+            pool.HasNoInputsOf(tx);
 
         // Store transaction in memory
         pool.addUnchecked(hash, entry, setAncestors, validForFeeEstimation);
@@ -931,7 +1117,10 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
 
         // trim mempool and check if tx was trimmed
         if (!fOverrideMempoolLimit) {
-            LimitMempoolSize(pool, gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000, gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60);
+            LimitMempoolSize(
+                    pool, 
+                    gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000, 
+                    gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60);
             if (!pool.exists(hash))
                 return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "mempool full");
         }
@@ -943,31 +1132,73 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
 }
 
 /** (try to) add transaction to memory pool with a specified acceptance time **/
-static bool AcceptToMemoryPoolWithTime(const CChainParams& chainparams, CTxMemPool& pool, CValidationState &state, const CTransactionRef &tx, bool fLimitFree,
-                        bool* pfMissingInputs, int64_t nAcceptTime, std::list<CTransactionRef>* plTxnReplaced,
-                        bool fOverrideMempoolLimit, const CAmount nAbsurdFee)
+static bool AcceptToMemoryPoolWithTime(
+        const CChainParams& chainparams,
+        CTxMemPool& pool,
+        CValidationState &state,
+        const CTransactionRef &tx,
+        bool fLimitFree,
+        bool* pfMissingInputs,
+        int64_t nAcceptTime,
+        std::list<CTransactionRef>* plTxnReplaced,
+        bool fOverrideMempoolLimit,
+        const CAmount nAbsurdFee)
 {
     std::vector<COutPoint> coins_to_uncache;
-    bool res = AcceptToMemoryPoolWorker(chainparams, pool, state, tx, fLimitFree, pfMissingInputs, nAcceptTime, plTxnReplaced, fOverrideMempoolLimit, nAbsurdFee, coins_to_uncache);
+    bool res = AcceptToMemoryPoolWorker(
+            chainparams,
+            pool,
+            state,
+            tx,
+            fLimitFree,
+            pfMissingInputs,
+            nAcceptTime,
+            plTxnReplaced,
+            fOverrideMempoolLimit,
+            nAbsurdFee,
+            coins_to_uncache);
+
     if (!res) {
         for (const COutPoint& hashTx : coins_to_uncache)
             pcoinsTip->Uncache(hashTx);
     }
-    // After we've (potentially) uncached entries, ensure our coins cache is still within its size limits
+
+    // After we've (potentially) uncached entries, ensure our coins 
+    // cache is still within its size limits
     CValidationState stateDummy;
     FlushStateToDisk(chainparams, stateDummy, FLUSH_STATE_PERIODIC);
     return res;
 }
 
-bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransactionRef &tx, bool fLimitFree,
-                        bool* pfMissingInputs, std::list<CTransactionRef>* plTxnReplaced,
-                        bool fOverrideMempoolLimit, const CAmount nAbsurdFee)
+bool AcceptToMemoryPool(
+        CTxMemPool& pool,
+        CValidationState &state,
+        const CTransactionRef &tx,
+        bool fLimitFree,
+        bool* pfMissingInputs,
+        std::list<CTransactionRef>* plTxnReplaced,
+        bool fOverrideMempoolLimit,
+        const CAmount nAbsurdFee)
 {
     const CChainParams& chainparams = Params();
-    return AcceptToMemoryPoolWithTime(chainparams, pool, state, tx, fLimitFree, pfMissingInputs, GetTime(), plTxnReplaced, fOverrideMempoolLimit, nAbsurdFee);
+    return AcceptToMemoryPoolWithTime(
+            chainparams,
+            pool,
+            state,
+            tx,
+            fLimitFree,
+            pfMissingInputs,
+            GetTime(),
+            plTxnReplaced,
+            fOverrideMempoolLimit,
+            nAbsurdFee);
 }
 
-bool GetTimestampIndex(const unsigned int &high, const unsigned int &low, const bool fActiveOnly, std::vector<std::pair<uint256, unsigned int> > &hashes)
+bool GetTimestampIndex(
+        const unsigned int &high,
+        const unsigned int &low,
+        const bool fActiveOnly,
+        std::vector<std::pair<uint256, unsigned int> > &hashes)
 {
     if (!fTimestampIndex)
         return error("Timestamp index not enabled");
@@ -1438,7 +1669,7 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, int nHeight)
 bool CScriptCheck::operator()() {
     const CScript &scriptSig = ptxTo->vin[nIn].scriptSig;
     const CScriptWitness *witness = &ptxTo->vin[nIn].scriptWitness;
-    return VerifyScript(scriptSig, scriptPubKey, witness, nFlags, CachingTransactionSignatureChecker(ptxTo, nIn, amount, cacheStore, *txdata), &error);
+    return VerifyScript(scriptSig, scriptPubKey, witness, nFlags, CachingTransactionSignatureChecker{ptxTo, nIn, amount, cacheStore, blockHeight, *txdata}, &error);
 }
 
 int GetSpendHeight(const CCoinsViewCache& inputs)
@@ -1475,7 +1706,17 @@ void InitScriptExecutionCache() {
  *
  * Non-static (and re-declared) in src/test/txvalidationcache_tests.cpp
  */
-bool CheckInputs(const CTransaction& tx, CValidationState &state, const CCoinsViewCache &inputs, bool fScriptChecks, unsigned int flags, bool cacheSigStore, bool cacheFullScriptStore, PrecomputedTransactionData& txdata, std::vector<CScriptCheck> *pvChecks)
+bool CheckInputs(
+        const CTransaction& tx,
+        &state,
+        const CCoinsViewCache &inputs,
+        const int blockHeight,
+        bool fScriptChecks,
+        unsigned int flags,
+        bool cacheSigStore,
+        bool cacheFullScriptStore,
+        PrecomputedTransactionData& txdata,
+        std::vector<CScriptCheck> *pvChecks)
 {
     if (!tx.IsCoinBase())
     {
@@ -2256,9 +2497,22 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
             std::vector<CScriptCheck> vChecks;
             bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
-            if (!CheckInputs(tx, state, view, fScriptChecks, flags, fCacheResults, fCacheResults, txdata[i], nScriptCheckThreads ? &vChecks : nullptr))
+            if (!CheckInputs(
+                        tx,
+                        state,
+                        view,
+                        pindex->nHeight,
+                        fScriptChecks,
+                        flags,
+                        fCacheResults,
+                        fCacheResults,
+                        txdata[i],
+                        nScriptCheckThreads ? &vChecks : nullptr)) {
+
                 return error("ConnectBlock(): CheckInputs on %s failed with %s",
                     tx.GetHash().ToString(), FormatStateMessage(state));
+            }
+
             control.Add(vChecks);
         }
 
@@ -2272,10 +2526,30 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 const int addressType = address.second;
 
                 // record receiving activity
-                addressIndex.push_back(std::make_pair(CAddressIndexKey(addressType, uint160(hashBytes), pindex->nHeight, i, txhash, k, false), out.nValue));
+                addressIndex.push_back(
+                        std::make_pair(
+                            CAddressIndexKey{
+                                addressType,
+                                uint160(hashBytes),
+                                pindex->nHeight,
+                                i,
+                                txhash,
+                                k,
+                                false}, 
+                            out.nValue));
 
                 // record unspent output
-                addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(addressType, uint160(hashBytes), txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight)));
+                addressUnspentIndex.push_back(
+                        std::make_pair(
+                            CAddressUnspentKey{
+                                addressType,
+                                uint160(hashBytes),
+                                txhash,
+                                k}, 
+                            CAddressUnspentValue{
+                                out.nValue,
+                                out.scriptPubKey,
+                                pindex->nHeight}));
 
             }
         }
@@ -2291,7 +2565,13 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     }
 
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
-    LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
+    LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", 
+            (unsigned)block.vtx.size(),
+            MILLI * (nTime3 - nTime2),
+            MILLI * (nTime3 - nTime2) / block.vtx.size(),
+            nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1),
+            nTimeConnect * MICRO,
+            nTimeConnect * MILLI / nBlocksTotal);
 
     //Figure out split subsidy and make sure the coinbase pays the expceted amount.
     const auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
@@ -2310,7 +2590,12 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                REJECT_INVALID, "bad-cb-amount");
 
     int64_t nTime4 = GetTimeMicros(); nTimeVerify += nTime4 - nTime3;
-    LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n", nInputs - 1, MILLI * (nTime4 - nTime3), nInputs <= 1 ? 0 : MILLI * (nTime4 - nTime3) / (nInputs-1), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
+    LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n", 
+            nInputs - 1,
+            MILLI * (nTime4 - nTime3),
+            nInputs <= 1 ? 0 : MILLI * (nTime4 - nTime3) / (nInputs-1),
+            nTimeVerify * MICRO,
+            nTimeVerify * MILLI / nBlocksTotal);
 
     // Figure out which ambassadors should be rewarded and check to make sure
     // they are paid the expected amount.

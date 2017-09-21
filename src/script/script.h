@@ -35,6 +35,9 @@ static const int MAX_SCRIPT_SIZE = 10000;
 // Maximum number of values on script interpreter stack
 static const int MAX_STACK_SIZE = 1000;
 
+// Maximum number of keys inside EasySend OP
+static const int MAX_EASY_SEND_KEYS = 5;
+
 // Threshold for nLockTime: below this value it is interpreted as block number,
 // otherwise as UNIX timestamp.
 static const unsigned int LOCKTIME_THRESHOLD = 500000000; // Tue Nov  5 00:53:20 1985 UTC
@@ -174,7 +177,8 @@ enum opcodetype
     OP_NOP2 = OP_CHECKLOCKTIMEVERIFY,
     OP_CHECKSEQUENCEVERIFY = 0xb2,
     OP_NOP3 = OP_CHECKSEQUENCEVERIFY,
-    OP_NOP4 = 0xb3,
+    OP_EASYSEND = 0xb3,
+    OP_NOP4 = OP_EASYSEND,
     OP_NOP5 = 0xb4,
     OP_NOP6 = 0xb5,
     OP_NOP7 = 0xb6,

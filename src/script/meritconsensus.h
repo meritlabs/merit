@@ -65,13 +65,26 @@ enum
 /// txTo correctly spends the scriptPubKey pointed to by scriptPubKey under
 /// the additional constraints specified by flags.
 /// If not nullptr, err will contain an error/success code for the operation
-EXPORT_SYMBOL int meritconsensus_verify_script(const unsigned char *scriptPubKey, unsigned int scriptPubKeyLen,
-                                                 const unsigned char *txTo        , unsigned int txToLen,
-                                                 unsigned int nIn, unsigned int flags, meritconsensus_error* err);
+EXPORT_SYMBOL int meritconsensus_verify_script(
+        const unsigned char *scriptPubKey,
+        unsigned int scriptPubKeyLen,
+        const unsigned char *txTo        ,
+        unsigned int txToLen,
+        unsigned int nIn,
+        const int blockHeight,
+        unsigned int flags,
+        meritconsensus_error* err);
 
-EXPORT_SYMBOL int meritconsensus_verify_script_with_amount(const unsigned char *scriptPubKey, unsigned int scriptPubKeyLen, int64_t amount,
-                                    const unsigned char *txTo        , unsigned int txToLen,
-                                    unsigned int nIn, unsigned int flags, meritconsensus_error* err);
+EXPORT_SYMBOL int meritconsensus_verify_script_with_amount(
+        const unsigned char *scriptPubKey,
+        unsigned int scriptPubKeyLen,
+        int64_t amount,
+        const unsigned char *txTo        ,
+        unsigned int txToLen,
+        unsigned int nIn,
+        const int blockHeight,
+        unsigned int flags,
+        meritconsensus_error* err);
 
 EXPORT_SYMBOL unsigned int meritconsensus_version();
 
