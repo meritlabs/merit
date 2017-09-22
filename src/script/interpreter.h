@@ -158,7 +158,7 @@ public:
          return false;
     }
 
-    virtual bool CheckBlockHeight(const int) const
+    virtual bool CheckCoinHeight(const int) const
     {
          return false;
     }
@@ -173,6 +173,7 @@ private:
     unsigned int nIn;
     const CAmount amount;
     const int blockHeight;
+    const int coinHeight;
     const PrecomputedTransactionData* txdata;
 
 protected:
@@ -186,11 +187,13 @@ public:
             const CTransaction* txToIn, 
             unsigned int nInIn, 
             const CAmount& amountIn, 
-            const int blockHeightIn) : 
+            const int blockHeightIn,
+            const int coinHeightIn) : 
         txTo{txToIn},
         nIn{nInIn},
         amount{amountIn},
         blockHeight{blockHeightIn},
+        coinHeight{coinHeightIn},
         txdata{nullptr} {}
 
     TransactionSignatureChecker(
@@ -198,11 +201,13 @@ public:
             unsigned int nInIn,
             const CAmount& amountIn,
             const int blockHeightIn,
+            const int coinHeightIn,
             const PrecomputedTransactionData& txdataIn) : 
         txTo{txToIn},
         nIn{nInIn},
         amount{amountIn},
         blockHeight{blockHeightIn},
+        coinHeight{coinHeightIn},
         txdata{&txdataIn} {}
 
     bool CheckSig(
@@ -212,7 +217,7 @@ public:
 
     bool CheckLockTime(const CScriptNum& nLockTime) const override;
     bool CheckSequence(const CScriptNum& nSequence) const override;
-    bool CheckBlockHeight(int maxHeight) const override;
+    bool CheckCoinHeight(int maxHeight) const override;
 };
 
 class MutableTransactionSignatureChecker : public TransactionSignatureChecker
@@ -225,14 +230,37 @@ public:
             const CMutableTransaction* txToIn,
             unsigned int nInIn,
             const CAmount& amountIn,
-            const int blockHeightIn) : 
-        TransactionSignatureChecker(&txTo, nInIn, amountIn, blockHeightIn),
+            const int blockHeightIn,
+            const int coinHeightIn) : 
+        TransactionSignatureChecker(
+                &txTo,
+                nInIn,
+                amountIn,
+                blockHeightIn,
+                coinHeightIn),
         txTo(*txToIn) {}
 };
 
-bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, SigVersion sigversion, ScriptError* error = nullptr);
-bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror = nullptr);
+bool EvalScript(
+        std::vector<std::vector<unsigned char> >& stack,
+        const CScript& script,
+        unsigned int flags,
+        const BaseSignatureChecker& checker,
+        SigVersion sigversion,
+        ScriptError* error = nullptr);
 
-size_t CountWitnessSigOps(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags);
+bool VerifyScript(
+        const CScript& scriptSig,
+        const CScript& scriptPubKey,
+        const CScriptWitness* witness,
+        unsigned int flags,
+        const BaseSignatureChecker& checker,
+        ScriptError* serror = nullptr);
+
+size_t CountWitnessSigOps(
+        const CScript& scriptSig,
+        const CScript& scriptPubKey,
+        const CScriptWitness* witness,
+        unsigned int flags);
 
 #endif // MERIT_SCRIPT_INTERPRETER_H

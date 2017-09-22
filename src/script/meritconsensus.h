@@ -72,6 +72,7 @@ EXPORT_SYMBOL int meritconsensus_verify_script(
         unsigned int txToLen,
         unsigned int nIn,
         const int blockHeight,
+        const int coinHeight,
         unsigned int flags,
         meritconsensus_error* err);
 
@@ -83,6 +84,7 @@ EXPORT_SYMBOL int meritconsensus_verify_script_with_amount(
         unsigned int txToLen,
         unsigned int nIn,
         const int blockHeight,
+        const int coinHeight,
         unsigned int flags,
         meritconsensus_error* err);
 

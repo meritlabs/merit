@@ -14,6 +14,8 @@
 #include "script/script.h"
 #include "uint256.h"
 
+#include <type_traits>
+
 typedef std::vector<unsigned char> valtype;
 
 namespace {
@@ -244,9 +246,7 @@ bool static CheckMinimalPush(const valtype& data, opcodetype opcode) {
     return true;
 }
 
-using ValTypes = std::vector<valtype>;
-
-template<class Val>
+template<class Val, typename std::enable_if<!std::is_integral<Val>::value, bool>::type = 0>
 bool Pop(std::vector<std::vector<unsigned char>>& stack, Val& ret, ScriptError* serror)
 {
     if (stack.empty()) {
@@ -259,8 +259,8 @@ bool Pop(std::vector<std::vector<unsigned char>>& stack, Val& ret, ScriptError* 
     return true;
 }
 
-template<>
-bool Pop(std::vector<std::vector<unsigned char>>& stack, int& ret, ScriptError* serror)
+template<class Val, typename std::enable_if<std::is_integral<Val>::value, bool>::type = 0>
+bool Pop(std::vector<std::vector<unsigned char>>& stack, Val& ret, ScriptError* serror)
 {
     valtype bytes;
     if(!Pop(stack, bytes, serror))
@@ -269,6 +269,9 @@ bool Pop(std::vector<std::vector<unsigned char>>& stack, int& ret, ScriptError* 
     ret = CScriptNum(bytes, true).getint();
     return true;
 }
+
+
+
 
 bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, SigVersion sigversion, ScriptError* serror)
 {
@@ -1056,7 +1059,7 @@ bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& s
                     if(!Pop(stack, max_block_height, serror)) 
                         return set_error(serror, SCRIPT_ERR_BLOCKHEIGHT_COUNT);
 
-                    if(!checker.CheckBlockHeight(max_block_height))
+                    if(!checker.CheckCoinHeight(max_block_height))
                         return set_error(serror, SCRIPT_ERR_BLOCKHEIGHT_INVALID);
 
                     size_t key_id_count = 0;
@@ -1067,7 +1070,7 @@ bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& s
                         return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
                     //pop pub keys off the stack
-                    ValTypes pub_keys(key_id_count);
+                    std::vector<valtype> pub_keys(key_id_count);
                     std::generate_n(std::begin(pub_keys), key_id_count, 
                             [&stack, serror]() {
                                 valtype key;
@@ -1428,10 +1431,12 @@ bool TransactionSignatureChecker::CheckSequence(const CScriptNum& nSequence) con
     return true;
 }
 
-bool TransactionSignatureChecker::CheckBlockHeight(const int maxHeight) const
+bool TransactionSignatureChecker::CheckCoinHeight(const int maxHeight) const
 {
     assert(blockHeight >= 0);
-    return maxHeight >= 0 && blockHeight <= maxHeight;
+    assert(blockHeight >= coinHeight);
+    auto height = blockHeight - coinHeight;
+    return maxHeight >= 0 && height <= maxHeight;
 }
 
 static bool VerifyWitnessProgram(const CScriptWitness& witness, int witversion, const std::vector<unsigned char>& program, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror)

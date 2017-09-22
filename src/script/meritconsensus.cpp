@@ -85,6 +85,7 @@ static int verify_script(
         unsigned int txToLen,
         unsigned int nIn,
         const int blockHeight,
+        const int coinHeight,
         unsigned int flags,
         meritconsensus_error* err)
 {
@@ -109,10 +110,16 @@ static int verify_script(
                 CScript(scriptPubKey, scriptPubKey + scriptPubKeyLen),
                 &tx.vin[nIn].scriptWitness,
                 flags,
-                TransactionSignatureChecker(&tx, nIn, amount, blockHeight, txdata),
+                TransactionSignatureChecker(
+                    &tx,
+                    nIn,
+                    amount,
+                    blockHeight,
+                    coinHeight,
+                    txdata),
                 nullptr);
     } catch (const std::exception&) {
-        return set_error(err, meritconsensus_ERR_TX_DESERIALIZE); // Error deserializing
+        return set_error(err, meritconsensus_ERR_TX_DESERIALIZE);
     }
 }
 
@@ -124,6 +131,7 @@ int meritconsensus_verify_script_with_amount(
         unsigned int txToLen,
         unsigned int nIn,
         const int blockHeight,
+        const int coinHeight,
         unsigned int flags,
         meritconsensus_error* err)
 {
@@ -136,6 +144,7 @@ int meritconsensus_verify_script_with_amount(
             txToLen,
             nIn,
             blockHeight,
+            coinHeight,
             flags,
             err);
 }
@@ -148,6 +157,7 @@ int meritconsensus_verify_script(
         unsigned int txToLen,
         unsigned int nIn,
         const int blockHeight,
+        const int coinHeight,
         unsigned int flags,
         meritconsensus_error* err)
 {
@@ -164,6 +174,7 @@ int meritconsensus_verify_script(
             txToLen,
             nIn,
             blockHeight,
+            coinHeight,
             flags,
             err);
 }
