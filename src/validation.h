@@ -423,6 +423,7 @@ private:
     unsigned int nIn;
     unsigned int nFlags;
     int blockHeight;
+    int coinHeight;
     bool cacheStore;
     ScriptError error;
     PrecomputedTransactionData *txdata;
@@ -434,6 +435,7 @@ public:
         nIn{0},
         nFlags{0},
         blockHeight{0},
+        coinHeight{0},
         cacheStore{false},
         error{SCRIPT_ERR_UNKNOWN_ERROR} {}
 
@@ -441,8 +443,9 @@ public:
             const CScript& scriptPubKeyIn,
             const CAmount amountIn,
             const CTransaction& txToIn,
-            const int blockHeightIn,
             unsigned int nInIn,
+            const int blockHeightIn,
+            const int coinHeightIn,
             unsigned int nFlagsIn,
             bool cacheIn,
             PrecomputedTransactionData* txdataIn) :
@@ -452,6 +455,7 @@ public:
         nIn{nInIn},
         nFlags{nFlagsIn},
         blockHeight{blockHeightIn},
+        coinHeight{coinHeightIn},
         cacheStore{cacheIn},
         error{SCRIPT_ERR_UNKNOWN_ERROR},
         txdata{txdataIn} { }

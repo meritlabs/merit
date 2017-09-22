@@ -1054,14 +1054,7 @@ bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& s
                 break;
                 case OP_EASYSEND:
                 {
-                    // ([sig] [pubkey ...] num_of_pubkeys max_block_height -- bool)
-                    int max_block_height = 0;
-                    if(!Pop(stack, max_block_height, serror)) 
-                        return set_error(serror, SCRIPT_ERR_BLOCKHEIGHT_COUNT);
-
-                    if(!checker.CheckCoinHeight(max_block_height))
-                        return set_error(serror, SCRIPT_ERR_BLOCKHEIGHT_INVALID);
-
+                    // (max_block_height sig [pubkey ...] num_of_pubkeys -- bool)
                     size_t key_id_count = 0;
                     if(!Pop(stack, key_id_count, serror)) 
                         return false;
@@ -1084,6 +1077,13 @@ bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& s
                     valtype sig;
                     if(!Pop(stack, sig, serror))
                         return false;
+
+                    int max_block_height = 0;
+                    if(!Pop(stack, max_block_height, serror)) 
+                        return set_error(serror, SCRIPT_ERR_BLOCKHEIGHT_COUNT);
+
+                    if(!checker.CheckCoinHeight(max_block_height))
+                        return set_error(serror, SCRIPT_ERR_BLOCKHEIGHT_INVALID);
 
                     //We now have a list of key ids and a signature. We have
                     //to transform the key ids to actual pub keys. Since all

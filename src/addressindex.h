@@ -125,8 +125,15 @@ struct CAddressIndexKey {
         spending = f;
     }
 
-    CAddressIndexKey(unsigned int addressType, uint160 addressHash, int height, int blockindex,
-                     uint256 txid, size_t indexValue, bool isSpending) {
+    CAddressIndexKey(
+            unsigned int addressType,
+            uint160 addressHash,
+            int height,
+            int blockindex,
+            uint256 txid,
+            size_t indexValue,
+            bool isSpending) {
+
         type = addressType;
         hashBytes = addressHash;
         blockHeight = height;

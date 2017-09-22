@@ -22,6 +22,7 @@
 #include "util.h"
 #include "utilmoneystr.h"
 #include "utilstrencodings.h"
+#include "validation.h"
 
 #include <stdio.h>
 
@@ -614,6 +615,9 @@ static void MutateTxSign(CMutableTransaction& tx, const std::string& flagStr)
 
     bool fHashSingle = ((nHashType & ~SIGHASH_ANYONECANPAY) == SIGHASH_SINGLE);
 
+    // TODO: Do we need actual spendable block height?
+    const int spendHeight = 0;
+
     // Sign what we can:
     for (unsigned int i = 0; i < mergedTx.vin.size(); i++) {
         CTxIn& txin = mergedTx.vin[i];
@@ -628,15 +632,45 @@ static void MutateTxSign(CMutableTransaction& tx, const std::string& flagStr)
         SignatureData sigdata;
         // Only sign SIGHASH_SINGLE if there's a corresponding output:
         if (!fHashSingle || (i < mergedTx.vout.size()))
-            ProduceSignature(MutableTransactionSignatureCreator(&keystore, &mergedTx, i, amount, nHashType), prevPubKey, sigdata);
+            ProduceSignature(
+                    MutableTransactionSignatureCreator(
+                        &keystore,
+                        &mergedTx,
+                        i,
+                        amount,
+                        nHashType),
+                    prevPubKey,
+                    sigdata);
 
         // ... and merge in other signatures:
-        for (const CTransaction& txv : txVariants)
-            sigdata = CombineSignatures(prevPubKey, MutableTransactionSignatureChecker(&mergedTx, i, amount), sigdata, DataFromTransaction(txv, i));
+        for (const CTransaction& txv : txVariants) { 
+            sigdata = CombineSignatures(
+                    prevPubKey,
+                    MutableTransactionSignatureChecker(
+                        &mergedTx,
+                        i,
+                        amount,
+                        spendHeight,
+                        coin.nHeight),
+                    sigdata,
+                    DataFromTransaction(txv, i));
+        }
+
         UpdateTransaction(mergedTx, i, sigdata);
 
-        if (!VerifyScript(txin.scriptSig, prevPubKey, &txin.scriptWitness, STANDARD_SCRIPT_VERIFY_FLAGS, MutableTransactionSignatureChecker(&mergedTx, i, amount)))
+        if (!VerifyScript(
+                    txin.scriptSig,
+                    prevPubKey,
+                    &txin.scriptWitness,
+                    STANDARD_SCRIPT_VERIFY_FLAGS,
+                    MutableTransactionSignatureChecker( 
+                        &mergedTx,
+                        i,
+                        amount,
+                        spendHeight,
+                        coin.nHeight))) {
             fComplete = false;
+        }
     }
 
     if (fComplete) {

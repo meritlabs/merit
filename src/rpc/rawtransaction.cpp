@@ -719,13 +719,17 @@ UniValue combinerawtransaction(const JSONRPCRequest& request)
         LOCK(mempool.cs);
         CCoinsViewCache &viewChain = *pcoinsTip;
         CCoinsViewMemPool viewMempool(&viewChain, mempool);
-        view.SetBackend(viewMempool); // temporarily switch cache backend to db+mempool view
+
+        // temporarily switch cache backend to db+mempool view
+        view.SetBackend(viewMempool);
 
         for (const CTxIn& txin : mergedTx.vin) {
-            view.AccessCoin(txin.prevout); // Load entries from viewChain into view; can fail.
+            // Load entries from viewChain into view; can fail.
+            view.AccessCoin(txin.prevout);
         }
 
-        view.SetBackend(viewDummy); // switch back to avoid locking mempool for too long
+        // switch back to avoid locking mempool for too long
+        view.SetBackend(viewDummy); 
     }
 
     // Use CTransaction for the constant parts of the
@@ -736,7 +740,9 @@ UniValue combinerawtransaction(const JSONRPCRequest& request)
         CTxIn& txin = mergedTx.vin[i];
         const Coin& coin = view.AccessCoin(txin.prevout);
         if (coin.IsSpent()) {
-            throw JSONRPCError(RPC_VERIFY_ERROR, "Input not found or already spent");
+            throw JSONRPCError(
+                    RPC_VERIFY_ERROR,
+                    "Input not found or already spent");
         }
         const CScript& prevPubKey = coin.out.scriptPubKey;
         const CAmount& amount = coin.out.nValue;
@@ -746,7 +752,17 @@ UniValue combinerawtransaction(const JSONRPCRequest& request)
         // ... and merge in other signatures:
         for (const CMutableTransaction& txv : txVariants) {
             if (txv.vin.size() > i) {
-                sigdata = CombineSignatures(prevPubKey, TransactionSignatureChecker(&txConst, i, amount), sigdata, DataFromTransaction(txv, i));
+                sigdata =
+                    CombineSignatures(
+                        prevPubKey,
+                        TransactionSignatureChecker(
+                            &txConst,
+                            i,
+                            amount,
+                            chainActive.Height(),
+                            coin.nHeight),
+                        sigdata,
+                        DataFromTransaction(txv, i));
             }
         }
 
@@ -827,7 +843,10 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
 #else
     LOCK(cs_main);
 #endif
-    RPCTypeCheck(request.params, {UniValue::VSTR, UniValue::VARR, UniValue::VARR, UniValue::VSTR}, true);
+    RPCTypeCheck(
+            request.params,
+            {UniValue::VSTR, UniValue::VARR, UniValue::VARR, UniValue::VSTR},
+            true);
 
     CMutableTransaction mtx;
     if (!DecodeHexTx(mtx, request.params[0].get_str(), true))
@@ -840,13 +859,17 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
         LOCK(mempool.cs);
         CCoinsViewCache &viewChain = *pcoinsTip;
         CCoinsViewMemPool viewMempool(&viewChain, mempool);
-        view.SetBackend(viewMempool); // temporarily switch cache backend to db+mempool view
+
+        // temporarily switch cache backend to db+mempool view
+        view.SetBackend(viewMempool);
 
         for (const CTxIn& txin : mtx.vin) {
-            view.AccessCoin(txin.prevout); // Load entries from viewChain into view; can fail.
+            // Load entries from viewChain into view; can fail.
+            view.AccessCoin(txin.prevout);
         }
 
-        view.SetBackend(viewDummy); // switch back to avoid locking mempool for too long
+        // switch back to avoid locking mempool for too long
+        view.SetBackend(viewDummy);
     }
 
     bool fGivenKeys = false;
@@ -858,11 +881,20 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
             UniValue k = keys[idx];
             CMeritSecret vchSecret;
             bool fGood = vchSecret.SetString(k.get_str());
-            if (!fGood)
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key");
+
+            if (!fGood) { 
+                throw JSONRPCError(
+                        RPC_INVALID_ADDRESS_OR_KEY,
+                        "Invalid private key");
+            }
+
             CKey key = vchSecret.GetKey();
-            if (!key.IsValid())
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Private key outside allowed range");
+
+            if (!key.IsValid()) { 
+                throw JSONRPCError(
+                        RPC_INVALID_ADDRESS_OR_KEY,
+                        "Private key outside allowed range");
+            }
             tempKeystore.AddKey(key);
         }
     }
@@ -874,11 +906,18 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
 
     // Add previous txouts given in the RPC call:
     if (!request.params[1].isNull()) {
+
         UniValue prevTxs = request.params[1].get_array();
+
         for (unsigned int idx = 0; idx < prevTxs.size(); idx++) {
+
             const UniValue& p = prevTxs[idx];
-            if (!p.isObject())
-                throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "expected object with {\"txid'\",\"vout\",\"scriptPubKey\"}");
+            if (!p.isObject()) {
+                throw JSONRPCError(
+                        RPC_DESERIALIZATION_ERROR,
+                        "expected object with "
+                        "{\"txid'\",\"vout\",\"scriptPubKey\"}");
+            }
 
             UniValue prevOut = p.get_obj();
 
@@ -892,8 +931,10 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
             uint256 txid = ParseHashO(prevOut, "txid");
 
             int nOut = find_value(prevOut, "vout").get_int();
-            if (nOut < 0)
-                throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "vout must be positive");
+            if (nOut < 0) {
+                throw JSONRPCError(
+                        RPC_DESERIALIZATION_ERROR, "vout must be positive");
+            }
 
             COutPoint out(txid, nOut);
             std::vector<unsigned char> pkData(ParseHexO(prevOut, "scriptPubKey"));
@@ -907,11 +948,14 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
                         ScriptToAsmStr(scriptPubKey);
                     throw JSONRPCError(RPC_DESERIALIZATION_ERROR, err);
                 }
+
                 Coin newcoin;
                 newcoin.out.scriptPubKey = scriptPubKey;
                 newcoin.out.nValue = 0;
+
                 if (prevOut.exists("amount")) {
-                    newcoin.out.nValue = AmountFromValue(find_value(prevOut, "amount"));
+                    newcoin.out.nValue =
+                        AmountFromValue(find_value(prevOut, "amount"));
                 }
                 newcoin.nHeight = 1;
                 view.AddCoin(out, std::move(newcoin), true);
@@ -919,7 +963,11 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
 
             // if redeemScript given and not using the local wallet (private keys
             // given), add redeemScript to the tempKeystore so it can be signed:
-            if (fGivenKeys && (scriptPubKey.IsPayToScriptHash() || scriptPubKey.IsPayToWitnessScriptHash())) {
+            if (
+                    fGivenKeys &&
+                    (scriptPubKey.IsPayToScriptHash() ||
+                     scriptPubKey.IsPayToWitnessScriptHash())) {
+
                 RPCTypeCheckObj(prevOut,
                     {
                         {"txid", UniValueType(UniValue::VSTR)},
@@ -981,22 +1029,55 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
 
         SignatureData sigdata;
         // Only sign SIGHASH_SINGLE if there's a corresponding output:
-        if (!fHashSingle || (i < mtx.vout.size()))
-            ProduceSignature(MutableTransactionSignatureCreator(&keystore, &mtx, i, amount, nHashType), prevPubKey, sigdata);
-        sigdata = CombineSignatures(prevPubKey, TransactionSignatureChecker(&txConst, i, amount), sigdata, DataFromTransaction(mtx, i));
+        if (!fHashSingle || (i < mtx.vout.size())) {
+            ProduceSignature(
+                    MutableTransactionSignatureCreator(
+                        &keystore,
+                        &mtx,
+                        i,
+                        amount,
+                        nHashType),
+                    prevPubKey,
+                    sigdata);
+        }
+
+        sigdata =
+            CombineSignatures(
+                prevPubKey,
+                TransactionSignatureChecker(
+                    &txConst,
+                    i,
+                    amount,
+                    chainActive.Height(),
+                    coin.nHeight),
+                sigdata,
+                DataFromTransaction(mtx, i));
 
         UpdateTransaction(mtx, i, sigdata);
 
         ScriptError serror = SCRIPT_ERR_OK;
-        if (!VerifyScript(txin.scriptSig, prevPubKey, &txin.scriptWitness, STANDARD_SCRIPT_VERIFY_FLAGS, TransactionSignatureChecker(&txConst, i, amount), &serror)) {
+        if (!VerifyScript(
+                    txin.scriptSig,
+                    prevPubKey,
+                    &txin.scriptWitness,
+                    STANDARD_SCRIPT_VERIFY_FLAGS,
+                    TransactionSignatureChecker(
+                        &txConst,
+                        i,
+                        amount,
+                        chainActive.Height(),
+                        coin.nHeight),
+                    &serror)) {
             TxInErrorToJSON(txin, vErrors, ScriptErrorString(serror));
         }
     }
+
     bool fComplete = vErrors.empty();
 
     UniValue result(UniValue::VOBJ);
     result.push_back(Pair("hex", EncodeHexTx(mtx)));
     result.push_back(Pair("complete", fComplete));
+
     if (!vErrors.empty()) {
         result.push_back(Pair("errors", vErrors));
     }

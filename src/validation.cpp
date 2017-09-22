@@ -1,4 +1,3 @@
-// Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Copyright (c) 2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
@@ -215,6 +214,16 @@ bool CheckInputs(const CTransaction& tx,
         CValidationState &state,
         const CCoinsViewCache &inputs,
         const int blockHeight,
+        bool fScriptChecks,
+        unsigned int flags,
+        bool cacheSigStore,
+        bool cacheFullScriptStore,
+        PrecomputedTransactionData& txdata,
+        std::vector<CScriptCheck> *pvChecks = nullptr);
+
+bool CheckInputs(const CTransaction& tx,
+        CValidationState &state,
+        const CCoinsViewCache &inputs,
         bool fScriptChecks,
         unsigned int flags,
         bool cacheSigStore,
@@ -439,7 +448,6 @@ static bool CheckInputsFromMempoolAndCache(
         CValidationState &state,
         const CCoinsViewCache &view,
         CTxMemPool& pool,
-        const int blockHeight,
         unsigned int flags,
         bool cacheSigStore,
         PrecomputedTransactionData& txdata) 
@@ -479,7 +487,6 @@ static bool CheckInputsFromMempoolAndCache(
             tx,
             state,
             view,
-            blockHeight,
             true,
             flags,
             cacheSigStore,
@@ -1035,7 +1042,6 @@ static bool AcceptToMemoryPoolWorker(
                     state,
                     view,
                     pool,
-                    chainActive.Height(),
                     currentBlockScriptVerifyFlags,
                     true,
                     txdata))
@@ -1057,7 +1063,6 @@ static bool AcceptToMemoryPoolWorker(
                             tx,
                             state,
                             view,
-                            chainActive.Height(),
                             true,
                             MANDATORY_SCRIPT_VERIFY_FLAGS,
                             true,
@@ -1667,9 +1672,23 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, int nHeight)
 }
 
 bool CScriptCheck::operator()() {
-    const CScript &scriptSig = ptxTo->vin[nIn].scriptSig;
-    const CScriptWitness *witness = &ptxTo->vin[nIn].scriptWitness;
-    return VerifyScript(scriptSig, scriptPubKey, witness, nFlags, CachingTransactionSignatureChecker{ptxTo, nIn, amount, cacheStore, blockHeight, *txdata}, &error);
+    const auto& in = ptxTo->vin[nIn];
+    const CScript &scriptSig = in.scriptSig;
+    const CScriptWitness *witness = &in.scriptWitness;
+    return VerifyScript(
+            scriptSig,
+            scriptPubKey,
+            witness,
+            nFlags,
+            CachingTransactionSignatureChecker{
+                ptxTo,
+                nIn,
+                amount,
+                cacheStore,
+                blockHeight,
+                coinHeight,
+                *txdata},
+            &error);
 }
 
 int GetSpendHeight(const CCoinsViewCache& inputs)
@@ -1692,6 +1711,31 @@ void InitScriptExecutionCache() {
             (nElems*sizeof(uint256)) >>20, (nMaxCacheSize*2)>>20, nElems);
 }
 
+bool CheckInputs(
+        const CTransaction& tx,
+        CValidationState &state,
+        const CCoinsViewCache &inputs,
+        bool fScriptChecks,
+        unsigned int flags,
+        bool cacheSigStore,
+        bool cacheFullScriptStore,
+        PrecomputedTransactionData& txdata,
+        std::vector<CScriptCheck> *pvChecks)
+{
+        const auto spendHeight = GetSpendHeight(inputs);
+        return CheckInputs(
+                tx,
+                state,
+                inputs,
+                spendHeight,
+                fScriptChecks,
+                flags,
+                cacheSigStore,
+                cacheFullScriptStore,
+                txdata,
+                pvChecks);
+}
+
 /**
  * Check whether all inputs of this transaction are valid (no double spends, scripts & sigs, amounts)
  * This does not modify the UTXO set.
@@ -1708,9 +1752,9 @@ void InitScriptExecutionCache() {
  */
 bool CheckInputs(
         const CTransaction& tx,
-        &state,
+        CValidationState &state,
         const CCoinsViewCache &inputs,
-        const int blockHeight,
+        const int spendHeight,
         bool fScriptChecks,
         unsigned int flags,
         bool cacheSigStore,
@@ -1720,7 +1764,7 @@ bool CheckInputs(
 {
     if (!tx.IsCoinBase())
     {
-        if (!Consensus::CheckTxInputs(tx, state, inputs, GetSpendHeight(inputs)))
+        if (!Consensus::CheckTxInputs(tx, state, inputs, spendHeight))
             return false;
 
         if (pvChecks)
@@ -1742,11 +1786,21 @@ bool CheckInputs(
             // properly commits to the scriptPubKey in the inputs view of that
             // transaction).
             uint256 hashCacheEntry;
+
             // We only use the first 19 bytes of nonce to avoid a second SHA
             // round - giving us 19 + 32 + 4 = 55 bytes (+ 8 + 1 = 64)
-            static_assert(55 - sizeof(flags) - 32 >= 128/8, "Want at least 128 bits of nonce for script execution cache");
-            CSHA256().Write(scriptExecutionCacheNonce.begin(), 55 - sizeof(flags) - 32).Write(tx.GetWitnessHash().begin(), 32).Write((unsigned char*)&flags, sizeof(flags)).Finalize(hashCacheEntry.begin());
-            AssertLockHeld(cs_main); //TODO: Remove this requirement by making CuckooCache not require external locks
+            static_assert(
+                    55 - sizeof(flags) - 32 >= 128/8,
+                    "Want at least 128 bits of nonce for script execution cache");
+
+            CSHA256()
+                .Write(scriptExecutionCacheNonce.begin(), 55 - sizeof(flags) - 32)
+                .Write(tx.GetWitnessHash().begin(), 32)
+                .Write((unsigned char*)&flags, sizeof(flags))
+                .Finalize(hashCacheEntry.begin());
+
+            //TODO: Remove this requirement by making CuckooCache not require external locks
+            AssertLockHeld(cs_main); 
             if (scriptExecutionCache.contains(hashCacheEntry, !cacheFullScriptStore)) {
                 return true;
             }
@@ -1765,7 +1819,17 @@ bool CheckInputs(
                 const CAmount amount = coin.out.nValue;
 
                 // Verify signature
-                CScriptCheck check(scriptPubKey, amount, tx, i, flags, cacheSigStore, &txdata);
+                CScriptCheck check(
+                        scriptPubKey,
+                        amount,
+                        tx,
+                        i,
+                        spendHeight,
+                        coin.nHeight,
+                        flags,
+                        cacheSigStore,
+                        &txdata);
+
                 if (pvChecks) {
                     pvChecks->push_back(CScriptCheck());
                     check.swap(pvChecks->back());
@@ -1777,10 +1841,24 @@ bool CheckInputs(
                         // arguments; if so, don't trigger DoS protection to
                         // avoid splitting the network between upgraded and
                         // non-upgraded nodes.
-                        CScriptCheck check2(scriptPubKey, amount, tx, i,
-                                flags & ~STANDARD_NOT_MANDATORY_VERIFY_FLAGS, cacheSigStore, &txdata);
+                        CScriptCheck check2(
+                                scriptPubKey,
+                                amount,
+                                tx,
+                                i,
+                                spendHeight,
+                                coin.nHeight,
+                                flags & ~STANDARD_NOT_MANDATORY_VERIFY_FLAGS,
+                                cacheSigStore,
+                                &txdata);
+
                         if (check2())
-                            return state.Invalid(false, REJECT_NONSTANDARD, strprintf("non-mandatory-script-verify-flag (%s)", ScriptErrorString(check.GetScriptError())));
+                            return state.Invalid(
+                                    false,
+                                    REJECT_NONSTANDARD,
+                                    strprintf(
+                                        "non-mandatory-script-verify-flag (%s)",
+                                        ScriptErrorString(check.GetScriptError())));
                     }
                     // Failures of other flags indicate a transaction that is
                     // invalid in new blocks, e.g. an invalid P2SH. We DoS ban
@@ -1789,7 +1867,13 @@ bool CheckInputs(
                     // as to the correct behavior - we may want to continue
                     // peering with non-upgraded nodes even after soft-fork
                     // super-majority signaling has occurred.
-                    return state.DoS(100,false, REJECT_INVALID, strprintf("mandatory-script-verify-flag-failed (%s)", ScriptErrorString(check.GetScriptError())));
+                    return state.DoS(
+                            100,
+                            false,
+                            REJECT_INVALID,
+                            strprintf(
+                                "mandatory-script-verify-flag-failed (%s)",
+                                ScriptErrorString(check.GetScriptError())));
                 }
             }
 
@@ -2421,7 +2505,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
 
-    for (unsigned int i = 0; i < block.vtx.size(); i++)
+    for (int i = 0; i < block.vtx.size(); i++)
     {
         const CTransaction &tx = *(block.vtx[i]);
         const uint256 txhash = tx.GetHash();
@@ -2501,7 +2585,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                         tx,
                         state,
                         view,
-                        pindex->nHeight,
+                        pindex->nHeight + 1,
                         fScriptChecks,
                         flags,
                         fCacheResults,
