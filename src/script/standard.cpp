@@ -280,6 +280,19 @@ CScript GetScriptForDestination(const CTxDestination& dest)
     return script;
 }
 
+CScript GetScriptForEasySend(
+        int max_block_height,
+        const CPubKey& sender,
+        const CPubKey& receiver)
+{
+    return CScript() 
+        << CScript::EncodeOP_N(max_block_height) 
+        << ToByteVector(receiver) 
+        << ToByteVector(sender)  //sender key is allowed to recieve funds after
+                                 //max_block_height is met
+        << OP_EASYSEND;
+}
+
 CScript GetScriptForRawPubKey(const CPubKey& pubKey)
 {
     return CScript() << std::vector<unsigned char>(pubKey.begin(), pubKey.end()) << OP_CHECKSIG;

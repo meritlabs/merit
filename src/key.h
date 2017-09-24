@@ -73,10 +73,10 @@ public:
     template <typename T>
     void Set(const T pbegin, const T pend, bool fCompressedIn)
     {
-        if (size_t(pend - pbegin) != keydata.size()) {
+        if (std::distance(pbegin, pend) != static_cast<int>(keydata.size())) {
             fValid = false;
         } else if (Check(&pbegin[0])) {
-            memcpy(keydata.data(), (unsigned char*)&pbegin[0], keydata.size());
+            std::copy(pbegin, pend, std::begin(keydata));
             fValid = true;
             fCompressed = fCompressedIn;
         } else {
@@ -97,6 +97,22 @@ public:
 
     //! Generate a new private key using a cryptographic PRNG.
     void MakeNewKey(bool fCompressed);
+
+
+    //! Takes arbitrary data and hashes it. Uses the hash as the random keydata
+    // to generate the private and public key.
+    template <typename T>
+    void MakeNewKey(const T first, const T last)
+    {
+        uint256 hash = Hash(first, last);
+        if (std::distance(std::begin(hash), std::end(hash)) != static_cast<int>(keydata.size())) {
+            fValid = false;
+            return;
+        }
+
+        std::copy(std::begin(hash), std::end(hash), std::begin(keydata));
+        fValid = true;
+    }
 
     /**
      * Convert the private key to a CPrivKey (serialized OpenSSL private key data).

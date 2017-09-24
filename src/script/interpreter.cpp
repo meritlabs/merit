@@ -1054,7 +1054,7 @@ bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& s
                 break;
                 case OP_EASYSEND:
                 {
-                    // (max_block_height sig [pubkey ...] num_of_pubkeys -- bool)
+                    // (sig max_block_depth [pubkey ...] num_of_pubkeys -- bool)
                     size_t key_id_count = 0;
                     if(!Pop(stack, key_id_count, serror)) 
                         return false;
@@ -1074,32 +1074,35 @@ bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& s
 
                     assert(pub_keys.size() == key_id_count);
 
-                    valtype sig;
-                    if(!Pop(stack, sig, serror))
-                        return false;
-
-                    int max_block_height = 0;
-                    if(!Pop(stack, max_block_height, serror)) 
+                    int max_block_depth = 0;
+                    if(!Pop(stack, max_block_depth, serror)) 
                         return set_error(serror, SCRIPT_ERR_BLOCKHEIGHT_COUNT);
-
-                    if(!checker.CheckCoinHeight(max_block_height))
-                        return set_error(serror, SCRIPT_ERR_BLOCKHEIGHT_INVALID);
 
                     //We now have a list of key ids and a signature. We have
                     //to transform the key ids to actual pub keys. Since all
                     //keys have been beaconed we can look it up in the referall
                     //db.
 
-                    auto matching_key = std::find_if(std::begin(pub_keys), std::end(pub_keys),
+                    valtype sig;
+                    if(!Pop(stack, sig, serror))
+                        return false;
+
+                    auto matching_key = 
+                        std::find_if(std::begin(pub_keys), std::end(pub_keys),
                             [&sig, flags, serror, sigversion](const valtype& pub_key) {
                                 return 
                                     CheckSignatureEncoding(sig, flags, serror) && 
                                     CheckPubKeyEncoding(pub_key, flags, sigversion, serror);
                             });
 
-                    //Didn't find a matching pub key, abort.
-                    if(matching_key == std::end(pub_keys))
-                        return set_error(serror, SCRIPT_ERR_CHECKEASYSENDVERIFY);
+                    bool success = matching_key != std::end(pub_keys);
+
+                    //first key is allowed to receive funds after the max block
+                    //height is met. Other keys don't have that privilege.
+                    if(matching_key != std::begin(pub_keys) && !checker.CheckCoinHeight(max_block_depth))
+                        success = false;
+
+                    stack.push_back(success ? vchTrue : vchFalse);
                 }
                 break;
 

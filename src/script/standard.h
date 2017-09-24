@@ -126,6 +126,15 @@ bool ExtractDestinations(const CScript& scriptPubKey, txnouttype& typeRet, std::
  */
 CScript GetScriptForDestination(const CTxDestination& dest);
 
+/**
+ * Generates a Easy Send Script to the receiver specified.
+ * An easy send script allows funds to be recoverable by the sender.
+ */
+CScript GetScriptForEasySend(
+        int max_block_height,
+        const CPubKey& sender,
+        const CPubKey& receiver);
+
 /** Generate a P2PK script for the given pubkey. */
 CScript GetScriptForRawPubKey(const CPubKey& pubkey);
 
