@@ -507,12 +507,12 @@ static UniValue EasySendMoney(
     //add script to wallet so we can redeem it later if needed.
     pwallet.AddCScript(easy_send_script);
 
-    //TODO FINISH ME
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
+    ret.push_back(Pair("channel", channel));
+    ret.push_back(Pair("secret", secret));
     ret.push_back(Pair("scriptid", EncodeDestination(script_id)));
     ret.push_back(Pair("senderkeyid", EncodeDestination(sender_pub.GetID())));
-    ret.push_back(Pair("receivekey", HexStr(receiver_pub)));
 
     return ret;
 }
@@ -609,7 +609,7 @@ UniValue easysend(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() < 2 || request.params.size() > 8)
+    if (request.fHelp || request.params.size() < 2 || request.params.size() > 4)
         throw std::runtime_error(
             "easysend \"channel\" amount (subtractfeefromamount, \"estimate_mode\")\n"
             "\nSend an amount to a given channel.\n"
@@ -638,8 +638,8 @@ UniValue easysend(const JSONRPCRequest& request)
     auto channel = request.params[0].get_str();
 
     // Amount
-    CAmount nAmount = AmountFromValue(request.params[1]);
-    if (nAmount <= 0)
+    CAmount amount = AmountFromValue(request.params[1]);
+    if (amount <= 0)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
 
     // Wallet comments
@@ -660,7 +660,8 @@ UniValue easysend(const JSONRPCRequest& request)
 
     EnsureWalletIsUnlocked(pwallet);
 
-    return EasySendMoney(*pwallet, channel, nAmount, fSubtractFeeFromAmount, wtx, coin_control);
+    debug("easysend: %s amount %d", channel, amount);
+    return EasySendMoney(*pwallet, channel, amount, fSubtractFeeFromAmount, wtx, coin_control);
 }
 
 UniValue listaddressgroupings(const JSONRPCRequest& request)
@@ -3631,6 +3632,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "sendfrom",                 &sendfrom,                 {"fromaccount","toaddress","amount","minconf","comment","comment_to"} },
     { "wallet",             "sendmany",                 &sendmany,                 {"fromaccount","amounts","minconf","comment","subtractfeefrom","replaceable","conf_target","estimate_mode"} },
     { "wallet",             "sendtoaddress",            &sendtoaddress,            {"address","amount","comment","comment_to","subtractfeefromamount","replaceable","conf_target","estimate_mode"} },
+    { "wallet",             "easysend",                 &easysend,                 {"channel","amount"} },
     { "wallet",             "setaccount",               &setaccount,               {"address","account"} },
     { "wallet",             "settxfee",                 &settxfee,                 {"amount"} },
     { "wallet",             "signmessage",              &signmessage,              {"address","message"} },

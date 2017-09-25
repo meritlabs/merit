@@ -286,10 +286,11 @@ CScript GetScriptForEasySend(
         const CPubKey& receiver)
 {
     return CScript() 
-        << CScript::EncodeOP_N(max_block_height) 
+        << max_block_height
         << ToByteVector(receiver) 
         << ToByteVector(sender)  //sender key is allowed to recieve funds after
                                  //max_block_height is met
+        << CScript::EncodeOP_N(2) 
         << OP_EASYSEND;
 }
 
