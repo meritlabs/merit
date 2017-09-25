@@ -424,8 +424,8 @@ static void SendMoney(CWallet * const pwallet, const CTxDestination &address, CA
     }
 }
 
-static void EasySendMoney(
-        CWallet * const pwallet,
+static UniValue EasySendMoney(
+        CWallet&  pwallet,
         const std::string& channel,
         CAmount value,
         bool fSubtractFeeFromAmount,
@@ -433,7 +433,7 @@ static void EasySendMoney(
 {
     const int max_blocks = 1008; //about a week. 
 
-    CAmount balance = pwallet->GetBalance();
+    CAmount balance = pwallet.GetBalance();
 
     // Check amount
     if (value <= 0)
@@ -442,7 +442,7 @@ static void EasySendMoney(
     if (value > balance)
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
 
-    if (pwallet->GetBroadcastTransactions() && !g_connman) {
+    if (pwallet.GetBroadcastTransactions() && !g_connman) {
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
     }
 
@@ -453,34 +453,68 @@ static void EasySendMoney(
     std::string random_bytes_str(std::begin(random_bytes), std::end(random_bytes));
     const auto secret = channel + random_bytes_str;
 
+    // Create and send the transaction
     //TODO: get senderPubKey
+    CReserveKey reserve_key(&pwallet);
+
+    CPubKey sender_pub;
+    if (!reserve_key.GetReservedKey(sender_pub, true)) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Keypool ran out, please call keypoolrefill first");
+    }
 
     CKey receiver_key;
     receiver_key.MakeNewKey(std::begin(secret), std::end(secret));
+    auto receiver_pub = receiver_key.GetPubKey();
     
-    auto easy_send_script = GetScriptForEasySend(max_blocks, sender_pub_key, receiver_key.GetPubKey());
+    auto easy_send_script = GetScriptForEasySend(max_blocks, sender_pub, receiver_pub);
     CScriptID script_id(easy_send_script);
     CScript script_pub_key = GetScriptForDestination(script_id);
 
-    // Create and send the transaction
-    CReserveKey reserve_key(pwallet);
-    CAmount fee_required = 0;
+    if(!pwallet.GenerateNewReferral(receiver_pub, pwallet.ReferredByHash())) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to generate referral for receiver key");
+    }
 
     std::string error;
     std::vector<CRecipient> recipients = {{script_pub_key, value, fSubtractFeeFromAmount}};
     int change_pos_ret = -1;
+    CAmount fee_required = 0;
 
-    if (!pwallet->CreateTransaction(recipients, wtx, reserve_key, fee_required, change_pos_ret, error, coin_control)) {
-        if (!fSubtractFeeFromAmount && value + fee_required > balance)
-            error = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(fee_required));
+    if (!pwallet.CreateTransaction(
+                recipients,
+                wtx,
+                reserve_key,
+                fee_required,
+                change_pos_ret,
+                error,
+                coin_control)) {
+
+        if (!fSubtractFeeFromAmount && value + fee_required > balance) {
+            error = strprintf(
+                    "Error: This transaction requires a transaction fee of at least %s",
+                    FormatMoney(fee_required));
+        }
         throw JSONRPCError(RPC_WALLET_ERROR, error);
     }
 
     CValidationState state;
-    if (!pwallet->CommitTransaction(wtx, reserve_key, g_connman.get(), state)) {
-        error = strprintf("Error: The transaction was rejected! Reason given: %s", state.GetRejectReason());
+    if (!pwallet.CommitTransaction(wtx, reserve_key, g_connman.get(), state)) {
+        error = strprintf(
+                "Error: The transaction was rejected! Reason given: %s",
+                state.GetRejectReason());
         throw JSONRPCError(RPC_WALLET_ERROR, error);
     }
+
+    //add script to wallet so we can redeem it later if needed.
+    pwallet.AddCScript(easy_send_script);
+
+    //TODO FINISH ME
+    UniValue ret(UniValue::VOBJ);
+    ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
+    ret.push_back(Pair("scriptid", EncodeDestination(script_id)));
+    ret.push_back(Pair("senderkeyid", EncodeDestination(sender_pub.GetID())));
+    ret.push_back(Pair("receivekey", HexStr(receiver_pub)));
+
+    return ret;
 }
 
 UniValue sendtoaddress(const JSONRPCRequest& request)
@@ -626,9 +660,7 @@ UniValue easysend(const JSONRPCRequest& request)
 
     EnsureWalletIsUnlocked(pwallet);
 
-    EasySendMoney(pwallet, channel, nAmount, fSubtractFeeFromAmount, wtx, coin_control);
-
-    return wtx.GetHash().GetHex();
+    return EasySendMoney(*pwallet, channel, nAmount, fSubtractFeeFromAmount, wtx, coin_control);
 }
 
 UniValue listaddressgroupings(const JSONRPCRequest& request)
