@@ -84,7 +84,7 @@ void EnsureWalletIsUnlocked(CWallet * const pwallet)
     }
 
     if (!pwallet->IsReferred()) {
-        throw JSONRPCError(RPC_REFERRER_IS_NOT_SET, "Error: Referee must be set in the wallet. Use referral code to unlock first.");
+        throw JSONRPCError(RPC_REFERRER_IS_NOT_SET, "Error: Wallet must is not beaconed. Use referral code to beacon first.");
     }
 }
 
@@ -3401,7 +3401,7 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     std::string unlockCode = request.params[0].get_str();
     uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
 
-    ReferralRef referral = pwallet->Unlock(codeHash);
+    referral::ReferralRef referral = pwallet->Unlock(codeHash);
 
     // TODO: Make this check more robust.
     UniValue obj(UniValue::VOBJ);
@@ -3459,7 +3459,7 @@ UniValue getanv(const JSONRPCRequest& request)
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    std::vector<CKeyID> keys;
+    std::vector<referral::Address> keys;
 
     //If we don't specify any key ids, collect keys from wallet.
     if(request.params.empty()) {
@@ -3478,8 +3478,12 @@ UniValue getanv(const JSONRPCRequest& request)
     }
 
     auto anvs = pog::GetANVs(keys, *prefviewdb);
-    auto total = std::accumulate(std::begin(anvs), std::end(anvs), CAmount{0},
-            [](CAmount total, const KeyANV& v){ return total + v.anv;});
+
+    auto total = 
+        std::accumulate(std::begin(anvs), std::end(anvs), CAmount{0},
+            [](CAmount total, const referral::AddressANV& v){ 
+                return total + v.anv;
+            });
 
     return total;
 }
@@ -3544,7 +3548,9 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
         throw std::runtime_error(std::string(__func__) + ": Address is already beaconed.");
     }
 
-    ReferralRef referral = MakeReferralRef(MutableReferral(addressKey, codeHash));
+    referral::ReferralRef referral = 
+        referral::MakeReferralRef(
+                referral::MutableReferral(addressKey, codeHash));
 
     // check that new referral is not in the cache or in mempool
     if (prefviewcache->ReferralCodeExists(referral->GetHash()) || mempoolReferral.ExistsWithCodeHash(referral->GetHash())) {

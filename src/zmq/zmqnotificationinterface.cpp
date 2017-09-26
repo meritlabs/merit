@@ -180,11 +180,11 @@ void CZMQNotificationInterface::TransactionAddedToMempool(const CTransactionRef&
 
 void CZMQNotificationInterface::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex* pindexConnected, const std::vector<CTransactionRef>& vtxConflicted)
 {
-    for (const CTransactionRef& ptx : pblock->vtx) {
+    for (const auto& ptx : pblock->vtx) {
         // Do a normal notify for each transaction added in the block
         TransactionAddedToMempool(ptx);
     }
-    for (const ReferralRef& ref : pblock->m_vRef) {
+    for (const auto& ref : pblock->m_vRef) {
         // Do a normal notify for each referral transaction added in the block
         ReferralTransactionAddedToMempool(ref);
     }
@@ -192,27 +192,23 @@ void CZMQNotificationInterface::BlockConnected(const std::shared_ptr<const CBloc
 
 void CZMQNotificationInterface::BlockDisconnected(const std::shared_ptr<const CBlock>& pblock)
 {
-    for (const CTransactionRef& ptx : pblock->vtx) {
+    for (const auto& ptx : pblock->vtx) {
         // Do a normal notify for each transaction removed in block disconnection
         TransactionAddedToMempool(ptx);
     }
-    for (const ReferralRef& ref : pblock->m_vRef) {
+    for (const auto& ref : pblock->m_vRef) {
         // Do a normal notify for each referral transaction removed in block disconnection
         ReferralTransactionAddedToMempool(ref);
     }
 }
 
-void CZMQNotificationInterface::ReferralTransactionAddedToMempool(const ReferralRef &rtx)
+void CZMQNotificationInterface::ReferralTransactionAddedToMempool(const referral::ReferralRef &rtx)
 {
-    for (auto i = notifiers.begin(); i!=notifiers.end(); )
-    {
+    for (auto i = notifiers.begin(); i!=notifiers.end(); ) {
         auto *notifier = *i;
-        if (notifier->NotifyReferral(rtx))
-        {
+        if (notifier->NotifyReferral(rtx)) {
             i++;
-        }
-        else
-        {
+        } else {
             notifier->Shutdown();
             i = notifiers.erase(i);
         }

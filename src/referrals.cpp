@@ -6,6 +6,9 @@
 
 #include <utility>
 
+namespace referral
+{
+
 ReferralsViewCache::ReferralsViewCache(ReferralsViewDB *db) : m_db{db}
 {
     assert(db);
@@ -65,41 +68,41 @@ void ReferralsViewCache::Flush()
     m_referral_cache.clear();
 }
 
-void ReferralsViewCache::InsertWalletRelationshipIntoCache(const CKeyID& child, const CKeyID& parent) const
+void ReferralsViewCache::InsertWalletRelationshipIntoCache(const Address& child, const Address& parent) const
 {
     LOCK(m_cs_cache);
     m_wallet_to_referrer.insert(std::make_pair(child, parent));
 }
 
-MaybeKeyID ReferralsViewCache::GetReferrer(const CKeyID& key) const
+MaybeAddress ReferralsViewCache::GetReferrer(const Address& address) const
 {
     {
         LOCK(m_cs_cache);
-        auto it = m_wallet_to_referrer.find(key);
+        auto it = m_wallet_to_referrer.find(address);
         if (it != std::end(m_wallet_to_referrer)) {
             return it->second;
         }
     }
 
-    if (auto parent = m_db->GetReferrer(key)) {
-        InsertWalletRelationshipIntoCache(key, *parent);
+    if (auto parent = m_db->GetReferrer(address)) {
+        InsertWalletRelationshipIntoCache(address, *parent);
         return parent;
     }
     return {};
 }
 
 // TODO: Consider naming here.
-bool ReferralsViewCache::WalletIdExists(const CKeyID& key) const
+bool ReferralsViewCache::WalletIdExists(const Address& address) const
 {
     {
         LOCK(m_cs_cache);
-        auto it = m_wallet_to_referrer.find(key);
+        auto it = m_wallet_to_referrer.find(address);
         if (it != std::end(m_wallet_to_referrer)) {
             return true;
         }
     }
-    if (auto parent = m_db->GetReferrer(key)) {
-        InsertWalletRelationshipIntoCache(key, *parent);
+    if (auto parent = m_db->GetReferrer(address)) {
+        InsertWalletRelationshipIntoCache(address, *parent);
         return true;
     }
     return false;
@@ -109,4 +112,5 @@ void ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
     m_referral_cache.erase(ref.m_codeHash);
     m_db->RemoveReferral(ref);
+}
 }

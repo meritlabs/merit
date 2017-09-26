@@ -11,7 +11,11 @@
 #include <memory>
 
 class CTxMemPool;
-class ReferralTxMemPool;
+
+namespace referral
+{
+    class ReferralTxMemPool;
+}
 
 // Dumb helper to handle CTransaction compression at serialize-time
 struct TransactionCompressor {
@@ -30,9 +34,9 @@ public:
 
 struct ReferralCompressor {
 private:
-    ReferralRef& ref;
+    referral::ReferralRef& ref;
 public:
-    explicit ReferralCompressor(ReferralRef& in) : ref(in) {}
+    explicit ReferralCompressor(referral::ReferralRef& in) : ref(in) {}
 
     ADD_SERIALIZE_METHODS;
 
@@ -115,7 +119,7 @@ public:
     // A BlockTransactions message
     uint256 blockhash;
     std::vector<CTransactionRef> txn;
-    std::vector<ReferralRef> refs;
+    std::vector<referral::ReferralRef> refs;
 
     BlockTransactions() {}
     explicit BlockTransactions(const BlockTransactionsRequest& req) :
@@ -179,7 +183,7 @@ struct Prefilled {
 };
 
 using PrefilledTransaction = Prefilled<CTransactionRef, TransactionCompressor>;
-using PrefilledReferral = Prefilled<ReferralRef, ReferralCompressor>;
+using PrefilledReferral = Prefilled<referral::ReferralRef, ReferralCompressor>;
 
 typedef enum ReadStatus_t
 {
@@ -272,24 +276,24 @@ public:
 };
 
 using MissingTransactions = std::vector<CTransactionRef>;
-using MissingReferrals = std::vector<ReferralRef>;
+using MissingReferrals = std::vector<referral::ReferralRef>;
 using ExtraTransactions = std::vector<std::pair<uint256, CTransactionRef>>;
-using ExtraReferrals = std::vector<std::pair<uint256, ReferralRef>>;
+using ExtraReferrals = std::vector<std::pair<uint256, referral::ReferralRef>>;
 
 class PartiallyDownloadedBlock {
 protected:
     std::vector<CTransactionRef> m_txn_available;
-    std::vector<ReferralRef> m_refs_available;
+    std::vector<referral::ReferralRef> m_refs_available;
 
     size_t m_prefilled_txn_count = 0, m_mempool_txn_count = 0, m_extra_txn_count = 0;
     size_t m_mempool_ref_count = 0, m_extra_ref_count = 0;
 
     CTxMemPool* m_txn_pool;
-    ReferralTxMemPool* m_ref_pool;
+    referral::ReferralTxMemPool* m_ref_pool;
 
 public:
     CBlockHeader header;
-    explicit PartiallyDownloadedBlock(CTxMemPool* txn_pool_in, ReferralTxMemPool* ref_pool_in) : 
+    explicit PartiallyDownloadedBlock(CTxMemPool* txn_pool_in, referral::ReferralTxMemPool* ref_pool_in) : 
         m_txn_pool{txn_pool_in}, m_ref_pool{ref_pool_in} 
     {
         assert(m_txn_pool);

@@ -6,6 +6,8 @@
 
 #include "base58.h"
 
+namespace referral
+{
 namespace
 {
 const char DB_CHILDREN = 'c';
@@ -26,43 +28,43 @@ MaybeReferral ReferralsViewDB::GetReferral(const uint256& code_hash) const {
          MaybeReferral{referral} : MaybeReferral{};
 }
 
-MaybeKeyID ReferralsViewDB::GetReferrer(const CKeyID& key) const
+MaybeAddress ReferralsViewDB::GetReferrer(const Address& address) const
 {
-    CKeyID parent;
-    return m_db.Read(std::make_pair(DB_PARENT_KEY, key), parent) ?
-        MaybeKeyID{parent} : MaybeKeyID{};
+    Address parent;
+    return m_db.Read(std::make_pair(DB_PARENT_KEY, address), parent) ?
+        MaybeAddress{parent} : MaybeAddress{};
 }
 
-ChildKeys ReferralsViewDB::GetChildren(const CKeyID& key) const
+ChildAddresses ReferralsViewDB::GetChildren(const Address& address) const
 {
-    ChildKeys children;
-    m_db.Read(std::make_pair(DB_CHILDREN, key), children);
+    ChildAddresses children;
+    m_db.Read(std::make_pair(DB_CHILDREN, address), children);
     return children;
 }
 
 bool ReferralsViewDB::InsertReferral(const Referral& referral) {
-    debug("\tInsertReferral: %s -> %s key: %s", referral.m_previousReferral.GetHex(), referral.m_codeHash.GetHex(), EncodeDestination(referral.m_pubKeyId));
+    debug("\tInsertReferral: %s -> %s address: %s", referral.m_previousReferral.GetHex(), referral.m_codeHash.GetHex(), EncodeDestination(referral.m_pubKeyId));
     //write referral by code hash
     if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.m_codeHash), referral))
         return false;
 
     // Typically because the referral should be written in order we should
     // be able to find the parent referral. We can then write the child->parent
-    // mapping of public keys
-    CKeyID parent_key;
+    // mapping of public addresses
+    Address parent_address;
     if(auto parent_referral = GetReferral(referral.m_previousReferral))
-        parent_key = parent_referral->m_pubKeyId;
+        parent_address = parent_referral->m_pubKeyId;
 
-    if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.m_pubKeyId), parent_key))
+    if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.m_pubKeyId), parent_address))
         return false;
 
-    // Now we update the children of the parent key by inserting into the
-    // child key array for the parent.
-    ChildKeys children;
-    m_db.Read(std::make_pair(DB_CHILDREN, parent_key), children);
+    // Now we update the children of the parent address by inserting into the
+    // child address array for the parent.
+    ChildAddresses children;
+    m_db.Read(std::make_pair(DB_CHILDREN, parent_address), children);
 
     children.push_back(referral.m_pubKeyId);
-    if(!m_db.Write(std::make_pair(DB_CHILDREN, parent_key), children))
+    if(!m_db.Write(std::make_pair(DB_CHILDREN, parent_address), children))
         return false;
 
     return true;
@@ -72,18 +74,18 @@ bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
     if(!m_db.Erase(std::make_pair(DB_REFERRALS, referral.m_codeHash)))
         return false;
 
-    CKeyID parent_key;
+    Address parent_address;
     if(auto parent_referral = GetReferral(referral.m_previousReferral))
-        parent_key = parent_referral->m_pubKeyId;
+        parent_address = parent_referral->m_pubKeyId;
 
     if(!m_db.Erase(std::make_pair(DB_PARENT_KEY, referral.m_pubKeyId)))
         return false;
 
-    ChildKeys children;
-    m_db.Read(std::make_pair(DB_CHILDREN, parent_key), children);
+    ChildAddresses children;
+    m_db.Read(std::make_pair(DB_CHILDREN, parent_address), children);
 
     children.erase(std::remove(std::begin(children), std::end(children), referral.m_pubKeyId), std::end(children));
-    if(!m_db.Write(std::make_pair(DB_CHILDREN, parent_key), children))
+    if(!m_db.Write(std::make_pair(DB_CHILDREN, parent_address), children))
         return false;
 
     return true;
@@ -93,39 +95,39 @@ bool ReferralsViewDB::ReferralCodeExists(const uint256& code_hash) const {
     return m_db.Exists(std::make_pair(DB_REFERRALS, code_hash));
 }
 
-bool ReferralsViewDB::WalletIdExists(const CKeyID& key) const
+bool ReferralsViewDB::WalletIdExists(const Address& address) const
 {
-    return m_db.Exists(std::make_pair(DB_PARENT_KEY, key));
+    return m_db.Exists(std::make_pair(DB_PARENT_KEY, address));
 }
 
 /**
- * Updates ANV for the key and all parents. Note change can be negative if
+ * Updates ANV for the address and all parents. Note change can be negative if
  * there was a debit.
  */
-bool ReferralsViewDB::UpdateANV(const CKeyID& start_key, CAmount change)
+bool ReferralsViewDB::UpdateANV(const Address& start_address, CAmount change)
 {
-    debug("\tUpdateANV: %s -> %d", EncodeDestination(start_key), change);
-    MaybeKeyID key = start_key;
+    debug("\tUpdateANV: %s -> %d", EncodeDestination(start_address), change);
+    MaybeAddress address = start_address;
     size_t levels = 0;
 
     //MAX_LEVELS gaurds against cycles in DB
-    while(key && levels < MAX_LEVELS)
+    while(address && levels < MAX_LEVELS)
     {
-        //it's possible key didn't exist yet so an ANV of 0 is assumed.
+        //it's possible address didn't exist yet so an ANV of 0 is assumed.
         CAmount anv = 0;
-        m_db.Read(std::make_pair(DB_ANV, *key), anv);
+        m_db.Read(std::make_pair(DB_ANV, *address), anv);
 
-        debug("\t\t %d %s %d -> %d", levels, EncodeDestination(*key), anv, change);
+        debug("\t\t %d %s %d -> %d", levels, EncodeDestination(*address), anv, change);
 
         anv += change;
-        if(!m_db.Write(std::make_pair(DB_ANV, *key), anv)) {
-            //TODO: Do we rollback anv computation for already processed keys?
+        if(!m_db.Write(std::make_pair(DB_ANV, *address), anv)) {
+            //TODO: Do we rollback anv computation for already processed addresss?
             // likely if we can't write then rollback will fail too.
             // figure out how to mark database as corrupt.
             return false;
         }
 
-        key = GetReferrer(*key);
+        address = GetReferrer(*address);
         levels++;
     }
 
@@ -135,28 +137,28 @@ bool ReferralsViewDB::UpdateANV(const CKeyID& start_key, CAmount change)
     return true;
 }
 
-MaybeANV ReferralsViewDB::GetANV(const CKeyID& key) const
+MaybeANV ReferralsViewDB::GetANV(const Address& address) const
 {
     CAmount anv;
-    return m_db.Read(std::make_pair(DB_ANV, key), anv) ? MaybeANV{anv} : MaybeANV{};
+    return m_db.Read(std::make_pair(DB_ANV, address), anv) ? MaybeANV{anv} : MaybeANV{};
 }
 
-KeyANVs ReferralsViewDB::GetAllANVs() const
+AddressANVs ReferralsViewDB::GetAllANVs() const
 {
     std::unique_ptr<CDBIterator> iter{m_db.NewIterator()};
     iter->SeekToFirst();
 
-    KeyANVs anvs;
-    auto key = std::make_pair(DB_ANV, CKeyID{});
+    AddressANVs anvs;
+    auto address = std::make_pair(DB_ANV, Address{});
     while(iter->Valid())
     {
-        //filter non ANV keys
-        if(!iter->GetKey(key)) {
+        //filter non ANV addresss
+        if(!iter->GetKey(address)) {
             iter->Next();
             continue;
         }
 
-        if(key.first != DB_ANV) {
+        if(address.first != DB_ANV) {
             iter->Next();
             continue;
         }
@@ -167,9 +169,10 @@ KeyANVs ReferralsViewDB::GetAllANVs() const
             continue;
         }
 
-        anvs.push_back({key.second, anv});
+        anvs.push_back({address.second, anv});
 
         iter->Next();
     }
     return anvs;
+}
 }

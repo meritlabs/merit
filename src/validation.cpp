@@ -100,7 +100,7 @@ CAmount maxTxFee = DEFAULT_TRANSACTION_MAXFEE;
 
 CBlockPolicyEstimator feeEstimator;
 CTxMemPool mempool(&feeEstimator);
-ReferralTxMemPool mempoolReferral;
+referral::ReferralTxMemPool mempoolReferral;
 
 static void CheckBlockIndex(const Consensus::Params& consensusParams);
 
@@ -195,8 +195,8 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 CCoinsViewDB *pcoinsdbview = nullptr;
 CCoinsViewCache *pcoinsTip = nullptr;
 CBlockTreeDB *pblocktree = nullptr;
-ReferralsViewDB *prefviewdb = nullptr;
-ReferralsViewCache *prefviewcache = nullptr;
+referral::ReferralsViewDB *prefviewdb = nullptr;
+referral::ReferralsViewCache *prefviewcache = nullptr;
 
 enum FlushStateMode {
     FLUSH_STATE_NONE,
@@ -494,7 +494,7 @@ static bool CheckInputsFromMempoolAndCache(
             txdata);
 }
 
-bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state, const ReferralRef& referral, bool& missingReferrer)
+bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationState& state, const referral::ReferralRef& referral, bool& missingReferrer)
 {
     assert(referral);
 
@@ -1445,26 +1445,29 @@ pog::AmbassadorLottery RewardAmbassadors(const uint256& previousBlockHash, CAmou
     return rewards;
 }
 
-void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx, int height)
+void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx)
 {
-    assert(height >= 0);
-
     // Pay them by adding a txout to the coinbase transaction;
-    for(const auto& winner : lottery.winners) {
-        if (!IsValidDestination(winner.key)) {
-            throw std::runtime_error{"invalid ambassador"};
-        }
+    std::transform(
+            std::begin(lottery.winners),
+            std::end(lottery.winners), 
+            std::back_inserter(tx.vout),
 
-        auto script = GetScriptForDestination(winner.key);
-        tx.vout.push_back({winner.amount, script});
-    }
+            [](const pog::AmbassadorReward& winner) {
+                if (!IsValidDestination(winner.address)) {
+                    throw std::runtime_error{"invalid ambassador"};
+                }
+
+                auto script = GetScriptForDestination(winner.address);
+                return CTxOut{winner.amount, script};
+            });
 }
 
 struct RewardComp
 {
     bool operator()(const pog::AmbassadorReward& a, const pog::AmbassadorReward& b) {
-        if(a.key < b.key) return true;
-        if(a.key == b.key) return a.amount < b.amount;
+        if(a.address < b.address) return true;
+        if(a.address == b.address) return a.amount < b.amount;
         return false;
     }
 };
@@ -1472,6 +1475,20 @@ struct RewardComp
 void SortRewards(pog::Rewards& rewards)
 {
     std::sort(std::begin(rewards), std::end(rewards), RewardComp());
+}
+
+const referral::Address* KeyOrScript(const CTxDestination& dest)
+{
+    if(boost::get<CNoDestination>(&dest)) return nullptr;
+
+    const auto* key = boost::get<CKeyID>(&dest);
+    const auto* script = boost::get<CScriptID>(&dest);
+
+    assert(key || script);
+
+    return key ? 
+        static_cast<const referral::Address*>(key) : 
+        static_cast<const referral::Address*>(script);
 }
 
 bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const CTransaction& coinbase) {
@@ -1488,10 +1505,10 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
                 CTxDestination dest;
                 if(!ExtractDestination(out.scriptPubKey, dest)) return {{}, out.nValue};
 
-                const auto* key = boost::get<CKeyID>(&dest);
-                if(!key) return {{}, out.nValue};
+                const auto* address = KeyOrScript(dest);
+                if(!address) return {{}, out.nValue};
 
-                return {*key, out.nValue};
+                return {*address, out.nValue};
             });
     SortRewards(sorted_outs);
 
@@ -2027,15 +2044,15 @@ AddressPair ExtractAddress(const CTxOut& tout)
 
 using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
-using DebitsAndCredits = std::vector<std::pair<CKeyID, CAmount>>;
+using DebitsAndCredits = std::vector<std::pair<referral::Address, CAmount>>;
 
 bool DebitAndCreditANV(const DebitsAndCredits& debits_and_credits)
 {
     //apply the debit and credits to the addresses in the block transactions.
     for (const auto& t : debits_and_credits) {
-        const auto& key = t.first;
+        const auto& address = t.first;
         const auto amount = t.second;
-        if(!prefviewdb->UpdateANV(key, amount)) {
+        if(!prefviewdb->UpdateANV(address, amount)) {
             return false;
         }
     }
@@ -2047,8 +2064,8 @@ bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo)
 {
     assert(tx);
 
-    // Debit and Credit all ANVs of keys in the block
-    std::vector<std::pair<CKeyID, CAmount>> debits_and_credits;
+    // Debit and Credit all ANVs of addresses in the block
+    DebitsAndCredits debits_and_credits;
 
     auto debitDir = !undo ? -1 : 1;
     auto creditDir = !undo ? 1 : -1;
@@ -2061,7 +2078,7 @@ bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo)
             auto address = ExtractAddress(in_out);
             if(address.second == 0) continue;
 
-            debits_and_credits.push_back({CKeyID{address.first}, CAmount{in_out.nValue * debitDir}});
+            debits_and_credits.push_back({address.first, CAmount{in_out.nValue * debitDir}});
         }
     }
 
@@ -2070,13 +2087,13 @@ bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo)
         auto address = ExtractAddress(out);
         if(address.second == 0) continue;
 
-        debits_and_credits.push_back({CKeyID{address.first}, CAmount{out.nValue * creditDir}});
+        debits_and_credits.push_back({address.first, CAmount{out.nValue * creditDir}});
     }
 
     return DebitAndCreditANV(debits_and_credits);
 }
 
-bool IndexReferralsAndUpdateANV(const std::vector<CTransactionRef> vtx, const std::vector<ReferralRef> vref, CCoinsViewCache& view)
+bool IndexReferralsAndUpdateANV(const std::vector<CTransactionRef> vtx, const std::vector<referral::ReferralRef> vref, CCoinsViewCache& view)
 {
     assert(prefviewdb);
 
@@ -2087,7 +2104,7 @@ bool IndexReferralsAndUpdateANV(const std::vector<CTransactionRef> vtx, const st
         }
     }
 
-    // Debit and Credit all ANVs of keys in transactions set
+    // Debit and Credit all ANVs of addresses in transactions set
     for (const auto& txn : vtx) {
         if (!UpdateANV(txn, view)) {
             return false;
@@ -2102,11 +2119,11 @@ bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
     return IndexReferralsAndUpdateANV(block.vtx, block.m_vRef, view);
 }
 
-bool RemoveReferralsAndUndoANV(const std::vector<CTransactionRef> vtx, const std::vector<ReferralRef> vref, CCoinsViewCache& view)
+bool RemoveReferralsAndUndoANV(const std::vector<CTransactionRef> vtx, const std::vector<referral::ReferralRef> vref, CCoinsViewCache& view)
 {
     assert(prefviewdb);
 
-    // Debit and Credit all ANVs of keys in transactions set
+    // reverse the Debit and Credits of all ANVs of addresses in transactions set
     for (const auto& txn : vtx) {
         if (!UpdateANV(txn, view, true)) {
             return false;
@@ -2360,7 +2377,7 @@ bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_
     RefPositions positions(block.m_vRef.size());
 
     std::transform(std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(positions),
-            [&pos](const ReferralRef& rtx) {
+            [&pos](const referral::ReferralRef& rtx) {
                 assert(rtx);
                 auto p = std::make_pair(rtx->GetHash(), pos);
                 pos.nTxOffset += ::GetSerializeSize(rtx, SER_DISK, CLIENT_VERSION);
@@ -3787,19 +3804,28 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 }
 
 // Check if an address is valid (beaconed)
-bool CheckAddressBeaconed(const CKeyID& address, bool checkMempool)
+bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
 {
-    if (!prefviewcache->WalletIdExists(address) && checkMempool) {
+    const auto* addr = KeyOrScript(dest);
+    if(!addr) return false;
+
+    bool beaconed = prefviewcache->WalletIdExists(*addr);
+
+    if (!beaconed && checkMempool) {
         // check mempool referrals for beaconed address
         const auto refsInMempool = mempoolReferral.GetReferrals();
-        const auto it = std::find_if(refsInMempool.begin(), refsInMempool.end(), boost::bind(&Referral::m_pubKeyId, _1) == address);
 
-        if (it == refsInMempool.end()) {
-            return false;
-        }
+        const auto it = 
+            std::find_if(refsInMempool.begin(), refsInMempool.end(), 
+                [addr](const referral::ReferralRef& ref) {
+                    assert(ref);
+                    return ref->m_pubKeyId == *addr;
+                });
+
+        beaconed = it != refsInMempool.end();
     }
 
-    return true;
+    return beaconed;
 }
 
 bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params)
@@ -5404,7 +5430,7 @@ bool LoadReferralMempool()
         uint64_t num;
         file >> num;
         while (num--) {
-            ReferralRef ref;
+            referral::ReferralRef ref;
             file >> ref;
             CValidationState state;
 
@@ -5434,7 +5460,7 @@ void DumpReferralMempool()
 {
     int64_t start = GetTimeMicros();
 
-    std::vector<ReferralRef> vReferral;
+    std::vector<referral::ReferralRef> vReferral;
 
     {
         LOCK(mempool.cs);

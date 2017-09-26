@@ -18,7 +18,7 @@
 struct MainSignalsInstance {
     boost::signals2::signal<void (const CBlockIndex *, const CBlockIndex *, bool fInitialDownload)> UpdatedBlockTip;
     boost::signals2::signal<void (const CTransactionRef &)> TransactionAddedToMempool;
-    boost::signals2::signal<void (const ReferralRef &)> ReferralAddedToMempool;
+    boost::signals2::signal<void (const referral::ReferralRef &)> ReferralAddedToMempool;
     boost::signals2::signal<void (const std::shared_ptr<const CBlock> &, const CBlockIndex *pindex, const std::vector<CTransactionRef>&)> BlockConnected;
     boost::signals2::signal<void (const std::shared_ptr<const CBlock> &)> BlockDisconnected;
     boost::signals2::signal<void (const CBlockLocator &)> SetBestChain;
@@ -28,7 +28,7 @@ struct MainSignalsInstance {
     boost::signals2::signal<void (const CBlockIndex *, const std::shared_ptr<const CBlock>&)> NewPoWValidBlock;
 
     // merit signals
-    boost::signals2::signal<void (const ReferralRef &)> ReferralTransactionAddedToMempool;
+    boost::signals2::signal<void (const referral::ReferralRef &)> ReferralTransactionAddedToMempool;
 
     // We are not allowed to assume the scheduler only runs in one thread,
     // but must ensure all callbacks happen in-order, so we end up creating
@@ -136,6 +136,6 @@ void CMainSignals::NewPoWValidBlock(const CBlockIndex *pindex, const std::shared
     m_internals->NewPoWValidBlock(pindex, block);
 }
 
-void CMainSignals::ReferralAddedToMempool(const ReferralRef &rtx) {
+void CMainSignals::ReferralAddedToMempool(const referral::ReferralRef &rtx) {
     m_internals->ReferralTransactionAddedToMempool(rtx);
 }

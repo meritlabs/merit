@@ -43,9 +43,13 @@ class CMasterKey;
 class CScript;
 class CWallet;
 class CWalletTx;
-class ReferralTx;
 class uint160;
 class uint256;
+
+namespace referral
+{
+    class ReferralTx;
+}
 
 /** Error statuses for the wallet database */
 enum DBErrors
@@ -245,7 +249,7 @@ public:
     bool WriteVersion(int nVersion);
 
     //! Write referral
-    bool WriteReferralTx(const ReferralTx& rtx);
+    bool WriteReferralTx(const referral::ReferralTx& rtx);
 
 private:
     CDB batch;

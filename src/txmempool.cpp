@@ -22,6 +22,8 @@
 #include <algorithm>
 
 
+namespace referral
+{
 bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const ReferralRef referral)
 {
     LOCK(cs);
@@ -93,6 +95,7 @@ std::vector<ReferralRef> ReferralTxMemPool::GetReferrals() const
             });
 
     return refs;
+}
 }
 
 CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
@@ -823,7 +826,7 @@ void CTxMemPool::clear()
     _clear();
 }
 
-void CTxMemPool::check(const CCoinsViewCache *pcoins, const ReferralsViewCache& referralsCache) const
+void CTxMemPool::check(const CCoinsViewCache *pcoins, const referral::ReferralsViewCache& referralsCache) const
 {
     if (nCheckFrequency == 0)
         return;

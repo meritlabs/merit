@@ -11,7 +11,7 @@ namespace pog
 {
     struct AmbassadorReward
     {
-        CKeyID key;
+        referral::Address address;
         CAmount amount;
     };
 
@@ -23,7 +23,7 @@ namespace pog
         CAmount remainder;
     };
 
-    AmbassadorLottery RewardAmbassadors(const KeyANVs& winners, CAmount total); 
+    AmbassadorLottery RewardAmbassadors(const referral::AddressANVs& winners, CAmount total); 
 
 } // namespace pog
 

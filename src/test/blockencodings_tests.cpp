@@ -13,7 +13,7 @@
 #include <boost/test/unit_test.hpp>
 
 std::vector<std::pair<uint256, CTransactionRef>> extra_txn;
-std::vector<std::pair<uint256, ReferralRef>> extra_refs;
+std::vector<std::pair<uint256, referral::ReferralRef>> extra_refs;
 
 struct RegtestingSetup : public TestingSetup {
     RegtestingSetup() : TestingSetup(CBaseChainParams::REGTEST) {}
@@ -60,7 +60,7 @@ static CBlock BuildBlockTestCase() {
 BOOST_AUTO_TEST_CASE(SimpleRoundTripTest)
 {
     CTxMemPool pool;
-    ReferralTxMemPool refpool;
+    referral::ReferralTxMemPool refpool;
     TestMemPoolEntryHelper entry;
     CBlock block(BuildBlockTestCase());
 
@@ -177,7 +177,7 @@ public:
 BOOST_AUTO_TEST_CASE(NonCoinbasePreforwardRTTest)
 {
     CTxMemPool pool;
-    ReferralTxMemPool refpool;
+    referral::ReferralTxMemPool refpool;
     TestMemPoolEntryHelper entry;
     CBlock block(BuildBlockTestCase());
 
@@ -244,7 +244,7 @@ BOOST_AUTO_TEST_CASE(NonCoinbasePreforwardRTTest)
 BOOST_AUTO_TEST_CASE(SufficientPreforwardRTTest)
 {
     CTxMemPool pool;
-    ReferralTxMemPool refpool;
+    referral::ReferralTxMemPool refpool;
     TestMemPoolEntryHelper entry;
     CBlock block(BuildBlockTestCase());
 
@@ -295,7 +295,7 @@ BOOST_AUTO_TEST_CASE(SufficientPreforwardRTTest)
 BOOST_AUTO_TEST_CASE(EmptyBlockRoundTripTest)
 {
     CTxMemPool pool;
-    ReferralTxMemPool refpool;
+    referral::ReferralTxMemPool refpool;
     CMutableTransaction coinbase;
     coinbase.vin.resize(1);
     coinbase.vin[0].scriptSig.resize(10);
@@ -330,7 +330,7 @@ BOOST_AUTO_TEST_CASE(EmptyBlockRoundTripTest)
 
         CBlock block2;
         std::vector<CTransactionRef> vtx_missing;
-        std::vector<ReferralRef> vrefs_missing;
+        std::vector<referral::ReferralRef> vrefs_missing;
         BOOST_CHECK(partialBlock.FillBlock(block2, vtx_missing, vrefs_missing) == READ_STATUS_OK);
         BOOST_CHECK_EQUAL(block.GetHash().ToString(), block2.GetHash().ToString());
         BOOST_CHECK_EQUAL(block.hashMerkleRoot.ToString(), BlockMerkleRoot(block2, &mutated).ToString());

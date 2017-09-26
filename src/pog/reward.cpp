@@ -10,23 +10,25 @@
 namespace pog 
 {
 
-    AmbassadorLottery RewardAmbassadors(const KeyANVs& winners, CAmount total_reward)
+    AmbassadorLottery RewardAmbassadors(
+            const referral::AddressANVs& winners,
+            CAmount total_reward)
     {
         CAmount total_anv = 
             std::accumulate(std::begin(winners), std::end(winners), CAmount{0}, 
-                    [](CAmount acc, const KeyANV& v) 
+                    [](CAmount acc, const referral::AddressANV& v) 
                     { 
                         return acc + v.anv;
                     });
 
         Rewards rewards(winners.size());
         std::transform(std::begin(winners), std::end(winners), std::begin(rewards),
-                [total_reward, total_anv](const KeyANV& v) 
+                [total_reward, total_anv](const referral::AddressANV& v) 
                 { 
                     auto percent = (v.anv*100) / total_anv;
                     CAmount reward = (total_reward * percent) / 100;
                     assert(reward <= total_reward);
-                    return AmbassadorReward{v.key, reward};
+                    return AmbassadorReward{v.address, reward};
                 });
 
         CAmount total_rewarded = 

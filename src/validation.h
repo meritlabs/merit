@@ -23,6 +23,7 @@
 #include "addressindex.h"
 #include "timestampindex.h"
 #include "pog/reward.h"
+#include "script/standard.h"
 
 #include <algorithm>
 #include <exception>
@@ -36,18 +37,23 @@
 #include <atomic>
 
 class CBlockIndex;
+class CBlockPolicyEstimator;
 class CBlockTreeDB;
 class CChainParams;
 class CCoinsViewDB;
-class CInv;
 class CConnman;
+class CInv;
 class CScriptCheck;
-class CBlockPolicyEstimator;
 class CTxMemPool;
-class ReferralTxMemPool;
 class CValidationState;
-class ReferralsViewDB;
-class ReferralsViewCache;
+
+namespace referral
+{
+    class ReferralTxMemPool;
+    class ReferralsViewCache;
+    class ReferralsViewDB;
+}
+
 struct ChainTxData;
 
 struct PrecomputedTransactionData;
@@ -173,7 +179,7 @@ extern CScript COINBASE_FLAGS;
 extern CCriticalSection cs_main;
 extern CBlockPolicyEstimator feeEstimator;
 extern CTxMemPool mempool;
-extern ReferralTxMemPool mempoolReferral;
+extern referral::ReferralTxMemPool mempoolReferral;
 typedef std::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
 extern BlockMap mapBlockIndex;
 extern uint64_t nLastBlockTx;
@@ -324,7 +330,7 @@ pog::AmbassadorLottery RewardAmbassadors(const uint256& previousBlockHash, CAmou
 /**
  * Include ambassadors into the coinbase transaction and split the total payment between them.
  */
-void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx, int height);
+void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx);
 
 /** Guess verification progress (as a fraction between 0.0=genesis and 1.0=current tip). */
 double GuessVerificationProgress(const ChainTxData& data, CBlockIndex* pindex);
@@ -356,8 +362,8 @@ void PruneBlockFilesManual(int nManualPruneHeight);
 /** Update ANV using given transaction */
 bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo = false);
 
-bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state,
-        const ReferralRef& referral, bool& pfMissingReferrer);
+bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationState& state,
+        const referral::ReferralRef& referral, bool& pfMissingReferrer);
 
 /** (try to) add transaction to memory pool
  * plTxnReplaced will be appended to with all transactions replaced from mempool **/
@@ -502,7 +508,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
 
 /** Check that an address is valid and ready to send to */
-bool CheckAddressBeaconed(const CKeyID& address, bool checkMempool = true);
+bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool = true);
 
 /** Check whether witness commitments are required for block. */
 bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params);
@@ -552,10 +558,10 @@ extern CCoinsViewCache *pcoinsTip;
 extern CBlockTreeDB *pblocktree;
 
 /** Global variable that points to the Referral DB */
-extern ReferralsViewDB *prefviewdb;
+extern referral::ReferralsViewDB *prefviewdb;
 
 /** Global variable that points to the Referral Cache */
-extern ReferralsViewCache *prefviewcache;
+extern referral::ReferralsViewCache *prefviewcache;
 
 /**
  * Return the spend height, which is one more than the inputs.GetBestBlock().

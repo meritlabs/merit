@@ -251,6 +251,8 @@ public:
 
 };
 
+namespace referral
+{
 class ReferralTx : public CMerkleTx {
 private:
     const CWallet* m_pWallet;
@@ -307,6 +309,8 @@ public:
 
     bool IsCoinBase() const override { return false; }
 };
+
+} // namespace referral
 
 /**
  * A transaction with a bunch of additional info that only the owner cares about.
@@ -758,7 +762,7 @@ private:
     /* Used by TransactionAddedToMemorypool/BlockConnected/Disconnected.
      * Should be called with pindexBlock and posInBlock if this is for a transaction that is included in a block. */
     void SyncTransaction(const CTransactionRef& tx, const CBlockIndex *pindex = nullptr, int posInBlock = 0);
-    void SyncTransaction(const ReferralRef& tx, const CBlockIndex *pindex = nullptr, int posInBlock = 0);
+    void SyncTransaction(const referral::ReferralRef& tx, const CBlockIndex *pindex = nullptr, int posInBlock = 0);
 
     /* the HD chain data model (external chain counters) */
     CHDChain hdChain;
@@ -773,7 +777,7 @@ private:
 
     int64_t nTimeFirstKey;
 
-    ReferralTx m_unlockReferralTx;
+    referral::ReferralTx m_unlockReferralTx;
 
     /**
      * Private version of AddWatchOnly method which does not accept a
@@ -815,7 +819,7 @@ public:
     }
 
     void LoadKeyPool(int64_t nIndex, const CKeyPool &keypool);
-    void LoadReferral(int64_t nIndex, const Referral &referral);
+    void LoadReferral(int64_t nIndex, const referral::Referral &referral);
 
     // Map from Key ID (for regular keys) or Script ID (for watch-only keys) to
     // key metadata.
@@ -862,7 +866,7 @@ public:
     }
 
     std::map<uint256, CWalletTx> mapWallet;
-    std::map<uint256, ReferralTx> mapWalletRTx;
+    std::map<uint256, referral::ReferralTx> mapWalletRTx;
     std::list<CAccountingEntry> laccentries;
 
     typedef std::pair<CWalletTx*, CAccountingEntry*> TxPair;
@@ -880,7 +884,7 @@ public:
     const CWalletTx* GetWalletTx(const uint256& hash) const;
 
     // Sets the referral code to unlock the wallet and sends referral tx to the network
-    ReferralRef Unlock(const uint256& referralCodeIn);
+    referral::ReferralRef Unlock(const uint256& referralCodeIn);
 
     //! check whether we are allowed to upgrade (or already support) to the named feature
     bool CanSupportFeature(enum WalletFeature wf) const { AssertLockHeld(cs_wallet); return nWalletMaxVersion >= wf; }
@@ -984,15 +988,15 @@ public:
 
     void MarkDirty();
     bool AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose=true);
-    bool AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose=true);
+    bool AddToWallet(const referral::ReferralTx& rtxIn, bool fFlushOnClose=true);
     bool LoadToWallet(const CWalletTx& wtxIn);
-    bool LoadToWallet(const ReferralTx& rtxIn);
+    bool LoadToWallet(const referral::ReferralTx& rtxIn);
     void TransactionAddedToMempool(const CTransactionRef& tx) override;
-    void ReferralAddedToMempool(const ReferralRef& pref) override;
+    void ReferralAddedToMempool(const referral::ReferralRef& pref) override;
     void BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) override;
     void BlockDisconnected(const std::shared_ptr<const CBlock>& pblock) override;
     bool AddToWalletIfInvolvingMe(const CTransactionRef& tx, const CBlockIndex* pIndex, int posInBlock, bool fUpdate);
-    bool AddToWalletIfInvolvingMe(const ReferralRef& rtx, const CBlockIndex* pIndex, int posInBlock, bool fUpdate);
+    bool AddToWalletIfInvolvingMe(const referral::ReferralRef& rtx, const CBlockIndex* pIndex, int posInBlock, bool fUpdate);
     int64_t RescanFromTime(int64_t startTime, bool update);
     CBlockIndex* ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate = false);
     void ReacceptWalletTransactions();
@@ -1023,9 +1027,9 @@ public:
      */
     bool CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, int& nChangePosInOut,
                            std::string& strFailReason, const CCoinControl& coin_control, bool sign = true);
-    bool CreateTransaction(ReferralTx& rtx, ReferralRef& referral);
+    bool CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef& referral);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CConnman* connman, CValidationState& state);
-    bool CommitTransaction(ReferralTx& rtxNew, CConnman* connman, CValidationState& state);
+    bool CommitTransaction(referral::ReferralTx& rtxNew, CConnman* connman, CValidationState& state);
 
     void ListAccountCreditDebit(const std::string& strAccount, std::list<CAccountingEntry>& entries);
     bool AddAccountingEntry(const CAccountingEntry&);
@@ -1057,7 +1061,7 @@ public:
     std::set<CTxDestination> GetAccountAddresses(const std::string& strAccount) const;
 
     isminetype IsMine(const CTxIn& txin) const;
-    isminetype IsMine(const Referral& ref) const;
+    isminetype IsMine(const referral::Referral& ref) const;
 
     /**
      * Returns amount of debit if the input matches the
@@ -1192,8 +1196,8 @@ public:
        this function). */
     bool SetHDMasterKey(const CPubKey& key);
 
-    bool SetUnlockReferralTx(const ReferralTx& rtx, bool topUpKeyPool = false);
-    ReferralRef GenerateNewReferral(CPubKey& pubkey, uint256 referredBy);
+    bool SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool = false);
+    referral::ReferralRef GenerateNewReferral(CPubKey& pubkey, uint256 referredBy);
 
     bool IsReferred() const;
     uint256 ReferredByHash() const;

@@ -219,7 +219,7 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry,
     }
 }
 
-void RefToUniv(const Referral& ref, const uint256& hashBlock, UniValue& entry, bool include_hex, int serialize_flags)
+void RefToUniv(const referral::Referral& ref, const uint256& hashBlock, UniValue& entry, bool include_hex, int serialize_flags)
 {
     entry.pushKV("refd", ref.GetHash().GetHex());
     entry.pushKV("version", ref.m_nVersion);

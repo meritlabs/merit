@@ -57,7 +57,7 @@ public:
         LogPrint(BCLog::ZMQ, "Starting Hash Referral Notifier");
     };
 
-    bool NotifyReferral(const ReferralRef &ref) override;
+    bool NotifyReferral(const referral::ReferralRef &ref) override;
 };
 
 class CZMQPublishRawBlockNotifier : public CZMQAbstractPublishNotifier
@@ -87,7 +87,7 @@ public:
         LogPrint(BCLog::ZMQ, "Starting Raw Referral Notifier");
     };
 
-    bool NotifyReferral(const ReferralRef &ref) override;
+    bool NotifyReferral(const referral::ReferralRef &ref) override;
 };
 
 #endif // MERIT_ZMQ_ZMQPUBLISHNOTIFIER_H

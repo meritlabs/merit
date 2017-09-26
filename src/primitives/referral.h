@@ -10,6 +10,11 @@
 #include "serialize.h"
 #include "uint256.h"
 
+namespace referral
+{
+
+using Address = uint160;
+
 struct MutableReferral;
 
 static const int SERIALIZE_REFERRAL = 0x40000000;
@@ -55,7 +60,7 @@ public:
     uint256 m_previousReferral;
 
     // address that this referral is related to
-    CKeyID m_pubKeyId;
+    Address m_pubKeyId;
 
     // Referral code that is used as a referrence to a wallet
     const std::string m_code;
@@ -70,7 +75,7 @@ private:
     uint256 ComputeHash() const;
 
 public:
-    Referral(CKeyID& addressIn, uint256 referralIn);
+    Referral(const Address& addressIn, const uint256& referralIn);
 
     /** Convert a MutableReferral into a Referral. */
     Referral(const MutableReferral &ref);
@@ -115,12 +120,12 @@ struct MutableReferral
 {
     int32_t m_nVersion;
     uint256 m_previousReferral;
-    CKeyID m_pubKeyId;
+    Address m_pubKeyId;
     std::string m_code;
     uint256 m_codeHash;
 
     MutableReferral() : m_nVersion(Referral::CURRENT_VERSION) { }
-    MutableReferral(CKeyID& addressIn, uint256 referralIn);
+    MutableReferral(const Address& addressIn, const uint256& referralIn);
     MutableReferral(const Referral& ref);
 
     template <typename Stream>
@@ -156,7 +161,7 @@ struct MutableReferral
 
 typedef std::shared_ptr<const Referral> ReferralRef;
 
-static inline ReferralRef MakeReferralRef(CKeyID& addressIn, uint256 referralCodeHashIn)
+static inline ReferralRef MakeReferralRef(Address& addressIn, uint256 referralCodeHashIn)
 {
     return std::make_shared<const Referral>(addressIn, referralCodeHashIn);
 }
@@ -165,5 +170,7 @@ template <typename Ref> static inline ReferralRef MakeReferralRef(Ref&& referral
 {
      return std::make_shared<const Referral>(std::forward<Ref>(referralIn));
 }
+
+} //namespace referral
 
 #endif // MERIT_PRIMITIVES_REFERRAL_H

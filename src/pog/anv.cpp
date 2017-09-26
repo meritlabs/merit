@@ -9,29 +9,33 @@ namespace pog
 {
     /**
      * This version simply pulls the ANV from the DB. ReferralsViewDB::UpdateANV
-     * incrementally updates an ANV for a key and all parents.
+     * incrementally updates an ANV for a address and all parents.
      */
-    MaybeANV ComputeANV(const CKeyID& key_id, const ReferralsViewDB& db)
+    referral::MaybeANV ComputeANV(
+            const referral::Address& address_id,
+            const referral::ReferralsViewDB& db)
     {
-        return db.GetANV(key_id);
+        return db.GetANV(address_id);
     }
 
-    KeyANVs GetAllANVs(const ReferralsViewDB& db)
+    referral::AddressANVs GetAllANVs(const referral::ReferralsViewDB& db)
     {
         return db.GetAllANVs();
     }
 
-    KeyANVs GetANVs(const KeyIDs& keys, const ReferralsViewDB& db)
+    referral::AddressANVs GetANVs(
+            const referral::Addresses& addresses,
+            const referral::ReferralsViewDB& db)
     {
-        KeyANVs r;
-        r.reserve(keys.size());
+        referral::AddressANVs r;
+        r.reserve(addresses.size());
 
-        for(const auto& k : keys) {
-            if(auto maybe_anv = ComputeANV(k, db))
-                r.push_back({k, *maybe_anv});
+        for(const auto& a : addresses) {
+            if(auto maybe_anv = ComputeANV(a, db))
+                r.push_back({a, *maybe_anv});
         }
 
-        assert(r.size() <= keys.size());
+        assert(r.size() <= addresses.size());
         return r;
     }
 

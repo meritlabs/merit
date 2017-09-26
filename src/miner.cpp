@@ -218,7 +218,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     /**
      * Update the coinbase transaction vout with rewards.
      */
-    PayAmbassadors(lottery, coinbaseTx, nHeight);
+    PayAmbassadors(lottery, coinbaseTx);
 
     /**
      * The miner recieves their subsidy and any remaining subsidy that was left

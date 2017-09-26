@@ -8,6 +8,9 @@
 #include "primitives/referral.h"
 #include "validation.h"
 
+namespace referral
+{
+
 bool CheckReferral(const Referral& referral, CValidationState &state)
 {
     // Basic checks that don't depend on any context
@@ -21,3 +24,5 @@ bool CheckReferral(const Referral& referral, CValidationState &state)
 
     return true;
 }
+
+} //namespace referral
