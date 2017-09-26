@@ -1197,7 +1197,11 @@ public:
     bool SetHDMasterKey(const CPubKey& key);
 
     bool SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool = false);
-    referral::ReferralRef GenerateNewReferral(CPubKey& pubkey, uint256 referredBy);
+
+    referral::ReferralRef GenerateNewReferral(
+            const referral::Address& addr, const uint256& referredBy);
+    referral::ReferralRef GenerateNewReferral(
+            const CPubKey& pubkey, const uint256& referredBy);
 
     bool IsReferred() const;
     uint256 ReferredByHash() const;

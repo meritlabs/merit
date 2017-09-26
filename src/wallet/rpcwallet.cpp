@@ -474,6 +474,10 @@ static UniValue EasySendMoney(
         throw JSONRPCError(RPC_WALLET_ERROR, "Unable to generate referral for receiver key");
     }
 
+    if(!pwallet.GenerateNewReferral(script_id, pwallet.ReferredByHash())) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to generate referral for easy send script");
+    }
+
     std::string error;
     std::vector<CRecipient> recipients = {{script_pub_key, value, fSubtractFeeFromAmount}};
     int change_pos_ret = -1;
@@ -506,6 +510,7 @@ static UniValue EasySendMoney(
 
     //add script to wallet so we can redeem it later if needed.
     pwallet.AddCScript(easy_send_script);
+
 
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));

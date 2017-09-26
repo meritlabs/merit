@@ -1639,13 +1639,14 @@ bool CWallet::IsHDEnabled() const
     return !hdChain.masterKeyID.IsNull();
 }
 
-referral::ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referred_by)
+referral::ReferralRef CWallet::GenerateNewReferral(
+        const referral::Address& address,
+        const uint256& referred_by)
 {
-    const referral::Address key_id = pubkey.GetID();
-
     // generate referral for given public key
     auto referral = 
-        referral::MakeReferralRef(referral::MutableReferral(key_id, referred_by));
+        referral::MakeReferralRef(
+                referral::MutableReferral(address, referred_by));
 
     referral::ReferralTx rtx{true};
 
@@ -1654,6 +1655,14 @@ referral::ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 refe
     CommitTransaction(rtx, g_connman.get(), state);
 
     return referral;
+}
+
+referral::ReferralRef CWallet::GenerateNewReferral(
+        const CPubKey& pubkey,
+        const uint256& referred_by)
+{
+    const referral::Address key_id = pubkey.GetID();
+    return GenerateNewReferral(key_id, referred_by);
 }
 
 bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool)
@@ -3509,7 +3518,7 @@ void CWallet::LoadReferral(int64_t nIndex, const referral::Referral& referral)
 bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referredBy, bool outReferral)
 {
     {
-        LOCK(cs_wallet);
+        LOCK2(cs_main, cs_wallet);
         if (IsLocked() || !IsReferred()) {
             return false;
         }
@@ -3594,10 +3603,10 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRe
     nIndex = -1;
     keypool.vchPubKey = CPubKey();
 
-    if (!IsLocked() && IsReferred())
-        TopUpKeyPool();
-
     {
+        if (!IsLocked() && IsReferred())
+            TopUpKeyPool();
+
 
         LOCK(cs_wallet);
 
