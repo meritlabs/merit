@@ -511,11 +511,10 @@ static UniValue EasySendMoney(
     //add script to wallet so we can redeem it later if needed.
     pwallet.AddCScript(easy_send_script);
 
-
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
     ret.push_back(Pair("channel", channel));
-    ret.push_back(Pair("secret", secret));
+    ret.push_back(Pair("secret", HexStr(random_bytes_str)));
     ret.push_back(Pair("scriptid", EncodeDestination(script_id)));
     ret.push_back(Pair("senderkeyid", EncodeDestination(sender_pub.GetID())));
 
