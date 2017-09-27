@@ -117,6 +117,18 @@ static bool SignStep(const BaseSignatureCreator& creator, const CScript& scriptP
         ret.push_back(valtype()); // workaround CHECKMULTISIG bug
         return (SignN(vSolutions, creator, scriptPubKey, ret, sigversion));
 
+    case TX_EASYSEND: 
+        {
+            //insert number of required before calling signN
+            assert(!vSolutions.empty());
+
+            std::vector<valtype> solutions;
+            solutions.reserve(vSolutions.size() + 1);
+            solutions.push_back(valtype{1});
+            solutions.insert(solutions.end(), solutions.begin(), solutions.end());
+            return (SignN(solutions, creator, scriptPubKey, ret, sigversion));
+        }
+
     case TX_WITNESS_V0_KEYHASH:
         ret.push_back(vSolutions[0]);
         return true;

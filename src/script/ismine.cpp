@@ -143,6 +143,12 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey, bool& 
             return ISMINE_SPENDABLE;
         break;
     }
+    case TX_EASYSEND:
+    {
+        if (HaveKeys(vSolutions, keystore) > 0)
+            return ISMINE_WATCH_SOLVABLE;
+        break;
+    }
     }
 
     if (keystore.HaveWatchOnly(scriptPubKey)) {
