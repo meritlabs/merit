@@ -3720,6 +3720,7 @@ UniValue getanv(const JSONRPCRequest& request)
         keys.reserve(request.params.size());
         for(size_t i = 0; i < request.params.size(); i++) {
             auto key_hex_str = request.params[i].get_str();
+            LogPrintf("Keys %d: %s\n", i, key_hex_str);
             auto dest = DecodeDestination(key_hex_str);
             if(auto key = boost::get<CKeyID>(&dest)) {
                 keys.push_back(*key);
@@ -3829,6 +3830,38 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
 
     return ret;
 }
+
+
+UniValue getrewards(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() > 3)
+        throw std::runtime_error(
+            "getrewards\n"
+            "Return wallet rewards for being a miner or ambassador.\n"
+            "\nResult:\n"
+            "mining          (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for mining.\n"
+            "ambassador      (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for being ambassador.\n"
+            "\nExamples:\n" + HelpExampleCli("getbalance", "")
+        );
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    UniValue ret(UniValue::VOBJ);
+
+    pog::RewardsAmount rewards = pwallet->GetRewards();
+
+    ret.push_back(Pair("mining", ValueFromAmount(rewards.mining)));
+    ret.push_back(Pair("ambassador", ValueFromAmount(rewards.ambassador)));
+
+    return ret;
+}
+
 #endif
 
 extern UniValue abortrescan(const JSONRPCRequest& request); // in rpcdump.cpp
@@ -3905,6 +3938,7 @@ static const CRPCCommand commands[] =
     { "referral",           "validatereferralcode",     &validatereferralcode,     {"code"} },
     { "referral",           "unlockwallet",             &unlockwallet,             {"code"} },
     { "referral",           "getanv",                   &getanv,                   {"address"} },
+    { "wallet",             "getrewards",               &getrewards,               {} },
 #ifdef ENABLE_WALLET
     { "referral",           "unlockwalletwithaddress",  &unlockwalletwithaddress,  {"address", "referralcode"} }
 #endif

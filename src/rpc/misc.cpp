@@ -1265,13 +1265,6 @@ static const CRPCCommand commands[] =
     { "blockchain",         "getinputforeasysend",    &getinputforeasysend,           {"scriptaddress"} },
 
 
-    /* Address index */
-    { "addressindex",       "getaddressmempool",      &getaddressmempool,      {}},
-    { "addressindex",       "getaddressutxos",        &getaddressutxos,        {} },
-    { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       {} },
-    { "addressindex",       "getaddresstxids",        &getaddresstxids,        {} },
-    { "addressindex",       "getaddressbalance",      &getaddressbalance,      {} },
-
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            {"timestamp"}},
     { "hidden",             "echo",                   &echo,                   {"arg0","arg1","arg2","arg3","arg4","arg5","arg6","arg7","arg8","arg9"}},

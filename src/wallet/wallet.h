@@ -20,6 +20,7 @@
 #include "wallet/walletdb.h"
 #include "wallet/rpcwallet.h"
 #include "primitives/referral.h"
+#include "pog/reward.h"
 
 #include <algorithm>
 #include <atomic>
@@ -713,7 +714,8 @@ private:
     std::vector<char> _ssExtra;
 };
 
-
+using WalletTxMap = std::map<uint256, CWalletTx>;
+using WalletReferralsMap = std::map<uint256, referral::ReferralTx>;
 /**
  * A CWallet is an extension of a keystore, which also maintains a set of transactions and balances,
  * and provides the ability to create new transactions.
@@ -865,8 +867,9 @@ public:
         fScanningWallet = false;
     }
 
-    std::map<uint256, CWalletTx> mapWallet;
-    std::map<uint256, referral::ReferralTx> mapWalletRTx;
+    WalletTxMap mapWallet;
+    WalletReferralsMap mapWalletRTx;
+
     std::list<CAccountingEntry> laccentries;
 
     typedef std::pair<CWalletTx*, CAccountingEntry*> TxPair;
@@ -1012,7 +1015,7 @@ public:
     CAmount GetImmatureWatchOnlyBalance() const;
     CAmount GetLegacyBalance(const isminefilter& filter, int minDepth, const std::string* account) const;
     CAmount GetAvailableBalance(const CCoinControl* coinControl = nullptr) const;
-
+    pog::RewardsAmount GetRewards() const;
     /**
      * Insert additional inputs into the transaction by
      * calling CreateTransaction();
