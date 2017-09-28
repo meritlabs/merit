@@ -311,6 +311,7 @@ static void registerSignalHandler(int signal, void(*handler)(int))
     sa.sa_flags = 0;
     sigaction(signal, &sa, nullptr);
 }
+#endif
 
 void OnRPCStarted()
 {

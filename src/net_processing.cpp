@@ -2224,7 +2224,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 // parents so avoid re-requesting it from other peers.
                 recentRejects->insert(hash);
             }
->>>>>>> feature/latest-bitcore-indexing
         }
     }
 

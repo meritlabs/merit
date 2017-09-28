@@ -575,10 +575,6 @@ public:
     int readData(const char *pch, unsigned int nBytes);
 };
 
-    int readHeader(const char *pch, unsigned int nBytes);
-    int readData(const char *pch, unsigned int nBytes);
-};
-
 /** Information about a peer */
 class CNode
 {
