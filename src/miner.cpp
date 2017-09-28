@@ -1,3 +1,4 @@
+// Copyright (c) 2012-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -33,7 +34,7 @@
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// BitcoinMiner
+// MeritMiner
 //
 
 //
@@ -132,6 +133,8 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 {
     int64_t nTimeStart = GetTimeMicros();
 
+    const auto& chain_params = chainparams.GetConsensus();
+
     resetBlock();
 
     pblocktemplate.reset(new CBlockTemplate());
@@ -147,9 +150,10 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     LOCK2(cs_main, mempool.cs);
     CBlockIndex* pindexPrev = chainActive.Tip();
+    assert(pindexPrev != nullptr);
     nHeight = pindexPrev->nHeight + 1;
 
-    pblock->nVersion = ComputeBlockVersion(pindexPrev, chainparams.GetConsensus());
+    pblock->nVersion = ComputeBlockVersion(pindexPrev, chain_params);
     // -regtest only: allow overriding block.nVersion with
     // -blockversion=N to test forking scenarios
     if (chainparams.MineBlocksOnDemand())
@@ -168,12 +172,16 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     // -promiscuousmempoolflags is used.
     // TODO: replace this with a call to main to assess validity of a mempool
     // transaction (which in most cases can be a no-op).
-    fIncludeWitness = IsWitnessEnabled(pindexPrev, chainparams.GetConsensus()) && fMineWitnessTx;
+    fIncludeWitness = IsWitnessEnabled(pindexPrev, chain_params) && fMineWitnessTx;
 
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
-    addPackageTxs(nPackagesSelected, nDescendantsUpdated);
+
+    // add referrals to the block before transactions to check if not beaconed transactions
+    // are used in txouts
     AddReferrals();
+
+    addPackageTxs(nPackagesSelected, nDescendantsUpdated);
 
     int64_t nTime1 = GetTimeMicros();
 
@@ -184,23 +192,55 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     // Create coinbase transaction.
     CMutableTransaction coinbaseTx;
+
     coinbaseTx.vin.resize(1);
     coinbaseTx.vin[0].prevout.SetNull();
     coinbaseTx.vout.resize(1);
     coinbaseTx.vout[0].scriptPubKey = scriptPubKeyIn;
-    coinbaseTx.vout[0].nValue = nFees + GetBlockSubsidy(nHeight, chainparams.GetConsensus());
+
     coinbaseTx.vin[0].scriptSig = CScript() << nHeight << OP_0;
+
+    const auto previousBlockHash = pindexPrev->GetBlockHash();
+
+    const auto subsidy = GetSplitSubsidy(nHeight, chain_params);
+    assert(subsidy.miner > 0);
+    assert(subsidy.ambassador > 0);
+
+    /**
+     * Merit splits the coinbase between the miners and the ambassadors of the system.
+     * An ambassador is someone who brings a lot of people into the Merit system
+     * via referrals. The rewards are given out in a lottery where the probability
+     * of winning is based on an ambassadors referral network.
+     */
+    const auto lottery = RewardAmbassadors(previousBlockHash, subsidy.ambassador, chain_params.total_winning_ambassadors);
+    assert(lottery.remainder >= 0);
+
+    /**
+     * Update the coinbase transaction vout with rewards.
+     */
+    PayAmbassadors(lottery, coinbaseTx, nHeight);
+
+    /**
+     * The miner recieves their subsidy and any remaining subsidy that was left
+     * over from paying the ambassadors. The reason there is a remaining subsidy
+     * is because we use integer math.
+     */
+    const auto miner_subsidy = subsidy.miner + lottery.remainder;
+    assert(miner_subsidy > 0);
+
+    coinbaseTx.vout[0].nValue = nFees + miner_subsidy;
+
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
-    pblocktemplate->vchCoinbaseCommitment = GenerateCoinbaseCommitment(*pblock, pindexPrev, chainparams.GetConsensus());
+    pblocktemplate->vchCoinbaseCommitment = GenerateCoinbaseCommitment(*pblock, pindexPrev, chain_params);
     pblocktemplate->vTxFees[0] = -nFees;
 
     uint64_t nSerializeSize = GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION);
     LogPrintf("CreateNewBlock(): total size: %u block weight: %u txs: %u fees: %ld sigops: %d refs: %d\n", nSerializeSize, GetBlockWeight(*pblock), nBlockTx, nFees, nBlockSigOpsCost, nBlockRef);
 
     // Fill in header
-    pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
-    UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev);
-    pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, chainparams.GetConsensus());
+    pblock->hashPrevBlock  = previousBlockHash;
+    UpdateTime(pblock, chain_params, pindexPrev);
+    pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, chain_params);
     pblock->nNonce         = 0;
     pblocktemplate->vTxSigOpsCost[0] = WITNESS_SCALE_FACTOR * GetLegacySigOpCount(*pblock->vtx[0]);
 
@@ -224,6 +264,16 @@ void BlockAssembler::onlyUnconfirmed(CTxMemPool::setEntries& testSet)
         }
         else {
             iit++;
+        }
+    }
+}
+
+void BlockAssembler::onlyWithReferrals(CTxMemPool::setEntries& testSet)
+{
+    for (const CTxMemPool::txiter it: testSet) {
+        CValidationState dummy;
+        if (!Consensus::CheckTxOutputs(it->GetTx(), dummy, *prefviewcache, pblock->m_vRef)) {
+            testSet.erase(it);
         }
     }
 }
@@ -454,6 +504,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         mempool.CalculateMemPoolAncestors(*iter, ancestors, nNoLimit, nNoLimit, nNoLimit, nNoLimit, dummy, false);
 
         onlyUnconfirmed(ancestors);
+        onlyWithReferrals(ancestors);
         ancestors.insert(iter);
 
         // Test if all tx's are Final

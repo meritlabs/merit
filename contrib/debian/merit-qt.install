@@ -1,0 +1,6 @@
+usr/local/bin/merit-qt usr/bin
+share/pixmaps/merit32.xpm usr/share/pixmaps
+share/pixmaps/merit16.xpm usr/share/pixmaps
+share/pixmaps/merit128.png usr/share/pixmaps
+debian/merit-qt.desktop usr/share/applications
+debian/merit-qt.protocol usr/share/kde4/services/

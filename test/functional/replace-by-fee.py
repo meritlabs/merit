@@ -4,7 +4,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test the RBF code."""
 
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 from test_framework.util import *
 from test_framework.script import *
 from test_framework.mininode import *
@@ -59,12 +59,10 @@ def make_utxo(node, amount, confirmed=True, scriptPubKey=CScript([1])):
 
     return COutPoint(int(txid, 16), 0)
 
-class ReplaceByFeeTest(BitcoinTestFramework):
+class ReplaceByFeeTest(MeritTestFramework):
 
-    def __init__(self):
-        super().__init__()
+    def set_test_params(self):
         self.num_nodes = 1
-        self.setup_clean_chain = False
         self.extra_args= [["-maxorphantx=1000",
                            "-whitelist=127.0.0.1",
                            "-limitancestorcount=50",
@@ -126,7 +124,7 @@ class ReplaceByFeeTest(BitcoinTestFramework):
         # This will raise an exception due to insufficient fee
         assert_raises_jsonrpc(-26, "insufficient fee", self.nodes[0].sendrawtransaction, tx1b_hex, True)
 
-        # Extra 0.1 BTC fee
+        # Extra 0.1 MRT fee
         tx1b = CTransaction()
         tx1b.vin = [CTxIn(tx0_outpoint, nSequence=0)]
         tx1b.vout = [CTxOut(int(0.9*COIN), CScript([b'b']))]
@@ -160,7 +158,7 @@ class ReplaceByFeeTest(BitcoinTestFramework):
             prevout = COutPoint(int(txid, 16), 0)
 
         # Whether the double-spend is allowed is evaluated by including all
-        # child fees - 40 BTC - so this attempt is rejected.
+        # child fees - 40 MRT - so this attempt is rejected.
         dbl_tx = CTransaction()
         dbl_tx.vin = [CTxIn(tx0_outpoint, nSequence=0)]
         dbl_tx.vout = [CTxOut(initial_nValue - 30*COIN, CScript([1]))]
@@ -230,7 +228,7 @@ class ReplaceByFeeTest(BitcoinTestFramework):
         # This will raise an exception due to insufficient fee
         assert_raises_jsonrpc(-26, "insufficient fee", self.nodes[0].sendrawtransaction, dbl_tx_hex, True)
 
-        # 1 BTC fee is enough
+        # 1 MRT fee is enough
         dbl_tx = CTransaction()
         dbl_tx.vin = [CTxIn(tx0_outpoint, nSequence=0)]
         dbl_tx.vout = [CTxOut(initial_nValue - fee*n - 1*COIN, CScript([1]))]
@@ -270,7 +268,7 @@ class ReplaceByFeeTest(BitcoinTestFramework):
         tx1a.vin = [CTxIn(tx0_outpoint, nSequence=0)]
         tx1a.vout = [CTxOut(1*COIN, CScript([b'a']))]
         tx1a_hex = txToHex(tx1a)
-        tx1a_txid = self.nodes[0].sendrawtransaction(tx1a_hex, True)
+        self.nodes[0].sendrawtransaction(tx1a_hex, True)
 
         # Higher fee, but the fee per KB is much lower, so the replacement is
         # rejected.
@@ -331,7 +329,7 @@ class ReplaceByFeeTest(BitcoinTestFramework):
         tx1.vin = [CTxIn(confirmed_utxo)]
         tx1.vout = [CTxOut(1*COIN, CScript([b'a']))]
         tx1_hex = txToHex(tx1)
-        tx1_txid = self.nodes[0].sendrawtransaction(tx1_hex, True)
+        self.nodes[0].sendrawtransaction(tx1_hex, True)
 
         tx2 = CTransaction()
         tx2.vin = [CTxIn(confirmed_utxo), CTxIn(unconfirmed_utxo)]
@@ -499,7 +497,7 @@ class ReplaceByFeeTest(BitcoinTestFramework):
         tx2a.vin = [CTxIn(tx1_outpoint, nSequence=0)]
         tx2a.vout = [CTxOut(1*COIN, CScript([b'a']))]
         tx2a_hex = txToHex(tx2a)
-        tx2a_txid = self.nodes[0].sendrawtransaction(tx2a_hex, True)
+        self.nodes[0].sendrawtransaction(tx2a_hex, True)
 
         # Lower fee, but we'll prioritise it
         tx2b = CTransaction()

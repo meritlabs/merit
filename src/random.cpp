@@ -1,3 +1,4 @@
+// Copyright (c) 2014-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -46,10 +47,10 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 
-static void RandFailure()
+[[noreturn]] static void RandFailure()
 {
     LogPrintf("Failed to read randomness, aborting\n");
-    abort();
+    std::abort();
 }
 
 static inline int64_t GetPerformanceCounter()

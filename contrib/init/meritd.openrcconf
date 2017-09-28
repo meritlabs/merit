@@ -1,0 +1,33 @@
+# /etc/conf.d/meritd: config file for /etc/init.d/meritd
+
+# Config file location
+#MERITD_CONFIGFILE="/etc/merit/merit.conf"
+
+# What directory to write pidfile to?  (created and owned by $MERITD_USER)
+#MERITD_PIDDIR="/var/run/meritd"
+
+# What filename to give the pidfile
+#MERITD_PIDFILE="${MERITD_PIDDIR}/meritd.pid"
+
+# Where to write meritd data (be mindful that the blockchain is large)
+#MERITD_DATADIR="/var/lib/meritd"
+
+# User and group to own meritd process
+#MERITD_USER="merit"
+#MERITD_GROUP="merit"
+
+# Path to meritd executable
+#MERITD_BIN="/usr/bin/meritd"
+
+# Nice value to run meritd under
+#MERITD_NICE=0
+
+# Additional options (avoid -conf and -datadir, use flags above)
+#MERITD_OPTS=""
+
+# The timeout in seconds OpenRC will wait for meritd to terminate
+# after a SIGTERM has been raised.
+# Note that this will be mapped as argument to start-stop-daemon's
+# '--retry' option, which means you can specify a retry schedule
+# here. For more information see man 8 start-stop-daemon.
+MERITD_SIGTERM_TIMEOUT=60

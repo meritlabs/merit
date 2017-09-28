@@ -74,7 +74,7 @@ e. Announce one more that doesn't connect.
 """
 
 from test_framework.mininode import *
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 from test_framework.util import *
 from test_framework.blocktools import create_block, create_coinbase
 
@@ -128,7 +128,7 @@ class TestNode(NodeConnCB):
         expect_headers = headers if headers != None else []
         expect_inv = inv if inv != None else []
         test_function = lambda: self.block_announced
-        assert(wait_until(test_function, timeout=60))
+        wait_until(test_function, timeout=60, lock=mininode_lock)
         with mininode_lock:
             self.block_announced = False
 
@@ -155,12 +155,12 @@ class TestNode(NodeConnCB):
             return
 
         test_function = lambda: "getdata" in self.last_message and [x.hash for x in self.last_message["getdata"].inv] == hash_list
-        assert(wait_until(test_function, timeout=timeout))
+        wait_until(test_function, timeout=timeout, lock=mininode_lock)
         return
 
     def wait_for_block_announcement(self, block_hash, timeout=60):
         test_function = lambda: self.last_blockhash_announced == block_hash
-        assert(wait_until(test_function, timeout=timeout))
+        wait_until(test_function, timeout=timeout, lock=mininode_lock)
         return
 
     def send_header_for_blocks(self, new_blocks):
@@ -173,9 +173,8 @@ class TestNode(NodeConnCB):
         getblocks_message.locator.vHave = locator
         self.send_message(getblocks_message)
 
-class SendHeadersTest(BitcoinTestFramework):
-    def __init__(self):
-        super().__init__()
+class SendHeadersTest(MeritTestFramework):
+    def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 2
 

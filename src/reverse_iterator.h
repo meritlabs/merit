@@ -1,7 +1,8 @@
+// Copyright (c) 2017 The Merit Foundation developers
 // Taken from https://gist.github.com/arvidsson/7231973
 
-#ifndef BITCOIN_REVERSE_ITERATOR_H
-#define BITCOIN_REVERSE_ITERATOR_H
+#ifndef MERIT_REVERSE_ITERATOR_H
+#define MERIT_REVERSE_ITERATOR_H
 
 /**
  * Template used for reverse iteration in C++11 range-based for loops.
@@ -36,4 +37,4 @@ reverse_range<T> reverse_iterate(T &x)
     return reverse_range<T>(x);
 }
 
-#endif // BITCOIN_REVERSE_ITERATOR_H
+#endif // MERIT_REVERSE_ITERATOR_H

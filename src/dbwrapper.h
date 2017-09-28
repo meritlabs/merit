@@ -1,9 +1,10 @@
+// Copyright (c) 2015-2017 The Merit Foundation developers
 // Copyright (c) 2012-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_DBWRAPPER_H
-#define BITCOIN_DBWRAPPER_H
+#ifndef MERIT_DBWRAPPER_H
+#define MERIT_DBWRAPPER_H
 
 #include "clientversion.h"
 #include "fs.h"
@@ -211,14 +212,16 @@ private:
 
 public:
     /**
-     * @param[in] path        Location in the filesystem where leveldb data will be stored.
-     * @param[in] nCacheSize  Configures various leveldb cache settings.
-     * @param[in] fMemory     If true, use leveldb's memory environment.
-     * @param[in] fWipe       If true, remove all existing data.
-     * @param[in] obfuscate   If true, store data obfuscated via simple XOR. If false, XOR
-     *                        with a zero'd byte array.
+     * @param[in] path          Location in the filesystem where leveldb data will be stored.
+     * @param[in] nCacheSize    Configures various leveldb cache settings.
+     * @param[in] fMemory       If true, use leveldb's memory environment.
+     * @param[in] fWipe         If true, remove all existing data.
+     * @param[in] obfuscate     If true, store data obfuscated via simple XOR. If false, XOR
+     *                          with a zero'd byte array.
+     * @param[in] compression   Enable snappy compression for the database
+     * @param[in] maxOpenFiles  The maximum number of open files for the database
      */
-    CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory = false, bool fWipe = false, bool obfuscate = false);
+    CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory = false, bool fWipe = false, bool obfuscate = false, bool compression = false, int maxOpenFiles = 64);
     ~CDBWrapper();
 
     template <typename K, typename V>
@@ -340,4 +343,4 @@ public:
 
 };
 
-#endif // BITCOIN_DBWRAPPER_H
+#endif // MERIT_DBWRAPPER_H

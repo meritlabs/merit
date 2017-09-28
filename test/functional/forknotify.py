@@ -6,29 +6,19 @@
 import os
 import time
 
-from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import *
+from test_framework.test_framework import MeritTestFramework
 
-class ForkNotifyTest(BitcoinTestFramework):
-
-    def __init__(self):
-        super().__init__()
+class ForkNotifyTest(MeritTestFramework):
+    def set_test_params(self):
         self.num_nodes = 2
-        self.setup_clean_chain = False
 
     def setup_network(self):
-        self.nodes = []
         self.alert_filename = os.path.join(self.options.tmpdir, "alert.txt")
         with open(self.alert_filename, 'w', encoding='utf8'):
             pass  # Just open then close to create zero-length file
-        self.nodes.append(self.start_node(0, self.options.tmpdir,
-                            ["-blockversion=2", "-alertnotify=echo %s >> \"" + self.alert_filename + "\""]))
-        # Node1 mines block.version=211 blocks
-        self.nodes.append(self.start_node(1, self.options.tmpdir,
-                                ["-blockversion=211"]))
-        connect_nodes(self.nodes[1], 0)
-
-        self.sync_all()
+        self.extra_args = [["-blockversion=2", "-alertnotify=echo %s >> \"" + self.alert_filename + "\""],
+                           ["-blockversion=211"]]
+        super().setup_network()
 
     def run_test(self):
         # Mine 51 up-version blocks
@@ -40,7 +30,7 @@ class ForkNotifyTest(BitcoinTestFramework):
         self.nodes[1].generate(1)
         self.sync_all()
 
-        # Give bitcoind 10 seconds to write the alert notification
+        # Give meritd 10 seconds to write the alert notification
         timeout = 10.0
         while timeout > 0:
             if os.path.exists(self.alert_filename) and os.path.getsize(self.alert_filename):

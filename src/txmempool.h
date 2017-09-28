@@ -1,10 +1,11 @@
+// Copyright (c) 2012-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_TXMEMPOOL_H
-#define BITCOIN_TXMEMPOOL_H
+#ifndef MERIT_TXMEMPOOL_H
+#define MERIT_TXMEMPOOL_H
 
 #include <memory>
 #include <set>
@@ -13,6 +14,8 @@
 #include <utility>
 #include <string>
 
+#include "addressindex.h"
+#include "spentindex.h"
 #include "amount.h"
 #include "coins.h"
 #include "indirectmap.h"
@@ -20,12 +23,12 @@
 #include "primitives/transaction.h"
 #include "sync.h"
 #include "random.h"
+#include "referrals.h"
 
-#include "boost/multi_index_container.hpp"
-#include "boost/multi_index/ordered_index.hpp"
-#include "boost/multi_index/hashed_index.hpp"
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/hashed_index.hpp>
+#include <boost/multi_index/ordered_index.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
-
 #include <boost/signals2/signal.hpp>
 
 class CBlockIndex;
@@ -46,17 +49,6 @@ struct LockPoints
     CBlockIndex* maxInputBlock;
 
     LockPoints() : height(0), time(0), maxInputBlock(nullptr) { }
-};
-
-class ReferralTxMemPool
-{
-public:
-    std::map<uint256, ReferralRef> mapRTx;
-    mutable CCriticalSection cs;
-
-    ReferralTxMemPool() {};
-
-    bool AddUnchecked(const uint256& hash, const ReferralRef entry);
 };
 
 /** \class CTxMemPoolEntry
@@ -102,8 +94,6 @@ public:
                     int64_t _nTime, unsigned int _entryHeight,
                     bool spendsCoinbase,
                     int64_t nSigOpsCost, LockPoints lp);
-
-    CTxMemPoolEntry(const CTxMemPoolEntry& other);
 
     const CTransaction& GetTx() const { return *this->tx; }
     CTransactionRef GetSharedTx() const { return this->tx; }
@@ -348,6 +338,44 @@ public:
     }
 };
 
+using ReferralRefMap =std::map<uint256, ReferralRef>;
+
+class ReferralTxMemPool
+{
+public:
+    unsigned int m_nReferralsUpdated;
+
+    ReferralRefMap mapRTx;
+    mutable CCriticalSection cs;
+
+    ReferralTxMemPool() : m_nReferralsUpdated(0) {};
+
+    bool AddUnchecked(const uint256& hash, const ReferralRef entry);
+    void RemoveForBlock(const std::vector<ReferralRef>& vRefs);
+
+    bool exists(const uint256& hash) const
+    {
+        LOCK(cs);
+        return (mapRTx.count(hash) != 0);
+    }
+
+    bool ExistsWithCodeHash(const uint256& hash) const;
+    ReferralRef GetWithCodeHash(const uint256& codeHash) const;
+
+    ReferralRef get(const uint256& hash) const;
+
+    unsigned long size()
+    {
+        LOCK(cs);
+        return mapRTx.size();
+    }
+
+    std::vector<ReferralRef> GetReferrals() const;
+
+    boost::signals2::signal<void (ReferralRef)> NotifyEntryAdded;
+    boost::signals2::signal<void (ReferralRef, MemPoolRemovalReason)> NotifyEntryRemoved;
+};
+
 /**
  * CTxMemPool stores valid-according-to-the-current-best-chain transactions
  * that may be included in the next block.
@@ -498,6 +526,18 @@ private:
     typedef std::map<txiter, TxLinks, CompareIteratorByHash> txlinksMap;
     txlinksMap mapLinks;
 
+    typedef std::map<CMempoolAddressDeltaKey, CMempoolAddressDelta, CMempoolAddressDeltaKeyCompare> addressDeltaMap;
+    addressDeltaMap mapAddress;
+
+    typedef std::map<uint256, std::vector<CMempoolAddressDeltaKey> > addressDeltaMapInserted;
+    addressDeltaMapInserted mapAddressInserted;
+
+    typedef std::map<CSpentIndexKey, CSpentIndexValue, CSpentIndexKeyCompare> mapSpentIndex;
+    mapSpentIndex mapSpent;
+
+    typedef std::map<uint256, std::vector<CSpentIndexKey> > mapSpentIndexInserted;
+    mapSpentIndexInserted mapSpentInserted;
+
     void UpdateParent(txiter entry, txiter parent, bool add);
     void UpdateChild(txiter entry, txiter child, bool add);
 
@@ -517,7 +557,7 @@ public:
      * all inputs are in the mapNextTx array). If sanity-checking is turned off,
      * check does nothing.
      */
-    void check(const CCoinsViewCache *pcoins) const;
+    void check(const CCoinsViewCache *pcoins, const ReferralsViewCache& referralsCache) const;
     void setSanityCheck(double dFrequency = 1.0) { nCheckFrequency = dFrequency * 4294967295.0; }
 
     // addUnchecked must updated state for all ancestors of a given transaction,
@@ -526,6 +566,15 @@ public:
     // then invoke the second version.
     bool addUnchecked(const uint256& hash, const CTxMemPoolEntry &entry, bool validFeeEstimate = true);
     bool addUnchecked(const uint256& hash, const CTxMemPoolEntry &entry, setEntries &setAncestors, bool validFeeEstimate = true);
+
+    void addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewCache &view);
+    bool getAddressIndex(std::vector<std::pair<uint160, int> > &addresses,
+                         std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results);
+    bool removeAddressIndex(const uint256 txhash);
+
+    void addSpentIndex(const CTxMemPoolEntry &entry, const CCoinsViewCache &view);
+    bool getSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value);
+    bool removeSpentIndex(const uint256 txhash);
 
     void removeRecursive(const CTransaction &tx, MemPoolRemovalReason reason = MemPoolRemovalReason::UNKNOWN);
     void removeForReorg(const CCoinsViewCache *pcoins, unsigned int nMemPoolHeight, int flags);
@@ -786,4 +835,4 @@ struct DisconnectedBlockTransactions {
     }
 };
 
-#endif // BITCOIN_TXMEMPOOL_H
+#endif // MERIT_TXMEMPOOL_H

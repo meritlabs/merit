@@ -1,10 +1,11 @@
+// Copyright (c) 2012-2017 The Merit Foundation developers
 // Copyright (c) 2012 Pieter Wuille
 // Copyright (c) 2012-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_ADDRMAN_H
-#define BITCOIN_ADDRMAN_H
+#ifndef MERIT_ADDRMAN_H
+#define MERIT_ADDRMAN_H
 
 #include "netaddress.h"
 #include "protocol.h"
@@ -598,4 +599,4 @@ public:
 
 };
 
-#endif // BITCOIN_ADDRMAN_H
+#endif // MERIT_ADDRMAN_H

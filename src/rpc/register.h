@@ -1,9 +1,10 @@
+// Copyright (c) 2016-2017 The Merit Foundation developers
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_RPCREGISTER_H
-#define BITCOIN_RPCREGISTER_H
+#ifndef MERIT_RPCREGISTER_H
+#define MERIT_RPCREGISTER_H
 
 /** These are in one header file to avoid creating tons of single-function
  * headers for everything under src/rpc/ */

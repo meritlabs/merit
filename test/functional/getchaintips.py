@@ -10,17 +10,14 @@
 - verify that getchaintips now returns two chain tips.
 """
 
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 from test_framework.util import assert_equal
 
-class GetChainTipsTest (BitcoinTestFramework):
-    def __init__(self):
-        super().__init__()
+class GetChainTipsTest (MeritTestFramework):
+    def set_test_params(self):
         self.num_nodes = 4
-        self.setup_clean_chain = False
 
     def run_test (self):
-
         tips = self.nodes[0].getchaintips ()
         assert_equal (len (tips), 1)
         assert_equal (tips[0]['branchlen'], 0)

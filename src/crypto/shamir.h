@@ -1,3 +1,4 @@
+// Copyright (c) 2017 The Merit Foundation developers
 #ifndef SHAMIR_H
 
 #include "crypto/finite_field.h"

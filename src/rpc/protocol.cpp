@@ -1,3 +1,4 @@
+// Copyright (c) 2016-2017 The Merit Foundation developers
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -16,7 +17,7 @@
 #include <fstream>
 
 /**
- * JSON-RPC protocol.  Bitcoin speaks version 1.0 for maximum compatibility,
+ * JSON-RPC protocol.  Merit speaks version 1.0 for maximum compatibility,
  * but uses JSON-RPC 1.1/2.0 standards for parts of the 1.0 standard that were
  * unspecified (HTTP errors and contents of 'error').
  * 
@@ -66,9 +67,14 @@ static const std::string COOKIEAUTH_USER = "__cookie__";
 /** Default name for auth cookie file */
 static const std::string COOKIEAUTH_FILE = ".cookie";
 
-fs::path GetAuthCookieFile()
+/** Get name of RPC authentication cookie file */
+static fs::path GetAuthCookieFile(bool temp=false)
 {
-    fs::path path(gArgs.GetArg("-rpccookiefile", COOKIEAUTH_FILE));
+    std::string arg = gArgs.GetArg("-rpccookiefile", COOKIEAUTH_FILE);
+    if (temp) {
+        arg += ".tmp";
+    }
+    fs::path path(arg);
     if (!path.is_complete()) path = GetDataDir() / path;
     return path;
 }
@@ -84,14 +90,20 @@ bool GenerateAuthCookie(std::string *cookie_out)
      * these are set to 077 in init.cpp unless overridden with -sysperms.
      */
     std::ofstream file;
-    fs::path filepath = GetAuthCookieFile();
-    file.open(filepath.string().c_str());
+    fs::path filepath_tmp = GetAuthCookieFile(true);
+    file.open(filepath_tmp.string().c_str());
     if (!file.is_open()) {
-        LogPrintf("Unable to open cookie authentication file %s for writing\n", filepath.string());
+        LogPrintf("Unable to open cookie authentication file %s for writing\n", filepath_tmp.string());
         return false;
     }
     file << cookie;
     file.close();
+
+    fs::path filepath = GetAuthCookieFile(false);
+    if (!RenameOver(filepath_tmp, filepath)) {
+        LogPrintf("Unable to rename cookie authentication file %s to %s\n", filepath_tmp.string(), filepath.string());
+        return false;
+    }
     LogPrintf("Generated RPC authentication cookie %s\n", filepath.string());
 
     if (cookie_out)

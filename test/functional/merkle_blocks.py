@@ -4,15 +4,13 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test gettxoutproof and verifytxoutproof RPCs."""
 
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 from test_framework.util import *
 
-class MerkleBlockTest(BitcoinTestFramework):
-
-    def __init__(self):
-        super().__init__()
-        self.setup_clean_chain = True
+class MerkleBlockTest(MeritTestFramework):
+    def set_test_params(self):
         self.num_nodes = 4
+        self.setup_clean_chain = True
         # Nodes 0/1 are "wallet" nodes, Nodes 2/3 are used for testing
         self.extra_args = [[], [], [], ["-txindex"]]
 

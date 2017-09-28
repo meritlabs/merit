@@ -1,3 +1,4 @@
+// Copyright (c) 2015-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -558,7 +559,6 @@ bool CDB::Rewrite(CWalletDBWrapper& dbw, const char* pszSkip)
         }
         MilliSleep(100);
     }
-    return false;
 }
 
 
@@ -684,7 +684,6 @@ bool CWalletDBWrapper::Backup(const std::string& strDest)
         }
         MilliSleep(100);
     }
-    return false;
 }
 
 void CWalletDBWrapper::Flush(bool shutdown)

@@ -1,10 +1,11 @@
+// Copyright (c) 2016-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_POLICY_FEERATE_H
-#define BITCOIN_POLICY_FEERATE_H
+#ifndef MERIT_POLICY_FEERATE_H
+#define MERIT_POLICY_FEERATE_H
 
 #include "amount.h"
 #include "serialize.h"
@@ -26,7 +27,6 @@ public:
     explicit CFeeRate(const CAmount& _nSatoshisPerK): nSatoshisPerK(_nSatoshisPerK) { }
     /** Constructor for a fee rate in satoshis per kB. The size in bytes must not exceed (2^63 - 1)*/
     CFeeRate(const CAmount& nFeePaid, size_t nBytes);
-    CFeeRate(const CFeeRate& other) { nSatoshisPerK = other.nSatoshisPerK; }
     /**
      * Return the fee in satoshis for the given size in bytes.
      */
@@ -52,4 +52,4 @@ public:
     }
 };
 
-#endif //  BITCOIN_POLICY_FEERATE_H
+#endif //  MERIT_POLICY_FEERATE_H

@@ -1,4 +1,5 @@
 // Copyright (c) 2015-2016 The Bitcoin Core developers
+// Copyright (c) 2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,6 +10,16 @@
 #include "validation.h"
 #include "streams.h"
 #include "util.h"
+
+namespace
+{
+    const char *PUB_HASHBLOCK    = "pubhashblock";
+    const char *PUB_HASHTX       = "pubhashtx";
+    const char *PUB_HASHREFERRAL = "pubhashreferraltx";
+    const char *PUB_RAWBLOCK     = "pubrawblock";
+    const char *PUB_RAWTX        = "pubrawtx";
+    const char *PUB_RAWREFERRAL  = "pubrawreferraltx";
+}
 
 void zmqError(const char *str)
 {
@@ -35,10 +46,12 @@ CZMQNotificationInterface* CZMQNotificationInterface::Create()
     std::map<std::string, CZMQNotifierFactory> factories;
     std::list<CZMQAbstractNotifier*> notifiers;
 
-    factories["pubhashblock"] = CZMQAbstractNotifier::Create<CZMQPublishHashBlockNotifier>;
-    factories["pubhashtx"] = CZMQAbstractNotifier::Create<CZMQPublishHashTransactionNotifier>;
-    factories["pubrawblock"] = CZMQAbstractNotifier::Create<CZMQPublishRawBlockNotifier>;
-    factories["pubrawtx"] = CZMQAbstractNotifier::Create<CZMQPublishRawTransactionNotifier>;
+    factories[PUB_HASHBLOCK] = CZMQAbstractNotifier::Create<CZMQPublishHashBlockNotifier>;
+    factories[PUB_HASHTX] = CZMQAbstractNotifier::Create<CZMQPublishHashTransactionNotifier>;
+    factories[PUB_HASHREFERRAL] = CZMQAbstractNotifier::Create<CZMQPublishHashReferralNotifier>;
+    factories[PUB_RAWBLOCK] = CZMQAbstractNotifier::Create<CZMQPublishRawBlockNotifier>;
+    factories[PUB_RAWTX] = CZMQAbstractNotifier::Create<CZMQPublishRawTransactionNotifier>;
+    factories[PUB_RAWREFERRAL] = CZMQAbstractNotifier::Create<CZMQPublishRawReferralNotifier>;
 
     for (std::map<std::string, CZMQNotifierFactory>::const_iterator i=factories.begin(); i!=factories.end(); ++i)
     {
@@ -150,9 +163,9 @@ void CZMQNotificationInterface::TransactionAddedToMempool(const CTransactionRef&
     // all the same external callback.
     const CTransaction& tx = *ptx;
 
-    for (std::list<CZMQAbstractNotifier*>::iterator i = notifiers.begin(); i!=notifiers.end(); )
+    for (auto i = notifiers.begin(); i!=notifiers.end(); )
     {
-        CZMQAbstractNotifier *notifier = *i;
+        auto *notifier = *i;
         if (notifier->NotifyTransaction(tx))
         {
             i++;
@@ -171,6 +184,10 @@ void CZMQNotificationInterface::BlockConnected(const std::shared_ptr<const CBloc
         // Do a normal notify for each transaction added in the block
         TransactionAddedToMempool(ptx);
     }
+    for (const ReferralRef& ref : pblock->m_vRef) {
+        // Do a normal notify for each referral transaction added in the block
+        ReferralTransactionAddedToMempool(ref);
+    }
 }
 
 void CZMQNotificationInterface::BlockDisconnected(const std::shared_ptr<const CBlock>& pblock)
@@ -178,5 +195,26 @@ void CZMQNotificationInterface::BlockDisconnected(const std::shared_ptr<const CB
     for (const CTransactionRef& ptx : pblock->vtx) {
         // Do a normal notify for each transaction removed in block disconnection
         TransactionAddedToMempool(ptx);
+    }
+    for (const ReferralRef& ref : pblock->m_vRef) {
+        // Do a normal notify for each referral transaction removed in block disconnection
+        ReferralTransactionAddedToMempool(ref);
+    }
+}
+
+void CZMQNotificationInterface::ReferralTransactionAddedToMempool(const ReferralRef &rtx)
+{
+    for (auto i = notifiers.begin(); i!=notifiers.end(); )
+    {
+        auto *notifier = *i;
+        if (notifier->NotifyReferral(rtx))
+        {
+            i++;
+        }
+        else
+        {
+            notifier->Shutdown();
+            i = notifiers.erase(i);
+        }
     }
 }

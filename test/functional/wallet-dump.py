@@ -6,7 +6,7 @@
 
 import os
 
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 from test_framework.util import assert_equal
 
 
@@ -55,11 +55,8 @@ def read_dump(file_name, addrs, hd_master_addr_old):
         return found_addr, found_addr_chg, found_addr_rsv, hd_master_addr_ret
 
 
-class WalletDumpTest(BitcoinTestFramework):
-
-    def __init__(self):
-        super().__init__()
-        self.setup_clean_chain = False
+class WalletDumpTest(MeritTestFramework):
+    def set_test_params(self):
         self.num_nodes = 1
         self.extra_args = [["-keypool=90"]]
 
@@ -68,7 +65,8 @@ class WalletDumpTest(BitcoinTestFramework):
         # longer than the default 30 seconds due to an expensive
         # CWallet::TopUpKeyPool call, and the encryptwallet RPC made later in
         # the test often takes even longer.
-        self.nodes = self.start_nodes(self.num_nodes, self.options.tmpdir, self.extra_args, timewait=60)
+        self.add_nodes(self.num_nodes, self.extra_args, timewait=60)
+        self.start_nodes()
 
     def run_test (self):
         tmpdir = self.options.tmpdir
@@ -95,13 +93,13 @@ class WalletDumpTest(BitcoinTestFramework):
 
         #encrypt wallet, restart, unlock and dump
         self.nodes[0].node_encrypt_wallet('test')
-        self.nodes[0] = self.start_node(0, self.options.tmpdir, self.extra_args[0])
+        self.start_node(0)
         self.nodes[0].walletpassphrase('test', 10)
         # Should be a no-op:
         self.nodes[0].keypoolrefill()
         self.nodes[0].dumpwallet(tmpdir + "/node0/wallet.encrypted.dump")
 
-        found_addr, found_addr_chg, found_addr_rsv, hd_master_addr_enc = \
+        found_addr, found_addr_chg, found_addr_rsv, _ = \
             read_dump(tmpdir + "/node0/wallet.encrypted.dump", addrs, hd_master_addr_unenc)
         assert_equal(found_addr, test_addr_count)
         assert_equal(found_addr_chg, 90*2 + 50)  # old reserve keys are marked as change now

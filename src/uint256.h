@@ -1,10 +1,11 @@
+// Copyright (c) 2011-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UINT256_H
-#define BITCOIN_UINT256_H
+#ifndef MERIT_UINT256_H
+#define MERIT_UINT256_H
 
 #include <assert.h>
 #include <cstring>
@@ -137,6 +138,25 @@ public:
     }
 };
 
+/** A hash function for using uints as keys in unordered_maps
+ */
+namespace std
+{
+    template <>
+    struct hash<uint256> {
+        std::size_t operator()(const uint256& n) const {
+            return hash<string>()(n.ToString());
+        }
+    };
+
+    template <>
+    struct hash<uint160> {
+        std::size_t operator()(const uint160& n) const {
+            return hash<string>()(n.ToString());
+        }
+    };
+}
+
 /* uint256 from const char *.
  * This is a separate function because the constructor uint256(const char*) can result
  * in dangerously catching uint256(0).
@@ -158,4 +178,4 @@ inline uint256 uint256S(const std::string& str)
     return rv;
 }
 
-#endif // BITCOIN_UINT256_H
+#endif // MERIT_UINT256_H

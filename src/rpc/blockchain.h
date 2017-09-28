@@ -1,9 +1,10 @@
+// Copyright (c) 2017 The Merit Foundation developers
 // Copyright (c) 2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_RPC_BLOCKCHAIN_H
-#define BITCOIN_RPC_BLOCKCHAIN_H
+#ifndef MERIT_RPC_BLOCKCHAIN_H
+#define MERIT_RPC_BLOCKCHAIN_H
 
 class CBlock;
 class CBlockIndex;
@@ -23,6 +24,9 @@ void RPCNotifyBlockChange(bool ibd, const CBlockIndex *);
 
 /** Block description to JSON */
 UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool txDetails = false);
+
+/** Block description to deltas JSON */
+UniValue blockToDeltasJSON(const CBlock& block, const CBlockIndex* blockindex);
 
 /** Mempool information to JSON */
 UniValue mempoolInfoToJSON();

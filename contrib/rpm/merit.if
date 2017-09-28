@@ -1,0 +1,157 @@
+
+## <summary>policy for merit</summary>
+
+
+########################################
+## <summary>
+##	Transition to merit.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`merit_domtrans',`
+	gen_require(`
+		type merit_t, merit_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, merit_exec_t, merit_t)
+')
+
+
+########################################
+## <summary>
+##	Execute merit server in the merit domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`merit_initrc_domtrans',`
+	gen_require(`
+		type merit_initrc_exec_t;
+	')
+
+	init_labeled_script_domtrans($1, merit_initrc_exec_t)
+')
+
+
+########################################
+## <summary>
+##	Search merit lib directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`merit_search_lib',`
+	gen_require(`
+		type merit_var_lib_t;
+	')
+
+	allow $1 merit_var_lib_t:dir search_dir_perms;
+	files_search_var_lib($1)
+')
+
+########################################
+## <summary>
+##	Read merit lib files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`merit_read_lib_files',`
+	gen_require(`
+		type merit_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	read_files_pattern($1, merit_var_lib_t, merit_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Manage merit lib files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`merit_manage_lib_files',`
+	gen_require(`
+		type merit_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	manage_files_pattern($1, merit_var_lib_t, merit_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Manage merit lib directories.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`merit_manage_lib_dirs',`
+	gen_require(`
+		type merit_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	manage_dirs_pattern($1, merit_var_lib_t, merit_var_lib_t)
+')
+
+
+########################################
+## <summary>
+##	All of the rules required to administrate
+##	a merit environment
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+## <rolecap/>
+#
+interface(`merit_admin',`
+	gen_require(`
+		type merit_t;
+		type merit_initrc_exec_t;
+		type merit_var_lib_t;
+	')
+
+	allow $1 merit_t:process { ptrace signal_perms };
+	ps_process_pattern($1, merit_t)
+
+	merit_initrc_domtrans($1)
+	domain_system_change_exemption($1)
+	role_transition $2 merit_initrc_exec_t system_r;
+	allow $2 system_r;
+
+	files_search_var_lib($1)
+	admin_pattern($1, merit_var_lib_t)
+
+')
+

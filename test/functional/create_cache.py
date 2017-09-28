@@ -9,16 +9,13 @@ multiple functional tests. This helper script is executed by test_runner when mu
 tests are being run in parallel.
 """
 
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 
-class CreateCache(BitcoinTestFramework):
+class CreateCache(MeritTestFramework):
+    # Test network and test nodes are not required:
 
-    def __init__(self):
-        super().__init__()
-
-        # Test network and test nodes are not required:
+    def set_test_params(self):
         self.num_nodes = 0
-        self.nodes = []
 
     def setup_network(self):
         pass

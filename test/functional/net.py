@@ -9,7 +9,7 @@ Tests correspond to code in rpc/net.cpp.
 
 import time
 
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 from test_framework.util import (
     assert_equal,
     assert_raises_jsonrpc,
@@ -17,10 +17,8 @@ from test_framework.util import (
     p2p_port,
 )
 
-
-class NetTest(BitcoinTestFramework):
-    def __init__(self):
-        super().__init__()
+class NetTest(MeritTestFramework):
+    def set_test_params(self):
         self.setup_clean_chain = True
         self.num_nodes = 2
 

@@ -1,0 +1,22 @@
+[Unit]
+Description=Merit's distributed currency daemon
+After=network.target
+
+[Service]
+User=merit
+Group=merit
+
+Type=forking
+PIDFile=/var/lib/meritd/meritd.pid
+ExecStart=/usr/bin/meritd -daemon -pid=/var/lib/meritd/meritd.pid \
+-conf=/etc/merit/merit.conf -datadir=/var/lib/meritd -disablewallet
+
+Restart=always
+PrivateTmp=true
+TimeoutStopSec=60s
+TimeoutStartSec=2s
+StartLimitInterval=120s
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

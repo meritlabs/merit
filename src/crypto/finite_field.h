@@ -1,3 +1,4 @@
+// Copyright (c) 2017 The Merit Foundation developers
 #ifndef FINITE_FIELD_H
 
 #include "support/allocators/secure.h"

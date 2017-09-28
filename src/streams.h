@@ -1,10 +1,11 @@
+// Copyright (c) 2014-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_STREAMS_H
-#define BITCOIN_STREAMS_H
+#ifndef MERIT_STREAMS_H
+#define MERIT_STREAMS_H
 
 #include "support/allocators/zeroafterfree.h"
 #include "serialize.h"
@@ -82,7 +83,7 @@ class CVectorWriter
  * @param[in]  nVersionIn Serialization Version (including any flags)
  * @param[in]  vchDataIn  Referenced byte vector to overwrite/append
  * @param[in]  nPosIn Starting position. Vector index where writes should start. The vector will initially
- *                    grow as necessary to  max(index, vec.size()). So to append, use vec.size().
+ *                    grow as necessary to  max(nPosIn, vec.size()). So to append, use vec.size().
 */
     CVectorWriter(int nTypeIn, int nVersionIn, std::vector<unsigned char>& vchDataIn, size_t nPosIn) : nType(nTypeIn), nVersion(nVersionIn), vchData(vchDataIn), nPos(nPosIn)
     {
@@ -91,7 +92,7 @@ class CVectorWriter
     }
 /*
  * (other params same as above)
- * @param[in]  args  A list of items to serialize starting at nPos.
+ * @param[in]  args  A list of items to serialize starting at nPosIn.
 */
     template <typename... Args>
     CVectorWriter(int nTypeIn, int nVersionIn, std::vector<unsigned char>& vchDataIn, size_t nPosIn, Args&&... args) : CVectorWriter(nTypeIn, nVersionIn, vchDataIn, nPosIn)
@@ -706,4 +707,4 @@ public:
     }
 };
 
-#endif // BITCOIN_STREAMS_H
+#endif // MERIT_STREAMS_H

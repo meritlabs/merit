@@ -1,0 +1,13 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=Merit Core
+Comment=Connect to the Merit P2P Network
+Comment[de]=Verbinde mit dem Merit peer-to-peer Netzwerk
+Comment[fr]=Merit, monnaie virtuelle cryptographique pair à pair
+Comment[tr]=Merit, eşten eşe kriptografik sanal para birimi
+Exec=merit-qt %u
+Terminal=false
+Type=Application
+Icon=merit128
+MimeType=x-scheme-handler/merit;
+Categories=Office;Finance;

@@ -1,15 +1,17 @@
+// Copyright (c) 2015-2017 The Merit Foundation developers
 // Copyright (c) 2015-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef _BITCOIN_PREVECTOR_H_
-#define _BITCOIN_PREVECTOR_H_
+#ifndef MERIT_PREVECTOR_H
+#define MERIT_PREVECTOR_H
 
 #include <assert.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 
+#include <algorithm>
 #include <iterator>
 #include <type_traits>
 
@@ -456,17 +458,7 @@ public:
         if (other.size() != size()) {
             return false;
         }
-        const_iterator b1 = begin();
-        const_iterator b2 = other.begin();
-        const_iterator e1 = end();
-        while (b1 != e1) {
-            if ((*b1) != (*b2)) {
-                return false;
-            }
-            ++b1;
-            ++b2;
-        }
-        return true;
+        return std::equal(begin(), end(), other.begin());
     }
 
     bool operator!=(const prevector<N, T, Size, Diff>& other) const {
@@ -514,4 +506,4 @@ public:
 };
 #pragma pack(pop)
 
-#endif
+#endif // MERIT_PREVECTOR_H

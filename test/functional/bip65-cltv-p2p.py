@@ -8,7 +8,7 @@ Test that the CHECKLOCKTIMEVERIFY soft-fork activates at (regtest) block height
 1351.
 """
 
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 from test_framework.util import *
 from test_framework.mininode import *
 from test_framework.blocktools import create_coinbase, create_block
@@ -59,10 +59,8 @@ def create_transaction(node, coinbase, to_address, amount):
     tx.deserialize(BytesIO(hex_str_to_bytes(signresult['hex'])))
     return tx
 
-class BIP65Test(BitcoinTestFramework):
-
-    def __init__(self):
-        super().__init__()
+class BIP65Test(MeritTestFramework):
+    def set_test_params(self):
         self.num_nodes = 1
         self.extra_args = [['-promiscuousmempoolflags=1', '-whitelist=127.0.0.1']]
         self.setup_clean_chain = True
@@ -109,7 +107,7 @@ class BIP65Test(BitcoinTestFramework):
         node0.send_and_ping(msg_block(block))
         assert_equal(int(self.nodes[0].getbestblockhash(), 16), tip)
 
-        assert wait_until(lambda: "reject" in node0.last_message.keys())
+        wait_until(lambda: "reject" in node0.last_message.keys(), lock=mininode_lock)
         with mininode_lock:
             assert_equal(node0.last_message["reject"].code, REJECT_OBSOLETE)
             assert_equal(node0.last_message["reject"].reason, b'bad-version(0x00000003)')
@@ -138,7 +136,7 @@ class BIP65Test(BitcoinTestFramework):
         node0.send_and_ping(msg_block(block))
         assert_equal(int(self.nodes[0].getbestblockhash(), 16), tip)
 
-        assert wait_until (lambda: "reject" in node0.last_message.keys())
+        wait_until(lambda: "reject" in node0.last_message.keys(), lock=mininode_lock)
         with mininode_lock:
             assert node0.last_message["reject"].code in [REJECT_INVALID, REJECT_NONSTANDARD]
             assert_equal(node0.last_message["reject"].data, block.sha256)

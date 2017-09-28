@@ -1,9 +1,10 @@
+// Copyright (c) 2015-2017 The Merit Foundation developers
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_CRYPTER_H
-#define BITCOIN_WALLET_CRYPTER_H
+#ifndef MERIT_WALLET_CRYPTER_H
+#define MERIT_WALLET_CRYPTER_H
 
 #include "keystore.h"
 #include "serialize.h"
@@ -193,4 +194,4 @@ public:
     boost::signals2::signal<void (CCryptoKeyStore* wallet)> NotifyStatusChanged;
 };
 
-#endif // BITCOIN_WALLET_CRYPTER_H
+#endif // MERIT_WALLET_CRYPTER_H

@@ -1,3 +1,4 @@
+// Copyright (c) 2014-2017 The Merit Foundation developers
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -125,6 +126,15 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "setnetworkactive", 0, "state" },
     { "getmempoolancestors", 1, "verbose" },
     { "getmempooldescendants", 1, "verbose" },
+    { "getblockhashes", 0 , "high"},
+    { "getblockhashes", 1, "low"},
+    { "getblockhashes", 2, "options" },
+    { "getspentinfo", 0, "txid_index"},
+    { "getaddresstxids", 0, "addresses"},
+    { "getaddressbalance", 0, "addresses"},
+    { "getaddressdeltas", 0, "addresses"},
+    { "getaddressutxos", 0, "addresses"},
+    { "getaddressmempool", 0, "addresses"},
     { "bumpfee", 1, "options" },
     { "logging", 0, "include" },
     { "logging", 1, "exclude" },

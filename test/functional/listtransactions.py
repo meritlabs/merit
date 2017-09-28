@@ -4,7 +4,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test the listtransactions API."""
 
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 from test_framework.util import *
 from test_framework.mininode import CTransaction, COIN
 from io import BytesIO
@@ -15,16 +15,10 @@ def txFromHex(hexstring):
     tx.deserialize(f)
     return tx
 
-class ListTransactionsTest(BitcoinTestFramework):
-    def __init__(self):
-        super().__init__()
-        self.num_nodes = 4
-        self.setup_clean_chain = False
-
-    def setup_nodes(self):
-        #This test requires mocktime
+class ListTransactionsTest(MeritTestFramework):
+    def set_test_params(self):
+        self.num_nodes = 2
         self.enable_mocktime()
-        self.nodes = self.start_nodes(self.num_nodes, self.options.tmpdir)
 
     def run_test(self):
         # Simple send, 0 to 1:

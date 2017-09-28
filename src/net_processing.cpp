@@ -1,3 +1,4 @@
+// Copyright (c) 2016-2017 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -31,8 +32,11 @@
 #include "utilstrencodings.h"
 #include "validationinterface.h"
 
+#include <algorithm>
+#include <iterator>
+
 #if defined(NDEBUG)
-# error "Bitcoin cannot be compiled without assertions."
+# error "Merit cannot be compiled without assertions."
 #endif
 
 std::atomic<int64_t> nTimeBestReceived(0); // Used only to inform the wallet of when we last received a block
@@ -52,12 +56,29 @@ struct COrphanTx {
     NodeId fromPeer;
     int64_t nTimeExpire;
 };
-std::map<uint256, COrphanTx> mapOrphanTransactions GUARDED_BY(cs_main);
-std::map<COutPoint, std::set<std::map<uint256, COrphanTx>::iterator, IteratorComparator>> mapOrphanTransactionsByPrev GUARDED_BY(cs_main);
+
+struct OrphanReferral {
+    ReferralRef ref;
+    NodeId fromPeer;
+    int64_t nTimeExpire;
+};
+
+using OrphanedTransactionMap = std::map<uint256, COrphanTx>;
+using OrphanedReferralMap = std::map<uint256, OrphanReferral>;
+
+OrphanedTransactionMap mapOrphanTransactions GUARDED_BY(cs_main);
+OrphanedReferralMap mapOrphanReferrals GUARDED_BY(cs_main);
+
+using OrphanedTransactionIterSet = std::set<OrphanedTransactionMap::iterator, IteratorComparator>;
+std::map<COutPoint, OrphanedTransactionIterSet> mapOrphanTransactionsByPrev GUARDED_BY(cs_main);
+
+using OrphanedReferralIterSet = std::set<OrphanedReferralMap::iterator, IteratorComparator>;
+std::map<uint256, OrphanedReferralIterSet> mapOrphanReferralsByPrev GUARDED_BY(cs_main);
 void EraseOrphansFor(NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 static size_t vExtraTxnForCompactIt = 0;
 static std::vector<std::pair<uint256, CTransactionRef>> vExtraTxnForCompact GUARDED_BY(cs_main);
+static std::vector<std::pair<uint256, ReferralRef>> vExtraRefsForCompact GUARDED_BY(cs_main);
 
 static const uint64_t RANDOMIZER_ID_ADDRESS_RELAY = 0x3cac0035b5866b90ULL; // SHA256("main address relay")[0:8]
 
@@ -281,6 +302,7 @@ void FinalizeNode(NodeId nodeid, bool& fUpdateConnectionTime) {
     fUpdateConnectionTime = false;
     LOCK(cs_main);
     CNodeState *state = State(nodeid);
+    assert(state != nullptr);
 
     if (state->fSyncStarted)
         nSyncStarted--;
@@ -315,6 +337,7 @@ bool MarkBlockAsReceived(const uint256& hash) {
     std::map<uint256, std::pair<NodeId, std::list<QueuedBlock>::iterator> >::iterator itInFlight = mapBlocksInFlight.find(hash);
     if (itInFlight != mapBlocksInFlight.end()) {
         CNodeState *state = State(itInFlight->second.first);
+        assert(state != nullptr);
         state->nBlocksInFlightValidHeaders -= itInFlight->second.second->fValidatedHeaders;
         if (state->nBlocksInFlightValidHeaders == 0 && itInFlight->second.second->fValidatedHeaders) {
             // Last validated block on the queue was received.
@@ -353,7 +376,7 @@ bool MarkBlockAsInFlight(NodeId nodeid, const uint256& hash, const CBlockIndex* 
     MarkBlockAsReceived(hash);
 
     std::list<QueuedBlock>::iterator it = state->vBlocksInFlight.insert(state->vBlocksInFlight.end(),
-            {hash, pindex, pindex != nullptr, std::unique_ptr<PartiallyDownloadedBlock>(pit ? new PartiallyDownloadedBlock(&mempool) : nullptr)});
+            {hash, pindex, pindex != nullptr, std::unique_ptr<PartiallyDownloadedBlock>(pit ? new PartiallyDownloadedBlock(&mempool, &mempoolReferral) : nullptr)});
     state->nBlocksInFlight++;
     state->nBlocksInFlightValidHeaders += it->fValidatedHeaders;
     if (state->nBlocksInFlight == 1) {
@@ -466,7 +489,7 @@ void FindNextBlocksToDownload(NodeId nodeid, unsigned int count, std::vector<con
     // Make sure pindexBestKnownBlock is up to date, we'll need it.
     ProcessBlockAvailability(nodeid);
 
-    if (state->pindexBestKnownBlock == nullptr || state->pindexBestKnownBlock->nChainWork < chainActive.Tip()->nChainWork || state->pindexBestKnownBlock->nChainWork < UintToArith256(consensusParams.nMinimumChainWork)) {
+    if (state->pindexBestKnownBlock == nullptr || state->pindexBestKnownBlock->nChainWork < chainActive.Tip()->nChainWork || state->pindexBestKnownBlock->nChainWork < nMinimumChainWork) {
         // This peer has nothing interesting.
         return;
     }
@@ -590,6 +613,23 @@ void AddToCompactExtraTransactions(const CTransactionRef& tx)
     vExtraTxnForCompactIt = (vExtraTxnForCompactIt + 1) % max_extra_txn;
 }
 
+bool AddOrphanReferral(const ReferralRef& ref, NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+{
+    const uint256& hash = ref->GetHash();
+    if (mapOrphanReferrals.count(hash)) {
+        return false;
+    }
+
+    auto ret = mapOrphanReferrals.emplace(hash, OrphanReferral{ref, peer, GetTime() + ORPHAN_TX_EXPIRE_TIME});
+    assert(ret.second);
+
+    mapOrphanReferralsByPrev[ref->m_previousReferral].insert(ret.first);
+
+    LogPrint(BCLog::REFMEMPOOL, "stored orphan referral %s (mapsz %u prevsz)\n", hash.ToString(), mapOrphanReferrals.size());
+
+    return true;
+}
+
 bool AddOrphanTx(const CTransactionRef& tx, NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
     const uint256& hash = tx->GetHash();
@@ -623,6 +663,29 @@ bool AddOrphanTx(const CTransactionRef& tx, NodeId peer) EXCLUSIVE_LOCKS_REQUIRE
     return true;
 }
 
+int static EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+{
+    auto it = mapOrphanReferrals.find(hash);
+    if (it == mapOrphanReferrals.end()) {
+        return 0;
+    }
+
+    mapOrphanReferrals.erase(it);
+
+    auto itPrev = mapOrphanReferralsByPrev.find(it->second.ref->m_previousReferral);
+
+    if (itPrev != mapOrphanReferralsByPrev.end()) { 
+        itPrev->second.erase(it);
+
+        // erase map for prevRef in case it has no orphan referral that depends on it
+        if (itPrev->second.empty()) {
+            mapOrphanReferralsByPrev.erase(itPrev);
+        }
+    }
+
+    return 1;
+}
+
 int static EraseOrphanTx(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
     std::map<uint256, COrphanTx>::iterator it = mapOrphanTransactions.find(hash);
@@ -644,16 +707,20 @@ int static EraseOrphanTx(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 void EraseOrphansFor(NodeId peer)
 {
     int nErased = 0;
-    std::map<uint256, COrphanTx>::iterator iter = mapOrphanTransactions.begin();
-    while (iter != mapOrphanTransactions.end())
-    {
-        std::map<uint256, COrphanTx>::iterator maybeErase = iter++; // increment to avoid iterator becoming invalid
-        if (maybeErase->second.fromPeer == peer)
-        {
-            nErased += EraseOrphanTx(maybeErase->second.tx->GetHash());
+    for (const auto& it: mapOrphanTransactions) {
+        if (it.second.fromPeer == peer) {
+            nErased += EraseOrphanTx(it.second.tx->GetHash());
         }
     }
     if (nErased > 0) LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx from peer=%d\n", nErased, peer);
+
+    nErased = 0;
+    for (const auto& it: mapOrphanReferrals) {
+        if (it.second.fromPeer == peer) {
+            nErased += EraseOrphanReferral(it.second.ref->GetHash());
+        }
+    }
+    if (nErased > 0) LogPrint(BCLog::REFMEMPOOL, "Erased %d orphan referrals from peer=%d\n", nErased, peer);
 }
 
 
@@ -735,40 +802,71 @@ void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pb
 
     std::vector<uint256> vOrphanErase;
 
-    for (const CTransactionRef& ptx : pblock->vtx) {
+    for (const auto& ptx : pblock->vtx) {
+        assert(ptx);
         const CTransaction& tx = *ptx;
 
         // Which orphan pool entries must we evict?
         for (const auto& txin : tx.vin) {
+            // TODO: figure out why txin.prevout used here instead txouts
             auto itByPrev = mapOrphanTransactionsByPrev.find(txin.prevout);
             if (itByPrev == mapOrphanTransactionsByPrev.end()) continue;
-            for (auto mi = itByPrev->second.begin(); mi != itByPrev->second.end(); ++mi) {
-                const CTransaction& orphanTx = *(*mi)->second.tx;
-                const uint256& orphanHash = orphanTx.GetHash();
-                vOrphanErase.push_back(orphanHash);
-            }
+
+            std::transform(
+                    std::begin(itByPrev->second), std::end(itByPrev->second), 
+                    std::back_inserter(vOrphanErase),
+                    [](const OrphanedTransactionIterSet::value_type& v) {
+                        assert(v->second.tx);
+                        return v->second.tx->GetHash();
+                    });
         }
     }
 
     // Erase orphan transactions include or precluded by this block
-    if (vOrphanErase.size()) {
+    {
         int nErased = 0;
         for (uint256 &orphanHash : vOrphanErase) {
             nErased += EraseOrphanTx(orphanHash);
         }
-        LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx included or conflicted by block\n", nErased);
+        if(nErased > 0) LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx included or conflicted by block\n", nErased);
+    }
+
+    std::vector<uint256> vOrphanReferralsErase;
+
+    for (const auto& ref: pblock->m_vRef) {
+        assert(ref);
+
+        auto itByPrev = mapOrphanReferralsByPrev.find(ref->GetHash());
+        if (itByPrev == mapOrphanReferralsByPrev.end()) continue;
+
+        std::transform(
+                std::begin(itByPrev->second), std::end(itByPrev->second),
+                std::back_inserter(vOrphanReferralsErase), 
+                [](const OrphanedReferralIterSet::value_type& p) {
+                    assert(p->second.ref);
+                    return p->second.ref->GetHash();
+                });
+    }
+
+    // Erase orphan referrals include by this block
+    {
+        int nErased = 0;
+        for (uint256 &orphanHash : vOrphanErase) {
+            nErased += EraseOrphanReferral(orphanHash);
+        }
+        if(nErased > 0) LogPrint(BCLog::REFMEMPOOL, "Erased %d orphan referrals included or conflicted by block\n", nErased);
     }
 }
 
 // All of the following cache a recent block, and are protected by cs_most_recent_block
 static CCriticalSection cs_most_recent_block;
 static std::shared_ptr<const CBlock> most_recent_block;
-static std::shared_ptr<const CBlockHeaderAndShortTxIDs> most_recent_compact_block;
+static std::shared_ptr<const BlockHeaderAndShortIDs> most_recent_compact_block;
 static uint256 most_recent_block_hash;
 static bool fWitnessesPresentInMostRecentCompactBlock;
 
 void PeerLogicValidation::NewPoWValidBlock(const CBlockIndex *pindex, const std::shared_ptr<const CBlock>& pblock) {
-    std::shared_ptr<const CBlockHeaderAndShortTxIDs> pcmpctblock = std::make_shared<const CBlockHeaderAndShortTxIDs> (*pblock, true);
+    std::shared_ptr<const BlockHeaderAndShortIDs> pcmpctblock = std::make_shared<const BlockHeaderAndShortIDs> (*pblock, true);
     const CNetMsgMaker msgMaker(PROTOCOL_VERSION);
 
     LOCK(cs_main);
@@ -906,7 +1004,11 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_WITNESS_BLOCK:
         return mapBlockIndex.count(inv.hash);
     case MSG_REFERRAL:
-        return false;
+        // TODO: add to recentRejects if referral code is not valid
+        return recentRejects->contains(inv.hash) ||
+            mempoolReferral.exists(inv.hash) ||
+            mapOrphanReferrals.count(inv.hash) ||
+            prefviewcache->ReferralCodeExists(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -992,7 +1094,7 @@ void static ProcessGetData(CNode* pfrom, const Consensus::Params& consensusParam
                 bool send = false;
                 BlockMap::iterator mi = mapBlockIndex.find(inv.hash);
                 std::shared_ptr<const CBlock> a_recent_block;
-                std::shared_ptr<const CBlockHeaderAndShortTxIDs> a_recent_compact_block;
+                std::shared_ptr<const BlockHeaderAndShortIDs> a_recent_compact_block;
                 bool fWitnessesPresentInARecentCompactBlock;
                 {
                     LOCK(cs_most_recent_block);
@@ -1094,7 +1196,7 @@ void static ProcessGetData(CNode* pfrom, const Consensus::Params& consensusParam
                             if ((fPeerWantsWitness || !fWitnessesPresentInARecentCompactBlock) && a_recent_compact_block && a_recent_compact_block->header.GetHash() == mi->second->GetBlockHash()) {
                                 connman.PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::CMPCTBLOCK, *a_recent_compact_block));
                             } else {
-                                CBlockHeaderAndShortTxIDs cmpctblock(*pblock, fPeerWantsWitness);
+                                BlockHeaderAndShortIDs cmpctblock(*pblock, fPeerWantsWitness);
                                 connman.PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::CMPCTBLOCK, cmpctblock));
                             }
                         } else {
@@ -1177,16 +1279,25 @@ uint32_t GetFetchFlags(CNode* pfrom) {
 
 inline void static SendBlockTransactions(const CBlock& block, const BlockTransactionsRequest& req, CNode* pfrom, CConnman& connman) {
     BlockTransactions resp(req);
-    for (size_t i = 0; i < req.indexes.size(); i++) {
-        if (req.indexes[i] >= block.vtx.size()) {
+    for (size_t i = 0; i < req.m_transaction_indices.size(); i++) {
+        if (req.m_transaction_indices[i] >= block.vtx.size()) {
             LOCK(cs_main);
             Misbehaving(pfrom->GetId(), 100);
             LogPrintf("Peer %d sent us a getblocktxn with out-of-bounds tx indices", pfrom->GetId());
             return;
         }
-        resp.txn[i] = block.vtx[req.indexes[i]];
+        resp.txn[i] = block.vtx[req.m_transaction_indices[i]];
     }
 
+    for (size_t i = 0; i < req.m_referral_indices.size(); i++) {
+        if (req.m_referral_indices[i] >= block.m_vRef.size()) {
+            LOCK(cs_main);
+            Misbehaving(pfrom->GetId(), 100);
+            LogPrintf("Peer %d sent us a getblocktxn with out-of-bounds referral indices", pfrom->GetId());
+            return;
+        }
+        resp.refs[i] = block.m_vRef[req.m_referral_indices[i]];
+    }
     LOCK(cs_main);
     const CNetMsgMaker msgMaker(pfrom->GetSendVersion());
     int nSendFlags = State(pfrom->GetId())->fWantsCmpctWitness ? 0 : SERIALIZE_TRANSACTION_NO_WITNESS;
@@ -1834,7 +1945,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         std::list<CTransactionRef> lRemovedTxn;
 
         if (!AlreadyHave(inv) && AcceptToMemoryPool(mempool, state, ptx, true, &fMissingInputs, &lRemovedTxn)) {
-            mempool.check(pcoinsTip);
+            mempool.check(pcoinsTip, *prefviewcache);
             RelayTransaction(tx, connman);
             for (unsigned int i = 0; i < tx.vout.size(); i++) {
                 vWorkQueue.emplace_back(inv.hash, i);
@@ -1901,7 +2012,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                             recentRejects->insert(orphanHash);
                         }
                     }
-                    mempool.check(pcoinsTip);
+                    mempool.check(pcoinsTip, *prefviewcache);
                 }
             }
 
@@ -1998,34 +2109,128 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             return true;
         }
 
-        ReferralRef prtx;
-        vRecv >> prtx;
+        ReferralRef pref;
+        vRecv >> pref;
 
-        if(prtx == nullptr)
+        if(pref == nullptr)
         {
             LogPrint(BCLog::NET, "unable to decode referral =%d\n", pfrom->GetId());
             return true;
         }
 
-        const Referral& rtx = *prtx;
+        const uint256 hash = pref->GetHash();
 
         LogPrintf("Referral message received\n");
 
         LOCK(cs_main);
 
-        // mark that we got the referral from pfrom 
+        // mark that we got the referral from pfrom
         // and make sure not to ask again.
-        CInv inv(MSG_REFERRAL, rtx.GetHash());
+        CInv inv(MSG_REFERRAL, hash);
         MarkGotInventoryFrom(pfrom, inv);
 
-        if (!AlreadyHave(inv) && AcceptToReferralMemoryPool(mempoolReferral, prtx)) {
-            RelayReferral(rtx, connman);
+        CValidationState state;
+
+        bool fMissingReferrer = false;
+
+        if (!AlreadyHave(inv) && AcceptReferralToMemoryPool(mempoolReferral, state, pref, fMissingReferrer)) {
+            RelayReferral(*pref, connman);
+
+            std::deque<uint256> vWorkQueue;
+            std::vector<uint256> vEraseQueue;
+
+            vWorkQueue.emplace_back(inv.hash);
+
+            pfrom->nLastRefTime = GetTime();
+
+            LogPrint(BCLog::REFMEMPOOL, "AcceptToMemoryPool: peer=%d: accepted %s (poolsz %u refs)\n",
+                pfrom->GetId(),
+                hash.ToString(),
+                mempoolReferral.size());
+
+            // Recursively process any orphan referral that depended on this one
+            std::set<NodeId> setMisbehaving;
+            while (!vWorkQueue.empty()) {
+                auto itByPrev = mapOrphanReferralsByPrev.find(vWorkQueue.front());
+                vWorkQueue.pop_front();
+
+                if (itByPrev == mapOrphanReferralsByPrev.end()) {
+                    continue;
+                }
+
+                for (const auto& mi : itByPrev->second) {
+
+                    const auto fromPeerId = (*mi).second.fromPeer;
+
+                    if (setMisbehaving.count(fromPeerId)) {
+                        continue;
+                    }
+
+                    const auto& porphanRef = (*mi).second.ref;
+                    const auto& orphanRef = *porphanRef;
+                    const auto& orphanHash = orphanRef.GetHash();
+
+                    CValidationState stateDummy;
+                    bool fMissingReferrer2 = false;
+
+                    if (AcceptReferralToMemoryPool(mempoolReferral, stateDummy, porphanRef, fMissingReferrer2)) {
+                        LogPrint(BCLog::REFMEMPOOL, "   accepted orphan referral %s\n", orphanHash.ToString());
+                        RelayReferral(orphanRef, connman);
+
+                        vWorkQueue.emplace_back(orphanHash);
+                        vEraseQueue.push_back(orphanHash);
+
+                    } else if (!fMissingReferrer2) {
+                        int nDos = 0;
+                        if (stateDummy.IsInvalid(nDos) && nDos > 0)
+                        {
+                            Misbehaving(fromPeerId, nDos);
+                            setMisbehaving.insert(fromPeerId);
+                            LogPrint(BCLog::REFMEMPOOL, "   invalid orphan referral %s\n", orphanHash.ToString());
+                        }
+
+                        // Has inputs but not accepted to mempool
+                        LogPrint(BCLog::REFMEMPOOL, "   removed orphan referral %s\n", orphanHash.ToString());
+                        vEraseQueue.push_back(orphanHash);
+                    }
+                }
+            }
+
+            for (uint256 hash: vEraseQueue)
+                EraseOrphanReferral(hash);
+
+        } else if (fMissingReferrer) {
+
+            bool fRejectedParents = false; // It may be the case that the orphans parents have all been rejected
+
+            if (recentRejects->contains(hash)) {
+                fRejectedParents = true;
+            }
+
+            if (!fRejectedParents) {
+                CInv _inv(MSG_REFERRAL, hash);
+                pfrom->AddInventoryKnown(_inv);
+
+                if (!AlreadyHave(_inv)) {
+                    pfrom->AskFor(_inv);
+                }
+
+                AddOrphanReferral(pref, pfrom->GetId());
+
+                // TODO: add orphan referral tx to map
+            } else {
+                LogPrint(BCLog::REFMEMPOOL, "not keeping orphan with rejected parents %s\n", hash.ToString());
+                // We will continue to reject this tx since it has rejected
+                // parents so avoid re-requesting it from other peers.
+                recentRejects->insert(hash);
+            }
+>>>>>>> feature/latest-bitcore-indexing
         }
     }
 
     else if (strCommand == NetMsgType::CMPCTBLOCK && !fImporting && !fReindex) // Ignore blocks received while importing
     {
-        CBlockHeaderAndShortTxIDs cmpctblock;
+        BlockHeaderAndShortIDs cmpctblock;
         vRecv >> cmpctblock;
 
         {
@@ -2114,7 +2319,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 std::list<QueuedBlock>::iterator* queuedBlockIt = nullptr;
                 if (!MarkBlockAsInFlight(pfrom->GetId(), pindex->GetBlockHash(), pindex, &queuedBlockIt)) {
                     if (!(*queuedBlockIt)->partialBlock)
-                        (*queuedBlockIt)->partialBlock.reset(new PartiallyDownloadedBlock(&mempool));
+                        (*queuedBlockIt)->partialBlock.reset(new PartiallyDownloadedBlock(&mempool, &mempoolReferral));
                     else {
                         // The block was already in flight using compact blocks from the same peer
                         LogPrint(BCLog::NET, "Peer sent us compact block we were already syncing!\n");
@@ -2123,7 +2328,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 }
 
                 PartiallyDownloadedBlock& partialBlock = *(*queuedBlockIt)->partialBlock;
-                ReadStatus status = partialBlock.InitData(cmpctblock, vExtraTxnForCompact);
+                ReadStatus status = partialBlock.InitData(cmpctblock, vExtraTxnForCompact, vExtraRefsForCompact);
                 if (status == READ_STATUS_INVALID) {
                     MarkBlockAsReceived(pindex->GetBlockHash()); // Reset in-flight state in case of whitelist
                     Misbehaving(pfrom->GetId(), 100);
@@ -2140,9 +2345,9 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 BlockTransactionsRequest req;
                 for (size_t i = 0; i < cmpctblock.BlockTxCount(); i++) {
                     if (!partialBlock.IsTxAvailable(i))
-                        req.indexes.push_back(i);
+                        req.m_transaction_indices.push_back(i);
                 }
-                if (req.indexes.empty()) {
+                if (req.m_transaction_indices.empty()) {
                     // Dirty hack to jump to BLOCKTXN code (TODO: move message handling into their own functions)
                     BlockTransactions txn;
                     txn.blockhash = cmpctblock.header.GetHash();
@@ -2158,14 +2363,15 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 // download from.
                 // Optimistically try to reconstruct anyway since we might be
                 // able to without any round trips.
-                PartiallyDownloadedBlock tempBlock(&mempool);
-                ReadStatus status = tempBlock.InitData(cmpctblock, vExtraTxnForCompact);
+                PartiallyDownloadedBlock tempBlock(&mempool, &mempoolReferral);
+                ReadStatus status = tempBlock.InitData(cmpctblock, vExtraTxnForCompact, vExtraRefsForCompact);
                 if (status != READ_STATUS_OK) {
                     // TODO: don't ignore failures
                     return true;
                 }
-                std::vector<CTransactionRef> dummy;
-                status = tempBlock.FillBlock(*pblock, dummy);
+                std::vector<CTransactionRef> dummyTxns;
+                std::vector<ReferralRef> dummyRefs;
+                status = tempBlock.FillBlock(*pblock, dummyTxns, dummyRefs);
                 if (status == READ_STATUS_OK) {
                     fBlockReconstructed = true;
                 }
@@ -2240,7 +2446,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             }
 
             PartiallyDownloadedBlock& partialBlock = *it->second.second->partialBlock;
-            ReadStatus status = partialBlock.FillBlock(*pblock, resp.txn);
+            ReadStatus status = partialBlock.FillBlock(*pblock, resp.txn, resp.refs);
             if (status == READ_STATUS_INVALID) {
                 MarkBlockAsReceived(resp.blockhash); // Reset in-flight state in case of whitelist
                 Misbehaving(pfrom->GetId(), 100);
@@ -2309,6 +2515,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         for (unsigned int n = 0; n < nCount; n++) {
             vRecv >> headers[n];
             ReadCompactSize(vRecv); // ignore tx count; assume it is 0.
+            ReadCompactSize(vRecv); // ignore ref count; assume it is 0.
         }
 
         if (nCount == 0) {
@@ -3075,7 +3282,7 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                             if (state.fWantsCmpctWitness || !fWitnessesPresentInMostRecentCompactBlock)
                                 connman.PushMessage(pto, msgMaker.Make(nSendFlags, NetMsgType::CMPCTBLOCK, *most_recent_compact_block));
                             else {
-                                CBlockHeaderAndShortTxIDs cmpctblock(*most_recent_block, state.fWantsCmpctWitness);
+                                BlockHeaderAndShortIDs cmpctblock(*most_recent_block, state.fWantsCmpctWitness);
                                 connman.PushMessage(pto, msgMaker.Make(nSendFlags, NetMsgType::CMPCTBLOCK, cmpctblock));
                             }
                             fGotBlockFromCache = true;
@@ -3085,7 +3292,7 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                         CBlock block;
                         bool ret = ReadBlockFromDisk(block, pBestIndex, consensusParams);
                         assert(ret);
-                        CBlockHeaderAndShortTxIDs cmpctblock(block, state.fWantsCmpctWitness);
+                        BlockHeaderAndShortIDs cmpctblock(block, state.fWantsCmpctWitness);
                         connman.PushMessage(pto, msgMaker.Make(nSendFlags, NetMsgType::CMPCTBLOCK, cmpctblock));
                     }
                     state.pindexBestHeaderSent = pBestIndex;

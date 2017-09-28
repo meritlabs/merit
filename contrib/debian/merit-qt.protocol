@@ -1,0 +1,11 @@
+[Protocol]
+exec=merit-qt '%u'
+protocol=merit
+input=none
+output=none
+helper=true
+listing=
+reading=false
+writing=false
+makedir=false
+deleting=false

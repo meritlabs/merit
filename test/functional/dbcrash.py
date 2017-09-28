@@ -33,7 +33,7 @@ import time
 
 from test_framework.mininode import *
 from test_framework.script import *
-from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MeritTestFramework
 from test_framework.util import *
 
 HTTP_DISCONNECT_ERRORS = [http.client.CannotSendRequest]
@@ -42,9 +42,8 @@ try:
 except AttributeError:
     pass
 
-class ChainstateWriteCrashTest(BitcoinTestFramework):
-    def __init__(self):
-        super().__init__()
+class ChainstateWriteCrashTest(MeritTestFramework):
+    def set_test_params(self):
         self.num_nodes = 4
         self.setup_clean_chain = False
 
@@ -64,7 +63,9 @@ class ChainstateWriteCrashTest(BitcoinTestFramework):
         self.extra_args = [self.node0_args, self.node1_args, self.node2_args, self.node3_args]
 
     def setup_network(self):
-        self.setup_nodes()
+        # Need a bit of extra time for the nodes to start up for this test
+        self.add_nodes(self.num_nodes, timewait=90)
+        self.start_nodes()
         # Leave them unconnected, we'll use submitblock directly in this test
 
     def restart_node(self, node_index, expected_tip):
@@ -74,23 +75,23 @@ class ChainstateWriteCrashTest(BitcoinTestFramework):
         after 60 seconds. Returns the utxo hash of the given node."""
 
         time_start = time.time()
-        while time.time() - time_start < 60:
+        while time.time() - time_start < 120:
             try:
                 # Any of these RPC calls could throw due to node crash
-                self.nodes[node_index] = self.start_node(node_index, self.options.tmpdir, self.extra_args[node_index])
+                self.start_node(node_index)
                 self.nodes[node_index].waitforblock(expected_tip)
                 utxo_hash = self.nodes[node_index].gettxoutsetinfo()['hash_serialized_2']
                 return utxo_hash
             except:
                 # An exception here should mean the node is about to crash.
-                # If bitcoind exits, then try again.  wait_for_node_exit()
-                # should raise an exception if bitcoind doesn't exit.
+                # If meritd exits, then try again.  wait_for_node_exit()
+                # should raise an exception if meritd doesn't exit.
                 self.wait_for_node_exit(node_index, timeout=10)
             self.crashed_on_restart += 1
             time.sleep(1)
 
-        # If we got here, bitcoind isn't coming back up on restart.  Could be a
-        # bug in bitcoind, or we've gotten unlucky with our dbcrash ratio --
+        # If we got here, meritd isn't coming back up on restart.  Could be a
+        # bug in meritd, or we've gotten unlucky with our dbcrash ratio --
         # perhaps we generated a test case that blew up our cache?
         # TODO: If this happens a lot, we should try to restart without -dbcrashratio
         # and make sure that recovery happens.
