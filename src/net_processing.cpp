@@ -2200,7 +2200,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 EraseOrphanReferral(hash);
 
         } else if (fMissingReferrer) {
-            LogPrintf(">>>>>>> Missing referrer <<<<<<<<<\n");
 
             bool fRejectedParents = false; // It may be the case that the orphans parents have all been rejected
 

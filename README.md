@@ -60,4 +60,3 @@ If you want to build with debug statements make sure to make a debug build
 ```
     ./configure --enable-debug
 ```
-

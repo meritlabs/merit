@@ -1,6 +1,3 @@
-#!/usr/bin/make -f
-# -*- mode: makefile; coding: utf-8 -*-
-
 #DEB_MAKE_CHECK_TARGET = test_merit
 #build/meritd::
 #	$(if $(filter nocheck,$(DEB_BUILD_OPTIONS)),,src/test_merit)

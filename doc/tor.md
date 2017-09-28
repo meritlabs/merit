@@ -1,3 +1,6 @@
+
+It is possible to run Bitcoin as a Tor hidden service, and connect to such services.
+=======
 TOR SUPPORT IN MERIT
 ======================
 

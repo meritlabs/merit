@@ -1,3 +1,8 @@
+Contributing to Bitcoin Core
+============================
+
+The Bitcoin Core project operates an open contributor model where anyone is
+=======
 Contributing to Merit Core
 ============================
 
@@ -80,10 +85,6 @@ Examples:
     Net: Automatically create hidden service, listen on Tor
     Qt: Add feed bump button
     Trivial: Fix typo in init.cpp
-
-Note that translations should not be submitted as pull requests, please see
-[Translation Process](https://github.com/merit/merit/blob/master/doc/translation_process.md) 
-for more information on helping with translations.
 
 If a pull request is specifically not to be considered for merging (yet) please
 prefix the title with [WIP] or use [Tasks Lists](https://help.github.com/articles/basic-writing-and-formatting-syntax/#task-lists)

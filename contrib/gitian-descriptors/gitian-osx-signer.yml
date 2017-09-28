@@ -7,7 +7,7 @@ architectures:
 packages:
 - "faketime"
 remotes:
-- "url": "https://github.com/bitcoin-core/merit-detached-sigs.git"
+- "url": "https://github.com/merit-core/merit-detached-sigs.git"
   "dir": "signature"
 files:
 - "merit-osx-unsigned.tar.gz"
