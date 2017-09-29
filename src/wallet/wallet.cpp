@@ -2375,22 +2375,31 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
             const uint256& wtxid = it->first;
             const CWalletTx* pcoin = &(*it).second;
 
+            debug("TXD: %s" , wtxid.GetHex());
+            debug("%s %d", __func__, __LINE__);
             if (!CheckFinalTx(*pcoin))
                 continue;
 
+            debug("%s %d", __func__, __LINE__);
             if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
                 continue;
 
+            debug("%s %d", __func__, __LINE__);
             int nDepth = pcoin->GetDepthInMainChain();
+            debug("DEPTH: %d", nDepth);
             if (nDepth < 0)
                 continue;
+            debug("%s %d", __func__, __LINE__);
+            debug("depth: %d mem: %d", nDepth, pcoin->InMempool());
 
             // We should not consider coins which aren't at least in our mempool
             // It's possible for these to be conflicted via ancestors which we may never be able to detect
             if (nDepth == 0 && !pcoin->InMempool())
                 continue;
+            debug("%s %d", __func__, __LINE__);
 
             bool safeTx = pcoin->IsTrusted();
+            debug("%s %d", __func__, __LINE__);
 
             // We should not consider coins from transactions that are replacing
             // other transactions.
@@ -2436,21 +2445,26 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
 
                 if (coinControl && coinControl->HasSelected() && !coinControl->fAllowOtherInputs && !coinControl->IsSelected(COutPoint((*it).first, i)))
                     continue;
+                debug("%s %d", __func__, __LINE__);
 
                 if (IsLockedCoin((*it).first, i))
                     continue;
+                debug("%s %d", __func__, __LINE__);
 
                 if (IsSpent(wtxid, i))
                     continue;
 
+                debug("%s %d", __func__, __LINE__);
                 isminetype mine = IsMine(pcoin->tx->vout[i]);
 
                 if (mine == ISMINE_NO) {
                     continue;
                 }
+                debug("%s %d", __func__, __LINE__);
 
                 bool fSpendableIn = ((mine & ISMINE_SPENDABLE) != ISMINE_NO) || (coinControl && coinControl->fAllowWatchOnly && (mine & ISMINE_WATCH_SOLVABLE) != ISMINE_NO);
                 bool fSolvableIn = (mine & (ISMINE_SPENDABLE | ISMINE_WATCH_SOLVABLE)) != ISMINE_NO;
+                debug("spendable: %d solvable: %d", fSpendableIn, fSolvableIn);
 
                 vCoins.push_back(COutput(pcoin, i, nDepth, fSpendableIn, fSolvableIn, safeTx));
 
@@ -2690,6 +2704,7 @@ bool CWallet::SelectCoinsMinConf(const CAmount& nTargetValue, const int nConfMin
 bool CWallet::SelectCoins(const std::vector<COutput>& vAvailableCoins, const CAmount& nTargetValue, std::set<CInputCoin>& setCoinsRet, CAmount& nValueRet, const CCoinControl* coinControl) const
 {
     std::vector<COutput> vCoins(vAvailableCoins);
+    debug("total available: %d", vAvailableCoins.size());
 
     // coin control -> return all selected outputs (we want all selected to go into the transaction for sure)
     if (coinControl && coinControl->HasSelected() && !coinControl->fAllowOtherInputs)
@@ -2701,8 +2716,10 @@ bool CWallet::SelectCoins(const std::vector<COutput>& vAvailableCoins, const CAm
             nValueRet += out.tx->tx->vout[out.i].nValue;
             setCoinsRet.insert(CInputCoin(out.tx, out.i));
         }
+        debug("nValueRet: %d nTargetValue: %d", nValueRet, nTargetValue);
         return (nValueRet >= nTargetValue);
     }
+    debug("what happened? %s", __func__);
 
     // calculate value from preset inputs and store them
     std::set<CInputCoin> setPresetCoins;
@@ -2835,7 +2852,6 @@ bool CWallet::FundTransaction(CMutableTransaction& tx, CAmount& nFeeRet, int& nC
 
 bool CWallet::CreateTransaction(
         const std::vector<CRecipient>& vecSend,
-        std::vector<COutput> available_coins,
         CWalletTx& wtxNew,
         CReserveKey& reservekey,
         CAmount& nFeeRet,
@@ -2918,10 +2934,8 @@ bool CWallet::CreateTransaction(
         std::set<CInputCoin> setCoins;
         LOCK2(cs_main, cs_wallet);
         {
-            //only choose available coins in wallet if zero coins are passed in.
-            if(available_coins.empty()) {
-                AvailableCoins(available_coins, true, &coin_control);
-            }
+            std::vector<COutput> vAvailableCoins;
+            AvailableCoins(vAvailableCoins, true, &coin_control);
 
             // Create change script that will be used if we need change
             // TODO: pass in scriptChange instead of reservekey so
@@ -3006,7 +3020,7 @@ bool CWallet::CreateTransaction(
                 if (pick_new_inputs) {
                     nValueIn = 0;
                     setCoins.clear();
-                    if (!SelectCoins(available_coins, nValueToSelect, setCoins, nValueIn, &coin_control))
+                    if (!SelectCoins(vAvailableCoins, nValueToSelect, setCoins, nValueIn, &coin_control))
                     {
                         strFailReason = _("Insufficient funds");
                         return false;
@@ -3209,28 +3223,6 @@ bool CWallet::CreateTransaction(
               100 * feeCalc.est.fail.withinTarget / (feeCalc.est.fail.totalConfirmed + feeCalc.est.fail.inMempool + feeCalc.est.fail.leftMempool),
               feeCalc.est.fail.withinTarget, feeCalc.est.fail.totalConfirmed, feeCalc.est.fail.inMempool, feeCalc.est.fail.leftMempool);
     return true;
-}
-
-bool CWallet::CreateTransaction(
-        const std::vector<CRecipient>& vecSend,
-        CWalletTx& wtxNew,
-        CReserveKey& reservekey,
-        CAmount& nFeeRet,
-        int& nChangePosInOut,
-        std::string& strFailReason,
-        const CCoinControl& coin_control,
-        bool sign)
-{
-    return CreateTransaction(
-            vecSend,
-            {},
-            wtxNew,
-            reservekey,
-            nFreeRet,
-            nChangePosInOut,
-            strFailReason,
-            coin_control,
-            sign)
 }
 
 bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef& referral)
@@ -4403,20 +4395,26 @@ void CMerkleTx::SetMerkleBranch(const CBlockIndex* pindex, int posInBlock)
 
 int CMerkleTx::GetDepthInMainChain(const CBlockIndex* &pindexRet) const
 {
+    debug("%s %d", __func__, __LINE__);
     if (hashUnset())
         return 0;
 
     AssertLockHeld(cs_main);
 
+    debug("%s %d", __func__, __LINE__);
     // Find the block it claims to be in
     BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
     if (mi == mapBlockIndex.end())
         return 0;
+
+    debug("%s %d", __func__, __LINE__);
     CBlockIndex* pindex = (*mi).second;
     if (!pindex || !chainActive.Contains(pindex))
         return 0;
 
+    debug("%s %d", __func__, __LINE__);
     pindexRet = pindex;
+    debug("%d", pindex->nHeight);
     return ((nIndex == -1) ? (-1) : 1) * (chainActive.Height() - pindex->nHeight + 1);
 }
 

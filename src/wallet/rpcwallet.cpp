@@ -515,10 +515,9 @@ static UniValue EasySendMoney(
 
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
-    ret.push_back(Pair("channel", channel));
     ret.push_back(Pair("secret", HexStr(random_bytes_str)));
     ret.push_back(Pair("scriptid", EncodeDestination(script_id)));
-    ret.push_back(Pair("senderkeyid", EncodeDestination(sender_pub.GetID())));
+    ret.push_back(Pair("senderpubkey", HexStr(sender_pub)));
 
     return ret;
 }
@@ -530,21 +529,12 @@ static UniValue EasyReceive(
         const std::string& optional_password,
         bool fSubtractFeeFromAmount,
         CWalletTx& wtx,
-        const CCoinControl& coin_control)
+        CCoinControl& coin_control)
 {
     const int max_blocks = 1008; //about a week. 
 
     if (pwallet.GetBroadcastTransactions() && !g_connman) {
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
-    }
-
-    // Create and send the transaction
-    //TODO: get senderPubKey
-    CReserveKey reserve_key(&pwallet);
-
-    CPubKey receiver_pub;
-    if (!reserve_key.GetReservedKey(receiver_pub, true)) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Keypool ran out, please call keypoolrefill first");
     }
 
     CKey escrow_key;
@@ -553,71 +543,82 @@ static UniValue EasyReceive(
     //We can then take the sender_pub and escrow_pub and genate a script that 
     //matches the unspend script_id
     const auto mixedsecret = secret + optional_password;
+    debug("mixedsecret %s", mixedsecret);
+
     escrow_key.MakeNewKey(std::begin(mixedsecret), std::end(mixedsecret));
-    auto escrot_pub = escrow_key.GetPubKey();
+    auto escrow_pub = escrow_key.GetPubKey();
     
     auto easy_send_script = GetScriptForEasySend(max_blocks, sender_pub, escrow_pub);
     CScriptID script_id(easy_send_script);
-
-    pwallet.AddCScript(easy_send_script);
-    pwallet.SetAddressBook(script_id, "", "easysend");
+    debug("scriptid %s", EncodeDestination(script_id));
 
     const int SCRIPT_TYPE = 2;
 
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>> unspent_coins;
     if(!GetAddressUnspent(script_id, SCRIPT_TYPE, unspent_coins)) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Cannot find unspent coin with address: " + EncodeAddress(script_id));
+        throw JSONRPCError(RPC_WALLET_ERROR, "Cannot find unspent coin with address: " + EncodeDestination(script_id));
     }
 
     if(unspent_coins.empty()) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Cannot find unspent coin with address: " + EncodeAddress(script_id));
+        throw JSONRPCError(RPC_WALLET_ERROR, "Cannot find unspent coin with address: " + EncodeDestination(script_id));
     }
 
     if(unspent_coins.size() > 1) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Only expected 1 coin with the address: " + EncodeAddress(script_id));
+        throw JSONRPCError(RPC_WALLET_ERROR, "Only expected 1 coin with the address: " + EncodeDestination(script_id));
     }
 
     const auto& unspent = unspent_coins.at(0);
     const auto& unspent_key = unspent.first;
     const auto& unspent_val = unspent.second;
 
+    debug("txn %s", unspent_key.txhash.GetHex());
+    debug("index %d", unspent_key.index);
+    debug("amount %d", unspent_val.satoshis);
+
     //get transaction
 
     CTransactionRef unspent_tx;
     uint256 blockHash;
     if(!GetTransaction(
-                unspent_key.txHash,
+                unspent_key.txhash,
                 unspent_tx,
                 Params().GetConsensus(),
                 blockHash, true)) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to find transaction with id: " + HexStr(unspent_key.txHash));
+        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to find transaction with id: " + HexStr(unspent_key.txhash));
     }
 
-    CWalletTx unspent_wtx{&pwallet, unspent_tx};
-    const bool is_spendable = true; //TODO use logic in AvailableCoins
-    const bool is_solvable = true;
-    std::vector<COutput> coins = {
-        {
-            &unspent_wtx,
-            unspent_key.index,
-            unspent_wtx.GetDepthInMainChain(),
-            is_spendable,
-            is_solvable,
-            unspent_wtx.IsTrusted()
-        }
-    };
-
     //use a reserved key as destination
-    CScript script_pub_key = GetScriptForDestination(reserve_key);
+    // Create and send the transaction
+    CReserveKey reserve_key(&pwallet);
+
+    CPubKey receiver_pub;
+    if (!reserve_key.GetReservedKey(receiver_pub, true)) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Keypool ran out, please call keypoolrefill first");
+    }
+
+    CScript script_pub_key = GetScriptForDestination(receiver_pub.GetID());
 
     std::string error;
     std::vector<CRecipient> recipients = {{script_pub_key, unspent_val.satoshis, fSubtractFeeFromAmount}};
     int change_pos_ret = -1;
     CAmount fee_required = 0;
+       
+    CWalletTx unspent_wtx{&pwallet, unspent_tx};
+    unspent_wtx.hashBlock = blockHash;
+    unspent_wtx.nIndex = 0; //hack to get around not having CBlockIndex
+
+    pwallet.AddToWallet(unspent_wtx);
+    coin_control.Select({unspent_key.txhash, unspent_key.index});
+    coin_control.fAllowWatchOnly = true;
+
+    //Make sure to add keys and CScript before we create the transaction
+    //because CreateTransaction assumes things are in your wallet.
+    pwallet.AddKeyPubKey(escrow_key, escrow_pub);
+    pwallet.AddCScript(easy_send_script);
+    pwallet.SetAddressBook(script_id, "", "easysend");
 
     if (!pwallet.CreateTransaction(
                 recipients,
-                coins,
                 wtx,
                 reserve_key,
                 fee_required,
@@ -625,11 +626,6 @@ static UniValue EasyReceive(
                 error,
                 coin_control)) {
 
-        if (!fSubtractFeeFromAmount && value + fee_required > balance) {
-            error = strprintf(
-                    "Error: This transaction requires a transaction fee of at least %s",
-                    FormatMoney(fee_required));
-        }
         throw JSONRPCError(RPC_WALLET_ERROR, error);
     }
 
@@ -641,11 +637,11 @@ static UniValue EasyReceive(
         throw JSONRPCError(RPC_WALLET_ERROR, error);
     }
 
-    pwallet.AddToWallet(unspent_wtx);
-
     //add script to wallet so we can redeem it later if needed.
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
+    ret.push_back(Pair("amount", unspent_val.satoshis));
+    ret.push_back(Pair("oldscriptid", EncodeDestination(script_id)));
 
     return ret;
 }
@@ -774,7 +770,7 @@ UniValue easysend(const JSONRPCRequest& request)
 
     std::string optional_password = ""; 
     if(!request.params[1].isNull())
-        optional_password = request.params[1].as_str();
+        optional_password = request.params[1].get_str();
 
     // Wallet comments
     CWalletTx wtx;
@@ -818,11 +814,12 @@ UniValue easyreceive(const JSONRPCRequest& request)
     if (request.fHelp || request.params.size() < 2 || request.params.size() > 4)
         throw std::runtime_error(
             "easyreceive \"secret\" \"sender_pub_key\" (\"password\") \n"
-            "\nSend an amount to a given channel.\n"
+            "\nSend an cancellable amount with an optional password.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
-            "1. \"channel\"            (string, required) A phone number, email, or some other identifying information.\n"
-            "2. \"secret\"             Secret used to access account in hex.\n"
+            "1. \"secret\"            Secret used to access account in hex.\n"
+            "2. \"sender_pub_key\"    Pubkey of sender.\n"
+            "3. \"password\"          Optional password for transaction.\n"
             "\nResult:\n"
             "\"txid\"                  (string) The transaction id.\n"
             "\nExamples:\n"
@@ -840,19 +837,19 @@ UniValue easyreceive(const JSONRPCRequest& request)
 
     std::string optional_password = ""; 
     if(!request.params[2].isNull())
-        optional_password = request.params[2].as_str();
+        optional_password = request.params[2].get_str();
 
     // Wallet comments
     CWalletTx wtx;
 
-    bool fSubtractFeeFromAmount = false;
+    bool fSubtractFeeFromAmount = true;
     CCoinControl coin_control;
 
     EnsureWalletIsUnlocked(pwallet);
 
     return EasyReceive(
             *pwallet,
-            secret,
+            secret_str,
             pub_key,
             optional_password,
             fSubtractFeeFromAmount,
@@ -3834,7 +3831,8 @@ static const CRPCCommand commands[] =
     { "wallet",             "sendfrom",                 &sendfrom,                 {"fromaccount","toaddress","amount","minconf","comment","comment_to"} },
     { "wallet",             "sendmany",                 &sendmany,                 {"fromaccount","amounts","minconf","comment","subtractfeefrom","replaceable","conf_target","estimate_mode"} },
     { "wallet",             "sendtoaddress",            &sendtoaddress,            {"address","amount","comment","comment_to","subtractfeefromamount","replaceable","conf_target","estimate_mode"} },
-    { "wallet",             "easysend",                 &easysend,                 {"channel","amount"} },
+    { "wallet",             "easysend",                 &easysend,                 {"amount", "password"} },
+    { "wallet",             "easyreceive",              &easyreceive,              {"secret", "senderpubkey", "password"} },
     { "wallet",             "setaccount",               &setaccount,               {"address","account"} },
     { "wallet",             "settxfee",                 &settxfee,                 {"amount"} },
     { "wallet",             "signmessage",              &signmessage,              {"address","message"} },

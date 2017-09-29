@@ -10,6 +10,7 @@
 #include "script/script.h"
 #include "util.h"
 #include "utilstrencodings.h"
+#include "core_io.h"
 
 
 typedef std::vector<unsigned char> valtype;
@@ -38,6 +39,7 @@ const char* GetTxnOutputType(txnouttype t)
 
 bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::vector<unsigned char> >& vSolutionsRet)
 {
+    debug("script %s", ScriptToAsmStr(scriptPubKey, true));
     // Templates
     static std::multimap<txnouttype, CScript> mTemplates;
     if (mTemplates.empty())
@@ -52,7 +54,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
         mTemplates.insert(std::make_pair(TX_MULTISIG, CScript() << OP_SMALLINTEGER << OP_PUBKEYS << OP_SMALLINTEGER << OP_CHECKMULTISIG));
 
         // Sender provides one of N signatures
-        mTemplates.insert(std::make_pair(TX_EASYSEND, CScript() << OP_SMALLINTEGER << OP_PUBKEYS << OP_SMALLINTEGER << OP_EASYSEND));
+        mTemplates.insert(std::make_pair(TX_EASYSEND, CScript() << OP_INTEGER << OP_PUBKEYS << OP_SMALLINTEGER << OP_EASYSEND));
     }
 
     vSolutionsRet.clear();
@@ -127,9 +129,11 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
             if (!script2.GetOp(pc2, opcode2, vch2))
                 break;
 
+            debug("op1 %d  op2 %d", opcode1, opcode2);
             // Template matching opcodes:
             if (opcode2 == OP_PUBKEYS)
             {
+                debug("%s %d", __func__, __LINE__);
                 while (vch1.size() >= 33 && vch1.size() <= 65)
                 {
                     vSolutionsRet.push_back(vch1);
@@ -144,18 +148,21 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
 
             if (opcode2 == OP_PUBKEY)
             {
+                debug("%s %d", __func__, __LINE__);
                 if (vch1.size() < 33 || vch1.size() > 65)
                     break;
                 vSolutionsRet.push_back(vch1);
             }
             else if (opcode2 == OP_PUBKEYHASH)
             {
+                debug("%s %d", __func__, __LINE__);
                 if (vch1.size() != sizeof(uint160))
                     break;
                 vSolutionsRet.push_back(vch1);
             }
             else if (opcode2 == OP_SMALLINTEGER)
             {   // Single-byte small integer pushed onto vSolutions
+                debug("%s %d", __func__, __LINE__);
                 if (opcode1 == OP_0 ||
                     (opcode1 >= OP_1 && opcode1 <= OP_16))
                 {
@@ -165,8 +172,19 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
                 else
                     break;
             }
+            else if (opcode2 == OP_INTEGER)
+            {   
+                debug("%s %d", __func__, __LINE__);
+                if (opcode1 == OP_0 ||
+                    (opcode1 >= 0 && opcode1 <= OP_PUSHDATA4)) {
+                    vSolutionsRet.push_back(vch1);
+                }
+                else
+                    break;
+            }
             else if (opcode1 != opcode2 || vch1 != vch2)
             {
+                debug("%s %d", __func__, __LINE__);
                 // Others must match exactly
                 break;
             }

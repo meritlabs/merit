@@ -1325,7 +1325,6 @@ bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, const Consensus
 
 
 
-
 //////////////////////////////////////////////////////////////////////////////
 //
 // CBlock and CBlockIndex
