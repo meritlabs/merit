@@ -564,33 +564,56 @@ static UniValue EasyReceive(
 
     const int SCRIPT_TYPE = 2;
 
-    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>> unspentCoins;
-    if(!GetAddressUnspent(script_id, SCRIPT_TYPE, unspentCoins)) {
+    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>> unspent_coins;
+    if(!GetAddressUnspent(script_id, SCRIPT_TYPE, unspent_coins)) {
         throw JSONRPCError(RPC_WALLET_ERROR, "Cannot find unspent coin with address: " + EncodeAddress(script_id));
     }
 
-    if(unspentCoins.empty()) {
+    if(unspent_coins.empty()) {
         throw JSONRPCError(RPC_WALLET_ERROR, "Cannot find unspent coin with address: " + EncodeAddress(script_id));
     }
 
-    if(unspentCoins.size() > 1) {
+    if(unspent_coins.size() > 1) {
         throw JSONRPCError(RPC_WALLET_ERROR, "Only expected 1 coin with the address: " + EncodeAddress(script_id));
     }
 
-    const auto& unspent = unspentCoins.at(0);
-    const auto& unspentKey = unspent.first;
-    const auto& unspentVal = unspent.second;
+    const auto& unspent = unspent_coins.at(0);
+    const auto& unspent_key = unspent.first;
+    const auto& unspent_val = unspent.second;
+
+    //get transaction
+
+    CTransactionRef unspent_tx;
+    uint256 blockHash;
+    if(!GetTransaction(
+                unspent_key.txHash,
+                unspent_tx,
+                Params().GetConsensus(),
+                blockHash, true)) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to find transaction with id: " + HexStr(unspent_key.txHash));
+    }
+
+    CWalletTx unspent_wtx{&pwallet, unspent_tx};
+    const bool is_spendable = true; //TODO use logic in AvailableCoins
+    const bool is_solvable = true;
+    std::vector<COutput> coins = {
+        {
+            &unspent_wtx,
+            unspent_key.index,
+            unspent_wtx.GetDepthInMainChain(),
+            is_spendable,
+            is_solvable,
+            unspent_wtx.IsTrusted()
+        }
+    };
 
     //use a reserved key as destination
     CScript script_pub_key = GetScriptForDestination(reserve_key);
 
     std::string error;
-    std::vector<CRecipient> recipients = {{script_pub_key, value, fSubtractFeeFromAmount}};
+    std::vector<CRecipient> recipients = {{script_pub_key, unspent_val.satoshis, fSubtractFeeFromAmount}};
     int change_pos_ret = -1;
     CAmount fee_required = 0;
-
-    std::vector<COutput> coins;
-    //TODOL lookup coin
 
     if (!pwallet.CreateTransaction(
                 recipients,
@@ -617,6 +640,8 @@ static UniValue EasyReceive(
                 state.GetRejectReason());
         throw JSONRPCError(RPC_WALLET_ERROR, error);
     }
+
+    pwallet.AddToWallet(unspent_wtx);
 
     //add script to wallet so we can redeem it later if needed.
     UniValue ret(UniValue::VOBJ);
