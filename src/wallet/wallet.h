@@ -1025,8 +1025,30 @@ public:
      * selected by SelectCoins(); Also create the change output, when needed
      * @note passing nChangePosInOut as -1 will result in setting a random position
      */
-    bool CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, int& nChangePosInOut,
-                           std::string& strFailReason, const CCoinControl& coin_control, bool sign = true);
+    bool CreateTransaction(
+            const std::vector<CRecipient>& vecSend,
+            std::vector<COutput> available_coins,
+            CWalletTx& wtxNew,
+            CReserveKey& reservekey,
+            CAmount& nFeeRet,
+            int& nChangePosInOut,
+            std::string& strFailReason,
+            const CCoinControl& coin_control,
+            bool sign = true);
+
+    /**
+     * Original CreateTransaction to reduce change impact.
+     */
+    bool CreateTransaction(
+            const std::vector<CRecipient>& vecSend,
+            CWalletTx& wtxNew,
+            CReserveKey& reservekey,
+            CAmount& nFeeRet,
+            int& nChangePosInOut,
+            std::string& strFailReason,
+            const CCoinControl& coin_control,
+            bool sign = true);
+
     bool CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef& referral);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CConnman* connman, CValidationState& state);
     bool CommitTransaction(referral::ReferralTx& rtxNew, CConnman* connman, CValidationState& state);

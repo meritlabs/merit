@@ -2833,8 +2833,16 @@ bool CWallet::FundTransaction(CMutableTransaction& tx, CAmount& nFeeRet, int& nC
     return true;
 }
 
-bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet,
-                                int& nChangePosInOut, std::string& strFailReason, const CCoinControl& coin_control, bool sign)
+bool CWallet::CreateTransaction(
+        const std::vector<CRecipient>& vecSend,
+        std::vector<COutput> available_coins,
+        CWalletTx& wtxNew,
+        CReserveKey& reservekey,
+        CAmount& nFeeRet,
+        int& nChangePosInOut,
+        std::string& strFailReason,
+        const CCoinControl& coin_control,
+        bool sign)
 {
     CAmount nValue = 0;
     int nChangePosRequest = nChangePosInOut;
@@ -2910,8 +2918,10 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
         std::set<CInputCoin> setCoins;
         LOCK2(cs_main, cs_wallet);
         {
-            std::vector<COutput> vAvailableCoins;
-            AvailableCoins(vAvailableCoins, true, &coin_control);
+            //only choose available coins in wallet if zero coins are passed in.
+            if(available_coins.empty()) {
+                AvailableCoins(available_coins, true, &coin_control);
+            }
 
             // Create change script that will be used if we need change
             // TODO: pass in scriptChange instead of reservekey so
@@ -2996,7 +3006,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
                 if (pick_new_inputs) {
                     nValueIn = 0;
                     setCoins.clear();
-                    if (!SelectCoins(vAvailableCoins, nValueToSelect, setCoins, nValueIn, &coin_control))
+                    if (!SelectCoins(available_coins, nValueToSelect, setCoins, nValueIn, &coin_control))
                     {
                         strFailReason = _("Insufficient funds");
                         return false;
@@ -3199,6 +3209,28 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
               100 * feeCalc.est.fail.withinTarget / (feeCalc.est.fail.totalConfirmed + feeCalc.est.fail.inMempool + feeCalc.est.fail.leftMempool),
               feeCalc.est.fail.withinTarget, feeCalc.est.fail.totalConfirmed, feeCalc.est.fail.inMempool, feeCalc.est.fail.leftMempool);
     return true;
+}
+
+bool CWallet::CreateTransaction(
+        const std::vector<CRecipient>& vecSend,
+        CWalletTx& wtxNew,
+        CReserveKey& reservekey,
+        CAmount& nFeeRet,
+        int& nChangePosInOut,
+        std::string& strFailReason,
+        const CCoinControl& coin_control,
+        bool sign)
+{
+    return CreateTransaction(
+            vecSend,
+            {},
+            wtxNew,
+            reservekey,
+            nFreeRet,
+            nChangePosInOut,
+            strFailReason,
+            coin_control,
+            sign)
 }
 
 bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef& referral)

@@ -589,8 +589,12 @@ static UniValue EasyReceive(
     int change_pos_ret = -1;
     CAmount fee_required = 0;
 
+    std::vector<COutput> coins;
+    //TODOL lookup coin
+
     if (!pwallet.CreateTransaction(
                 recipients,
+                coins,
                 wtx,
                 reserve_key,
                 fee_required,
