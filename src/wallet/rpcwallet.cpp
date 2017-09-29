@@ -3720,7 +3720,6 @@ UniValue getanv(const JSONRPCRequest& request)
         keys.reserve(request.params.size());
         for(size_t i = 0; i < request.params.size(); i++) {
             auto key_hex_str = request.params[i].get_str();
-            LogPrintf("Keys %d: %s\n", i, key_hex_str);
             auto dest = DecodeDestination(key_hex_str);
             if(auto key = boost::get<CKeyID>(&dest)) {
                 keys.push_back(*key);
@@ -3844,8 +3843,10 @@ UniValue getrewards(const JSONRPCRequest& request)
             "getrewards\n"
             "Return wallet rewards for being a miner or ambassador.\n"
             "\nResult:\n"
-            "mining          (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for mining.\n"
-            "ambassador      (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for being ambassador.\n"
+            "{\n"
+            "   \"mining\": x.xxxx,     (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for mining.\n"
+            "   \"ambassador\": x.xxxx, (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for being ambassador.\n"
+            "}\n"
             "\nExamples:\n" + HelpExampleCli("getbalance", "")
         );
 

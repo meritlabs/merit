@@ -24,9 +24,9 @@
 #include "wallet/walletdb.h"
 #endif
 #include "warnings.h"
-#include "base58.h"
 
 #include <stdint.h>
+#include <numeric>
 #ifdef HAVE_MALLOC_INFO
 #include <malloc.h>
 #endif
@@ -672,7 +672,6 @@ bool getAddressesFromParams(const UniValue& params, std::vector<std::pair<uint16
         }
         addresses.push_back(std::make_pair(hashBytes, type));
     } else if (params[0].isObject()) {
-
         UniValue addressValues = find_value(params[0].get_obj(), "addresses");
         if (!addressValues.isArray()) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Addresses is expected to be an array");
@@ -681,7 +680,6 @@ bool getAddressesFromParams(const UniValue& params, std::vector<std::pair<uint16
         std::vector<UniValue> values = addressValues.getValues();
 
         for (std::vector<UniValue>::iterator it = values.begin(); it != values.end(); ++it) {
-
             CMeritAddress address(it->get_str());
             uint160 hashBytes;
             int type = 0;
@@ -1242,6 +1240,87 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
     return ret;
 }
 
+UniValue getaddressrewards(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 1)
+        throw std::runtime_error(
+            "getaddressrewards\n"
+            "\nReturns rewards for an address (requires addressindex to be enabled).\n"
+            "\nArguments:\n"
+            "{\n"
+            "  \"addresses\"\n"
+            "    [\n"
+            "      \"address\"  (string) The base58check encoded address\n"
+            "      ,...\n"
+            "    ],\n"
+            "}\n"
+            "\nResult\n"
+            "[\n"
+            "  {\n"
+            "    \"address\"  (string) The address base58check encoded\n"
+            "    \"rewards\": "
+            "       {\n"
+            "           \"mining\": x.xxxx,     (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for mining.\n"
+            "           \"ambassador\": x.xxxx, (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for being ambassador.\n"
+            "       }\n"
+            "  }\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getaddressrewards", "'{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}'")
+            );
+
+    std::vector<std::pair<uint160, int>> addresses;
+
+    if (!getAddressesFromParams(request.params, addresses)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+    }
+
+    UniValue ret(UniValue::VARR);
+
+    for (const auto& addrit : addresses) {
+        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>> unspentOutputs;
+
+        if (!GetAddressUnspent(addrit.first, addrit.second, unspentOutputs)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+        }
+
+        UniValue output(UniValue::VOBJ);
+
+        const pog::RewardsAmount rewards = std::accumulate(unspentOutputs.begin(), unspentOutputs.end(), pog::RewardsAmount{},
+            [](pog::RewardsAmount& acc, const std::pair<CAddressUnspentKey, CAddressUnspentValue>& it) {
+                const auto& key = it.first;
+                const auto& value = it.second;
+
+                if (key.isCoinbase) {
+                    if (key.index == 0) {
+                        acc.mining += value.satoshis;
+                    } else {
+                        acc.ambassador += value.satoshis;
+                    }
+                }
+
+                return acc;
+            });
+
+        std::string address;
+        if (!getAddressFromIndex(addrit.second, addrit.first, address)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unknown address type");
+        }
+
+        UniValue rewardsOutput(UniValue::VOBJ);
+
+        rewardsOutput.push_back(Pair("mining", rewards.mining));
+        rewardsOutput.push_back(Pair("ambassador", rewards.ambassador));
+
+        output.push_back(Pair("address", address));
+        output.push_back(Pair("rewards", rewardsOutput));
+
+        ret.push_back(output);
+    }
+
+    return ret;
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
@@ -1259,6 +1338,7 @@ static const CRPCCommand commands[] =
     { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       {} },
     { "addressindex",       "getaddresstxids",        &getaddresstxids,        {} },
     { "addressindex",       "getaddressbalance",      &getaddressbalance,      {} },
+    { "addressindex",       "getaddressrewards",      &getaddressrewards,      {"addresses"} },
 
     /* Blockchain */
     { "blockchain",         "getspentinfo",           &getspentinfo,           {} },
