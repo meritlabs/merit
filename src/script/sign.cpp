@@ -12,6 +12,7 @@
 #include "primitives/transaction.h"
 #include "script/standard.h"
 #include "uint256.h"
+#include "util.h"
 
 
 typedef std::vector<unsigned char> valtype;
@@ -124,8 +125,8 @@ static bool SignStep(const BaseSignatureCreator& creator, const CScript& scriptP
 
             std::vector<valtype> solutions;
             solutions.reserve(vSolutions.size() + 1);
-            solutions.push_back(valtype{1});
-            solutions.insert(solutions.end(), solutions.begin(), solutions.end());
+            solutions.push_back(valtype{1, 1});
+            solutions.insert(solutions.end(), vSolutions.begin(), vSolutions.end());
             return (SignN(solutions, creator, scriptPubKey, ret, sigversion));
         }
 

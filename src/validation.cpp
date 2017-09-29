@@ -3471,7 +3471,6 @@ bool PreciousBlock(CValidationState& state, const CChainParams& params, CBlockIn
         }
     }
 
-    debug("%s...", __func__);
     return ActivateBestChain(state, params);
 }
 
@@ -4181,7 +4180,6 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
     NotifyHeaderTip();
 
     CValidationState state; // Only used to report errors, not invalidity - ignore it
-    debug("%s...", __func__);
     if (!ActivateBestChain(state, chainparams, pblock))
         return error("%s: ActivateBestChain failed", __func__);
 
@@ -4551,7 +4549,6 @@ bool LoadChainTip(const CChainParams& chainparams)
         // that we always have a chainActive.Tip() when we return.
         LogPrintf("%s: Connecting genesis block...\n", __func__);
         CValidationState state;
-        debug("%s...", __func__);
         if (!ActivateBestChain(state, chainparams)) {
             return false;
         }
@@ -5032,7 +5029,6 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
                 // Activate the genesis block so normal node progress can continue
                 if (hash == chainparams.GetConsensus().hashGenesisBlock) {
                     CValidationState state;
-                    debug("%s...", __func__);
                     if (!ActivateBestChain(state, chainparams)) {
                         break;
                     }

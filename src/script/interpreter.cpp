@@ -13,6 +13,7 @@
 #include "pubkey.h"
 #include "script/script.h"
 #include "uint256.h"
+#include "util.h"
 
 #include <type_traits>
 

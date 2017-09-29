@@ -50,16 +50,12 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey, bool& 
 {
     std::vector<valtype> vSolutions;
     txnouttype whichType;
-    debug("%s %d", __func__, __LINE__);
     if (!Solver(scriptPubKey, whichType, vSolutions)) {
         if (keystore.HaveWatchOnly(scriptPubKey))
             return ISMINE_WATCH_UNSOLVABLE;
-        debug("%s %d", __func__, __LINE__);
         return ISMINE_NO;
     }
 
-    debug("%s %d", __func__, __LINE__);
-    debug("type: %d", whichType);
     CKeyID keyID;
     switch (whichType)
     {
@@ -150,7 +146,6 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey, bool& 
     }
     case TX_EASYSEND:
     {
-        debug("%s %d", __func__, __LINE__);
         if (HaveKeys(vSolutions, keystore) > 0)
             return ISMINE_WATCH_SOLVABLE;
         break;
