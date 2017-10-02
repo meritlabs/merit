@@ -1700,9 +1700,9 @@ bool CScriptCheck::operator()() {
                 ptxTo,
                 nIn,
                 amount,
-                cacheStore,
                 blockHeight,
                 coinHeight,
+                cacheStore,
                 *txdata},
             &error);
 }
@@ -2521,7 +2521,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
 
-    for (unsigned int i = 0; i < block.vtx.size(); i++)
+    for (int i = 0; i < static_cast<int>(block.vtx.size()); i++)
     {
         const CTransaction &tx = *(block.vtx[i]);
         const uint256 txhash = tx.GetHash();
@@ -2623,7 +2623,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 if(address.second == 0) continue;
 
                 const uint160& hashBytes = address.first;
-                const int addressType = address.second;
+                const unsigned int addressType = address.second;
 
                 // record receiving activity
                 addressIndex.push_back(
