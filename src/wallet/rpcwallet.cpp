@@ -468,15 +468,19 @@ static UniValue EasySend(
     }
 
     // Create a deterministic based on the secret that was computed.
-    const int random_bytes_size = 5;
-    unsigned char random_bytes[random_bytes_size];
-    GetRandBytes(&random_bytes[0], random_bytes_size );
-
-    std::string random_bytes_str(std::begin(random_bytes), std::end(random_bytes));
-    const auto secret = random_bytes_str + optional_password;
-
     CKey receiver_key;
-    receiver_key.MakeNewKey(std::begin(secret), std::end(secret));
+    const size_t random_bytes_size = 16;
+    std::string secret(random_bytes_size + optional_password.size(), ' ');
+    std::copy(
+            std::begin(optional_password),
+            std::end(optional_password),
+            std::begin(secret) + random_bytes_size);
+
+    while(!receiver_key.IsValid()) {
+        GetRandBytes(reinterpret_cast<unsigned char*>(&secret[0]), random_bytes_size);
+        receiver_key.MakeNewKey(std::begin(secret), std::end(secret));
+    }
+
     auto receiver_pub = receiver_key.GetPubKey();
     
     // Create the easy send script to be used to store the funds
@@ -537,7 +541,7 @@ static UniValue EasySend(
 
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
-    ret.push_back(Pair("secret", HexStr(random_bytes_str)));
+    ret.push_back(Pair("secret", HexStr(secret.substr(0, random_bytes_size))));
     ret.push_back(Pair("scriptid", EncodeDestination(script_id)));
     ret.push_back(Pair("senderpubkey", HexStr(sender_pub)));
 

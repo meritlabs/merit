@@ -111,7 +111,7 @@ public:
         }
 
         std::copy(std::begin(hash), std::end(hash), std::begin(keydata));
-        fValid = true;
+        fValid = Check(keydata.data());
     }
 
     /**
