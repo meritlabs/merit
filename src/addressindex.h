@@ -15,7 +15,7 @@ struct CAddressUnspentKey {
     unsigned int type;
     uint160 hashBytes;
     uint256 txhash;
-    size_t index;
+    uint32_t index;
 
     size_t GetSerializeSize() const {
         return 57;
