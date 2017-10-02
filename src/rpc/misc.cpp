@@ -1176,7 +1176,7 @@ UniValue getspentinfo(const JSONRPCRequest& request)
     return obj;
 }
 
-UniValue inputforeasysend(const JSONRPCRequest& request)
+UniValue getinputforeasysend(const JSONRPCRequest& request)
 {
     const int SCRIPT_TYPE = 2;
 
@@ -1217,7 +1217,7 @@ UniValue inputforeasysend(const JSONRPCRequest& request)
 
         ret.push_back(Pair("found", true));
         ret.push_back(Pair("txid", key.txhash.GetHex()));
-        ret.push_back(Pair("index", key.index));
+        ret.push_back(Pair("index", static_cast<int>(key.index)));
 
         CSpentIndexValue spent_value;
         bool spent = GetSpentIndex(
@@ -1260,7 +1260,7 @@ static const CRPCCommand commands[] =
 
     /* Blockchain */
     { "blockchain",         "getspentinfo",           &getspentinfo,           {} },
-    { "blockchain",         "getinputforeasysend",           &inputforeasysend,           {"scriptaddress"} },
+    { "blockchain",         "getinputforeasysend",    &getinputforeasysend,           {"scriptaddress"} },
 
 
     /* Address index */
