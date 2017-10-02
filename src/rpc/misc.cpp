@@ -1176,6 +1176,70 @@ UniValue getspentinfo(const JSONRPCRequest& request)
     return obj;
 }
 
+UniValue inputforeasysend(const JSONRPCRequest& request)
+{
+    const int SCRIPT_TYPE = 2;
+
+    if (request.fHelp || request.params.size() != 1 || !request.params[0].isStr())
+        throw std::runtime_error(
+            "geteasyinput scriptaddress\n"
+            "\nReturns the txid and index where an output is spent.\n"
+            "\nArguments:\n"
+            "\"scriptaddress\" (string) Base58 address of script used in easy transaction.\n"
+            "}\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"found\"  (bool) True if found otherwise false\n"
+            "  \"txid\"  (string) The transaction id\n"
+            "  \"index\"  (number) The spending input index\n"
+            "  ,...\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("geteasyinput", "mp2FqA5kiszSWREEQXBmmMmGBYwiLuGFLt")
+        );
+
+    auto script_address = request.params[0].get_str();
+
+    auto dest = DecodeDestination(script_address);
+    auto script_id = boost::get<CScriptID>(&dest);
+    if(script_id == nullptr) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid scriptaddress");
+    }
+
+    std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
+    GetAddressIndex(*script_id, SCRIPT_TYPE, coins);
+    bool found = coins.size() > 1;
+
+    UniValue ret(UniValue::VOBJ);
+    if(found) {
+        const auto& coin = coins.at(0);
+        const auto& key = coin.first;
+
+        ret.push_back(Pair("found", true));
+        ret.push_back(Pair("txid", key.txhash.GetHex()));
+        ret.push_back(Pair("index", key.index));
+
+        CSpentIndexValue spent_value;
+        bool spent = GetSpentIndex(
+                {key.txhash, static_cast<unsigned int>(key.index)},
+                spent_value);
+
+        if(spent) {
+            ret.push_back(Pair("spenttxid", spent_value.txid.GetHex()));
+            ret.push_back(Pair("spentindex", static_cast<int>(spent_value.inputIndex)));
+        }
+
+        ret.push_back(Pair("spending", key.spending));
+        ret.push_back(Pair("spent", spent));
+
+        return ret;
+    }
+
+    ret.push_back(Pair("found", false));
+
+    return ret;
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
@@ -1196,6 +1260,8 @@ static const CRPCCommand commands[] =
 
     /* Blockchain */
     { "blockchain",         "getspentinfo",           &getspentinfo,           {} },
+    { "blockchain",         "getinputforeasysend",           &inputforeasysend,           {"scriptaddress"} },
+
 
     /* Address index */
     { "addressindex",       "getaddressmempool",      &getaddressmempool,      {}},
@@ -1203,9 +1269,6 @@ static const CRPCCommand commands[] =
     { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       {} },
     { "addressindex",       "getaddresstxids",        &getaddresstxids,        {} },
     { "addressindex",       "getaddressbalance",      &getaddressbalance,      {} },
-
-    /* Blockchain */
-    { "blockchain",         "getspentinfo",           &getspentinfo,           {} },
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            {"timestamp"}},
