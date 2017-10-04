@@ -102,9 +102,10 @@ public:
     //! Takes arbitrary data and hashes it. Uses the hash as the random keydata
     // to generate the private and public key.
     template <typename T>
-    void MakeNewKey(const T first, const T last)
+    void MakeNewKey(const T first, const T last, bool compressed)
     {
         uint256 hash = Hash(first, last);
+
         if (std::distance(std::begin(hash), std::end(hash)) != static_cast<int>(keydata.size())) {
             fValid = false;
             return;
@@ -112,6 +113,7 @@ public:
 
         std::copy(std::begin(hash), std::end(hash), std::begin(keydata));
         fValid = Check(keydata.data());
+        fCompressed = compressed;
     }
 
     /**

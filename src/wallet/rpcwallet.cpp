@@ -38,6 +38,12 @@
 
 static const std::string WALLET_ENDPOINT_BASE = "/wallet/";
 
+namespace
+{
+    const size_t RANDOM_BYTES_SIZE = 16;
+    const bool COMPRESSED_KEY = true;
+}
+
 CWallet *GetWalletForJSONRPCRequest(const JSONRPCRequest& request)
 {
     if (request.URI.substr(0, WALLET_ENDPOINT_BASE.size()) == WALLET_ENDPOINT_BASE) {
@@ -469,16 +475,15 @@ static UniValue EasySend(
 
     // Create a deterministic based on the secret that was computed.
     CKey receiver_key;
-    const size_t random_bytes_size = 16;
-    std::string secret(random_bytes_size + optional_password.size(), ' ');
+    std::string secret(RANDOM_BYTES_SIZE + optional_password.size(), ' ');
     std::copy(
             std::begin(optional_password),
             std::end(optional_password),
-            std::begin(secret) + random_bytes_size);
+            std::begin(secret) + RANDOM_BYTES_SIZE);
 
     while(!receiver_key.IsValid()) {
-        GetRandBytes(reinterpret_cast<unsigned char*>(&secret[0]), random_bytes_size);
-        receiver_key.MakeNewKey(std::begin(secret), std::end(secret));
+        GetRandBytes(reinterpret_cast<unsigned char*>(&secret[0]), RANDOM_BYTES_SIZE);
+        receiver_key.MakeNewKey(std::begin(secret), std::end(secret), COMPRESSED_KEY);
     }
 
     auto receiver_pub = receiver_key.GetPubKey();
@@ -541,7 +546,7 @@ static UniValue EasySend(
 
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
-    ret.push_back(Pair("secret", HexStr(secret.substr(0, random_bytes_size))));
+    ret.push_back(Pair("secret", HexStr(secret.substr(0, RANDOM_BYTES_SIZE))));
     ret.push_back(Pair("scriptid", EncodeDestination(script_id)));
     ret.push_back(Pair("senderpubkey", HexStr(sender_pub)));
 
@@ -576,7 +581,7 @@ static UniValue EasyReceive(
     //We can then take the sender_pub and escrow_pub and generate a script that 
     //matches the unspend script_id
     const auto mixedsecret = secret + optional_password;
-    escrow_key.MakeNewKey(std::begin(mixedsecret), std::end(mixedsecret));
+    escrow_key.MakeNewKey(std::begin(mixedsecret), std::end(mixedsecret), COMPRESSED_KEY);
     auto escrow_pub = escrow_key.GetPubKey();
     
     auto easy_send_script = GetScriptForEasySend(max_blocks, sender_pub, escrow_pub);
