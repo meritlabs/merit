@@ -5,6 +5,7 @@
 #include "cuckoo.h"
 #include <assert.h>
 #include <set>
+#include <vector>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -53,7 +54,32 @@ int path(node_t* cuckoo, node_t u, node_t* us)
     return nu;
 }
 
-bool worker(cuckoo_ctx *ctx) {
+typedef std::pair<node_t,node_t> edge;
+
+void solution(cuckoo_ctx* ctx, node_t* us, int nu, node_t* vs, int nv, std::set<uint32_t>& nonces)
+{
+    assert(nonces.empty());
+    std::set<edge> cycle;
+
+    unsigned n;
+    cycle.insert(edge(*us, *vs));
+    while (nu--)
+        cycle.insert(edge(us[(nu + 1) & ~1], us[nu | 1])); // u's in even position; v's in odd
+    while (nv--)
+        cycle.insert(edge(vs[nv | 1], vs[(nv + 1) & ~1])); // u's in odd position; v's in even
+    printf("Solution");
+    for (edge_t nonce = n = 0; nonce < ctx->easiness; nonce++) {
+        edge e(sipnode(&ctx->sip_keys, nonce, 0), sipnode(&ctx->sip_keys, nonce, 1));
+        if (cycle.find(e) != cycle.end()) {
+            printf(" %X", nonce);
+            cycle.erase(e);
+            nonces.insert(nonce);
+        }
+    }
+    printf("\n");
+}
+
+bool worker(cuckoo_ctx *ctx, std::set<uint32_t>& cycle) {
   node_t *cuckoo = ctx->cuckoo;
   node_t us[MAXPATHLEN], vs[MAXPATHLEN];
   for (node_t nonce = 0; nonce < ctx->easiness; nonce++) {
@@ -76,6 +102,7 @@ bool worker(cuckoo_ctx *ctx) {
       int len = nu + nv + 1;
       if (len == PROOFSIZE) {
         printf("% 4d-cycle found at %d%%\n", len, (int)(nonce*100L/ctx->easiness));
+        solution(ctx, us, nu, vs, nv, cycle);
         return true;
       }
       continue;
@@ -99,7 +126,7 @@ bool worker(cuckoo_ctx *ctx) {
 
 namespace cuckoo
 {
-    bool CheckProofOfWork(uint256 hash, int nonce)
+    bool CheckProofOfWork(uint256 hash, int nonce, std::set<uint32_t>& cycle)
     {
         int easipct = 50;
         assert(easipct >= 0 && easipct <= 100);
@@ -108,6 +135,20 @@ namespace cuckoo
                      PROOFSIZE, EDGEBITS+1, hash.GetHex().c_str(), easipct, nonce);
         cuckoo_ctx ctx(reinterpret_cast<char*>(hash.begin()), sizeof(hash), nonce, easiness);
 
-        return worker(&ctx);
+        return worker(&ctx, cycle);
+    }
+
+    bool VerifyProofOfWork(uint256 hash, int nonce, std::set<uint32_t>& cycle)
+    {
+        assert(cycle.size() == PROOFSIZE);
+
+        siphash_keys sip_keys;
+
+        const char* header = reinterpret_cast<char*>(hash.begin());
+        u32 headerlen = sizeof(header);
+        ((u32*)header)[headerlen / sizeof(u32) - 1] = htole32(nonce); // place nonce at end
+        setheader(header, headerlen, &sip_keys);
+
+        return verify(&std::vector<uint32_t>(cycle.begin(), cycle.end())[0], &sip_keys) == verify_code::POW_OK;
     }
 }

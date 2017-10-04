@@ -5,19 +5,14 @@
 #ifndef MERIT_CUCKOO_MINER_H
 #define MERIT_CUCKOO_MINER_H
 
-#include <stdint.h>
 #include "uint256.h"
-
-class CBlockIndex;
-class CCoinsViewCache;
-class CTransaction;
-class CValidationState;
-class ReferralsViewCache;
-
+#include <set>
 
 namespace cuckoo {
-    /** Check whether a block hash satisfies the proof-of-work requirement specified by nBits */
-    bool CheckProofOfWork(uint256 hash, int nonce);
+    /** Check whether a block hash satisfies the proof-of-work requirement specified by block hash and nonce */
+    bool CheckProofOfWork(uint256 hash, int nonce, std::set<uint32_t>& cycle);
+
+    bool VerifyProofOfWork(uint256, int nonce, std::set<uint32_t>& cycle);
 }
 
 #endif // MERIT_CUCKOO_MINER_H
