@@ -26,6 +26,7 @@
 #include "utilstrencodings.h"
 #include "validationinterface.h"
 #include "warnings.h"
+#include "cuckoo/miner.h"
 
 #include <memory>
 #include <stdint.h>
@@ -129,7 +130,7 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
             LOCK(cs_main);
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
         }
-        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus())) {
+        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !cuckoo::CheckProofOfWork(pblock->GetHash(), pblock->nNonce)) {
             ++pblock->nNonce;
             --nMaxTries;
         }
