@@ -1182,7 +1182,7 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() != 1 || !request.params[0].isStr())
         throw std::runtime_error(
-            "geteasyinput scriptaddress\n"
+            "getinputforeasysend scriptaddress\n"
             "\nReturns the txid and index where an output is spent.\n"
             "\nArguments:\n"
             "\"scriptaddress\" (string) Base58 address of script used in easy transaction.\n"
@@ -1195,7 +1195,7 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
             "  ,...\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("geteasyinput", "mp2FqA5kiszSWREEQXBmmMmGBYwiLuGFLt")
+            + HelpExampleCli("getinputforeasysend", "mp2FqA5kiszSWREEQXBmmMmGBYwiLuGFLt")
         );
 
     auto script_address = request.params[0].get_str();
