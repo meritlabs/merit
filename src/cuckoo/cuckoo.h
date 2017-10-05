@@ -1,10 +1,13 @@
 // Cuckoo Cycle, a memory-hard proof-of-work
 // Copyright (c) 2013-2017 John Tromp
+// Copyright (c) 2017-2017 The Merit Foundation developers
 
-#include "crypto/blake2/blake2.h"
+#ifndef MERIT_CUCKOO_CUCKOO_H
+#define MERIT_CUCKOO_CUCKOO_H
+
 #include "crypto/siphash.h"
+#include <assert.h>
 #include <stdint.h> // for types uint32_t,uint64_t
-#include <string.h> // for functions strlen, memset
 
 // proof-of-work parameters
 #ifndef EDGEBITS
@@ -18,17 +21,10 @@
 // used to mask siphash output
 #define EDGEMASK ((uint32_t)NEDGES - 1)
 
-// generate edge endpoint in cuckoo graph without partition bit
-uint32_t _sipnode(siphash_keys* keys, uint32_t nonce, u32 uorv)
-{
-    return siphash24(keys, 2 * nonce + uorv) & EDGEMASK;
-}
+// assume EDGEBITS < 31
+#define NNODES (2 * NEDGES)
 
-// generate edge endpoint in cuckoo graph
-uint32_t sipnode(siphash_keys* keys, uint32_t nonce, u32 uorv)
-{
-    return _sipnode(keys, nonce, uorv) << 1 | uorv;
-}
+#define MAXPATHLEN 8192
 
 enum verify_code {
     POW_OK,
@@ -51,59 +47,38 @@ const char* errstr[] = {
     "cycle dead ends",
     "cycle too short"};
 
-// verify that nonces are ascending and form a cycle in header-generated graph
-int VerifyCycle(std::vector<uint32_t>& nonces, siphash_keys* keys, const uint8_t proofsize)
-{
-    assert(nonces.size() == proofsize);
-
-    uint32_t uvs[2 * proofsize];
-    uint32_t xor0 = 0, xor1 = 0;
-
-    for (uint32_t n = 0; n < proofsize; n++) {
-        if (nonces[n] > EDGEMASK) {
-            return POW_TOO_BIG;
-        }
-
-        if (n && nonces[n] <= nonces[n - 1]) {
-            return POW_TOO_SMALL;
-        }
-
-        xor0 ^= uvs[2 * n] = sipnode(keys, nonces[n], 0);
-        xor1 ^= uvs[2 * n + 1] = sipnode(keys, nonces[n], 1);
-    }
-
-    // matching endpoints imply zero xors
-    if (xor0 | xor1) {
-        return POW_NON_MATCHING;
-    }
-
-    uint32_t n = 0, i = 0, j;
-    do { // follow cycle
-        for (uint32_t k = j = i; (k = (k + 2) % (2 * proofsize)) != i;) {
-            if (uvs[k] == uvs[i]) { // find other edge endpoint identical to one at i
-                if (j != i) {       // already found one before
-                    return POW_BRANCH;
-                }
-
-                j = k;
-            }
-        }
-        if (j == i) {
-            return POW_DEAD_END; // no matching endpoint
-        }
-
-        i = j ^ 1;
-        n++;
-    } while (i != 0); // must cycle back to start or we would have found branch
-
-    return n == proofsize ? POW_OK : POW_SHORT_CYCLE;
-}
+const char* nonceToHeader(const char* header, const uint32_t headerlen, const uint32_t nonce);
 
 // convenience function for extracting siphash keys from header
-void SetKeys(const char* header, const uint32_t headerlen, siphash_keys* keys)
+void SetKeys(const char* header, const uint32_t headerlen, siphash_keys* keys);
+
+class CuckooCtx
 {
-    char hdrkey[32];
-    // SHA256((unsigned char *)header, headerlen, (unsigned char *)hdrkey);
-    blake2b((void*)hdrkey, sizeof(hdrkey), (const void*)header, headerlen, 0, 0);
-    setkeys(keys, hdrkey);
-}
+public:
+    siphash_keys m_Keys;
+    uint32_t m_difficulty;
+    uint32_t* m_cuckoo;
+
+    CuckooCtx(const char* header, const uint32_t headerlen, const uint32_t nonce, uint32_t difficulty)
+    {
+        SetKeys(nonceToHeader(header, headerlen, nonce), headerlen, &m_Keys);
+
+        m_difficulty = difficulty;
+        m_cuckoo = (uint32_t*)calloc(1 + NNODES, sizeof(uint32_t));
+
+        assert(m_cuckoo != 0);
+    }
+
+    ~CuckooCtx()
+    {
+        free(m_cuckoo);
+    }
+};
+
+// Find proofsize-length cuckoo cycle in random graph
+bool FindCycle(CuckooCtx* ctx, std::set<uint32_t>& cycle, uint8_t proofsize);
+
+// verify that nonces are ascending and form a cycle in header-generated graph
+int VerifyCycle(std::vector<uint32_t>& nonces, siphash_keys* keys, const uint8_t proofsize);
+
+#endif // MERIT_CUCKOO_CUCKOO_H

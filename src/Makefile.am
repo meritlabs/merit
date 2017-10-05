@@ -113,6 +113,7 @@ MERIT_CORE_H = \
   memusage.h \
   merkleblock.h \
   miner.h \
+  cuckoo/cuckoo.h \
   cuckoo/miner.h \
   net.h \
   net_processing.h \
@@ -209,6 +210,7 @@ libmerit_server_a_SOURCES = \
   init.cpp \
   merkleblock.cpp \
   miner.cpp \
+  cuckoo/cuckoo.cpp \
   cuckoo/miner.cpp \
   net.cpp \
   net_processing.cpp \
@@ -308,7 +310,6 @@ libmerit_consensus_a_SOURCES = \
   consensus/merkle.h \
   consensus/params.h \
   consensus/validation.h \
-  consensus/cuckoo.h \
   hash.cpp \
   hash.h \
   prevector.h \
