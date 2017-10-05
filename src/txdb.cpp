@@ -15,6 +15,7 @@
 #include "util.h"
 #include "ui_interface.h"
 #include "init.h"
+#include "cuckoo/miner.h"
 
 #include <stdint.h>
 
@@ -445,8 +446,9 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
                 pindexNew->nNonce         = diskindex.nNonce;
                 pindexNew->nStatus        = diskindex.nStatus;
                 pindexNew->nTx            = diskindex.nTx;
+                pindexNew->m_sCycle       = diskindex.m_sCycle;
 
-                if (!CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits, consensusParams))
+                if (!cuckoo::VerifyProofOfWork(pindexNew->GetBlockHash(), pindexNew->nNonce, pindexNew->m_sCycle))
                     return error("%s: CheckProofOfWork failed: %s", __func__, pindexNew->ToString());
 
                 pcursor->Next();

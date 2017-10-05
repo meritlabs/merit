@@ -9,10 +9,10 @@
 #include <set>
 
 namespace cuckoo {
-    /** Check whether a block hash satisfies the proof-of-work requirement specified by block hash and nonce */
-    bool CheckProofOfWork(uint256 hash, int nonce, std::set<uint32_t>& cycle);
+    /** Find cycles for block hash satisfies the proof-of-work requirement specified by block hash and nonce */
+    bool FindProofOfWork(uint256 hash, int nonce, std::set<uint32_t>& cycle);
 
-    bool VerifyProofOfWork(uint256, int nonce, std::set<uint32_t>& cycle);
+    bool VerifyProofOfWork(uint256, int nonce, const std::set<uint32_t>& cycle);
 }
 
 #endif // MERIT_CUCKOO_MINER_H
