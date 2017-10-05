@@ -3,12 +3,15 @@
 
 #include "miner.h"
 #include "cuckoo.h"
+#include "pow.h"
+#include "hash.h"
 #include <assert.h>
 #include <set>
 #include <vector>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <numeric>
 
 // assume EDGEBITS < 31
 #define NNODES (2 * NEDGES)
@@ -17,21 +20,22 @@
 class cuckoo_ctx
 {
 public:
-    siphash_keys sip_keys;
-    edge_t easiness;
-    node_t* cuckoo;
+    siphash_keys m_Keys;
+    edge_t m_difficulty;
+    node_t* m_cuckoo;
 
-    cuckoo_ctx(const char* header, const u32 headerlen, const u32 nonce, edge_t easy_ness)
+    cuckoo_ctx(const char* header, const u32 headerlen, const u32 nonce, edge_t difficulty)
     {
         ((u32*)header)[headerlen / sizeof(u32) - 1] = htole32(nonce); // place nonce at end
-        setheader(header, headerlen, &sip_keys);
-        easiness = easy_ness;
-        cuckoo = (node_t*)calloc(1 + NNODES, sizeof(node_t));
-        assert(cuckoo != 0);
+        setheader(header, headerlen, &m_Keys);
+        m_difficulty = difficulty;
+        m_cuckoo = (node_t*)calloc(1 + NNODES, sizeof(node_t));
+
+        assert(m_cuckoo != 0);
     }
     ~cuckoo_ctx()
     {
-        free(cuckoo);
+        free(m_cuckoo);
     }
 };
 
@@ -68,8 +72,8 @@ void solution(cuckoo_ctx* ctx, node_t* us, int nu, node_t* vs, int nv, std::set<
     while (nv--)
         cycle.insert(edge(vs[nv | 1], vs[(nv + 1) & ~1])); // u's in odd position; v's in even
     printf("Solution");
-    for (edge_t nonce = n = 0; nonce < ctx->easiness; nonce++) {
-        edge e(sipnode(&ctx->sip_keys, nonce, 0), sipnode(&ctx->sip_keys, nonce, 1));
+    for (edge_t nonce = n = 0; nonce < ctx->m_difficulty; nonce++) {
+        edge e(sipnode(&ctx->m_Keys, nonce, 0), sipnode(&ctx->m_Keys, nonce, 1));
         if (cycle.find(e) != cycle.end()) {
             printf(" %x", nonce);
             cycle.erase(e);
@@ -80,12 +84,12 @@ void solution(cuckoo_ctx* ctx, node_t* us, int nu, node_t* vs, int nv, std::set<
 }
 
 bool worker(cuckoo_ctx *ctx, std::set<uint32_t>& cycle) {
-  node_t *cuckoo = ctx->cuckoo;
+  node_t *cuckoo = ctx->m_cuckoo;
   node_t us[MAXPATHLEN], vs[MAXPATHLEN];
-  for (node_t nonce = 0; nonce < ctx->easiness; nonce++) {
-    node_t u0 = sipnode(&ctx->sip_keys, nonce, 0);
+  for (node_t nonce = 0; nonce < ctx->m_difficulty; nonce++) {
+    node_t u0 = sipnode(&ctx->m_Keys, nonce, 0);
     if (u0 == 0) continue; // reserve 0 as nil; v0 guaranteed non-zero
-    node_t v0 = sipnode(&ctx->sip_keys, nonce, 1);
+    node_t v0 = sipnode(&ctx->m_Keys, nonce, 1);
     node_t u = cuckoo[u0], v = cuckoo[v0];
     us[0] = u0;
     vs[0] = v0;
@@ -101,7 +105,7 @@ bool worker(cuckoo_ctx *ctx, std::set<uint32_t>& cycle) {
       for (nu -= min, nv -= min; us[nu] != vs[nv]; nu++, nv++) ;
       int len = nu + nv + 1;
       if (len == PROOFSIZE) {
-        printf("% 4d-cycle found at %d%%\n", len, (int)(nonce*100L/ctx->easiness));
+        printf("% 4d-cycle found at %d%%\n", len, (int)(nonce*100L/ctx->m_difficulty));
         solution(ctx, us, nu, vs, nv, cycle);
         return true;
       }
@@ -126,32 +130,49 @@ bool worker(cuckoo_ctx *ctx, std::set<uint32_t>& cycle) {
 
 namespace cuckoo
 {
-    bool FindProofOfWork(uint256 hash, int nonce, std::set<uint32_t>& cycle)
+    bool FindProofOfWork(uint256 hash, int nonce, unsigned int nBits, std::set<uint32_t>& cycle, const Consensus::Params& params)
     {
         assert(cycle.empty());
 
-        int easipct = 50;
-        assert(easipct >= 0 && easipct <= 100);
-        u64 easiness = easipct * (u64)NNODES / 100;
-        printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges and %d nonce\n", PROOFSIZE, EDGEBITS+1, hash.GetHex().c_str(), easipct, nonce);
-        cuckoo_ctx ctx(reinterpret_cast<char*>(hash.begin()), hash.size(), nonce, easiness);
+        int ration = params.nCuckooDifficulty;
 
-        return worker(&ctx, cycle);
+        assert(ration >= 0 && ration <= 100);
+        u64 difficulty = ration * (u64)NNODES / 100;
+
+        printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges and %d nonce\n", PROOFSIZE, EDGEBITS+1, hash.GetHex().c_str(), ration, nonce);
+
+        cuckoo_ctx ctx(reinterpret_cast<char*>(hash.begin()), hash.size(), nonce, difficulty);
+
+        auto res = worker(&ctx, cycle);
+
+        // if cycle is found check that hash of that cycle is less than a difficulty (old school bitcoin pow)
+        if (res && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
+            return true;
+        }
+
+        cycle.clear();
+
+        return false;
     }
 
-    bool VerifyProofOfWork(uint256 hash, int nonce, const std::set<uint32_t>& cycle)
+    bool VerifyProofOfWork(uint256 hash, int nonce, unsigned int nBits, const std::set<uint32_t>& cycle, const Consensus::Params& params)
     {
         assert(cycle.size() == PROOFSIZE);
 
-        siphash_keys sip_keys;
+        siphash_keys keys;
 
         const char* header = reinterpret_cast<char*>(hash.begin());
         u32 headerlen = hash.size();
         ((u32*)header)[headerlen / sizeof(u32) - 1] = htole32(nonce); // place nonce at end
-        setheader(header, headerlen, &sip_keys);
+        setheader(header, headerlen, &keys);
 
-        int result = verify(&std::vector<uint32_t>(cycle.begin(), cycle.end())[0], &sip_keys);
+        int res = verify(&std::vector<uint32_t>(cycle.begin(), cycle.end())[0], &keys);
 
-        return result == verify_code::POW_OK;
+        if (res == verify_code::POW_OK) {
+            // check that hash of a cycle is less than a difficulty (old school bitcoin pow)
+            return ::CheckProofOfWork(SerializeHash(cycle), nBits, params);
+        }
+
+        return false;
     }
 }

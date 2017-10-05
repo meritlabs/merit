@@ -448,7 +448,7 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
                 pindexNew->nTx            = diskindex.nTx;
                 pindexNew->m_sCycle       = diskindex.m_sCycle;
 
-                if (!cuckoo::VerifyProofOfWork(pindexNew->GetBlockHash(), pindexNew->nNonce, pindexNew->m_sCycle))
+                if (!cuckoo::VerifyProofOfWork(pindexNew->GetBlockHash(), pindexNew->nNonce, pindexNew->nBits, pindexNew->m_sCycle, consensusParams))
                     return error("%s: CheckProofOfWork failed: %s", __func__, pindexNew->ToString());
 
                 pcursor->Next();

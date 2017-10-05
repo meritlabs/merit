@@ -6,13 +6,15 @@
 #define MERIT_CUCKOO_MINER_H
 
 #include "uint256.h"
+#include "consensus/params.h"
 #include <set>
 
 namespace cuckoo {
-    /** Find cycles for block hash satisfies the proof-of-work requirement specified by block hash and nonce */
-    bool FindProofOfWork(uint256 hash, int nonce, std::set<uint32_t>& cycle);
+    /** Find cycle for block that satisfies the proof-of-work requirement specified by block hash and nonce */
+    bool FindProofOfWork(uint256 hash, int nonce, unsigned int nBits, std::set<uint32_t>& cycle, const Consensus::Params& params);
 
-    bool VerifyProofOfWork(uint256, int nonce, const std::set<uint32_t>& cycle);
+    /** Check that provided cycle satisfies the proof-of-work requirement specified by block hash and nonce */
+    bool VerifyProofOfWork(uint256 hash, int nonce, unsigned int nBits, const std::set<uint32_t>& cycle, const Consensus::Params& params);
 }
 
 #endif // MERIT_CUCKOO_MINER_H
