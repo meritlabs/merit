@@ -495,13 +495,13 @@ static UniValue EasySend(
     CScriptID script_id(easy_send_script);
     CScript script_pub_key = GetScriptForDestination(script_id);
 
-    if(!pwallet.GenerateNewReferral(receiver_pub, pwallet.ReferredByHash())) {
+    if(!pwallet.GenerateNewReferral(receiver_pub, pwallet.ReferralCodeHash())) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Unable to generate referral for receiver key");
     }
 
-    if(!pwallet.GenerateNewReferral(script_id, pwallet.ReferredByHash())) {
+    if(!pwallet.GenerateNewReferral(script_id, pwallet.ReferralCodeHash())) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Unable to generate referral for easy send script");
@@ -685,7 +685,7 @@ static UniValue EasyReceive(
     //add script to wallet so we can redeem it later if needed.
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
-    ret.push_back(Pair("amount", unspent_val.satoshis));
+    ret.push_back(Pair("amount", ValueFromAmount(unspent_val.satoshis)));
 
     return ret;
 }

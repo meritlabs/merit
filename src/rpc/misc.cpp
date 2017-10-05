@@ -1208,16 +1208,18 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
 
     std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
     GetAddressIndex(*script_id, SCRIPT_TYPE, coins);
-    bool found = coins.size() > 1;
+    bool found = coins.size() > 0;
 
     UniValue ret(UniValue::VOBJ);
     if(found) {
         const auto& coin = coins.at(0);
         const auto& key = coin.first;
+        const auto amount = coin.second;
 
         ret.push_back(Pair("found", true));
         ret.push_back(Pair("txid", key.txhash.GetHex()));
         ret.push_back(Pair("index", static_cast<int>(key.index)));
+        ret.push_back(Pair("amount", ValueFromAmount(amount)));
 
         CSpentIndexValue spent_value;
         bool spent = GetSpentIndex(

@@ -1212,7 +1212,7 @@ public:
             const CPubKey& pubkey, const uint256& referredBy);
 
     bool IsReferred() const;
-    uint256 ReferredByHash() const;
+    uint256 ReferralCodeHash() const;
 };
 
 /** A key allocated from the key pool. */

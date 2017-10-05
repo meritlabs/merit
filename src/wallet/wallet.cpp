@@ -1690,10 +1690,10 @@ bool CWallet::IsReferred() const
     return !m_unlockReferralTx.IsNull();
 }
 
-uint256 CWallet::ReferredByHash() const
+uint256 CWallet::ReferralCodeHash() const
 {
     return IsReferred() ? 
-        m_unlockReferralTx.m_pReferral->m_previousReferral : uint256{};
+        m_unlockReferralTx.m_pReferral->m_codeHash : uint256{};
 }
 
 int64_t CWalletTx::GetTxTime() const
