@@ -14,7 +14,9 @@
 #include <assert.h>
 
 #include "chainparamsseeds.h"
+#include "cuckoo/miner.h"
 #include <iostream>
+#include <set>
 
 static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
@@ -27,7 +29,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     txNew.vout[0].scriptPubKey = genesisOutputScript;
 
     auto rawKeyStr = ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35");
-    CPubKey rawPubKey {rawKeyStr}; 
+    CPubKey rawPubKey {rawKeyStr};
     CKeyID address = rawPubKey.GetID();
     referral::MutableReferral refNew;
     refNew.m_codeHash.SetHex("73a50383c1e58f5f215cdb40508b584bfd9f8d0e46cc3d0f17c79c6774a5dafd");
@@ -40,9 +42,25 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     genesis.nNonce   = nNonce;
     genesis.nVersion = nVersion;
     genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
-    genesis.m_vRef.push_back(referral::MakeReferralRef(std::move(refNew)));    
+    genesis.m_vRef.push_back(referral::MakeReferralRef(std::move(refNew)));
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
+
+
+    // std::set<uint32_t> pow;
+
+    // uint32_t nMaxTries = 10000000;
+    // while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nNonce, pow)) {
+    //     ++genesis.nNonce;
+    //     --nMaxTries;
+    // }
+
+    // if (nMaxTries == 0) {
+    //     printf("could not find cycle for genesis block");
+    // }
+    // exit(1);
+
+    // genesis.m_sCycle = pow;
     return genesis;
 }
 
@@ -133,6 +151,7 @@ public:
 
         genesis = CreateGenesisBlock(1503515697, 0, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
+
         assert(consensus.hashGenesisBlock == uint256S("43ca943c27513e6bfcf554c0afce0f2613d2a7346b9f0ac3d5f947462a128399"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
@@ -208,7 +227,7 @@ public:
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
-        
+
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("14933df1e491d761a3972449bc88f3525f2081060af8534f8e54ad8d793f61b0"); //1135275
 
@@ -219,9 +238,16 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 0, 0x207fffff, 1, 50 * COIN);
+        std::set<uint32_t> pow = {0xeaf, 0x4438, 0x5a83, 0x5c0b, 0xa086, 0xda00, 0x150bc, 0x17316, 0x1a379, 0x1a38e,
+            0x1d55b, 0x20452, 0x2229a, 0x222ac, 0x226fd, 0x22ea7, 0x24f4b, 0x29436, 0x2a5e3, 0x2ec76, 0x411e5, 0x446e1,
+            0x45e4e, 0x48f22, 0x4978c, 0x50d32, 0x50fce, 0x51b78, 0x53cd1, 0x55cc8, 0x57b45, 0x5c318, 0x5e5f5, 0x60c51,
+            0x61f04, 0x66243, 0x6c2bb, 0x6c3a5, 0x71cd9, 0x72e0a, 0x769e8, 0x79801};
+
+        genesis = CreateGenesisBlock(1503444726, 42, 0x207fffff, 1, 50 * COIN);
+        genesis.m_sCycle = pow;
+
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("6e49a1749718838ccce04562c86a2f0b1824a77cab117ae1893abf87eac93135"));
+        assert(consensus.hashGenesisBlock == uint256S("e754e4f3fe7f368031fa3939970cfabdb0269f184f8584fda7ea2826918c2029"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
         vFixedSeeds.clear();
@@ -303,6 +329,11 @@ public:
         pchMessageStart[3] = 0xda;
         nDefaultPort = 18556;
         nPruneAfterHeight = 1000;
+
+        std::set<uint32_t> pow = {0x3a5e, 0x4de9, 0x7b50, 0xbad3, 0xe06a, 0xe413, 0x11c29, 0x154bb, 0x16d84, 0x16e71, 0x17945,
+            0x18b98, 0x1ce5f, 0x1ee77, 0x1fe14, 0x23ffc, 0x27565, 0x28e21, 0x2b201, 0x2f291, 0x33f9a, 0x34870, 0x41c4e, 0x42212,
+            0x45dff, 0x46670, 0x4ed9b, 0x531d6, 0x59f13, 0x5da0b, 0x5e373, 0x5f22e, 0x63bdc, 0x6b86f, 0x6c7e6, 0x6cc83, 0x6f776,
+            0x73e58, 0x74516, 0x7a2df, 0x7d2fa, 0x7da84};
 
         genesis = CreateGenesisBlock(1503670484, 3, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
