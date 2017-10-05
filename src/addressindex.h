@@ -35,11 +35,12 @@ struct CAddressUnspentKey {
         index = ser_readdata32(s);
     }
 
-    CAddressUnspentKey(unsigned int addressType, uint160 addressHash, uint256 txid, size_t indexValue) {
+    CAddressUnspentKey(unsigned int addressType, uint160 addressHash, uint256 txid, size_t indexValue, bool isCoinbase) {
         type = addressType;
         hashBytes = addressHash;
         txhash = txid;
         index = indexValue;
+        isCoinbase = IsCoinbase;
     }
 
     CAddressUnspentKey() {

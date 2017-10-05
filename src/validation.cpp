@@ -2645,7 +2645,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                 addressType,
                                 uint160(hashBytes),
                                 txhash,
-                                k}, 
+                                k, 
+                                tx.IsCoinBase()
+                            }, 
                             CAddressUnspentValue{
                                 out.nValue,
                                 out.scriptPubKey,
