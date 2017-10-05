@@ -58,7 +58,7 @@ struct COrphanTx {
 };
 
 struct OrphanReferral {
-    ReferralRef ref;
+    referral::ReferralRef ref;
     NodeId fromPeer;
     int64_t nTimeExpire;
 };
@@ -78,7 +78,7 @@ void EraseOrphansFor(NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 static size_t vExtraTxnForCompactIt = 0;
 static std::vector<std::pair<uint256, CTransactionRef>> vExtraTxnForCompact GUARDED_BY(cs_main);
-static std::vector<std::pair<uint256, ReferralRef>> vExtraRefsForCompact GUARDED_BY(cs_main);
+static std::vector<std::pair<uint256, referral::ReferralRef>> vExtraRefsForCompact GUARDED_BY(cs_main);
 
 static const uint64_t RANDOMIZER_ID_ADDRESS_RELAY = 0x3cac0035b5866b90ULL; // SHA256("main address relay")[0:8]
 
@@ -613,7 +613,7 @@ void AddToCompactExtraTransactions(const CTransactionRef& tx)
     vExtraTxnForCompactIt = (vExtraTxnForCompactIt + 1) % max_extra_txn;
 }
 
-bool AddOrphanReferral(const ReferralRef& ref, NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+bool AddOrphanReferral(const referral::ReferralRef& ref, NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
     const uint256& hash = ref->GetHash();
     if (mapOrphanReferrals.count(hash)) {
@@ -1028,7 +1028,7 @@ static void RelayTransaction(const CTransaction& tx, CConnman& connman)
     RelayInventory(inv, connman);
 }
 
-static void RelayReferral(const Referral& rtx, CConnman& connman)
+static void RelayReferral(const referral::Referral& rtx, CConnman& connman)
 {
     CInv inv(MSG_REFERRAL, rtx.GetHash());
     RelayInventory(inv, connman);
@@ -2109,7 +2109,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             return true;
         }
 
-        ReferralRef pref;
+        referral::ReferralRef pref;
         vRecv >> pref;
 
         if(pref == nullptr)
@@ -2369,7 +2369,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                     return true;
                 }
                 std::vector<CTransactionRef> dummyTxns;
-                std::vector<ReferralRef> dummyRefs;
+                std::vector<referral::ReferralRef> dummyRefs;
                 status = tempBlock.FillBlock(*pblock, dummyTxns, dummyRefs);
                 if (status == READ_STATUS_OK) {
                     fBlockReconstructed = true;

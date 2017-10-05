@@ -14,10 +14,14 @@
 class CBlock;
 class CScript;
 class CTransaction;
-class Referral;
 struct CMutableTransaction;
 class uint256;
 class UniValue;
+
+namespace referral
+{
+    class Referral;
+}
 
 // core_read.cpp
 CScript ParseScript(const std::string& s);
@@ -34,6 +38,6 @@ std::string FormatScript(const CScript& script);
 std::string EncodeHexTx(const CTransaction& tx, const int serializeFlags = 0);
 void ScriptPubKeyToUniv(const CScript& scriptPubKey, UniValue& out, bool fIncludeHex);
 void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry, bool include_hex = true, int serialize_flags = 0);
-void RefToUniv(const Referral& tx, const uint256& hashBlock, UniValue& entry, bool include_hex = true, int serialize_flags = 0);
+void RefToUniv(const referral::Referral& tx, const uint256& hashBlock, UniValue& entry, bool include_hex = true, int serialize_flags = 0);
 
 #endif // MERIT_CORE_IO_H

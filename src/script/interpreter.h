@@ -109,7 +109,10 @@ enum
     SCRIPT_VERIFY_WITNESS_PUBKEYTYPE = (1U << 15),
 };
 
-bool CheckSignatureEncoding(const std::vector<unsigned char> &vchSig, unsigned int flags, ScriptError* serror);
+bool CheckSignatureEncoding(
+        const std::vector<unsigned char> &vchSig,
+        unsigned int flags,
+        ScriptError* serror);
 
 struct PrecomputedTransactionData
 {
@@ -124,22 +127,38 @@ enum SigVersion
     SIGVERSION_WITNESS_V0 = 1,
 };
 
-uint256 SignatureHash(const CScript &scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType, const CAmount& amount, SigVersion sigversion, const PrecomputedTransactionData* cache = nullptr);
+uint256 SignatureHash(
+        const CScript &scriptCode,
+        const CTransaction& txTo,
+        unsigned int nIn,
+        int nHashType,
+        const CAmount& amount,
+        SigVersion sigversion,
+        const PrecomputedTransactionData* cache = nullptr);
 
 class BaseSignatureChecker
 {
 public:
-    virtual bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const
+    virtual bool CheckSig(
+            const std::vector<unsigned char>& scriptSig,
+            const std::vector<unsigned char>& vchPubKey,
+            const CScript& scriptCode,
+            SigVersion sigversion) const
     {
         return false;
     }
 
-    virtual bool CheckLockTime(const CScriptNum& nLockTime) const
+    virtual bool CheckLockTime(const CScriptNum&) const
     {
          return false;
     }
 
-    virtual bool CheckSequence(const CScriptNum& nSequence) const
+    virtual bool CheckSequence(const CScriptNum&) const
+    {
+         return false;
+    }
+
+    virtual bool CheckCoinHeight(const int) const
     {
          return false;
     }
@@ -153,17 +172,52 @@ private:
     const CTransaction* txTo;
     unsigned int nIn;
     const CAmount amount;
+    const int blockHeight;
+    const int coinHeight;
     const PrecomputedTransactionData* txdata;
 
 protected:
-    virtual bool VerifySignature(const std::vector<unsigned char>& vchSig, const CPubKey& vchPubKey, const uint256& sighash) const;
+    virtual bool VerifySignature(
+            const std::vector<unsigned char>& vchSig,
+            const CPubKey& vchPubKey,
+            const uint256& sighash) const;
 
 public:
-    TransactionSignatureChecker(const CTransaction* txToIn, unsigned int nInIn, const CAmount& amountIn) : txTo(txToIn), nIn(nInIn), amount(amountIn), txdata(nullptr) {}
-    TransactionSignatureChecker(const CTransaction* txToIn, unsigned int nInIn, const CAmount& amountIn, const PrecomputedTransactionData& txdataIn) : txTo(txToIn), nIn(nInIn), amount(amountIn), txdata(&txdataIn) {}
-    bool CheckSig(const std::vector<unsigned char>& scriptSig, const std::vector<unsigned char>& vchPubKey, const CScript& scriptCode, SigVersion sigversion) const override;
+    TransactionSignatureChecker(
+            const CTransaction* txToIn, 
+            unsigned int nInIn, 
+            const CAmount& amountIn, 
+            const int blockHeightIn,
+            const int coinHeightIn) : 
+        txTo{txToIn},
+        nIn{nInIn},
+        amount{amountIn},
+        blockHeight{blockHeightIn},
+        coinHeight{coinHeightIn},
+        txdata{nullptr} {}
+
+    TransactionSignatureChecker(
+            const CTransaction* txToIn,
+            unsigned int nInIn,
+            const CAmount& amountIn,
+            const int blockHeightIn,
+            const int coinHeightIn,
+            const PrecomputedTransactionData& txdataIn) : 
+        txTo{txToIn},
+        nIn{nInIn},
+        amount{amountIn},
+        blockHeight{blockHeightIn},
+        coinHeight{coinHeightIn},
+        txdata{&txdataIn} {}
+
+    bool CheckSig(
+            const std::vector<unsigned char>& scriptSig,
+            const std::vector<unsigned char>& vchPubKey,
+            const CScript& scriptCode, SigVersion sigversion) const override;
+
     bool CheckLockTime(const CScriptNum& nLockTime) const override;
     bool CheckSequence(const CScriptNum& nSequence) const override;
+    bool CheckCoinHeight(int maxHeight) const override;
 };
 
 class MutableTransactionSignatureChecker : public TransactionSignatureChecker
@@ -172,12 +226,41 @@ private:
     const CTransaction txTo;
 
 public:
-    MutableTransactionSignatureChecker(const CMutableTransaction* txToIn, unsigned int nInIn, const CAmount& amountIn) : TransactionSignatureChecker(&txTo, nInIn, amountIn), txTo(*txToIn) {}
+    MutableTransactionSignatureChecker(
+            const CMutableTransaction* txToIn,
+            unsigned int nInIn,
+            const CAmount& amountIn,
+            const int blockHeightIn,
+            const int coinHeightIn) : 
+        TransactionSignatureChecker(
+                &txTo,
+                nInIn,
+                amountIn,
+                blockHeightIn,
+                coinHeightIn),
+        txTo(*txToIn) {}
 };
 
-bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, SigVersion sigversion, ScriptError* error = nullptr);
-bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror = nullptr);
+bool EvalScript(
+        std::vector<std::vector<unsigned char> >& stack,
+        const CScript& script,
+        unsigned int flags,
+        const BaseSignatureChecker& checker,
+        SigVersion sigversion,
+        ScriptError* error = nullptr);
 
-size_t CountWitnessSigOps(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags);
+bool VerifyScript(
+        const CScript& scriptSig,
+        const CScript& scriptPubKey,
+        const CScriptWitness* witness,
+        unsigned int flags,
+        const BaseSignatureChecker& checker,
+        ScriptError* serror = nullptr);
+
+size_t CountWitnessSigOps(
+        const CScript& scriptSig,
+        const CScript& scriptPubKey,
+        const CScriptWitness* witness,
+        unsigned int flags);
 
 #endif // MERIT_SCRIPT_INTERPRETER_H

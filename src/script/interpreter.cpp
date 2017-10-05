@@ -13,6 +13,9 @@
 #include "pubkey.h"
 #include "script/script.h"
 #include "uint256.h"
+#include "util.h"
+
+#include <type_traits>
 
 typedef std::vector<unsigned char> valtype;
 
@@ -244,7 +247,34 @@ bool static CheckMinimalPush(const valtype& data, opcodetype opcode) {
     return true;
 }
 
-bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, SigVersion sigversion, ScriptError* serror)
+template<class Val, typename std::enable_if<!std::is_integral<Val>::value, bool>::type = 0>
+bool Pop(std::vector<std::vector<unsigned char>>& stack, Val& ret, ScriptError* serror)
+{
+    if (stack.empty()) {
+        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+    }
+
+    ret = stacktop(-1);
+    popstack(stack);
+
+    return true;
+}
+
+template<class Val, typename std::enable_if<std::is_integral<Val>::value, bool>::type = 0>
+bool Pop(std::vector<std::vector<unsigned char>>& stack, Val& ret, ScriptError* serror)
+{
+    valtype bytes;
+    if(!Pop(stack, bytes, serror))
+        return false;
+
+    ret = CScriptNum(bytes, true).getint();
+    return true;
+}
+
+
+
+
+bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, SigVersion sigversion, ScriptError* serror)
 {
     static const CScriptNum bnZero(0);
     static const CScriptNum bnOne(1);
@@ -425,7 +455,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     break;
                 }
 
-                case OP_NOP1: case OP_NOP4: case OP_NOP5:
+                case OP_NOP1: case OP_NOP5:
                 case OP_NOP6: case OP_NOP7: case OP_NOP8: case OP_NOP9: case OP_NOP10:
                 {
                     if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
@@ -1023,6 +1053,59 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     }
                 }
                 break;
+                case OP_EASYSEND:
+                {
+                    // (sig max_block_depth [pubkey ...] num_of_pubkeys -- bool)
+                    size_t key_id_count = 0;
+                    if(!Pop(stack, key_id_count, serror)) 
+                        return false;
+
+                    if(key_id_count < 2 || key_id_count > MAX_EASY_SEND_KEYS)
+                        return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+                    //pop pub keys off the stack
+                    std::vector<valtype> pub_keys(key_id_count);
+                    std::generate_n(std::begin(pub_keys), key_id_count, 
+                            [&stack, serror]() {
+                                valtype key;
+                                if(!Pop(stack, key, serror))
+                                    throw std::runtime_error{"popstack(): expected key"};
+                                return key;
+                            });
+
+                    assert(pub_keys.size() == key_id_count);
+
+                    int max_block_depth = 0;
+                    if(!Pop(stack, max_block_depth, serror)) 
+                        return set_error(serror, SCRIPT_ERR_BLOCKHEIGHT_COUNT);
+
+                    //We now have a list of key ids and a signature. We have
+                    //to transform the key ids to actual pub keys. Since all
+                    //keys have been beaconed we can look it up in the referall
+                    //db.
+
+                    valtype sig;
+                    if(!Pop(stack, sig, serror))
+                        return false;
+
+                    auto matching_key = 
+                        std::find_if(std::begin(pub_keys), std::end(pub_keys),
+                            [&sig, flags, serror, sigversion](const valtype& pub_key) {
+                                return 
+                                    CheckSignatureEncoding(sig, flags, serror) && 
+                                    CheckPubKeyEncoding(pub_key, flags, sigversion, serror);
+                            });
+
+                    bool success = matching_key != std::end(pub_keys);
+
+                    //first key is allowed to receive funds after the max block
+                    //height is met. Other keys don't have that privilege.
+                    if(matching_key != std::begin(pub_keys) && !checker.CheckCoinHeight(max_block_depth))
+                        success = false;
+
+                    stack.push_back(success ? vchTrue : vchFalse);
+                }
+                break;
 
                 default:
                     return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
@@ -1352,6 +1435,14 @@ bool TransactionSignatureChecker::CheckSequence(const CScriptNum& nSequence) con
     return true;
 }
 
+bool TransactionSignatureChecker::CheckCoinHeight(const int maxHeight) const
+{
+    assert(blockHeight >= 0);
+    assert(blockHeight >= coinHeight);
+    auto height = blockHeight - coinHeight;
+    return maxHeight >= 0 && height <= maxHeight;
+}
+
 static bool VerifyWitnessProgram(const CScriptWitness& witness, int witversion, const std::vector<unsigned char>& program, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror)
 {
     std::vector<std::vector<unsigned char> > stack;
@@ -1455,6 +1546,8 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
     // Additional validation for spend-to-script-hash transactions:
     if ((flags & SCRIPT_VERIFY_P2SH) && scriptPubKey.IsPayToScriptHash())
     {
+        //TODO: Do beacon verification here. 
+        
         // scriptSig must be literals-only or validation fails
         if (!scriptSig.IsPushOnly())
             return set_error(serror, SCRIPT_ERR_SIG_PUSHONLY);

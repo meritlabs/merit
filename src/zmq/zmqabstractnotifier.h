@@ -35,7 +35,7 @@ public:
 
     virtual bool NotifyBlock(const CBlockIndex *pindex);
     virtual bool NotifyTransaction(const CTransaction &transaction);
-    virtual bool NotifyReferral(const ReferralRef &ref);
+    virtual bool NotifyReferral(const referral::ReferralRef &ref);
 
 protected:
     void *psocket;

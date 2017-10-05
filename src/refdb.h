@@ -12,19 +12,22 @@
 #include <boost/optional.hpp>
 #include <vector>
 
-using MaybeReferral = boost::optional<Referral>;
-using MaybeKeyID = boost::optional<CKeyID>;
-using MaybeANV = boost::optional<CAmount>;
-using ChildKeys = std::vector<CKeyID>;
-using KeyIDs = std::vector<CKeyID>;
-
-struct KeyANV
+namespace referral
 {
-    CKeyID key;
+using Address = uint160;
+using MaybeReferral = boost::optional<Referral>;
+using MaybeAddress = boost::optional<Address>;
+using MaybeANV = boost::optional<CAmount>;
+using ChildAddresses = std::vector<Address>;
+using Addresses = std::vector<Address>;
+
+struct AddressANV
+{
+    Address address;
     CAmount anv;
 };
 
-using KeyANVs = std::vector<KeyANV>;
+using AddressANVs = std::vector<AddressANV>;
 
 class ReferralsViewDB
 {
@@ -34,17 +37,19 @@ public:
     explicit ReferralsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false, const std::string& name = "referrals");
 
     MaybeReferral GetReferral(const uint256&) const;
-    MaybeKeyID GetReferrer(const CKeyID&) const;
-    ChildKeys GetChildren(const CKeyID&) const;
+    MaybeAddress GetReferrer(const Address&) const;
+    ChildAddresses GetChildren(const Address&) const;
 
-    bool UpdateANV(const CKeyID&, CAmount);
-    MaybeANV GetANV(const CKeyID&) const;
-    KeyANVs GetAllANVs() const;
+    bool UpdateANV(const Address&, CAmount);
+    MaybeANV GetANV(const Address&) const;
+    AddressANVs GetAllANVs() const;
 
     bool InsertReferral(const Referral&);
     bool RemoveReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;
-    bool WalletIdExists(const CKeyID&) const;
+    bool WalletIdExists(const Address&) const;
 };
+
+} // namespace referral
 
 #endif

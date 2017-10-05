@@ -62,6 +62,7 @@ enum txnouttype
     TX_PUBKEYHASH,
     TX_SCRIPTHASH,
     TX_MULTISIG,
+    TX_EASYSEND,
     TX_NULL_DATA, //!< unspendable OP_RETURN script that carries data
     TX_WITNESS_V0_SCRIPTHASH,
     TX_WITNESS_V0_KEYHASH,
@@ -125,6 +126,15 @@ bool ExtractDestinations(const CScript& scriptPubKey, txnouttype& typeRet, std::
  * script for CNoDestination.
  */
 CScript GetScriptForDestination(const CTxDestination& dest);
+
+/**
+ * Generates a Easy Send Script to the receiver specified.
+ * An easy send script allows funds to be recoverable by the sender.
+ */
+CScript GetScriptForEasySend(
+        int max_block_height,
+        const CPubKey& sender,
+        const CPubKey& receiver);
 
 /** Generate a P2PK script for the given pubkey. */
 CScript GetScriptForRawPubKey(const CPubKey& pubkey);

@@ -12,11 +12,23 @@
 #include "primitives/transaction.h"
 #include "script/standard.h"
 #include "uint256.h"
+#include "util.h"
 
 
 typedef std::vector<unsigned char> valtype;
 
-TransactionSignatureCreator::TransactionSignatureCreator(const CKeyStore* keystoreIn, const CTransaction* txToIn, unsigned int nInIn, const CAmount& amountIn, int nHashTypeIn) : BaseSignatureCreator(keystoreIn), txTo(txToIn), nIn(nInIn), nHashType(nHashTypeIn), amount(amountIn), checker(txTo, nIn, amountIn) {}
+TransactionSignatureCreator::TransactionSignatureCreator(
+        const CKeyStore* keystoreIn,
+        const CTransaction* txToIn,
+        unsigned int nInIn,
+        const CAmount& amountIn,
+        int nHashTypeIn) :
+    BaseSignatureCreator(keystoreIn),
+    txTo(txToIn),
+    nIn(nInIn),
+    nHashType(nHashTypeIn),
+    amount(amountIn),
+    checker(txTo, nIn, amountIn, 0, 0) {}
 
 bool TransactionSignatureCreator::CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& address, const CScript& scriptCode, SigVersion sigversion) const
 {
@@ -105,6 +117,18 @@ static bool SignStep(const BaseSignatureCreator& creator, const CScript& scriptP
     case TX_MULTISIG:
         ret.push_back(valtype()); // workaround CHECKMULTISIG bug
         return (SignN(vSolutions, creator, scriptPubKey, ret, sigversion));
+
+    case TX_EASYSEND: 
+        {
+            //insert number of required before calling signN
+            assert(!vSolutions.empty());
+
+            std::vector<valtype> solutions;
+            solutions.reserve(vSolutions.size() + 1);
+            solutions.push_back(valtype{1, 1});
+            solutions.insert(solutions.end(), vSolutions.begin(), vSolutions.end());
+            return (SignN(solutions, creator, scriptPubKey, ret, sigversion));
+        }
 
     case TX_WITNESS_V0_KEYHASH:
         ret.push_back(vSolutions[0]);

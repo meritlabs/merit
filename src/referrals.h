@@ -13,8 +13,10 @@
 #include <unordered_map>
 #include <boost/optional.hpp>
 
+namespace referral
+{
 using ReferralMap = std::unordered_map<uint256, Referral>;
-using WalletToReferrer = std::unordered_map<CKeyID, CKeyID, std::hash<uint160>>;
+using WalletToReferrer = std::unordered_map<Address, Address, std::hash<uint160>>;
 
 class ReferralsViewCache
 {
@@ -26,20 +28,22 @@ private:
 
     ReferralMap::iterator Fetch(const uint256& code) const;
     void InsertReferralIntoCache(const Referral&) const;
-    void InsertWalletRelationshipIntoCache(const CKeyID& child, const CKeyID& parent) const;
+    void InsertWalletRelationshipIntoCache(const Address& child, const Address& parent) const;
 
 public:
     ReferralsViewCache(ReferralsViewDB*);
 
     MaybeReferral GetReferral(const uint256&) const;
-    MaybeKeyID GetReferrer(const CKeyID& key) const;
+    MaybeAddress GetReferrer(const Address& address) const;
 
     bool ReferralCodeExists(const uint256&) const;
-    bool WalletIdExists(const CKeyID&) const;
+    bool WalletIdExists(const Address&) const;
 
     void RemoveReferral(const Referral&) const;
 
     void Flush();
 };
+
+} // namespace referral
 
 #endif

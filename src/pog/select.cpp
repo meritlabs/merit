@@ -12,7 +12,7 @@ namespace pog
     /**
      * AnvDistribution uses Inverse Transform Sampling. Computing the
      * CDF is trivial for for the ANV discrete distribution is easy
-     * by simply sorting and adding up all the ANVs of the keys provided.
+     * by simply sorting and adding up all the ANVs of the addresss provided.
      *
      * Scaling to probabilities is unnecessary because we will use a hash function
      * to sample into the range between 0-MaxAnv. Since the hash is already
@@ -21,20 +21,25 @@ namespace pog
      *
      * The most expensive part of creating the distribution is sorting the ANVs
      */
-    AnvDistribution::AnvDistribution(KeyANVs anvs) : m_inverted(anvs.size())
+    AnvDistribution::AnvDistribution(referral::AddressANVs anvs) : 
+        m_inverted(anvs.size())
     {
-        //index anvs by key id for convenience. 
-        std::transform(std::begin(anvs), std::end(anvs), std::inserter(m_anvs, std::begin(m_anvs)),
-                [](const KeyANV& v) {
+        //index anvs by address id for convenience. 
+        std::transform(
+                std::begin(anvs),
+                std::end(anvs),
+                std::inserter(m_anvs, std::begin(m_anvs)),
+
+                [](const referral::AddressANV& v) {
                     assert(v.anv >= 0);
-                    return std::make_pair(v.key, v);
+                    return std::make_pair(v.address, v);
                 });
 
         assert(m_anvs.size() == anvs.size());
 
         //sort from lowest to highest
         std::sort(std::begin(anvs), std::end(anvs),
-                [](const KeyANV& a, const KeyANV& b) {
+                [](const referral::AddressANV& a, const referral::AddressANV& b) {
                     return a.anv < b.anv;
                 });
 
@@ -43,7 +48,7 @@ namespace pog
         //compute CDF by adding up all the ANVs
         CAmount previous_anv = 0;
         std::transform(std::begin(anvs), std::end(anvs), std::begin(m_inverted),
-                [&previous_anv](KeyANV w) {
+                [&previous_anv](referral::AddressANV w) {
                     w.anv += previous_anv;
                     previous_anv = w.anv;
                     return w;
@@ -55,7 +60,7 @@ namespace pog
         assert(m_max_anv >= 0);
     }
 
-    const KeyANV& AnvDistribution::Sample(const uint256& hash) const
+    const referral::AddressANV& AnvDistribution::Sample(const uint256& hash) const
     {
         //It doesn't make sense to sample from an empty distribution.
         assert(m_inverted.empty() == false);
@@ -66,7 +71,7 @@ namespace pog
         //find first inverted Wallet Anv that is greater or equal to the selected value.
         auto pos = std::lower_bound(std::begin(m_inverted), std::end(m_inverted),
                 selected_anv,
-                [](const KeyANV& a, CAmount selected) {
+                [](const referral::AddressANV& a, CAmount selected) {
                     return a.anv < selected;
                 });
 
@@ -74,34 +79,34 @@ namespace pog
         assert(selected_anv < static_cast<uint64_t>(m_max_anv));
         assert(pos != std::end(m_inverted)); //it should be impossible to not find an anv
                                              //because selected_anv must be less than max
-        auto selected_key = m_anvs.find(pos->key);
+        auto selected_address = m_anvs.find(pos->address);
 
-        assert(selected_key != std::end(m_anvs)); //all anvs in m_inverted must be in
+        assert(selected_address != std::end(m_anvs)); //all anvs in m_inverted must be in
                                                     //our index
-        return selected_key->second;
+        return selected_address->second;
     }
 
     size_t AnvDistribution::Size() const {
         return m_inverted.size();
     }
 
-    WalletSelector::WalletSelector(const KeyANVs& anvs) : m_distribution{anvs} {}
+    WalletSelector::WalletSelector(const referral::AddressANVs& anvs) : m_distribution{anvs} {}
 
     /**
      * Selecting winners from the distribution is deterministic and will return the same
      * N samples given the same input hash.
      */
-    KeyANVs WalletSelector::Select(uint256 hash, size_t n) const
+    referral::AddressANVs WalletSelector::Select(uint256 hash, size_t n) const
     {
         assert(n <= m_distribution.Size());
-        KeyANVs samples;
+        referral::AddressANVs samples;
 
         while(n--) {
             const auto& sampled = m_distribution.Sample(hash);
 
             //combine hashes and hash to get next sampling value
             CHashWriter hasher{SER_DISK, CLIENT_VERSION};
-            hasher << hash << sampled.key;
+            hasher << hash << sampled.address;
             hash = hasher.GetHash();
 
             samples.push_back(sampled);

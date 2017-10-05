@@ -5,13 +5,18 @@
 #ifndef MERIT_CONSENSUS_REF_VERIFY_H
 #define MERIT_CONSENSUS_REF_VERIFY_H
 
+class CValidationState;
+
+namespace referral
+{
 class Referral;
 class ReferralsViewCache;
-class CValidationState;
 
 /** Referral validation functions */
 
 /** Context-independent validity checks */
 bool CheckReferral(const Referral& tx, CValidationState& state);
+
+} //namespace referral
 
 #endif // MERIT_CONSENSUS_REF_VERIFY_H

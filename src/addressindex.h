@@ -15,7 +15,7 @@ struct CAddressUnspentKey {
     unsigned int type;
     uint160 hashBytes;
     uint256 txhash;
-    size_t index;
+    uint32_t index;
 
     size_t GetSerializeSize() const {
         return 57;
@@ -125,8 +125,15 @@ struct CAddressIndexKey {
         spending = f;
     }
 
-    CAddressIndexKey(unsigned int addressType, uint160 addressHash, int height, int blockindex,
-                     uint256 txid, size_t indexValue, bool isSpending) {
+    CAddressIndexKey(
+            unsigned int addressType,
+            uint160 addressHash,
+            int height,
+            int blockindex,
+            uint256 txid,
+            size_t indexValue,
+            bool isSpending) {
+
         type = addressType;
         hashBytes = addressHash;
         blockHeight = height;

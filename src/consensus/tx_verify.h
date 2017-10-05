@@ -15,14 +15,19 @@ class CBlockIndex;
 class CCoinsViewCache;
 class CTransaction;
 class CValidationState;
-class ReferralsViewCache;
+
+namespace referral 
+{
+    class ReferralsViewCache;
+}
 
 /** Transaction validation functions */
 
 /** Context-independent validity checks */
 bool CheckTransaction(const CTransaction& tx, CValidationState& state, bool fCheckDuplicateInputs=true);
 
-namespace Consensus {
+namespace Consensus 
+{
 /**
  * Check whether all inputs of this transaction are valid (no double spends and amounts)
  * This does not modify the UTXO set. This does not check scripts and sigs.
@@ -35,7 +40,11 @@ bool CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoins
  * vExtraReferrals accepts and extra vector of referrals that can be looked up for beaconed addresses
  * e.g. in ConnectBlock it can be array of refs from new block and in mempool.check it can be array of refs from mempool
  */
-bool CheckTxOutputs(const CTransaction& tx, CValidationState& state, const ReferralsViewCache& referralsCache, const std::vector<ReferralRef>& vExtraReferrals);
+bool CheckTxOutputs(
+        const CTransaction& tx,
+        CValidationState& state,
+        const referral::ReferralsViewCache& referralsCache,
+        const std::vector<referral::ReferralRef>& vExtraReferrals);
 } // namespace Consensus
 
 /** Auxiliary functions for transaction validation (ideally should not be exposed) */

@@ -13,14 +13,14 @@
 
 namespace pog 
 {
-    using InvertedAnvs = KeyANVs;
-    using WalletToAnv = std::map<CKeyID, KeyANV>;
+    using InvertedAnvs = referral::AddressANVs;
+    using WalletToAnv = std::map<referral::Address, referral::AddressANV>;
 
     class AnvDistribution
     {
         public:
-            AnvDistribution(KeyANVs anvs);
-            const KeyANV& Sample(const uint256& hash) const;
+            AnvDistribution(referral::AddressANVs anvs);
+            const referral::AddressANV& Sample(const uint256& hash) const;
             size_t Size() const;
 
         private:
@@ -32,9 +32,9 @@ namespace pog
     class WalletSelector
     {
         public:
-            WalletSelector(const KeyANVs& anvs);
+            WalletSelector(const referral::AddressANVs& anvs);
 
-            KeyANVs Select(uint256 hash, size_t n) const;
+            referral::AddressANVs Select(uint256 hash, size_t n) const;
 
             size_t Size() const;
         private:

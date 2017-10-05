@@ -10,6 +10,7 @@
 #include "script/script.h"
 #include "util.h"
 #include "utilstrencodings.h"
+#include "core_io.h"
 
 
 typedef std::vector<unsigned char> valtype;
@@ -28,6 +29,7 @@ const char* GetTxnOutputType(txnouttype t)
     case TX_PUBKEYHASH: return "pubkeyhash";
     case TX_SCRIPTHASH: return "scripthash";
     case TX_MULTISIG: return "multisig";
+    case TX_EASYSEND: return "easysend";
     case TX_NULL_DATA: return "nulldata";
     case TX_WITNESS_V0_KEYHASH: return "witness_v0_keyhash";
     case TX_WITNESS_V0_SCRIPTHASH: return "witness_v0_scripthash";
@@ -49,6 +51,9 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
 
         // Sender provides N pubkeys, receivers provides M signatures
         mTemplates.insert(std::make_pair(TX_MULTISIG, CScript() << OP_SMALLINTEGER << OP_PUBKEYS << OP_SMALLINTEGER << OP_CHECKMULTISIG));
+
+        // Sender provides one of N signatures
+        mTemplates.insert(std::make_pair(TX_EASYSEND, CScript() << OP_INTEGER << OP_PUBKEYS << OP_SMALLINTEGER << OP_EASYSEND));
     }
 
     vSolutionsRet.clear();
@@ -161,6 +166,15 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
                 else
                     break;
             }
+            else if (opcode2 == OP_INTEGER)
+            {   
+                if (opcode1 == OP_0 ||
+                    (opcode1 >= 0 && opcode1 <= OP_PUSHDATA4)) {
+                    vSolutionsRet.push_back(vch1);
+                }
+                else
+                    break;
+            }
             else if (opcode1 != opcode2 || vch1 != vch2)
             {
                 // Others must match exactly
@@ -204,7 +218,22 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
     return false;
 }
 
-bool ExtractDestinations(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<CTxDestination>& addressRet, int& nRequiredRet)
+void ExtractDestinationsFromSolutions(
+        std::vector<valtype>::const_iterator first,
+        std::vector<valtype>::const_iterator last,
+        std::vector<CTxDestination>& ret)
+{
+    for(; first != last; first++) {
+        CPubKey pub_key(*first);
+        if (!pub_key.IsValid()) continue;
+        ret.push_back(pub_key.GetID());
+    }
+}
+
+bool ExtractDestinations(const CScript& scriptPubKey,
+        txnouttype& typeRet,
+        std::vector<CTxDestination>& addressRet,
+        int& nRequiredRet)
 {
     addressRet.clear();
     typeRet = TX_NONSTANDARD;
@@ -216,32 +245,28 @@ bool ExtractDestinations(const CScript& scriptPubKey, txnouttype& typeRet, std::
         return false;
     }
 
-    if (typeRet == TX_MULTISIG)
-    {
+    if (typeRet == TX_MULTISIG) {
         nRequiredRet = vSolutions.front()[0];
-        for (unsigned int i = 1; i < vSolutions.size()-1; i++)
-        {
-            CPubKey pubKey(vSolutions[i]);
-            if (!pubKey.IsValid())
-                continue;
+        ExtractDestinationsFromSolutions(
+                vSolutions.begin()+1,
+                vSolutions.begin()+(vSolutions.size()-1),
+                addressRet);
 
-            CTxDestination address = pubKey.GetID();
-            addressRet.push_back(address);
-        }
+    } else if (typeRet == TX_EASYSEND) {
+        nRequiredRet = 1;
+        ExtractDestinationsFromSolutions(
+                vSolutions.begin(),
+                vSolutions.end(),
+                addressRet);
 
-        if (addressRet.empty())
-            return false;
-    }
-    else
-    {
+    } else {
         nRequiredRet = 1;
         CTxDestination address;
-        if (!ExtractDestination(scriptPubKey, address))
-           return false;
-        addressRet.push_back(address);
+        if (ExtractDestination(scriptPubKey, address))
+            addressRet.push_back(address);
     }
 
-    return true;
+    return !addressRet.empty();
 }
 
 namespace
@@ -278,6 +303,20 @@ CScript GetScriptForDestination(const CTxDestination& dest)
 
     boost::apply_visitor(CScriptVisitor(&script), dest);
     return script;
+}
+
+CScript GetScriptForEasySend(
+        int max_block_height,
+        const CPubKey& sender,
+        const CPubKey& receiver)
+{
+    return CScript() 
+        << max_block_height
+        << ToByteVector(receiver) 
+        << ToByteVector(sender)  //sender key is allowed to recieve funds after
+                                 //max_block_height is met
+        << CScript::EncodeOP_N(2) 
+        << OP_EASYSEND;
 }
 
 CScript GetScriptForRawPubKey(const CPubKey& pubKey)

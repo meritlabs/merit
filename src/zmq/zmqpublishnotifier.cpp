@@ -169,7 +169,7 @@ bool CZMQPublishHashTransactionNotifier::NotifyTransaction(const CTransaction &t
     return SendMessage(MSG_HASHTX, data, 32);
 }
 
-bool CZMQPublishHashReferralNotifier::NotifyReferral(const ReferralRef &ref)
+bool CZMQPublishHashReferralNotifier::NotifyReferral(const referral::ReferralRef &ref)
 {
     uint256 hash = ref->GetHash();
     LogPrint(BCLog::ZMQ, "zmq: Publish hashreferraltx %s\n", hash.GetHex());
@@ -209,7 +209,7 @@ bool CZMQPublishRawTransactionNotifier::NotifyTransaction(const CTransaction &tr
     return SendMessage(MSG_RAWTX, &(*ss.begin()), ss.size());
 }
 
-bool CZMQPublishRawReferralNotifier::NotifyReferral(const ReferralRef &ref)
+bool CZMQPublishRawReferralNotifier::NotifyReferral(const referral::ReferralRef &ref)
 {
     uint256 hash = ref->GetHash();
     LogPrint(BCLog::ZMQ, "zmq: Publish referral %s\n", hash.GetHex());

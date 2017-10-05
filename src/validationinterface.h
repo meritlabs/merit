@@ -39,7 +39,7 @@ protected:
     /** Notifies listeners of a transaction having been added to mempool. */
     virtual void TransactionAddedToMempool(const CTransactionRef &ptxn) {}
     /** Notifies listeners of a referral having been added to referral mempool. */
-    virtual void ReferralAddedToMempool(const ReferralRef &pref) {}
+    virtual void ReferralAddedToMempool(const referral::ReferralRef &pref) {}
     /**
      * Notifies listeners of a block being connected.
      * Provides a vector of transactions evicted from the mempool as a result.
@@ -69,7 +69,7 @@ protected:
     friend void ::UnregisterAllValidationInterfaces();
 
     /** Notifies listeners of a referral having been added to mempool. */
-    virtual void ReferralTransactionAddedToMempool(const ReferralRef &rtx) {}
+    virtual void ReferralTransactionAddedToMempool(const referral::ReferralRef &rtx) {}
 };
 
 struct MainSignalsInstance;
@@ -99,7 +99,7 @@ public:
     void BlockChecked(const CBlock&, const CValidationState&);
     void NewPoWValidBlock(const CBlockIndex *, const std::shared_ptr<const CBlock>&);
 
-    void ReferralAddedToMempool(const ReferralRef &rtx);
+    void ReferralAddedToMempool(const referral::ReferralRef &rtx);
 };
 
 CMainSignals& GetMainSignals();

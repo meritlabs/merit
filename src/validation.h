@@ -23,6 +23,7 @@
 #include "addressindex.h"
 #include "timestampindex.h"
 #include "pog/reward.h"
+#include "script/standard.h"
 
 #include <algorithm>
 #include <exception>
@@ -36,18 +37,23 @@
 #include <atomic>
 
 class CBlockIndex;
+class CBlockPolicyEstimator;
 class CBlockTreeDB;
 class CChainParams;
 class CCoinsViewDB;
-class CInv;
 class CConnman;
+class CInv;
 class CScriptCheck;
-class CBlockPolicyEstimator;
 class CTxMemPool;
-class ReferralTxMemPool;
 class CValidationState;
-class ReferralsViewDB;
-class ReferralsViewCache;
+
+namespace referral
+{
+    class ReferralTxMemPool;
+    class ReferralsViewCache;
+    class ReferralsViewDB;
+}
+
 struct ChainTxData;
 
 struct PrecomputedTransactionData;
@@ -173,7 +179,7 @@ extern CScript COINBASE_FLAGS;
 extern CCriticalSection cs_main;
 extern CBlockPolicyEstimator feeEstimator;
 extern CTxMemPool mempool;
-extern ReferralTxMemPool mempoolReferral;
+extern referral::ReferralTxMemPool mempoolReferral;
 typedef std::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
 extern BlockMap mapBlockIndex;
 extern uint64_t nLastBlockTx;
@@ -324,7 +330,7 @@ pog::AmbassadorLottery RewardAmbassadors(const uint256& previousBlockHash, CAmou
 /**
  * Include ambassadors into the coinbase transaction and split the total payment between them.
  */
-void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx, int height);
+void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx);
 
 /** Guess verification progress (as a fraction between 0.0=genesis and 1.0=current tip). */
 double GuessVerificationProgress(const ChainTxData& data, CBlockIndex* pindex);
@@ -356,8 +362,8 @@ void PruneBlockFilesManual(int nManualPruneHeight);
 /** Update ANV using given transaction */
 bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo = false);
 
-bool AcceptReferralToMemoryPool(ReferralTxMemPool& pool, CValidationState& state,
-        const ReferralRef& referral, bool& pfMissingReferrer);
+bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationState& state,
+        const referral::ReferralRef& referral, bool& pfMissingReferrer);
 
 /** (try to) add transaction to memory pool
  * plTxnReplaced will be appended to with all transactions replaced from mempool **/
@@ -422,15 +428,43 @@ private:
     const CTransaction *ptxTo;
     unsigned int nIn;
     unsigned int nFlags;
+    int blockHeight;
+    int coinHeight;
     bool cacheStore;
     ScriptError error;
     PrecomputedTransactionData *txdata;
 
 public:
-    CScriptCheck(): amount(0), ptxTo(nullptr), nIn(0), nFlags(0), cacheStore(false), error(SCRIPT_ERR_UNKNOWN_ERROR) {}
-    CScriptCheck(const CScript& scriptPubKeyIn, const CAmount amountIn, const CTransaction& txToIn, unsigned int nInIn, unsigned int nFlagsIn, bool cacheIn, PrecomputedTransactionData* txdataIn) :
-        scriptPubKey(scriptPubKeyIn), amount(amountIn),
-        ptxTo(&txToIn), nIn(nInIn), nFlags(nFlagsIn), cacheStore(cacheIn), error(SCRIPT_ERR_UNKNOWN_ERROR), txdata(txdataIn) { }
+    CScriptCheck(): 
+        amount{0},
+        ptxTo{nullptr},
+        nIn{0},
+        nFlags{0},
+        blockHeight{0},
+        coinHeight{0},
+        cacheStore{false},
+        error{SCRIPT_ERR_UNKNOWN_ERROR} {}
+
+    CScriptCheck(
+            const CScript& scriptPubKeyIn,
+            const CAmount amountIn,
+            const CTransaction& txToIn,
+            unsigned int nInIn,
+            const int blockHeightIn,
+            const int coinHeightIn,
+            unsigned int nFlagsIn,
+            bool cacheIn,
+            PrecomputedTransactionData* txdataIn) :
+        scriptPubKey{scriptPubKeyIn},
+        amount{amountIn},
+        ptxTo{&txToIn},
+        nIn{nInIn},
+        nFlags{nFlagsIn},
+        blockHeight{blockHeightIn},
+        coinHeight{coinHeightIn},
+        cacheStore{cacheIn},
+        error{SCRIPT_ERR_UNKNOWN_ERROR},
+        txdata{txdataIn} { }
 
     bool operator()();
 
@@ -438,6 +472,7 @@ public:
         scriptPubKey.swap(check.scriptPubKey);
         std::swap(ptxTo, check.ptxTo);
         std::swap(amount, check.amount);
+        std::swap(blockHeight, check.blockHeight);
         std::swap(nIn, check.nIn);
         std::swap(nFlags, check.nFlags);
         std::swap(cacheStore, check.cacheStore);
@@ -449,7 +484,7 @@ public:
 };
 
 bool GetTimestampIndex(const unsigned int &high, const unsigned int &low, const bool fActiveOnly, std::vector<std::pair<uint256, unsigned int> > &hashes);
-bool GetSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value);
+bool GetSpentIndex(const CSpentIndexKey &key, CSpentIndexValue &value);
 bool HashOnchainActive(const uint256 &hash);
 bool GetAddressIndex(uint160 addressHash, int type,
                      std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex,
@@ -473,7 +508,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
 
 /** Check that an address is valid and ready to send to */
-bool CheckAddressBeaconed(const CKeyID& address, bool checkMempool = true);
+bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool = true);
 
 /** Check whether witness commitments are required for block. */
 bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params);
@@ -523,10 +558,10 @@ extern CCoinsViewCache *pcoinsTip;
 extern CBlockTreeDB *pblocktree;
 
 /** Global variable that points to the Referral DB */
-extern ReferralsViewDB *prefviewdb;
+extern referral::ReferralsViewDB *prefviewdb;
 
 /** Global variable that points to the Referral Cache */
-extern ReferralsViewCache *prefviewcache;
+extern referral::ReferralsViewCache *prefviewcache;
 
 /**
  * Return the spend height, which is one more than the inputs.GetBestBlock().

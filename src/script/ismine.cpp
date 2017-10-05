@@ -11,6 +11,7 @@
 #include "script/script.h"
 #include "script/standard.h"
 #include "script/sign.h"
+#include "util.h"
 
 
 typedef std::vector<unsigned char> valtype;
@@ -141,6 +142,12 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey, bool& 
         }
         if (HaveKeys(keys, keystore) == keys.size())
             return ISMINE_SPENDABLE;
+        break;
+    }
+    case TX_EASYSEND:
+    {
+        if (HaveKeys(vSolutions, keystore) > 0)
+            return ISMINE_WATCH_SOLVABLE;
         break;
     }
     }

@@ -116,6 +116,8 @@ public:
     void operator()(const CNoDestination &none) {}
 };
 
+namespace referral
+{
 bool ReferralTx::RelayWalletTransaction(CConnman *connman)
 {
     assert(m_pWallet->GetBroadcastTransactions());
@@ -155,6 +157,7 @@ bool ReferralTx::IsAccepted() const
 {
     return GetDepthInMainChain() > (int) CHAIN_DEPTH_TO_UNLOCK_WALLET;
 }
+}
 
 const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
 {
@@ -165,7 +168,7 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
     return &(it->second);
 }
 
-ReferralRef CWallet::Unlock(const uint256& referredByHash)
+referral::ReferralRef CWallet::Unlock(const uint256& referredByHash)
 {
     // check wallet is not unlocked yet
     if (IsReferred()) {
@@ -201,7 +204,7 @@ ReferralRef CWallet::Unlock(const uint256& referredByHash)
     LoadKeyPool(nIndex, keypool);
 
     // generate new referral associated with new pubkey
-    ReferralRef referral = GenerateNewReferral(pubkey, referredByHash);
+    auto referral = GenerateNewReferral(pubkey, referredByHash);
 
     LogPrintf("Generated new unlock referral. Code: %s\n", referral->m_code);
 
@@ -1028,7 +1031,7 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose)
 }
 
 
-bool CWallet::AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose)
+bool CWallet::AddToWallet(const referral::ReferralTx& rtxIn, bool fFlushOnClose)
 {
     LOCK(cs_wallet);
 
@@ -1037,8 +1040,8 @@ bool CWallet::AddToWallet(const ReferralTx& rtxIn, bool fFlushOnClose)
     uint256 hash = rtxIn.GetHash();
 
     // Inserts only if not already there, returns tx inserted or tx found
-    std::pair<std::map<uint256, ReferralTx>::iterator, bool> ret = mapWalletRTx.insert(std::make_pair(hash, rtxIn));
-    ReferralTx& rtx = (*ret.first).second;
+    std::pair<std::map<uint256, referral::ReferralTx>::iterator, bool> ret = mapWalletRTx.insert(std::make_pair(hash, rtxIn));
+    referral::ReferralTx& rtx = (*ret.first).second;
     rtx.BindWallet(this);
     bool fInsertedNew = ret.second;
     if (fInsertedNew)
@@ -1120,7 +1123,7 @@ bool CWallet::LoadToWallet(const CWalletTx& wtxIn)
     return true;
 }
 
-bool CWallet::LoadToWallet(const ReferralTx& rtxIn)
+bool CWallet::LoadToWallet(const referral::ReferralTx& rtxIn)
 {
     if (!IsReferred() && rtxIn.IsUnlockTx()) {
         SetUnlockReferralTx(rtxIn);
@@ -1129,7 +1132,7 @@ bool CWallet::LoadToWallet(const ReferralTx& rtxIn)
     uint256 hash = rtxIn.GetHash();
 
     mapWalletRTx[hash] = rtxIn;
-    ReferralTx& rtx = mapWalletRTx[hash];
+    referral::ReferralTx& rtx = mapWalletRTx[hash];
     rtx.BindWallet(this);
 
     LogPrintf("≈≈≈≈≈≈≈≈≈≈≈≈ LoadToWallet RTx ≈≈≈≈≈≈≈≈≈≈≈≈≈\n");
@@ -1209,9 +1212,9 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const CBlockI
     return false;
 }
 
-bool CWallet::AddToWalletIfInvolvingMe(const ReferralRef& pref, const CBlockIndex* pIndex, int posInBlock, bool fUpdate)
+bool CWallet::AddToWalletIfInvolvingMe(const referral::ReferralRef& pref, const CBlockIndex* pIndex, int posInBlock, bool fUpdate)
 {
-    const Referral& ref = *pref;
+    const auto& ref = *pref;
     {
         AssertLockHeld(cs_wallet);
 
@@ -1222,7 +1225,7 @@ bool CWallet::AddToWalletIfInvolvingMe(const ReferralRef& pref, const CBlockInde
 
         if (fExisted || IsMine(ref))
         {
-            ReferralTx rtx(pref);
+            referral::ReferralTx rtx(pref);
 
             // Get merkle branch if transaction was found in a block
             if (pIndex != nullptr)
@@ -1386,11 +1389,11 @@ void CWallet::TransactionAddedToMempool(const CTransactionRef& ptx) {
     SyncTransaction(ptx);
 }
 
-void CWallet::SyncTransaction(const ReferralRef& pref, const CBlockIndex *pindex, int posInBlock) {
+void CWallet::SyncTransaction(const referral::ReferralRef& pref, const CBlockIndex *pindex, int posInBlock) {
     AddToWalletIfInvolvingMe(pref, pindex, posInBlock, true);
 }
 
-void CWallet::ReferralAddedToMempool(const ReferralRef& pref) {
+void CWallet::ReferralAddedToMempool(const referral::ReferralRef& pref) {
     LOCK2(cs_main, cs_wallet);
     SyncTransaction(pref);
 }
@@ -1419,10 +1422,10 @@ void CWallet::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const 
 void CWallet::BlockDisconnected(const std::shared_ptr<const CBlock>& pblock) {
     LOCK2(cs_main, cs_wallet);
 
-    for (const CTransactionRef& ptx : pblock->vtx) {
+    for (const auto& ptx : pblock->vtx) {
         SyncTransaction(ptx);
     }
-    for (const ReferralRef& pref : pblock->m_vRef) {
+    for (const auto& pref : pblock->m_vRef) {
         SyncTransaction(pref);
     }
 }
@@ -1442,17 +1445,10 @@ isminetype CWallet::IsMine(const CTxIn &txin) const
     return ISMINE_NO;
 }
 
-isminetype CWallet::IsMine(const Referral& ref) const
+isminetype CWallet::IsMine(const referral::Referral& ref) const
 {
-    {
-        LOCK(cs_wallet);
-        std::map<uint256, ReferralTx>::const_iterator mi = mapWalletRTx.find(ref.GetHash());
-        if (mi != mapWalletRTx.end()) {
-            return ISMINE_ALL;
-        }
-    }
-
-    return ISMINE_NO;
+    LOCK(cs_wallet);
+    return mapWalletRTx.count(ref.GetHash()) ? ISMINE_ALL : ISMINE_NO;
 }
 
 // Note that this function doesn't distinguish between a 0-valued input,
@@ -1643,12 +1639,16 @@ bool CWallet::IsHDEnabled() const
     return !hdChain.masterKeyID.IsNull();
 }
 
-ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy)
+referral::ReferralRef CWallet::GenerateNewReferral(
+        const referral::Address& address,
+        const uint256& referred_by)
 {
-    CKeyID keyID = pubkey.GetID();
     // generate referral for given public key
-    ReferralRef referral = MakeReferralRef(MutableReferral(keyID, referredBy));
-    ReferralTx rtx(true);
+    auto referral = 
+        referral::MakeReferralRef(
+                referral::MutableReferral(address, referred_by));
+
+    referral::ReferralTx rtx{true};
 
     CValidationState state;
     CreateTransaction(rtx, referral);
@@ -1657,7 +1657,15 @@ ReferralRef CWallet::GenerateNewReferral(CPubKey& pubkey, uint256 referredBy)
     return referral;
 }
 
-bool CWallet::SetUnlockReferralTx(const ReferralTx& rtx, bool topUpKeyPool)
+referral::ReferralRef CWallet::GenerateNewReferral(
+        const CPubKey& pubkey,
+        const uint256& referred_by)
+{
+    const referral::Address key_id = pubkey.GetID();
+    return GenerateNewReferral(key_id, referred_by);
+}
+
+bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool)
 {
     if (IsReferred() || !rtx.IsUnlockTx() || !rtx.IsAccepted()) {
         return false;
@@ -1680,6 +1688,12 @@ bool CWallet::IsReferred() const
 {
     LogPrintf("Wallet is %sreferred\n", !m_unlockReferralTx.IsNull() ? "": "NOT ");
     return !m_unlockReferralTx.IsNull();
+}
+
+uint256 CWallet::ReferralCodeHash() const
+{
+    return IsReferred() ? 
+        m_unlockReferralTx.m_pReferral->m_codeHash : uint256{};
 }
 
 int64_t CWalletTx::GetTxTime() const
@@ -2819,8 +2833,15 @@ bool CWallet::FundTransaction(CMutableTransaction& tx, CAmount& nFeeRet, int& nC
     return true;
 }
 
-bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet,
-                                int& nChangePosInOut, std::string& strFailReason, const CCoinControl& coin_control, bool sign)
+bool CWallet::CreateTransaction(
+        const std::vector<CRecipient>& vecSend,
+        CWalletTx& wtxNew,
+        CReserveKey& reservekey,
+        CAmount& nFeeRet,
+        int& nChangePosInOut,
+        std::string& strFailReason,
+        const CCoinControl& coin_control,
+        bool sign)
 {
     CAmount nValue = 0;
     int nChangePosRequest = nChangePosInOut;
@@ -2839,22 +2860,15 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
 
         CTxDestination dest;
         ExtractDestination(recipient.scriptPubKey, dest);
-        const CKeyID* pubKeyId = boost::get<CKeyID>(&dest);
 
-        if (pubKeyId && !CheckAddressBeaconed(*pubKeyId)) {
+        //check blockchain and mempool for beacon
+        if (!CheckAddressBeaconed(dest, true)) {
             strFailReason = _("Transaction recipient address is not beaconed");
 
             return false;
         }
-
-        if (!pubKeyId) {
-            const auto scriptKeyId = boost::get<CScriptID>(&dest);
-
-            if (scriptKeyId) {
-                assert(false && "TODO: Handle CSriptID case in transaction addresses validation");
-            }
-        }
     }
+
     if (vecSend.empty())
     {
         strFailReason = _("Transaction must have at least one recipient");
@@ -2934,6 +2948,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
 
                 scriptChange = GetScriptForDestination(vchPubKey.GetID());
             }
+
             CTxOut change_prototype_txout(0, scriptChange);
             size_t change_prototype_size = GetSerializeSize(change_prototype_txout, SER_DISK, 0);
 
@@ -2941,6 +2956,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
             nFeeRet = 0;
             bool pick_new_inputs = true;
             CAmount nValueIn = 0;
+
             // Start with no fee and loop until there is enough fee
             while (true)
             {
@@ -3194,7 +3210,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
     return true;
 }
 
-bool CWallet::CreateTransaction(ReferralTx& rtx, ReferralRef& referral)
+bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef& referral)
 {
     // generate referral tx and bind it to this wallet
     rtx.SetReferral(referral);
@@ -3249,7 +3265,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CCon
 /**
  * Call after CreateTransaction unless you want to abort
  */
-bool CWallet::CommitTransaction(ReferralTx& rtxNew, CConnman* connman, CValidationState& state)
+bool CWallet::CommitTransaction(referral::ReferralTx& rtxNew, CConnman* connman, CValidationState& state)
 {
     {
         LOCK2(cs_main, cs_wallet);
@@ -3492,7 +3508,7 @@ void CWallet::LoadKeyPool(int64_t nIndex, const CKeyPool &keypool)
         mapKeyMetadata[keyid] = CKeyMetadata(keypool.nTime);
 }
 
-void CWallet::LoadReferral(int64_t nIndex, const Referral& referral)
+void CWallet::LoadReferral(int64_t nIndex, const referral::Referral& referral)
 {
     AssertLockHeld(cs_wallet);
 
@@ -3502,7 +3518,7 @@ void CWallet::LoadReferral(int64_t nIndex, const Referral& referral)
 bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referredBy, bool outReferral)
 {
     {
-        LOCK(cs_wallet);
+        LOCK2(cs_main, cs_wallet);
         if (IsLocked() || !IsReferred()) {
             return false;
         }
@@ -3558,7 +3574,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
                 throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
             }
 
-            ReferralRef referral = GenerateNewReferral(pubkey, *currentTopReferral);
+            auto referral = GenerateNewReferral(pubkey, *currentTopReferral);
 
             LogPrintf("Generated new referral. Code: %s\n", referral->m_code);
 
@@ -3586,11 +3602,13 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRe
 {
     nIndex = -1;
     keypool.vchPubKey = CPubKey();
-    {
-        LOCK(cs_wallet);
 
+    {
         if (!IsLocked() && IsReferred())
             TopUpKeyPool();
+
+
+        LOCK(cs_wallet);
 
         bool fReturningInternal = IsHDEnabled() && CanSupportFeature(FEATURE_HD_SPLIT) && fRequestedInternal;
         std::set<int64_t>& setKeyPool = fReturningInternal ? setInternalKeyPool : setExternalKeyPool;
@@ -4371,6 +4389,7 @@ int CMerkleTx::GetDepthInMainChain(const CBlockIndex* &pindexRet) const
     BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
     if (mi == mapBlockIndex.end())
         return 0;
+
     CBlockIndex* pindex = (*mi).second;
     if (!pindex || !chainActive.Contains(pindex))
         return 0;

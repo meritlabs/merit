@@ -47,7 +47,22 @@ private:
     bool store;
 
 public:
-    CachingTransactionSignatureChecker(const CTransaction* txToIn, unsigned int nInIn, const CAmount& amountIn, bool storeIn, PrecomputedTransactionData& txdataIn) : TransactionSignatureChecker(txToIn, nInIn, amountIn, txdataIn), store(storeIn) {}
+    CachingTransactionSignatureChecker(
+            const CTransaction* txToIn,
+            unsigned int nInIn,
+            const CAmount& amountIn,
+            const int blockHeight,
+            const int coinHeight,
+            bool storeIn,
+            PrecomputedTransactionData& txdataIn) : 
+        TransactionSignatureChecker{
+            txToIn,
+            nInIn,
+            amountIn,
+            blockHeight,
+            coinHeight,
+            txdataIn}, 
+        store{storeIn} {}
 
     bool VerifySignature(const std::vector<unsigned char>& vchSig, const CPubKey& vchPubKey, const uint256& sighash) const override;
 };

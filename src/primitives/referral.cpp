@@ -11,6 +11,9 @@
 #include "utilstrencodings.h"
 #include "random.h"
 
+namespace referral
+{
+
 static inline std::string GenerateReferralCode()
 {
     auto randomHash = GetRandHash();
@@ -18,7 +21,8 @@ static inline std::string GenerateReferralCode()
     return randomHash.ToString().substr(0, 10);
 }
 
-MutableReferral::MutableReferral(CKeyID& addressIn, uint256 referralIn) :
+MutableReferral::MutableReferral(
+        const Address& addressIn, const uint256& referralIn) :
     m_nVersion{Referral::CURRENT_VERSION},
     m_previousReferral{referralIn},
     m_pubKeyId{addressIn},
@@ -43,7 +47,7 @@ uint256 Referral::ComputeHash() const
 }
 
 /* For backward compatibility, the hash is initialized to 0. TODO: remove the need for this default constructor entirely. */
-Referral::Referral(CKeyID& addressIn, uint256 referralIn) :
+Referral::Referral(const Address& addressIn, const uint256& referralIn) :
     m_nVersion{Referral::CURRENT_VERSION},
     m_previousReferral{referralIn},
     m_pubKeyId{addressIn},
@@ -84,3 +88,4 @@ std::string Referral::ToString() const
     return str;
 }
 
+}

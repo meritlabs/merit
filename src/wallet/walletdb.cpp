@@ -303,13 +303,15 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
         else if (strType == "rtx") {
             uint256 hash;
             ssKey >> hash;
-            ReferralTx rtx;
+            referral::ReferralTx rtx;
             ssValue >> rtx;
 
             LogPrintf("Found rtx in database. Loading...\n");
 
             CValidationState state;
-            if (!(CheckReferral(*(rtx.GetReferral()), state) && (rtx.GetHash() == hash) && state.IsValid())) {
+            if (!(referral::CheckReferral(*(rtx.GetReferral()), state) 
+                        && (rtx.GetHash() == hash) 
+                        && state.IsValid())) {
                 return false;
             }
 
@@ -884,7 +886,7 @@ bool CWalletDB::WriteVersion(int nVersion)
     return batch.WriteVersion(nVersion);
 }
 
-bool CWalletDB::WriteReferralTx(const ReferralTx& rtx)
+bool CWalletDB::WriteReferralTx(const referral::ReferralTx& rtx)
 {
     return WriteIC(std::make_pair(std::string("rtx"), rtx.GetHash()), rtx);
 }

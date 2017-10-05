@@ -34,7 +34,7 @@ void InitTestDB()
 {
     if(prefviewdb != nullptr) return;
 
-    prefviewdb = new ReferralsViewDB{0, true, true, "testreferrals"};
+    prefviewdb = new referral::ReferralsViewDB{0, true, true, "testreferrals"};
 }
 
 
