@@ -12,11 +12,6 @@
 // which is the size in bits of the node identifiers
 #define EDGEBITS 19
 #endif
-#ifndef PROOFSIZE
-// the next most important parameter is the (even) length
-// of the cycle to be found. a minimum of 12 is recommended
-#define PROOFSIZE 42
-#endif
 
 // number of edges
 #define NEDGES ((uint32_t)1 << EDGEBITS)

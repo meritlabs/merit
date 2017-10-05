@@ -90,7 +90,7 @@ void solution(cuckoo_ctx* ctx, uint32_t* us, int nu, uint32_t* vs, int nv, std::
     }
 }
 
-bool worker(cuckoo_ctx* ctx, std::set<uint32_t>& cycle)
+bool worker(cuckoo_ctx* ctx, std::set<uint32_t>& cycle, uint8_t proofsize)
 {
     uint32_t* cuckoo = ctx->m_cuckoo;
     uint32_t us[MAXPATHLEN], vs[MAXPATHLEN];
@@ -108,7 +108,7 @@ bool worker(cuckoo_ctx* ctx, std::set<uint32_t>& cycle)
             for (nu -= min, nv -= min; us[nu] != vs[nv]; nu++, nv++)
                 ;
             int len = nu + nv + 1;
-            if (len == PROOFSIZE) {
+            if (len == proofsize) {
                 printf("% 4d-cycle found at %d%%\n", len, (int)(nonce * 100L / ctx->m_difficulty));
                 solution(ctx, us, nu, vs, nv, cycle);
                 return true;
@@ -140,11 +140,11 @@ bool FindProofOfWork(uint256 hash, int nonce, unsigned int nBits, std::set<uint3
     assert(ratio >= 0 && ratio <= 100);
     u64 difficulty = ratio * (u64)NNODES / 100;
 
-    printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges and %d nonce\n", PROOFSIZE, EDGEBITS + 1, hash.GetHex().c_str(), ratio, nonce);
+    printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges and %d nonce\n", params.nCuckooProofSize, EDGEBITS + 1, hash.GetHex().c_str(), ratio, nonce);
 
     cuckoo_ctx ctx(reinterpret_cast<char*>(hash.begin()), hash.size(), nonce, difficulty);
 
-    auto res = worker(&ctx, cycle);
+    auto res = worker(&ctx, cycle, params.nCuckooProofSize);
 
     // if cycle is found check that hash of that cycle is less than a difficulty (old school bitcoin pow)
     if (res && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
@@ -158,7 +158,7 @@ bool FindProofOfWork(uint256 hash, int nonce, unsigned int nBits, std::set<uint3
 
 bool VerifyProofOfWork(uint256 hash, int nonce, unsigned int nBits, const std::set<uint32_t>& cycle, const Consensus::Params& params)
 {
-    assert(cycle.size() == PROOFSIZE);
+    assert(cycle.size() == params.nCuckooProofSize);
 
     siphash_keys keys;
 
