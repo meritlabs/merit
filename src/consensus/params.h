@@ -71,6 +71,8 @@ struct Params {
      * The less the number, the more difficulty is
      */
     uint8_t nCuckooDifficulty;
+    /** Cuckoo cycle length */
+    uint8_t nCuckooProofSize;
 };
 } // namespace Consensus
 
