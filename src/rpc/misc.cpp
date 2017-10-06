@@ -1338,7 +1338,7 @@ static const CRPCCommand commands[] =
     { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       {} },
     { "addressindex",       "getaddresstxids",        &getaddresstxids,        {} },
     { "addressindex",       "getaddressbalance",      &getaddressbalance,      {} },
-    { "addressindex",       "getaddressrewards",      &getaddressrewards,      {"addresses"} },
+    { "addressindex",       "getaddressrewards",      &getaddressrewards,      {} },
 
     /* Blockchain */
     { "blockchain",         "getspentinfo",           &getspentinfo,           {} },
