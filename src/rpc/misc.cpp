@@ -1209,9 +1209,7 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
     std::vector<std::pair<uint160, int> > addresses = {{*script_id, 2}};
     std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > mempool_indexes;
 
-    if (!mempool.getAddressIndex(addresses, mempool_indexes)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
-    }
+    mempool.getAddressIndex(addresses, mempool_indexes);
 
     UniValue ret(UniValue::VOBJ);
     if(!mempool_indexes.empty()) {
@@ -1219,20 +1217,16 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
         const auto& key = pair.first;
         const auto& value = pair.second;
 
-        ret.push_back(Pair("found", true));
-        ret.push_back(Pair("txid", key.txhash.GetHex()));
-        ret.push_back(Pair("index", static_cast<int>(key.index)));
-        ret.push_back(Pair("amount", ValueFromAmount(value.amount)));
-
-        bool spent = value.amount < 0;
-        if (spent) {
-            ret.push_back(Pair("spenttxid", value.prevhash.GetHex()));
-            ret.push_back(Pair("spentindex", static_cast<int>(value.prevout)));
+        if(value.amount >= 0) {
+            ret.push_back(Pair("found", true));
+            ret.push_back(Pair("txid", key.txhash.GetHex()));
+            ret.push_back(Pair("index", static_cast<int>(key.index)));
+            ret.push_back(Pair("amount", ValueFromAmount(value.amount)));
+            ret.push_back(Pair("spending", false));
+            ret.push_back(Pair("spent", false));
+            return ret;
         }
-        ret.push_back(Pair("spending", false));
-        ret.push_back(Pair("spent", spent));
 
-        return ret;
     } else {
 
         std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
