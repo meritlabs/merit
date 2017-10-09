@@ -1176,11 +1176,6 @@ UniValue getspentinfo(const JSONRPCRequest& request)
     return obj;
 }
 
-void DecorateEasySendSpendingInformation(UniValue& ret, const CSpentIndexValue& spent_value, bool spent)
-{
-}
-
-
 CAmount GetAmount(const CMempoolAddressDelta& v) { return v.amount; }
 CAmount GetAmount(CAmount amount) { return amount; }
 
