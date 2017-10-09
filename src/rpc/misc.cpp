@@ -1176,8 +1176,36 @@ UniValue getspentinfo(const JSONRPCRequest& request)
     return obj;
 }
 
-void DecorateSpendingInformation(UniValue& ret, const CSpentIndexValue& spent_value, bool spent)
+void DecorateEasySendSpendingInformation(UniValue& ret, const CSpentIndexValue& spent_value, bool spent)
 {
+}
+
+
+CAmount GetAmount(const CMempoolAddressDelta& v) { return v.amount; }
+CAmount GetAmount(CAmount amount) { return amount; }
+
+template <class IndexPair>
+void DecorateEasySendTransactionInformation(UniValue& ret, const IndexPair& pair, bool fromMempool)
+{
+    const auto& key = pair.first;
+    ret.push_back(Pair("found", true));
+    ret.push_back(Pair("txid", key.txhash.GetHex()));
+    ret.push_back(Pair("index", static_cast<int>(key.index)));
+    ret.push_back(Pair("amount", ValueFromAmount(GetAmount(pair.second))));
+    ret.push_back(Pair("spending", key.spending));
+
+    CSpentIndexValue spent_value;
+    bool spent = false;
+    if(fromMempool) {
+        spent = mempool.getSpentIndex(
+                {key.txhash, static_cast<unsigned int>(key.index)},
+                spent_value);
+    } else {
+        spent = GetSpentIndex(
+                {key.txhash, static_cast<unsigned int>(key.index)},
+                spent_value);
+    }
+
     if(spent) {
         ret.push_back(Pair("spenttxid", spent_value.txid.GetHex()));
         ret.push_back(Pair("spentindex", static_cast<int>(spent_value.inputIndex)));
@@ -1222,49 +1250,16 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VOBJ);
     if(!mempool_indexes.empty()) {
-        const auto& pair = mempool_indexes.at(0);
-        const auto& key = pair.first;
-        const auto& value = pair.second;
-
-        if(value.amount >= 0) {
-            ret.push_back(Pair("found", true));
-            ret.push_back(Pair("txid", key.txhash.GetHex()));
-            ret.push_back(Pair("index", static_cast<int>(key.index)));
-            ret.push_back(Pair("amount", ValueFromAmount(value.amount)));
-
-            CSpentIndexValue spent_value;
-            bool spent = mempool.getSpentIndex(
-                    {key.txhash, static_cast<unsigned int>(key.index)},
-                    spent_value);
-
-            DecorateSpendingInformation(ret, spent_value, spent);
-            ret.push_back(Pair("spending", key.spending));
-            return ret;
-        }
+        DecorateEasySendTransactionInformation(ret, mempool_indexes[0], true);
+        return ret;
 
     } else {
 
         std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
         GetAddressIndex(*script_id, SCRIPT_TYPE, coins);
-        bool found = !coins.empty();
 
-        if(found) {
-            const auto& coin = coins.at(0);
-            const auto& key = coin.first;
-            const auto amount = coin.second;
-
-            ret.push_back(Pair("found", true));
-            ret.push_back(Pair("txid", key.txhash.GetHex()));
-            ret.push_back(Pair("index", static_cast<int>(key.index)));
-            ret.push_back(Pair("amount", ValueFromAmount(amount)));
-
-            CSpentIndexValue spent_value;
-            bool spent = GetSpentIndex(
-                    {key.txhash, static_cast<unsigned int>(key.index)},
-                    spent_value);
-            DecorateSpendingInformation(ret, spent_value, spent);
-            ret.push_back(Pair("spending", key.spending));
-
+        if(!coins.empty()) {
+            DecorateEasySendTransactionInformation(ret, coins[0], false);
             return ret;
         }
     }
