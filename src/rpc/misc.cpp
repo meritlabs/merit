@@ -1176,6 +1176,15 @@ UniValue getspentinfo(const JSONRPCRequest& request)
     return obj;
 }
 
+void DecorateSpendingInformation(UniValue& ret, const CSpentIndexValue& spent_value, bool spent)
+{
+    if(spent) {
+        ret.push_back(Pair("spenttxid", spent_value.txid.GetHex()));
+        ret.push_back(Pair("spentindex", static_cast<int>(spent_value.inputIndex)));
+    }
+    ret.push_back(Pair("spent", spent));
+}
+
 UniValue getinputforeasysend(const JSONRPCRequest& request)
 {
     const int SCRIPT_TYPE = 2;
@@ -1222,8 +1231,14 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
             ret.push_back(Pair("txid", key.txhash.GetHex()));
             ret.push_back(Pair("index", static_cast<int>(key.index)));
             ret.push_back(Pair("amount", ValueFromAmount(value.amount)));
-            ret.push_back(Pair("spending", false));
-            ret.push_back(Pair("spent", false));
+
+            CSpentIndexValue spent_value;
+            bool spent = mempool.getSpentIndex(
+                    {key.txhash, static_cast<unsigned int>(key.index)},
+                    spent_value);
+
+            DecorateSpendingInformation(ret, spent_value, spent);
+            ret.push_back(Pair("spending", key.spending));
             return ret;
         }
 
@@ -1247,14 +1262,8 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
             bool spent = GetSpentIndex(
                     {key.txhash, static_cast<unsigned int>(key.index)},
                     spent_value);
-
-            if(spent) {
-                ret.push_back(Pair("spenttxid", spent_value.txid.GetHex()));
-                ret.push_back(Pair("spentindex", static_cast<int>(spent_value.inputIndex)));
-            }
-
+            DecorateSpendingInformation(ret, spent_value, spent);
             ret.push_back(Pair("spending", key.spending));
-            ret.push_back(Pair("spent", spent));
 
             return ret;
         }
