@@ -1182,21 +1182,21 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() != 1 || !request.params[0].isStr())
         throw std::runtime_error(
-            "getinputforeasysend scriptaddress\n"
-            "\nReturns the txid and index where an output is spent.\n"
-            "\nArguments:\n"
-            "\"scriptaddress\" (string) Base58 address of script used in easy transaction.\n"
-            "}\n"
-            "\nResult:\n"
-            "{\n"
-            "  \"found\"  (bool) True if found otherwise false\n"
-            "  \"txid\"  (string) The transaction id\n"
-            "  \"index\"  (number) The spending input index\n"
-            "  ,...\n"
-            "}\n"
-            "\nExamples:\n"
-            + HelpExampleCli("getinputforeasysend", "mp2FqA5kiszSWREEQXBmmMmGBYwiLuGFLt")
-        );
+                "getinputforeasysend scriptaddress\n"
+                "\nReturns the txid and index where an output is spent.\n"
+                "\nArguments:\n"
+                "\"scriptaddress\" (string) Base58 address of script used in easy transaction.\n"
+                "}\n"
+                "\nResult:\n"
+                "{\n"
+                "  \"found\"  (bool) True if found otherwise false\n"
+                "  \"txid\"  (string) The transaction id\n"
+                "  \"index\"  (number) The spending input index\n"
+                "  ,...\n"
+                "}\n"
+                "\nExamples:\n"
+                + HelpExampleCli("getinputforeasysend", "mp2FqA5kiszSWREEQXBmmMmGBYwiLuGFLt")
+                );
 
     auto script_address = request.params[0].get_str();
 
@@ -1206,39 +1206,68 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid scriptaddress");
     }
 
-    std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
-    GetAddressIndex(*script_id, SCRIPT_TYPE, coins);
-    bool found = coins.size() > 0;
+    std::vector<std::pair<uint160, int> > addresses = {{*script_id, 2}};
+    std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > mempool_indexes;
+
+    if (!mempool.getAddressIndex(addresses, mempool_indexes)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+    }
 
     UniValue ret(UniValue::VOBJ);
-    if(found) {
-        const auto& coin = coins.at(0);
-        const auto& key = coin.first;
-        const auto amount = coin.second;
+    if(!mempool_indexes.empty()) {
+        const auto& pair = mempool_indexes.at(0);
+        const auto& key = pair.first;
+        const auto& value = pair.second;
 
         ret.push_back(Pair("found", true));
         ret.push_back(Pair("txid", key.txhash.GetHex()));
         ret.push_back(Pair("index", static_cast<int>(key.index)));
-        ret.push_back(Pair("amount", ValueFromAmount(amount)));
+        ret.push_back(Pair("amount", ValueFromAmount(value.amount)));
 
-        CSpentIndexValue spent_value;
-        bool spent = GetSpentIndex(
-                {key.txhash, static_cast<unsigned int>(key.index)},
-                spent_value);
-
-        if(spent) {
-            ret.push_back(Pair("spenttxid", spent_value.txid.GetHex()));
-            ret.push_back(Pair("spentindex", static_cast<int>(spent_value.inputIndex)));
+        bool spent = value.amount < 0;
+        if (spent) {
+            ret.push_back(Pair("spenttxid", value.prevhash.GetHex()));
+            ret.push_back(Pair("spentindex", static_cast<int>(value.prevout)));
         }
-
-        ret.push_back(Pair("spending", key.spending));
+        ret.push_back(Pair("spending", false));
         ret.push_back(Pair("spent", spent));
 
         return ret;
+    } else {
+
+        std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
+        GetAddressIndex(*script_id, SCRIPT_TYPE, coins);
+        bool found = !coins.empty();
+
+        if(found) {
+            const auto& coin = coins.at(0);
+            const auto& key = coin.first;
+            const auto amount = coin.second;
+
+            ret.push_back(Pair("found", true));
+            ret.push_back(Pair("txid", key.txhash.GetHex()));
+            ret.push_back(Pair("index", static_cast<int>(key.index)));
+            ret.push_back(Pair("amount", ValueFromAmount(amount)));
+
+            CSpentIndexValue spent_value;
+            bool spent = GetSpentIndex(
+                    {key.txhash, static_cast<unsigned int>(key.index)},
+                    spent_value);
+
+            if(spent) {
+                ret.push_back(Pair("spenttxid", spent_value.txid.GetHex()));
+                ret.push_back(Pair("spentindex", static_cast<int>(spent_value.inputIndex)));
+            }
+
+            ret.push_back(Pair("spending", key.spending));
+            ret.push_back(Pair("spent", spent));
+
+            return ret;
+        }
     }
 
+    //If we get here we didn't find a transaction with the addresss.
     ret.push_back(Pair("found", false));
-
     return ret;
 }
 
