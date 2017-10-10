@@ -18,7 +18,7 @@
 #include <iostream>
 #include <set>
 
-static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward, Consensus::Params& params)
 {
     CMutableTransaction txNew;
     txNew.nVersion = 1;
@@ -47,20 +47,33 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
 
 
+    //
+    // Uncomment in case of generating new genesis block
+    //
+
     // std::set<uint32_t> pow;
 
     // uint32_t nMaxTries = 10000000;
-    // while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nNonce, pow)) {
+    // while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, pow, params)) {
     //     ++genesis.nNonce;
     //     --nMaxTries;
     // }
 
     // if (nMaxTries == 0) {
     //     printf("could not find cycle for genesis block");
+    // } else {
+    //     printf("Genesis block generated!!!\n");
+    //     printf("==========================\n");
+    //     printf("hash: %s\nnonce: %d\nnodes:\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
+    //     for (const auto& node: pow) {
+    //         printf("0x%x ", node);
+    //     }
+
+    //     printf("\n==========================\n");
+
     // }
     // exit(1);
 
-    // genesis.m_sCycle = pow;
     return genesis;
 }
 
@@ -75,11 +88,11 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
  *     CTxOut(nValue=50.00000000, scriptPubKey=0x5F1DF16B2B704C8A578D0B)
  *   vMerkleTree: 4a5e1e
  */
-static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward, Consensus::Params& params)
 {
     const char* pszTimestamp = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
     const CScript genesisOutputScript = CScript() << ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35") << OP_CHECKSIG;
-    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
+    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward, params);
 }
 
 void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout)
@@ -151,7 +164,7 @@ public:
         nDefaultPort = 8445;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1503515697, 0, 0x207fffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1503515697, 0, 0x207fffff, 1, 50 * COIN, consensus);
         consensus.hashGenesisBlock = genesis.GetHash();
 
         assert(consensus.hashGenesisBlock == uint256S("43ca943c27513e6bfcf554c0afce0f2613d2a7346b9f0ac3d5f947462a128399"));
@@ -242,16 +255,16 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        std::set<uint32_t> pow = {0xeaf, 0x4438, 0x5a83, 0x5c0b, 0xa086, 0xda00, 0x150bc, 0x17316, 0x1a379, 0x1a38e,
-            0x1d55b, 0x20452, 0x2229a, 0x222ac, 0x226fd, 0x22ea7, 0x24f4b, 0x29436, 0x2a5e3, 0x2ec76, 0x411e5, 0x446e1,
-            0x45e4e, 0x48f22, 0x4978c, 0x50d32, 0x50fce, 0x51b78, 0x53cd1, 0x55cc8, 0x57b45, 0x5c318, 0x5e5f5, 0x60c51,
-            0x61f04, 0x66243, 0x6c2bb, 0x6c3a5, 0x71cd9, 0x72e0a, 0x769e8, 0x79801};
+        std::set<uint32_t> pow = {0x17d3, 0x227f, 0x6653, 0x8408, 0x14d71, 0x14e5a, 0x17134, 0x1bab0, 0x22bb6, 0x23bf4,
+            0x23c84, 0x292f3, 0x2cebd, 0x2e462, 0x33017, 0x36007, 0x37ec9, 0x39c79, 0x3b732, 0x3dbc1, 0x3de21, 0x3f174,
+            0x40b09, 0x41041, 0x428ab, 0x47f43, 0x4a6c4, 0x4b045, 0x53967, 0x54b89, 0x54bd0, 0x581f5, 0x5d4f0, 0x5e2a9,
+            0x60928, 0x63b0f, 0x66945, 0x6b9f6, 0x709c2, 0x77464, 0x7cc1a, 0x7dbcf};
 
-        genesis = CreateGenesisBlock(1503444726, 42, 0x207fffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 1, 50 * COIN, consensus);
         genesis.m_sCycle = pow;
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("e754e4f3fe7f368031fa3939970cfabdb0269f184f8584fda7ea2826918c2029"));
+        assert(consensus.hashGenesisBlock == uint256S("47bfc07f14e836d91a038dc8dbc4da9a7052aafe01579926a96b07acacfe4d45"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
         vFixedSeeds.clear();
@@ -341,7 +354,7 @@ public:
             0x45dff, 0x46670, 0x4ed9b, 0x531d6, 0x59f13, 0x5da0b, 0x5e373, 0x5f22e, 0x63bdc, 0x6b86f, 0x6c7e6, 0x6cc83, 0x6f776,
             0x73e58, 0x74516, 0x7a2df, 0x7d2fa, 0x7da84};
 
-        genesis = CreateGenesisBlock(1503670484, 3, 0x207fffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1503670484, 3, 0x207fffff, 1, 50 * COIN, consensus);
         consensus.hashGenesisBlock = genesis.GetHash();
         assert(consensus.hashGenesisBlock == uint256S("3b2e6158a8d299cbe3ff8a4fbbebbc09ebf89653b4c558896574f38711034f01"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));

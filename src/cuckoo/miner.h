@@ -10,11 +10,11 @@
 #include <set>
 
 namespace cuckoo {
-    /** Find cycle for block that satisfies the proof-of-work requirement specified by block hash and nonce */
-    bool FindProofOfWork(uint256 hash, unsigned int nonce, unsigned int nBits, std::set<uint32_t>& cycle, const Consensus::Params& params);
+    /** Find cycle for block that satisfies the proof-of-work requirement specified by block hash */
+    bool FindProofOfWork(uint256 hash, unsigned int nBits, std::set<uint32_t>& cycle, const Consensus::Params& params);
 
-    /** Check that provided cycle satisfies the proof-of-work requirement specified by block hash and nonce */
-    bool VerifyProofOfWork(uint256 hash, unsigned int nonce, unsigned int nBits, const std::set<uint32_t>& cycle, const Consensus::Params& params);
+    /** Check that provided cycle satisfies the proof-of-work requirement specified by block hash */
+    bool VerifyProofOfWork(uint256 hash, unsigned int nBits, const std::set<uint32_t>& cycle, const Consensus::Params& params);
 }
 
 #endif // MERIT_CUCKOO_MINER_H

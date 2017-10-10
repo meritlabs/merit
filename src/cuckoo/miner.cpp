@@ -15,11 +15,11 @@
 
 namespace cuckoo
 {
-bool FindProofOfWork(uint256 hash, unsigned int nonce, unsigned int nBits, std::set<uint32_t>& cycle, const Consensus::Params& params)
+bool FindProofOfWork(uint256 hash, unsigned int nBits, std::set<uint32_t>& cycle, const Consensus::Params& params)
 {
     assert(cycle.empty());
 
-    auto res = FindCycle(hash, nonce, cycle, params.nCuckooProofSize, params.nCuckooDifficulty);
+    auto res = FindCycle(hash, cycle, params.nCuckooProofSize, params.nCuckooDifficulty);
 
     // if cycle is found check that hash of that cycle is less than a difficulty (old school bitcoin pow)
     if (res && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
@@ -31,13 +31,13 @@ bool FindProofOfWork(uint256 hash, unsigned int nonce, unsigned int nBits, std::
     return false;
 }
 
-bool VerifyProofOfWork(uint256 hash, unsigned int nonce, unsigned int nBits, const std::set<uint32_t>& cycle, const Consensus::Params& params)
+bool VerifyProofOfWork(uint256 hash, unsigned int nBits, const std::set<uint32_t>& cycle, const Consensus::Params& params)
 {
     assert(cycle.size() == params.nCuckooProofSize);
 
     std::vector<uint32_t> vCycle{cycle.begin(), cycle.end()};
 
-    int res = VerifyCycle(hash, nonce, vCycle, params.nCuckooProofSize);
+    int res = VerifyCycle(hash, vCycle, params.nCuckooProofSize);
 
     if (res == verify_code::POW_OK) {
         // check that hash of a cycle is less than a difficulty (old school bitcoin pow)

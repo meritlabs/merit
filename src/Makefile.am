@@ -290,7 +290,6 @@ crypto_libmerit_crypto_a_SOURCES = \
   crypto/sha256.h \
   crypto/sha512.cpp \
   crypto/sha512.h \
-  crypto/siphash.h \
   crypto/blake2/blake2b-ref.c \
   crypto/blake2/blake2.h \
   crypto/blake2/blake2-impl.h
