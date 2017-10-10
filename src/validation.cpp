@@ -557,22 +557,15 @@ static bool AcceptToMemoryPoolWorker(
     if (tx.IsCoinBase())
         return state.DoS(100, false, REJECT_INVALID, "coinbase");
 
-    // Reject transactions with witness before segregated witness
-    // activates (override with -prematurewitness)
-    bool witnessEnabled =
-        IsWitnessEnabled(chainActive.Tip(), chainparams.GetConsensus());
-
-    if (
-            !gArgs.GetBoolArg("-prematurewitness", false) &&
-            tx.HasWitness() &&
-            !witnessEnabled) {
+    if (!gArgs.GetBoolArg("-prematurewitness", false) &&
+        tx.HasWitness()) {
 
         return state.DoS(0, false, REJECT_NONSTANDARD, "no-witness-yet", true);
     }
 
     // Rather not work on nonstandard transactions (unless -testnet/-regtest)
     std::string reason;
-    if (fRequireStandard && !IsStandardTx(tx, reason, witnessEnabled))
+    if (fRequireStandard && !IsStandardTx(tx, reason))
         return state.DoS(0, false, REJECT_NONSTANDARD, reason);
 
     // Only accept nLockTime-using transactions that can be mined in the next
@@ -2340,10 +2333,8 @@ static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consens
     flags |= SCRIPT_VERIFY_CHECKSEQUENCEVERIFY;
 
     // Start enforcing WITNESS rules using versionbits logic.
-    if (IsWitnessEnabled(pindex->pprev, consensusparams)) {
-        flags |= SCRIPT_VERIFY_WITNESS;
-        flags |= SCRIPT_VERIFY_NULLDUMMY;
-    }
+    flags |= SCRIPT_VERIFY_WITNESS;
+    flags |= SCRIPT_VERIFY_NULLDUMMY;
 
     return flags;
 }
@@ -3574,9 +3565,7 @@ static bool ReceivedBlockTransactions(const CBlock &block, CValidationState& sta
     pindexNew->nDataPos = pos.nPos;
     pindexNew->nUndoPos = 0;
     pindexNew->nStatus |= BLOCK_HAVE_DATA;
-    if (IsWitnessEnabled(pindexNew->pprev, consensusParams)) {
-        pindexNew->nStatus |= BLOCK_OPT_WITNESS;
-    }
+    pindexNew->nStatus |= BLOCK_OPT_WITNESS;
     pindexNew->RaiseValidity(BLOCK_VALID_TRANSACTIONS);
     setDirtyBlockIndex.insert(pindexNew);
 
@@ -3805,12 +3794,6 @@ bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
     return beaconed;
 }
 
-bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params)
-{
-    LOCK(cs_main);
-    return true;
-}
-
 // Compute at which vout of the block's coinbase transaction the witness
 // commitment occurs, or -1 if not found.
 static int GetWitnessCommitmentIndex(const CBlock& block)
@@ -3830,7 +3813,7 @@ void UpdateUncommittedBlockStructures(CBlock& block, const CBlockIndex* pindexPr
 {
     int commitpos = GetWitnessCommitmentIndex(block);
     static const std::vector<unsigned char> nonce(32, 0x00);
-    if (commitpos != -1 && IsWitnessEnabled(pindexPrev, consensusParams) && !block.vtx[0]->HasWitness()) {
+    if (commitpos != -1 && !block.vtx[0]->HasWitness()) {
         CMutableTransaction tx(*block.vtx[0]);
         tx.vin[0].scriptWitness.stack.resize(1);
         tx.vin[0].scriptWitness.stack[0] = nonce;
@@ -4736,7 +4719,7 @@ bool RewindBlockIndex(const CChainParams& params)
 
     int nHeight = 1;
     while (nHeight <= chainActive.Height()) {
-        if (IsWitnessEnabled(chainActive[nHeight - 1], params.GetConsensus()) && !(chainActive[nHeight]->nStatus & BLOCK_OPT_WITNESS)) {
+        if (!(chainActive[nHeight]->nStatus & BLOCK_OPT_WITNESS)) {
             break;
         }
         nHeight++;
@@ -4773,7 +4756,7 @@ bool RewindBlockIndex(const CChainParams& params)
         // this block or some successor doesn't HAVE_DATA, so we were unable to
         // rewind all the way.  Blocks remaining on chainActive at this point
         // must not have their validity reduced.
-        if (IsWitnessEnabled(pindexIter->pprev, params.GetConsensus()) && !(pindexIter->nStatus & BLOCK_OPT_WITNESS) && !chainActive.Contains(pindexIter)) {
+        if (!(pindexIter->nStatus & BLOCK_OPT_WITNESS) && !chainActive.Contains(pindexIter)) {
             // Reduce validity
             pindexIter->nStatus = std::min<unsigned int>(pindexIter->nStatus & BLOCK_VALID_MASK, BLOCK_VALID_TREE) | (pindexIter->nStatus & ~BLOCK_VALID_MASK);
             // Remove have-data flags.

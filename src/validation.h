@@ -435,7 +435,7 @@ private:
     PrecomputedTransactionData *txdata;
 
 public:
-    CScriptCheck(): 
+    CScriptCheck():
         amount{0},
         ptxTo{nullptr},
         nIn{0},
@@ -509,9 +509,6 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
 
 /** Check that an address is valid and ready to send to */
 bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool = true);
-
-/** Check whether witness commitments are required for block. */
-bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params);
 
 /** When there are blocks in the active chain with missing data, rewind the chainstate and remove them from the block index */
 bool RewindBlockIndex(const CChainParams& params);

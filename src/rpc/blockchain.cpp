@@ -1303,38 +1303,6 @@ static UniValue SoftForkDesc(const std::string &name, int version, CBlockIndex* 
     return rv;
 }
 
-static UniValue BIP9SoftForkDesc(const Consensus::Params& consensusParams, Consensus::DeploymentPos id)
-{
-    UniValue rv(UniValue::VOBJ);
-    const ThresholdState thresholdState = VersionBitsTipState(consensusParams, id);
-    switch (thresholdState) {
-    case THRESHOLD_DEFINED: rv.push_back(Pair("status", "defined")); break;
-    case THRESHOLD_STARTED: rv.push_back(Pair("status", "started")); break;
-    case THRESHOLD_LOCKED_IN: rv.push_back(Pair("status", "locked_in")); break;
-    case THRESHOLD_ACTIVE: rv.push_back(Pair("status", "active")); break;
-    case THRESHOLD_FAILED: rv.push_back(Pair("status", "failed")); break;
-    }
-    if (THRESHOLD_STARTED == thresholdState)
-    {
-        rv.push_back(Pair("bit", consensusParams.vDeployments[id].bit));
-    }
-    rv.push_back(Pair("startTime", consensusParams.vDeployments[id].nStartTime));
-    rv.push_back(Pair("timeout", consensusParams.vDeployments[id].nTimeout));
-    rv.push_back(Pair("since", VersionBitsTipStateSinceHeight(consensusParams, id)));
-    if (THRESHOLD_STARTED == thresholdState)
-    {
-        UniValue statsUV(UniValue::VOBJ);
-        BIP9Stats statsStruct = VersionBitsTipStatistics(consensusParams, id);
-        statsUV.push_back(Pair("period", statsStruct.period));
-        statsUV.push_back(Pair("threshold", statsStruct.threshold));
-        statsUV.push_back(Pair("elapsed", statsStruct.elapsed));
-        statsUV.push_back(Pair("count", statsStruct.count));
-        statsUV.push_back(Pair("possible", statsStruct.possible));
-        rv.push_back(Pair("statistics", statsUV));
-    }
-    return rv;
-}
-
 UniValue getblockchaininfo(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 0)
