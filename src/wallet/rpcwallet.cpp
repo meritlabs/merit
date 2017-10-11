@@ -487,9 +487,9 @@ static UniValue EasySend(
     }
 
     auto receiver_pub = receiver_key.GetPubKey();
-    
+
     // Create the easy send script to be used to store the funds
-    auto easy_send_script = 
+    auto easy_send_script =
         GetScriptForEasySend(max_blocks, sender_pub, receiver_pub);
 
     CScriptID script_id(easy_send_script);
@@ -577,13 +577,13 @@ static UniValue EasyReceive(
 
     CKey escrow_key;
 
-    //recreate the private/public key pair using secret and optional password. 
-    //We can then take the sender_pub and escrow_pub and generate a script that 
+    //recreate the private/public key pair using secret and optional password.
+    //We can then take the sender_pub and escrow_pub and generate a script that
     //matches the unspend script_id
     const auto mixedsecret = secret + optional_password;
     escrow_key.MakeNewKey(std::begin(mixedsecret), std::end(mixedsecret), COMPRESSED_KEY);
     auto escrow_pub = escrow_key.GetPubKey();
-    
+
     auto easy_send_script = GetScriptForEasySend(max_blocks, sender_pub, escrow_pub);
     CScriptID script_id(easy_send_script);
 
@@ -640,12 +640,12 @@ static UniValue EasyReceive(
 
     std::string error;
     std::vector<CRecipient> recipients = {
-        {script_pub_key, unspent_val.satoshis, fSubtractFeeFromAmount}
+        {script_pub_key, unspent_val.quanta, fSubtractFeeFromAmount}
     };
 
     int change_pos_ret = -1;
     CAmount fee_required = 0;
-       
+
     // Generate a transaction and add it to the wallet so that CreateTransaction
     // can find and select it when getting and signing the transaction vin.
     CWalletTx unspent_wtx{&pwallet, unspent_tx};
@@ -685,7 +685,7 @@ static UniValue EasyReceive(
     //add script to wallet so we can redeem it later if needed.
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
-    ret.push_back(Pair("amount", ValueFromAmount(unspent_val.satoshis)));
+    ret.push_back(Pair("amount", ValueFromAmount(unspent_val.quanta)));
 
     return ret;
 }
@@ -813,11 +813,11 @@ UniValue easysend(const JSONRPCRequest& request)
     if (amount <= 0)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
 
-    std::string optional_password = ""; 
+    std::string optional_password = "";
     if(!request.params[1].isNull())
         optional_password = request.params[1].get_str();
 
-    int max_blocks = 1008; //about a week. 
+    int max_blocks = 1008; //about a week.
     if(!request.params[2].isNull())
         max_blocks = request.params[2].get_int();
 
@@ -887,11 +887,11 @@ UniValue easyreceive(const JSONRPCRequest& request)
 
     CPubKey pub_key{ParseHex(request.params[1].get_str())};
 
-    std::string optional_password = ""; 
+    std::string optional_password = "";
     if(!request.params[2].isNull())
         optional_password = request.params[2].get_str();
 
-    int max_blocks = 1008; //about a week. 
+    int max_blocks = 1008; //about a week.
     if(!request.params[3].isNull())
         max_blocks = request.params[3].get_int();
 
@@ -3433,7 +3433,7 @@ UniValue bumpfee(const JSONRPCRequest& request)
             "2. options               (object, optional)\n"
             "   {\n"
             "     \"confTarget\"        (numeric, optional) Confirmation target (in blocks)\n"
-            "     \"totalFee\"          (numeric, optional) Total fee (NOT feerate) to pay, in satoshis.\n"
+            "     \"totalFee\"          (numeric, optional) Total fee (NOT feerate) to pay, in quanta.\n"
             "                         In rare cases, the actual fee paid might be slightly higher than the specified\n"
             "                         totalFee if the tx change output has to be removed because it is too close to\n"
             "                         the dust threshold.\n"
@@ -3729,9 +3729,9 @@ UniValue getanv(const JSONRPCRequest& request)
 
     auto anvs = pog::GetANVs(keys, *prefviewdb);
 
-    auto total = 
+    auto total =
         std::accumulate(std::begin(anvs), std::end(anvs), CAmount{0},
-            [](CAmount total, const referral::AddressANV& v){ 
+            [](CAmount total, const referral::AddressANV& v){
                 return total + v.anv;
             });
 
@@ -3798,7 +3798,7 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
         throw std::runtime_error(std::string(__func__) + ": Address is already beaconed.");
     }
 
-    referral::ReferralRef referral = 
+    referral::ReferralRef referral =
         referral::MakeReferralRef(
                 referral::MutableReferral(addressKey, codeHash));
 

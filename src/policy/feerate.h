@@ -15,40 +15,40 @@
 extern const std::string CURRENCY_UNIT;
 
 /**
- * Fee rate in satoshis per kilobyte: CAmount / kB
+ * Fee rate in quanta per kilobyte: CAmount / kB
  */
 class CFeeRate
 {
 private:
-    CAmount nSatoshisPerK; // unit is satoshis-per-1,000-bytes
+    CAmount nQuantaPerK; // unit is quanta-per-1,000-bytes
 public:
-    /** Fee rate of 0 satoshis per kB */
-    CFeeRate() : nSatoshisPerK(0) { }
-    explicit CFeeRate(const CAmount& _nSatoshisPerK): nSatoshisPerK(_nSatoshisPerK) { }
-    /** Constructor for a fee rate in satoshis per kB. The size in bytes must not exceed (2^63 - 1)*/
+    /** Fee rate of 0 quanta per kB */
+    CFeeRate() : nQuantaPerK(0) { }
+    explicit CFeeRate(const CAmount& _nQuantaPerK): nQuantaPerK(_nQuantaPerK) { }
+    /** Constructor for a fee rate in quanta per kB. The size in bytes must not exceed (2^63 - 1)*/
     CFeeRate(const CAmount& nFeePaid, size_t nBytes);
     /**
-     * Return the fee in satoshis for the given size in bytes.
+     * Return the fee in quanta for the given size in bytes.
      */
     CAmount GetFee(size_t nBytes) const;
     /**
-     * Return the fee in satoshis for a size of 1000 bytes
+     * Return the fee in quanta for a size of 1000 bytes
      */
     CAmount GetFeePerK() const { return GetFee(1000); }
-    friend bool operator<(const CFeeRate& a, const CFeeRate& b) { return a.nSatoshisPerK < b.nSatoshisPerK; }
-    friend bool operator>(const CFeeRate& a, const CFeeRate& b) { return a.nSatoshisPerK > b.nSatoshisPerK; }
-    friend bool operator==(const CFeeRate& a, const CFeeRate& b) { return a.nSatoshisPerK == b.nSatoshisPerK; }
-    friend bool operator<=(const CFeeRate& a, const CFeeRate& b) { return a.nSatoshisPerK <= b.nSatoshisPerK; }
-    friend bool operator>=(const CFeeRate& a, const CFeeRate& b) { return a.nSatoshisPerK >= b.nSatoshisPerK; }
-    friend bool operator!=(const CFeeRate& a, const CFeeRate& b) { return a.nSatoshisPerK != b.nSatoshisPerK; }
-    CFeeRate& operator+=(const CFeeRate& a) { nSatoshisPerK += a.nSatoshisPerK; return *this; }
+    friend bool operator<(const CFeeRate& a, const CFeeRate& b) { return a.nQuantaPerK < b.nQuantaPerK; }
+    friend bool operator>(const CFeeRate& a, const CFeeRate& b) { return a.nQuantaPerK > b.nQuantaPerK; }
+    friend bool operator==(const CFeeRate& a, const CFeeRate& b) { return a.nQuantaPerK == b.nQuantaPerK; }
+    friend bool operator<=(const CFeeRate& a, const CFeeRate& b) { return a.nQuantaPerK <= b.nQuantaPerK; }
+    friend bool operator>=(const CFeeRate& a, const CFeeRate& b) { return a.nQuantaPerK >= b.nQuantaPerK; }
+    friend bool operator!=(const CFeeRate& a, const CFeeRate& b) { return a.nQuantaPerK != b.nQuantaPerK; }
+    CFeeRate& operator+=(const CFeeRate& a) { nQuantaPerK += a.nQuantaPerK; return *this; }
     std::string ToString() const;
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(nSatoshisPerK);
+        READWRITE(nQuantaPerK);
     }
 };
 

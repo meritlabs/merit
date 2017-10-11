@@ -65,8 +65,8 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
             CSpentIndexValue spentInfo;
             CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
             if (GetSpentIndex(spentKey, spentInfo)) {
-                in.push_back(Pair("value", ValueFromAmount(spentInfo.satoshis)));
-                in.push_back(Pair("valueSat", spentInfo.satoshis));
+                in.push_back(Pair("value", ValueFromAmount(spentInfo.quanta)));
+                in.push_back(Pair("valueSat", spentInfo.quanta));
                 if (spentInfo.addressType == 1) {
                     in.push_back(Pair("address", CMeritAddress(CKeyID(spentInfo.addressHash)).ToString()));
                 } else if (spentInfo.addressType == 2)  {
@@ -729,7 +729,7 @@ UniValue combinerawtransaction(const JSONRPCRequest& request)
         }
 
         // switch back to avoid locking mempool for too long
-        view.SetBackend(viewDummy); 
+        view.SetBackend(viewDummy);
     }
 
     // Use CTransaction for the constant parts of the
@@ -882,7 +882,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
             CMeritSecret vchSecret;
             bool fGood = vchSecret.SetString(k.get_str());
 
-            if (!fGood) { 
+            if (!fGood) {
                 throw JSONRPCError(
                         RPC_INVALID_ADDRESS_OR_KEY,
                         "Invalid private key");
@@ -890,7 +890,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
 
             CKey key = vchSecret.GetKey();
 
-            if (!key.IsValid()) { 
+            if (!key.IsValid()) {
                 throw JSONRPCError(
                         RPC_INVALID_ADDRESS_OR_KEY,
                         "Private key outside allowed range");

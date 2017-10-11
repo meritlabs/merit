@@ -81,7 +81,7 @@ public:
     static QString name(int unit);
     //! Longer description
     static QString description(int unit);
-    //! Number of Satoshis (1e-8) per unit
+    //! Number of quanta (1e-8) per unit
     static qint64 factor(int unit);
     //! Number of decimals left
     static int decimals(int unit);
@@ -118,7 +118,7 @@ public:
         return text;
     }
 
-    //! Return maximum number of base units (Satoshis)
+    //! Return maximum number of base units (quanta)
     static CAmount maxMoney();
 
 private:

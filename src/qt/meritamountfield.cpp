@@ -26,7 +26,7 @@ public:
     explicit AmountSpinBox(QWidget *parent):
         QAbstractSpinBox(parent),
         currentUnit(MeritUnits::MRT),
-        singleStep(100000) // satoshis
+        singleStep(100000) // quanta
     {
         setAlignment(Qt::AlignRight);
 
