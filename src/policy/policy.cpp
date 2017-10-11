@@ -88,11 +88,9 @@ bool IsStandard(const CScript& scriptPubKey, txnouttype& whichType)
         if (m < 1 || m > n)
             return false;
     } else if (whichType == TX_NULL_DATA &&
-               (!fAcceptDatacarrier || scriptPubKey.size() > nMaxDatacarrierBytes))
-          return false;
-
-    else if (whichType == TX_WITNESS_V0_KEYHASH || whichType == TX_WITNESS_V0_SCRIPTHASH)
+        (!fAcceptDatacarrier || scriptPubKey.size() > nMaxDatacarrierBytes)) {
         return false;
+    }
 
     return whichType != TX_NONSTANDARD;
 }

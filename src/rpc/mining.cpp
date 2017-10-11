@@ -561,9 +561,6 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
         entry.push_back(Pair("fee", pblocktemplate->vTxFees[index_in_template]));
         int64_t nTxSigOps = pblocktemplate->vTxSigOpsCost[index_in_template];
 
-        assert(nTxSigOps % WITNESS_SCALE_FACTOR == 0);
-        nTxSigOps /= WITNESS_SCALE_FACTOR;
-
         entry.push_back(Pair("sigops", nTxSigOps));
         entry.push_back(Pair("weight", GetTransactionWeight(tx)));
 
