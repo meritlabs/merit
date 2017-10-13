@@ -32,6 +32,10 @@
 #include <string>
 #include <vector>
 
+#include <boost/optional.hpp>
+
+using MaybeUint160 = boost::optional<uint160>;
+
 /**
  * Encode a byte sequence as a base58-encoded string.
  * pbegin and pend cannot be nullptr, unless both are.
@@ -123,6 +127,7 @@ public:
     CMeritAddress(const char* pszAddress) { SetString(pszAddress); }
 
     CTxDestination Get() const;
+    MaybeUint160 GetUint160() const;
     bool GetKeyID(CKeyID &keyID) const;
     bool GetIndexKey(uint160& hashBytes, int& type) const;
     bool IsScript() const;

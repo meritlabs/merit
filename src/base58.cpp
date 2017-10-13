@@ -271,6 +271,19 @@ CTxDestination CMeritAddress::Get() const
         return CNoDestination();
 }
 
+MaybeUint160 CMeritAddress::GetUint160() const
+{
+    auto dest = Get();
+
+    if(auto key = boost::get<CKeyID>(&dest)) {
+        return *key;
+    } else if (auto script = boost::get<CScriptID>(&dest)) {
+        return *script;
+    }
+
+    return {};
+}
+
 bool CMeritAddress::GetIndexKey(uint160& hashBytes, int& type) const
 {
     if (!IsValid()) {

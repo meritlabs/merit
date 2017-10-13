@@ -3774,10 +3774,9 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VOBJ);
     if (!isValid) {
-        throw std::runtime_error("address is not valid");
+        throw std::runtime_error("Address is not valid or in wrong format.");
     }
 
-    CTxDestination dest = address.Get();
     std::string currentAddress = address.ToString();
 
     // Create referral trasnaction
@@ -3789,18 +3788,16 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
         throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain (RPC)");
     }
 
-    CKeyID addressKey;
-    if (!address.GetKeyID(addressKey)) {
-        throw std::runtime_error(std::string(__func__) + ": Address is invalid or is in wrong format.");
-    }
-
-    if (CheckAddressBeaconed(addressKey)) {
+    if (CheckAddressBeaconed(address)) {
         throw std::runtime_error(std::string(__func__) + ": Address is already beaconed.");
     }
 
+    auto addressUint160 = address.GetUint160();
+    assert(addressUint160);
+
     referral::ReferralRef referral = 
         referral::MakeReferralRef(
-                referral::MutableReferral(addressKey, codeHash));
+                referral::MutableReferral(*addressUint160, codeHash));
 
     // check that new referral is not in the cache or in mempool
     if (prefviewcache->ReferralCodeExists(referral->GetHash()) || mempoolReferral.ExistsWithCodeHash(referral->GetHash())) {
