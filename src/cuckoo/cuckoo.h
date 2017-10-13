@@ -21,15 +21,7 @@ enum verify_code {
   POW_SHORT_CYCLE
 };
 
-const char* errstr[] = {
-  "OK",
-  "wrong header length",
-  "nonce too big",
-  "nonces not ascending",
-  "endpoints don't match up",
-  "branch in cycle",
-  "cycle dead ends",
-  "cycle too short"};
+extern const char* errstr[];
 
 // Find proofsize-length cuckoo cycle in random graph
 bool FindCycle(const uint256& hash, std::set<uint32_t>& cycle, uint8_t proofsize, uint8_t ratio);

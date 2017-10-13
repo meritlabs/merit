@@ -29,6 +29,16 @@
 
 #define MAXPATHLEN 8192
 
+const char* errstr[] = {
+  "OK",
+  "wrong header length",
+  "nonce too big",
+  "nonces not ascending",
+  "endpoints don't match up",
+  "branch in cycle",
+  "cycle dead ends",
+  "cycle too short"};
+
 // siphash uses a pair of 64-bit keys,
 typedef struct {
     uint64_t k0;
