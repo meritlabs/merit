@@ -164,6 +164,7 @@ uint64_t CSipHasher::Finalize() const
     SIPROUND;
     SIPROUND;
     SIPROUND;
+
     return v0 ^ v1 ^ v2 ^ v3;
 }
 

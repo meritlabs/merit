@@ -214,6 +214,8 @@ public:
     unsigned int nBits;
     unsigned int nNonce;
 
+    std::set<uint32_t> m_sCycle;
+
     //! (memory only) Sequential id assigned to distinguish order in which blocks are received.
     int32_t nSequenceId;
 
@@ -241,6 +243,7 @@ public:
         nTime          = 0;
         nBits          = 0;
         nNonce         = 0;
+        m_sCycle.clear();
     }
 
     CBlockIndex()
@@ -257,6 +260,7 @@ public:
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
+        m_sCycle       = block.m_sCycle;
     }
 
     CDiskBlockPos GetBlockPos() const {
@@ -287,6 +291,7 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
+        block.m_sCycle       = m_sCycle;
         return block;
     }
 
@@ -406,6 +411,7 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
+        READWRITE(m_sCycle);
     }
 
     uint256 GetBlockHash() const

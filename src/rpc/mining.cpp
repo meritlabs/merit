@@ -26,9 +26,12 @@
 #include "utilstrencodings.h"
 #include "validationinterface.h"
 #include "warnings.h"
+#include "cuckoo/miner.h"
+#include "cuckoo/cuckoo.h"
 
 #include <memory>
 #include <stdint.h>
+#include <set>
 
 #include <univalue.h>
 
@@ -118,7 +121,10 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
         nHeightEnd = nHeight+nGenerate;
     }
     unsigned int nExtraNonce = 0;
+    std::set<uint32_t> cycle;
     UniValue blockHashes(UniValue::VARR);
+    auto consensusParams = Params().GetConsensus();
+
     while (nHeight < nHeightEnd)
     {
         std::unique_ptr<CBlockTemplate> pblocktemplate(BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript));
@@ -129,16 +135,22 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
             LOCK(cs_main);
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
         }
-        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus())) {
+        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !cuckoo::FindProofOfWork(pblock->GetHash(), pblock->nBits, cycle, consensusParams)) {
             ++pblock->nNonce;
             --nMaxTries;
         }
+
         if (nMaxTries == 0) {
             break;
         }
         if (pblock->nNonce == nInnerLoopCount) {
             continue;
         }
+
+        assert(cycle.size() == consensusParams.nCuckooProofSize);
+
+        pblock->m_sCycle = cycle;
+
         std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(*pblock);
         if (!ProcessNewBlock(Params(), shared_pblock, true, nullptr))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");

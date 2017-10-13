@@ -60,7 +60,7 @@ EXTRA_LIBRARIES += \
   $(LIBMERIT_CONSENSUS) \
   $(LIBMERIT_ZMQ)
 
-lib_LTLIBRARIES = $(LIBMERITCRYPTO) $(LIBMERITUTIL) $(LIBMERITCONSENSUS) 
+lib_LTLIBRARIES = $(LIBMERITCRYPTO) $(LIBMERITUTIL) $(LIBMERITCONSENSUS)
 
 bin_PROGRAMS =
 noinst_PROGRAMS =
@@ -113,6 +113,8 @@ MERIT_CORE_H = \
   memusage.h \
   merkleblock.h \
   miner.h \
+  cuckoo/cuckoo.h \
+  cuckoo/miner.h \
   net.h \
   net_processing.h \
   netaddress.h \
@@ -208,6 +210,8 @@ libmerit_server_a_SOURCES = \
   init.cpp \
   merkleblock.cpp \
   miner.cpp \
+  cuckoo/cuckoo.cpp \
+  cuckoo/miner.cpp \
   net.cpp \
   net_processing.cpp \
   noui.cpp \
@@ -285,7 +289,10 @@ crypto_libmerit_crypto_a_SOURCES = \
   crypto/sha256.cpp \
   crypto/sha256.h \
   crypto/sha512.cpp \
-  crypto/sha512.h
+  crypto/sha512.h \
+  crypto/blake2/blake2b-ref.c \
+  crypto/blake2/blake2.h \
+  crypto/blake2/blake2-impl.h
 
 if USE_ASM
 crypto_libmerit_crypto_a_SOURCES += crypto/sha256_sse4.cpp
@@ -324,7 +331,7 @@ libmerit_consensus_a_SOURCES = \
   uint256.cpp \
   uint256.h \
   utilstrencodings.cpp \
-  utilstrencodings.h 
+  utilstrencodings.h
 
 # common: shared between meritd, and merit-qt and non-server tools
 libmerit_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(MERIT_INCLUDES)
