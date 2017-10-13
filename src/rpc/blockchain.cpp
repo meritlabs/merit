@@ -217,7 +217,7 @@ UniValue blockToDeltasJSON(const CBlock& block, const CBlockIndex* blockindex)
                     } else {
                         continue;
                     }
-                    delta.push_back(Pair("satoshis", -1 * spentInfo.satoshis));
+                    delta.push_back(Pair("quanta", -1 * spentInfo.quanta));
                     delta.push_back(Pair("index", (int)j));
                     delta.push_back(Pair("prevtxid", input.prevout.hash.GetHex()));
                     delta.push_back(Pair("prevout", (int)input.prevout.n));
@@ -250,7 +250,7 @@ UniValue blockToDeltasJSON(const CBlock& block, const CBlockIndex* blockindex)
                 continue;
             }
 
-            delta.push_back(Pair("satoshis", out.nValue));
+            delta.push_back(Pair("quanta", out.nValue));
             delta.push_back(Pair("index", (int)k));
 
             outputs.push_back(delta);
@@ -1743,7 +1743,7 @@ UniValue getchaintxstats(const JSONRPCRequest& request)
             pindex = chainActive.Tip();
         }
     }
-    
+
     assert(pindex != nullptr);
 
     if (blockcount < 1 || blockcount >= pindex->nHeight) {
