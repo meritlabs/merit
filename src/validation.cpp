@@ -3828,6 +3828,11 @@ bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
     return beaconed;
 }
 
+bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool)
+{
+    return CheckAddressBeaconed(addr.Get(), checkMempool);
+}
+
 bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params)
 {
     LOCK(cs_main);
