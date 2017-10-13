@@ -213,6 +213,7 @@ public:
     unsigned int nTime;
     unsigned int nBits;
     unsigned int nNonce;
+    uint8_t nNodesBits;
 
     std::set<uint32_t> m_sCycle;
 
@@ -243,6 +244,7 @@ public:
         nTime          = 0;
         nBits          = 0;
         nNonce         = 0;
+        nNodesBits     = 0;
         m_sCycle.clear();
     }
 
@@ -260,6 +262,7 @@ public:
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
+        nNodesBits     = block.nNodesBits;
         m_sCycle       = block.m_sCycle;
     }
 
@@ -291,6 +294,7 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
+        block.nNodesBits     = nNodesBits;
         block.m_sCycle       = m_sCycle;
         return block;
     }
@@ -411,6 +415,7 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
+        READWRITE(nNodesBits);
         READWRITE(m_sCycle);
     }
 
@@ -423,6 +428,7 @@ public:
         block.nTime           = nTime;
         block.nBits           = nBits;
         block.nNonce          = nNonce;
+        block.nNodesBits      = nNodesBits;
         return block.GetHash();
     }
 

@@ -4,34 +4,36 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "base58.h"
+#include "rpc/mining.h"
 #include "amount.h"
+#include "base58.h"
 #include "chain.h"
 #include "chainparams.h"
 #include "consensus/consensus.h"
 #include "consensus/params.h"
 #include "consensus/validation.h"
 #include "core_io.h"
+#include "cuckoo/cuckoo.h"
+#include "cuckoo/miner.h"
 #include "init.h"
-#include "validation.h"
 #include "miner.h"
 #include "net.h"
 #include "policy/fees.h"
 #include "pow.h"
 #include "rpc/blockchain.h"
-#include "rpc/mining.h"
 #include "rpc/server.h"
 #include "txmempool.h"
 #include "util.h"
 #include "utilstrencodings.h"
+#include "validation.h"
 #include "validationinterface.h"
 #include "warnings.h"
-#include "cuckoo/miner.h"
-#include "cuckoo/cuckoo.h"
+
+#include <numeric>
 
 #include <memory>
-#include <stdint.h>
 #include <set>
+#include <stdint.h>
 
 #include <univalue.h>
 
@@ -136,7 +138,7 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
         }
 
         std::set<uint32_t> cycle;
-        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !cuckoo::FindProofOfWork(pblock->GetHash(), pblock->nBits, cycle, consensusParams)) {
+        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !cuckoo::FindProofOfWork(pblock->GetHash(), pblock->nBits, pblock->nNodesBits, cycle, consensusParams)) {
             ++pblock->nNonce;
             --nMaxTries;
         }

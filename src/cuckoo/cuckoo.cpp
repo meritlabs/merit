@@ -46,9 +46,9 @@ typedef struct {
 } siphash_keys;
 
 // generate edge endpoint in cuckoo graph
-uint32_t sipnode(CSipHasher* hasher, uint32_t nonce, uint32_t uorv)
+uint32_t sipnode(CSipHasher* hasher, uint32_t mask, uint32_t nonce, uint32_t uorv)
 {
-    auto node = CSipHasher(*hasher).Write(2 * nonce + uorv).Finalize() & EDGEMASK;
+    auto node = CSipHasher(*hasher).Write(2 * nonce + uorv).Finalize() & mask;
 
     return node << 1 | uorv;
 }
@@ -72,13 +72,13 @@ public:
     uint32_t m_difficulty;
     uint32_t* m_cuckoo;
 
-    CuckooCtx(char* header, const uint32_t headerlen, uint32_t difficulty)
+    CuckooCtx(char* header, const uint32_t headerlen, uint32_t difficulty, uint32_t nodesCount)
     {
         setKeys(header, headerlen, &m_keys);
         m_hasher = new CSipHasher(m_keys.k0, m_keys.k1);
 
         m_difficulty = difficulty;
-        m_cuckoo = (uint32_t*)calloc(1 + NNODES, sizeof(uint32_t));
+        m_cuckoo = (uint32_t*)calloc(1 + nodesCount, sizeof(uint32_t));
 
         assert(m_cuckoo != 0);
     }
@@ -110,7 +110,7 @@ int path(uint32_t* cuckoo, uint32_t u, uint32_t* us)
 
 typedef std::pair<uint32_t, uint32_t> edge;
 
-void solution(CuckooCtx* ctx, uint32_t* us, int nu, uint32_t* vs, int nv, std::set<uint32_t>& nonces)
+void solution(CuckooCtx* ctx, uint32_t* us, int nu, uint32_t* vs, int nv, std::set<uint32_t>& nonces, const uint32_t edgeMask)
 {
     assert(nonces.empty());
     std::set<edge> cycle;
@@ -125,7 +125,7 @@ void solution(CuckooCtx* ctx, uint32_t* us, int nu, uint32_t* vs, int nv, std::s
     }
 
     for (uint32_t nonce = n = 0; nonce < ctx->m_difficulty; nonce++) {
-        edge e(sipnode(ctx->m_hasher, nonce, 0), sipnode(ctx->m_hasher, nonce, 1));
+        edge e(sipnode(ctx->m_hasher, edgeMask, nonce, 0), sipnode(ctx->m_hasher, edgeMask, nonce, 1));
         if (cycle.find(e) != cycle.end()) {
             // printf("%x ", nonce);
             cycle.erase(e);
@@ -136,21 +136,29 @@ void solution(CuckooCtx* ctx, uint32_t* us, int nu, uint32_t* vs, int nv, std::s
     printf("\n");
 }
 
-bool FindCycle(const uint256& hash, std::set<uint32_t>& cycle, uint8_t proofsize, uint8_t ratio)
+bool FindCycle(const uint256& hash, const uint8_t nNodesBits, std::set<uint32_t>& cycle, uint8_t proofsize, uint8_t ratio)
 {
     assert(ratio >= 0 && ratio <= 100);
-    uint64_t difficulty = ratio * (uint64_t)NNODES / 100;
+    assert(nNodesBits <= 32);
 
     printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofsize, EDGEBITS + 1, hash.GetHex().c_str(), ratio);
 
-    CuckooCtx ctx(const_cast<char*>(reinterpret_cast<const char*>(hash.begin())), hash.size(), difficulty);
+    // edge mask is a max valid value of an edge.
+    uint32_t edgeMask = (1 << (nNodesBits - 2)) - 1;
+
+    uint32_t nodesCount = 1 << (nNodesBits - 1);
+    uint32_t difficulty = ratio / 100 * nodesCount;
+
+    // printf("nNodesBits: %d, nodesCount: %zu, nodesCount: %x, edgeMask: %x\n", nNodesBits, nodesCount, nodesCount, edgeMask);
+
+    CuckooCtx ctx(const_cast<char*>(reinterpret_cast<const char*>(hash.begin())), hash.size(), difficulty, nodesCount);
 
     uint32_t* cuckoo = ctx.m_cuckoo;
     uint32_t us[MAXPATHLEN], vs[MAXPATHLEN];
     for (uint32_t nonce = 0; nonce < ctx.m_difficulty; nonce++) {
-        uint32_t u0 = sipnode(ctx.m_hasher, nonce, 0);
+        uint32_t u0 = sipnode(ctx.m_hasher, edgeMask, nonce, 0);
         if (u0 == 0) continue; // reserve 0 as nil; v0 guaranteed non-zero
-        uint32_t v0 = sipnode(ctx.m_hasher, nonce, 1);
+        uint32_t v0 = sipnode(ctx.m_hasher, edgeMask, nonce, 1);
         uint32_t u = cuckoo[u0], v = cuckoo[v0];
         us[0] = u0;
         vs[0] = v0;
@@ -162,8 +170,8 @@ bool FindCycle(const uint256& hash, std::set<uint32_t>& cycle, uint8_t proofsize
                 ;
             int len = nu + nv + 1;
             if (len == proofsize) {
-                printf("% 4d-cycle found at %d%%\n", len, (int)(nonce * 100L / ctx.m_difficulty));
-                solution(&ctx, us, nu, vs, nv, cycle);
+                // LogPrintf("% 4d-cycle found at %d%%\n", len, (int)(nonce * 100L / ctx.m_difficulty));
+                solution(&ctx, us, nu, vs, nv, cycle, edgeMask);
                 return true;
             }
             continue;
@@ -183,11 +191,15 @@ bool FindCycle(const uint256& hash, std::set<uint32_t>& cycle, uint8_t proofsize
 }
 
 // verify that nonces are ascending and form a cycle in header-generated graph
-int VerifyCycle(const uint256& hash, std::vector<uint32_t>& cycle, const uint8_t proofsize)
+int VerifyCycle(const uint256& hash, const uint8_t nNodesBits, std::vector<uint32_t>& cycle, const uint8_t proofsize)
 {
     assert(cycle.size() == proofsize);
-
+    assert(nNodesBits <= 32);
     siphash_keys keys;
+
+    uint32_t nodesCount = 1 << (nNodesBits - 1);
+    // edge mask is a max valid value of an edge (max index of nodes array).
+    uint32_t edgeMask = nodesCount - 1;
 
     char* header = const_cast<char*>(reinterpret_cast<const char*>(hash.begin()));
     uint32_t headerlen = hash.size();
@@ -200,7 +212,7 @@ int VerifyCycle(const uint256& hash, std::vector<uint32_t>& cycle, const uint8_t
     uint32_t xor0 = 0, xor1 = 0;
 
     for (uint32_t n = 0; n < proofsize; n++) {
-        if (cycle[n] > EDGEMASK) {
+        if (cycle[n] > edgeMask) {
             return POW_TOO_BIG;
         }
 
@@ -208,8 +220,9 @@ int VerifyCycle(const uint256& hash, std::vector<uint32_t>& cycle, const uint8_t
             return POW_TOO_SMALL;
         }
 
-        xor0 ^= uvs[2 * n] = sipnode(&hasher, cycle[n], 0);
-        xor1 ^= uvs[2 * n + 1] = sipnode(&hasher, cycle[n], 1);
+        // sipnode edge mask should be nodesCount >> 1 as it would be shifted left after random number generated
+        xor0 ^= uvs[2 * n] = sipnode(&hasher, edgeMask >> 1, cycle[n], 0);
+        xor1 ^= uvs[2 * n + 1] = sipnode(&hasher, edgeMask >> 1, cycle[n], 1);
     }
 
     // matching endpoints imply zero xors
