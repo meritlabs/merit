@@ -3,6 +3,7 @@
 // Copyright (c) 2017-2017 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// inspired by https://github.com/tromp/cuckoo/commit/65cabf4651a8e572e99714699fbeb669565910af
 
 #include "cuckoo.h"
 #include "crypto/blake2/blake2.h"

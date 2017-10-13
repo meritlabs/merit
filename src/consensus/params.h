@@ -68,7 +68,7 @@ struct Params {
     uint256 defaultAssumeValid;
     /**
      * Edges to nodes ratio percent for cockoo cycles pow.
-     * The less the number, the more difficulty is
+     * The smaller the number, the higher the difficulty
      */
     uint8_t nCuckooDifficulty;
     /** Cuckoo cycle length */
