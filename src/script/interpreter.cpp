@@ -454,7 +454,25 @@ bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& s
 
                     break;
                 }
+                case OP_CHECKOUTAMOUNT:
+                {
+                    // ( out_index amount -- bool)
+                    CAmount max_amount = 0;
+                    if(!Pop(stack, max_amount, serror))
+                        return false;
 
+                    if(max_amount < 0)
+                        return set_error(serror, SCRIPT_ERR_NEGATIVE_AMOUNT);
+
+                    int output_index = 0;
+                    if(!Pop(stack, output_index, serror))
+                        return false;
+
+                    const auto success = checker.CheckOutputAmount(output_index, max_amount);
+
+                    stack.push_back(success ? vchTrue : vchFalse);
+                    break;
+                }
                 case OP_NOP1:
                 case OP_NOP6: case OP_NOP7: case OP_NOP8: case OP_NOP9: case OP_NOP10:
                 {
@@ -1433,6 +1451,18 @@ bool TransactionSignatureChecker::CheckSequence(const CScriptNum& nSequence) con
         return false;
 
     return true;
+}
+
+bool TransactionSignatureChecker::CheckOutputAmount(int index, CAmount max_amount) const
+{
+    assert(max_amount >= 0);
+    assert(txTo);
+
+    if(index < 0 || index >= txTo->vout.size())
+        return false;
+
+    const auto& out = txTo->vout[index];
+    return out.nValue <= max_amount;
 }
 
 bool TransactionSignatureChecker::CheckCoinHeight(const int maxHeight) const

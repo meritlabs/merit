@@ -158,6 +158,11 @@ public:
          return false;
     }
 
+    virtual bool CheckOutputAmount(int index, CAmount max_amount) const
+    {
+         return false;
+    }
+
     virtual bool CheckCoinHeight(const int) const
     {
          return false;
@@ -217,6 +222,7 @@ public:
 
     bool CheckLockTime(const CScriptNum& nLockTime) const override;
     bool CheckSequence(const CScriptNum& nSequence) const override;
+    bool CheckOutputAmount(int index, CAmount max_amount) const override;
     bool CheckCoinHeight(int maxHeight) const override;
 };
 
