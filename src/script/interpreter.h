@@ -158,7 +158,12 @@ public:
          return false;
     }
 
-    virtual bool CheckCoinHeight(const int) const
+    virtual int64_t GetCoinDepth() const
+    {
+         return 0;
+    }
+
+    virtual bool CheckMaxCoinDepth(const int) const
     {
          return false;
     }
@@ -217,7 +222,9 @@ public:
 
     bool CheckLockTime(const CScriptNum& nLockTime) const override;
     bool CheckSequence(const CScriptNum& nSequence) const override;
-    bool CheckCoinHeight(int maxHeight) const override;
+
+    int64_t GetCoinDepth() const override;
+    bool CheckMaxCoinDepth(int maxHeight) const override;
 };
 
 class MutableTransactionSignatureChecker : public TransactionSignatureChecker

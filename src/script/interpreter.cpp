@@ -455,7 +455,7 @@ bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& s
                     break;
                 }
 
-                case OP_NOP1: case OP_NOP5:
+                case OP_NOP1:
                 case OP_NOP6: case OP_NOP7: case OP_NOP8: case OP_NOP9: case OP_NOP10:
                 {
                     if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
@@ -1100,10 +1100,16 @@ bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& s
 
                     //first key is allowed to receive funds after the max block
                     //height is met. Other keys don't have that privilege.
-                    if(matching_key != std::begin(pub_keys) && !checker.CheckCoinHeight(max_block_depth))
+                    if(matching_key != std::begin(pub_keys) && !checker.CheckMaxCoinDepth(max_block_depth))
                         success = false;
 
                     stack.push_back(success ? vchTrue : vchFalse);
+                }
+                break;
+                case OP_COINDEPTH:
+                {
+                    CScriptNum bn{checker.GetCoinDepth()};
+                    stack.push_back(bn.getvch());
                 }
                 break;
 
@@ -1435,11 +1441,22 @@ bool TransactionSignatureChecker::CheckSequence(const CScriptNum& nSequence) con
     return true;
 }
 
-bool TransactionSignatureChecker::CheckCoinHeight(const int maxHeight) const
+int64_t TransactionSignatureChecker::GetCoinDepth() const
 {
     assert(blockHeight >= 0);
     assert(blockHeight >= coinHeight);
-    auto height = blockHeight - coinHeight;
+
+    auto depth = blockHeight - coinHeight;
+
+    assert(depth >= 0);
+    return depth;
+}
+
+bool TransactionSignatureChecker::CheckMaxCoinDepth(const int maxHeight) const
+{
+    assert(maxHeight >= 0);
+
+    auto height = GetCoinDepth();
     return maxHeight >= 0 && height <= maxHeight;
 }
 
