@@ -121,7 +121,6 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
         nHeightEnd = nHeight+nGenerate;
     }
     unsigned int nExtraNonce = 0;
-    std::set<uint32_t> cycle;
     UniValue blockHashes(UniValue::VARR);
     auto consensusParams = Params().GetConsensus();
 
@@ -135,8 +134,9 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
             LOCK(cs_main);
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
         }
+
+        std::set<uint32_t> cycle;
         while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !cuckoo::FindProofOfWork(pblock->GetHash(), pblock->nBits, cycle, consensusParams)) {
-            cycle.clear();
             ++pblock->nNonce;
             --nMaxTries;
         }
