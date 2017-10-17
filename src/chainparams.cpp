@@ -52,7 +52,6 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
 
         uint32_t nMaxTries = 10000000;
         while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, pow, params)) {
-            pow.clear();
             ++genesis.nNonce;
             --nMaxTries;
         }
