@@ -21,19 +21,22 @@ typedef std::vector<unsigned char> valtype;
 
 namespace {
 
-inline bool set_success(ScriptError* ret)
-{
-    if (ret)
-        *ret = SCRIPT_ERR_OK;
-    return true;
-}
+    // size of paramed pay-to-script-hash script before params
+    const size_t P2SH_SIZE = 23;
 
-inline bool set_error(ScriptError* ret, const ScriptError serror)
-{
-    if (ret)
-        *ret = serror;
-    return false;
-}
+    inline bool set_success(ScriptError* ret)
+    {
+        if (ret)
+            *ret = SCRIPT_ERR_OK;
+        return true;
+    }
+
+    inline bool set_error(ScriptError* ret, const ScriptError serror)
+    {
+        if (ret)
+            *ret = serror;
+        return false;
+    }
 
 } // namespace
 
@@ -1607,6 +1610,61 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
             if (pubKey2.IsWitnessProgram(witnessversion, witnessprogram)) {
                 hadWitness = true;
                 if (scriptSig != CScript() << std::vector<unsigned char>(pubKey2.begin(), pubKey2.end())) {
+                    // The scriptSig must be _exactly_ a single push of the redeemScript. Otherwise we
+                    // reintroduce malleability.
+                    return set_error(serror, SCRIPT_ERR_WITNESS_MALLEATED_P2SH);
+                }
+                if (!VerifyWitnessProgram(*witness, witnessversion, witnessprogram, flags, checker, serror)) {
+                    return false;
+                }
+                // Bypass the cleanstack check at the end. The actual stack is obviously not clean
+                // for witness programs.
+                stack.resize(1);
+            }
+        }
+    // Execute the paramed pay to script hash which appends params
+    // specified in the scriptPubKey to the script in the scriptSig
+    } else if (scriptPubKey.IsParamedPayToScriptHash()) {
+
+        if (!scriptSig.IsPushOnly())
+            return set_error(serror, SCRIPT_ERR_SIG_PUSHONLY);
+
+        swap(stack, stackCopy);
+        assert(!stack.empty());
+
+        //pop off the serialized script in the scriptSig
+        const valtype& serialized_script = stack.back();
+        CScript original_pubkey(serialized_script.begin(), serialized_script.end());
+        popstack(stack);
+
+        //copy params into a new script
+        assert(scriptPubKey.size() > P2SH_SIZE);
+        CScript script_params{scriptPubKey.begin() + P2SH_SIZE, scriptPubKey.end()};
+
+        const auto stack_size_pre_push = stack.size();
+
+        //make sure it only pushes data onto the stack and execute
+        if (!script_params.IsPushOnly())
+            return set_error(serror, SCRIPT_ERR_SIG_PARAMS_PUSHONLY);
+
+        if (!EvalScript(stack, script_params, flags, checker, SIGVERSION_BASE, serror))
+            return false;
+
+        assert(stack.size() > stack_size_pre_push);
+
+        //execute the deserialized script with params at the top of the stack.
+        //The script can then pop off params and use them in operands
+        if (!EvalScript(stack, original_pubkey, flags, checker, SIGVERSION_BASE, serror))
+            return false;
+        if (stack.empty())
+            return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
+        if (!CastToBool(stack.back()))
+            return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
+        
+        if (flags & SCRIPT_VERIFY_WITNESS) {
+            if (original_pubkey.IsWitnessProgram(witnessversion, witnessprogram)) {
+                hadWitness = true;
+                if (scriptSig != CScript() << std::vector<unsigned char>(original_pubkey.begin(), original_pubkey.end())) {
                     // The scriptSig must be _exactly_ a single push of the redeemScript. Otherwise we
                     // reintroduce malleability.
                     return set_error(serror, SCRIPT_ERR_WITNESS_MALLEATED_P2SH);
