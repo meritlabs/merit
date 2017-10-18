@@ -8,6 +8,7 @@
 #include "cuckoo.h"
 #include "crypto/blake2/blake2.h"
 #include "hash.h"
+#include "util.h"
 
 #include <stdint.h> // for types uint32_t,uint64_t
 #include <string.h> // for functions strlen, memset
@@ -21,6 +22,7 @@
 
 // number of edges
 #define NEDGES ((uint32_t)1 << EDGEBITS)
+
 // used to mask siphash output
 #define EDGEMASK ((uint32_t)NEDGES - 1)
 
@@ -94,13 +96,12 @@ int path(uint32_t* cuckoo, uint32_t u, uint32_t* us)
     int nu;
     for (nu = 0; u; u = cuckoo[u]) {
         if (++nu >= MAXPATHLEN) {
-            printf("nu is %d\n", nu);
             while (nu-- && us[nu] != u)
                 ;
             if (nu < 0)
-                printf("maximum path length exceeded\n");
+                LogPrintf("maximum path length exceeded\n");
             else
-                printf("illegal % 4d-cycle\n", MAXPATHLEN - nu);
+                LogPrintf("illegal % 4d-cycle\n", MAXPATHLEN - nu);
             exit(0);
         }
         us[nu] = u;
@@ -127,13 +128,10 @@ void solution(CuckooCtx* ctx, uint32_t* us, int nu, uint32_t* vs, int nv, std::s
     for (uint32_t nonce = n = 0; nonce < ctx->m_difficulty; nonce++) {
         edge e(sipnode(ctx->m_hasher, nonce, 0), sipnode(ctx->m_hasher, nonce, 1));
         if (cycle.find(e) != cycle.end()) {
-            // printf("%x ", nonce);
             cycle.erase(e);
             nonces.insert(nonce);
         }
     }
-
-    printf("\n");
 }
 
 bool FindCycle(const uint256& hash, std::set<uint32_t>& cycle, uint8_t proofsize, uint8_t ratio)
@@ -141,7 +139,7 @@ bool FindCycle(const uint256& hash, std::set<uint32_t>& cycle, uint8_t proofsize
     assert(ratio >= 0 && ratio <= 100);
     uint64_t difficulty = ratio * (uint64_t)NNODES / 100;
 
-    printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofsize, EDGEBITS + 1, hash.GetHex().c_str(), ratio);
+    // LogPrintf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofsize, EDGEBITS + 1, hash.GetHex().c_str(), ratio);
 
     CuckooCtx ctx(const_cast<char*>(reinterpret_cast<const char*>(hash.begin())), hash.size(), difficulty);
 
@@ -162,7 +160,7 @@ bool FindCycle(const uint256& hash, std::set<uint32_t>& cycle, uint8_t proofsize
                 ;
             int len = nu + nv + 1;
             if (len == proofsize) {
-                printf("% 4d-cycle found at %d%%\n", len, (int)(nonce * 100L / ctx.m_difficulty));
+                // LogPrintf("% 4d-cycle found at %d%%\n", len, (int)(nonce * 100L / ctx.m_difficulty));
                 solution(&ctx, us, nu, vs, nv, cycle);
                 return true;
             }
@@ -199,8 +197,10 @@ int VerifyCycle(const uint256& hash, std::vector<uint32_t>& cycle, const uint8_t
     uint32_t uvs[2 * proofsize];
     uint32_t xor0 = 0, xor1 = 0;
 
+    uint32_t mask = NNODES - 1;
+
     for (uint32_t n = 0; n < proofsize; n++) {
-        if (cycle[n] > EDGEMASK) {
+        if (cycle[n] > mask) {
             return POW_TOO_BIG;
         }
 
