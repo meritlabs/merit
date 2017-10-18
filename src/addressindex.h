@@ -27,7 +27,7 @@ struct CAddressUnspentKey {
         hashBytes.Serialize(s);
         txhash.Serialize(s);
         ser_writedata32(s, index);
-        ::Serialize(s, isCoinbase);
+        ser_writedata8(s, isCoinbase); //TODO: Make this even more compact than a byte.
     }
     template<typename Stream>
     void Unserialize(Stream& s) {
@@ -35,15 +35,15 @@ struct CAddressUnspentKey {
         hashBytes.Unserialize(s);
         txhash.Unserialize(s);
         index = ser_readdata32(s);
-        ::Unserialize(s, isCoinbase);
+        isCoinbase = ser_readdata8(s);
     }
 
-    CAddressUnspentKey(unsigned int addressType, uint160 addressHash, uint256 txid, size_t indexValue, bool coinbase) {
+    CAddressUnspentKey(unsigned int addressType, uint160 addressHash, uint256 txid, size_t indexValue, bool isCoinbaseIn) {
         type = addressType;
         hashBytes = addressHash;
         txhash = txid;
         index = indexValue;
-        isCoinbase = coinbase;
+        isCoinbase = isCoinbaseIn;
     }
 
     CAddressUnspentKey() {
