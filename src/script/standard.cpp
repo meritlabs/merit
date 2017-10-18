@@ -319,6 +319,24 @@ CScript GetScriptForEasySend(
         << OP_EASYSEND;
 }
 
+CScript GetScriptForVault(
+        const CPubKey& spendkey,
+        const CPubKey& resetkey)
+{
+    //TODO: Write actual script here. This is a placeholder dummy
+    return CScript() 
+        << ToByteVector(spendkey) 
+        << ToByteVector(resetkey)  
+        << OP_TRUE;
+}
+
+CScript GetParamedP2SH(const CScriptID& dest)
+{
+    CScript script;
+    script << OP_HASH160 << ToByteVector(dest) << OP_EQUALVERIFY;
+    return script;
+}
+
 CScript GetScriptForRawPubKey(const CPubKey& pubKey)
 {
     return CScript() << std::vector<unsigned char>(pubKey.begin(), pubKey.end()) << OP_CHECKSIG;

@@ -19,6 +19,8 @@ class CScript;
 class CTransaction;
 class uint256;
 
+using Stack = std::vector<std::vector<unsigned char>>;
+
 /** Signature hash types/flags */
 enum
 {
@@ -248,7 +250,7 @@ public:
 };
 
 bool EvalScript(
-        std::vector<std::vector<unsigned char> >& stack,
+        Stack& stack,
         const CScript& script,
         unsigned int flags,
         const BaseSignatureChecker& checker,

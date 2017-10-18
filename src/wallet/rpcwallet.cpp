@@ -549,6 +549,7 @@ static UniValue EasySend(
     ret.push_back(Pair("secret", HexStr(secret.substr(0, RANDOM_BYTES_SIZE))));
     ret.push_back(Pair("scriptid", EncodeDestination(script_id)));
     ret.push_back(Pair("senderpubkey", HexStr(sender_pub)));
+    ret.push_back(Pair("maxblocks", max_blocks));
 
     return ret;
 }
@@ -912,6 +913,87 @@ UniValue easyreceive(const JSONRPCRequest& request)
             fSubtractFeeFromAmount,
             wtx,
             coin_control);
+}
+
+UniValue createvault(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp)
+        throw std::runtime_error(
+            "createvault\n"
+            "\nSend an amount to a given channel.\n"
+            + HelpRequiringPassphrase(pwallet) +
+            "\nArguments:\n"
+            "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+            "2. \"password\"           (numeric) Optional password to further secure the transaction.\n"
+            "3. blocktimeout           (numeric) The amount of blocks the transaction can be buried until the receiver cannot accept funds\n"
+            "4. subtractfeefromamount  (boolean, optional, default=false) The fee will be deducted from the amount being sent.\n"
+            "                             The recipient will receive less merits than you enter in the amount field.\n"
+            "5. \"estimate_mode\"      (string, optional, default=UNSET) The fee estimate mode, must be one of:\n"
+            "       \"UNSET\"\n"
+            "       \"ECONOMICAL\"\n"
+            "       \"CONSERVATIVE\"\n"
+            "\nResult:\n"
+            "\"txid\"                  (string) The transaction id.\n"
+            "\"pub\"                   (string) Escrow public key in hex.\n"
+            "\nExamples:\n"
+            + HelpExampleCli("easysend", "0.1")
+            + HelpExampleCli("easysend", "0.1 abc124 100 true \"ECONOMICAL\"")
+        );
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    CReserveKey reserve_key(pwallet);
+
+    //TODO: spend_key and reset_key should actually come from cmdline
+    CPubKey spend_key;
+    if (!reserve_key.GetReservedKey(spend_key, true)) {
+        throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Keypool ran out, please call keypoolrefill first");
+    }
+
+    CPubKey reset_key;
+    if (!reserve_key.GetReservedKey(reset_key, true)) {
+        throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Keypool ran out, please call keypoolrefill first");
+    }
+
+    auto vault_script = 
+        GetScriptForVault(spend_key, reset_key);
+
+    CScriptID script_id(vault_script);
+    CScript script_pub_key = GetParamedP2SH(script_id);
+    script_pub_key << 100;
+
+
+    Stack stack;
+    ScriptError serror;
+    auto evaled = EvalScript(stack, script_pub_key, SCRIPT_VERIFY_MINIMALDATA, BaseSignatureChecker(), SIGVERSION_BASE, &serror);
+
+    std::cerr << "STACK" << std::endl;
+    for(const auto& a : stack)
+    {
+        std::cerr << "\t";
+        for(const auto& c : a)
+            std::cerr << static_cast<unsigned int>(c) << " ";
+        std::cerr << std::endl;
+    }
+
+    UniValue ret(UniValue::VOBJ);
+    ret.push_back(Pair("vault_script", ScriptToAsmStr(vault_script, true)));
+    ret.push_back(Pair("script_pub_key", ScriptToAsmStr(script_pub_key, true)));
+    ret.push_back(Pair("script_id", EncodeDestination(script_id)));
+    ret.push_back(Pair("evaled", evaled));
+
+    return ret;
+
 }
 
 UniValue listaddressgroupings(const JSONRPCRequest& request)
@@ -3921,6 +4003,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "sendtoaddress",            &sendtoaddress,            {"address","amount","comment","comment_to","subtractfeefromamount","replaceable","conf_target","estimate_mode"} },
     { "wallet",             "easysend",                 &easysend,                 {"amount", "password"} },
     { "wallet",             "easyreceive",              &easyreceive,              {"secret", "senderpubkey", "password"} },
+    { "wallet",             "createvault",              &createvault,              {} },
     { "wallet",             "setaccount",               &setaccount,               {"address","account"} },
     { "wallet",             "settxfee",                 &settxfee,                 {"amount"} },
     { "wallet",             "signmessage",              &signmessage,              {"address","message"} },

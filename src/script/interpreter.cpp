@@ -277,7 +277,13 @@ bool Pop(std::vector<std::vector<unsigned char>>& stack, Val& ret, ScriptError* 
 
 
 
-bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, SigVersion sigversion, ScriptError* serror)
+bool EvalScript(
+        Stack& stack,
+        const CScript& script,
+        unsigned int flags,
+        const BaseSignatureChecker& checker,
+        SigVersion sigversion,
+        ScriptError* serror)
 {
     static const CScriptNum bnZero(0);
     static const CScriptNum bnOne(1);
@@ -1529,7 +1535,13 @@ static bool VerifyWitnessProgram(const CScriptWitness& witness, int witversion, 
     return true;
 }
 
-bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror)
+bool VerifyScript(
+        const CScript& scriptSig,
+        const CScript& scriptPubKey,
+        const CScriptWitness* witness,
+        unsigned int flags,
+        const BaseSignatureChecker& checker,
+        ScriptError* serror)
 {
     static const CScriptWitness emptyWitness;
     if (witness == nullptr) {
@@ -1543,7 +1555,7 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
         return set_error(serror, SCRIPT_ERR_SIG_PUSHONLY);
     }
 
-    std::vector<std::vector<unsigned char> > stack, stackCopy;
+    Stack stack, stackCopy;
     if (!EvalScript(stack, scriptSig, flags, checker, SIGVERSION_BASE, serror))
         // serror is set
         return false;
