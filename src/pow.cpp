@@ -10,6 +10,7 @@
 #include "chain.h"
 #include "primitives/block.h"
 #include "uint256.h"
+#include "cuckoo/miner.h"
 
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params)
 {
@@ -72,8 +73,7 @@ unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nF
     return bnNew.GetCompact();
 }
 
-bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params& params)
-{
+bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params& params) {
     bool fNegative;
     bool fOverflow;
     arith_uint256 bnTarget;

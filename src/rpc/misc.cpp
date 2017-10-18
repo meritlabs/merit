@@ -24,9 +24,9 @@
 #include "wallet/walletdb.h"
 #endif
 #include "warnings.h"
-#include "base58.h"
 
 #include <stdint.h>
+#include <numeric>
 #ifdef HAVE_MALLOC_INFO
 #include <malloc.h>
 #endif
@@ -241,14 +241,11 @@ UniValue isaddressbeaconed(const JSONRPCRequest& request)
     CTxDestination dest = DecodeDestination(request.params[0].get_str());
     bool isValid = IsValidDestination(dest);
 
-    const auto* key = boost::get<CKeyID>(&dest);
-
-    if (key) {
-        bool isBeaconed = CheckAddressBeaconed(*key);
-        ret.push_back(Pair("isbeaconed", isBeaconed));
-    }
-
     ret.push_back(Pair("isvalid", isValid));
+
+    if (isValid) {
+        ret.push_back(Pair("isbeaconed", CheckAddressBeaconed(dest)));
+    }
 
     return ret;
 }
@@ -672,7 +669,6 @@ bool getAddressesFromParams(const UniValue& params, std::vector<std::pair<uint16
         }
         addresses.push_back(std::make_pair(hashBytes, type));
     } else if (params[0].isObject()) {
-
         UniValue addressValues = find_value(params[0].get_obj(), "addresses");
         if (!addressValues.isArray()) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Addresses is expected to be an array");
@@ -681,7 +677,6 @@ bool getAddressesFromParams(const UniValue& params, std::vector<std::pair<uint16
         std::vector<UniValue> values = addressValues.getValues();
 
         for (std::vector<UniValue>::iterator it = values.begin(); it != values.end(); ++it) {
-
             CMeritAddress address(it->get_str());
             uint160 hashBytes;
             int type = 0;
@@ -1177,27 +1172,59 @@ UniValue getspentinfo(const JSONRPCRequest& request)
     return obj;
 }
 
+CAmount GetAmount(const CMempoolAddressDelta& v) { return v.amount; }
+CAmount GetAmount(CAmount amount) { return amount; }
+
+template <class IndexPair>
+void DecorateEasySendTransactionInformation(UniValue& ret, const IndexPair& pair, bool fromMempool)
+{
+    const auto& key = pair.first;
+    ret.push_back(Pair("found", true));
+    ret.push_back(Pair("txid", key.txhash.GetHex()));
+    ret.push_back(Pair("index", static_cast<int>(key.index)));
+    ret.push_back(Pair("amount", ValueFromAmount(GetAmount(pair.second))));
+    ret.push_back(Pair("spending", key.spending));
+
+    CSpentIndexValue spent_value;
+    bool spent = false;
+    if(fromMempool) {
+        spent = mempool.getSpentIndex(
+                {key.txhash, static_cast<unsigned int>(key.index)},
+                spent_value);
+    } else {
+        spent = GetSpentIndex(
+                {key.txhash, static_cast<unsigned int>(key.index)},
+                spent_value);
+    }
+
+    if(spent) {
+        ret.push_back(Pair("spenttxid", spent_value.txid.GetHex()));
+        ret.push_back(Pair("spentindex", static_cast<int>(spent_value.inputIndex)));
+    }
+    ret.push_back(Pair("spent", spent));
+}
+
 UniValue getinputforeasysend(const JSONRPCRequest& request)
 {
     const int SCRIPT_TYPE = 2;
 
     if (request.fHelp || request.params.size() != 1 || !request.params[0].isStr())
         throw std::runtime_error(
-            "getinputforeasysend scriptaddress\n"
-            "\nReturns the txid and index where an output is spent.\n"
-            "\nArguments:\n"
-            "\"scriptaddress\" (string) Base58 address of script used in easy transaction.\n"
-            "}\n"
-            "\nResult:\n"
-            "{\n"
-            "  \"found\"  (bool) True if found otherwise false\n"
-            "  \"txid\"  (string) The transaction id\n"
-            "  \"index\"  (number) The spending input index\n"
-            "  ,...\n"
-            "}\n"
-            "\nExamples:\n"
-            + HelpExampleCli("getinputforeasysend", "mp2FqA5kiszSWREEQXBmmMmGBYwiLuGFLt")
-        );
+                "getinputforeasysend scriptaddress\n"
+                "\nReturns the txid and index where an output is spent.\n"
+                "\nArguments:\n"
+                "\"scriptaddress\" (string) Base58 address of script used in easy transaction.\n"
+                "}\n"
+                "\nResult:\n"
+                "{\n"
+                "  \"found\"  (bool) True if found otherwise false\n"
+                "  \"txid\"  (string) The transaction id\n"
+                "  \"index\"  (number) The spending input index\n"
+                "  ,...\n"
+                "}\n"
+                "\nExamples:\n"
+                + HelpExampleCli("getinputforeasysend", "mp2FqA5kiszSWREEQXBmmMmGBYwiLuGFLt")
+                );
 
     auto script_address = request.params[0].get_str();
 
@@ -1207,38 +1234,109 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid scriptaddress");
     }
 
-    std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
-    GetAddressIndex(*script_id, SCRIPT_TYPE, coins);
-    bool found = coins.size() > 0;
+    std::vector<std::pair<uint160, int> > addresses = {{*script_id, 2}};
+    std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > mempool_indexes;
+
+    mempool.getAddressIndex(addresses, mempool_indexes);
 
     UniValue ret(UniValue::VOBJ);
-    if(found) {
-        const auto& coin = coins.at(0);
-        const auto& key = coin.first;
-        const auto amount = coin.second;
-
-        ret.push_back(Pair("found", true));
-        ret.push_back(Pair("txid", key.txhash.GetHex()));
-        ret.push_back(Pair("index", static_cast<int>(key.index)));
-        ret.push_back(Pair("amount", ValueFromAmount(amount)));
-
-        CSpentIndexValue spent_value;
-        bool spent = GetSpentIndex(
-                {key.txhash, static_cast<unsigned int>(key.index)},
-                spent_value);
-
-        if(spent) {
-            ret.push_back(Pair("spenttxid", spent_value.txid.GetHex()));
-            ret.push_back(Pair("spentindex", static_cast<int>(spent_value.inputIndex)));
-        }
-
-        ret.push_back(Pair("spending", key.spending));
-        ret.push_back(Pair("spent", spent));
-
+    if(!mempool_indexes.empty()) {
+        DecorateEasySendTransactionInformation(ret, mempool_indexes[0], true);
         return ret;
+
+    } else {
+
+        std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
+        GetAddressIndex(*script_id, SCRIPT_TYPE, coins);
+
+        if(!coins.empty()) {
+            DecorateEasySendTransactionInformation(ret, coins[0], false);
+            return ret;
+        }
     }
 
+    //If we get here we didn't find a transaction with the addresss.
     ret.push_back(Pair("found", false));
+    return ret;
+}
+
+UniValue getaddressrewards(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 1)
+        throw std::runtime_error(
+            "getaddressrewards\n"
+            "\nReturns rewards for an address (requires addressindex to be enabled).\n"
+            "\nArguments:\n"
+            "{\n"
+            "  \"addresses\"\n"
+            "    [\n"
+            "      \"address\"  (string) The base58check encoded address\n"
+            "      ,...\n"
+            "    ],\n"
+            "}\n"
+            "\nResult\n"
+            "[\n"
+            "  {\n"
+            "    \"address\"  (string) The address base58check encoded\n"
+            "    \"rewards\": "
+            "       {\n"
+            "           \"mining\": x.xxxx,     (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for mining.\n"
+            "           \"ambassador\": x.xxxx, (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for being ambassador.\n"
+            "       }\n"
+            "  }\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getaddressrewards", "'{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}'")
+            );
+
+    std::vector<std::pair<uint160, int>> addresses;
+
+    if (!getAddressesFromParams(request.params, addresses)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+    }
+
+    UniValue ret(UniValue::VARR);
+
+    for (const auto& addrit : addresses) {
+        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>> unspentOutputs;
+
+        if (!GetAddressUnspent(addrit.first, addrit.second, unspentOutputs)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+        }
+
+        UniValue output(UniValue::VOBJ);
+
+        const pog::RewardsAmount rewards = std::accumulate(unspentOutputs.begin(), unspentOutputs.end(), pog::RewardsAmount{},
+            [](pog::RewardsAmount& acc, const std::pair<CAddressUnspentKey, CAddressUnspentValue>& it) {
+                const auto& key = it.first;
+                const auto& value = it.second;
+
+                if (key.isCoinbase) {
+                    if (key.index == 0) {
+                        acc.mining += value.satoshis;
+                    } else {
+                        acc.ambassador += value.satoshis;
+                    }
+                }
+
+                return acc;
+            });
+
+        std::string address;
+        if (!getAddressFromIndex(addrit.second, addrit.first, address)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unknown address type");
+        }
+
+        UniValue rewardsOutput(UniValue::VOBJ);
+
+        rewardsOutput.push_back(Pair("mining", rewards.mining));
+        rewardsOutput.push_back(Pair("ambassador", rewards.ambassador));
+
+        output.push_back(Pair("address", address));
+        output.push_back(Pair("rewards", rewardsOutput));
+
+        ret.push_back(output);
+    }
 
     return ret;
 }
@@ -1260,18 +1358,12 @@ static const CRPCCommand commands[] =
     { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       {} },
     { "addressindex",       "getaddresstxids",        &getaddresstxids,        {} },
     { "addressindex",       "getaddressbalance",      &getaddressbalance,      {} },
+    { "addressindex",       "getaddressrewards",      &getaddressrewards,      {} },
 
     /* Blockchain */
     { "blockchain",         "getspentinfo",           &getspentinfo,           {} },
     { "blockchain",         "getinputforeasysend",    &getinputforeasysend,           {"scriptaddress"} },
 
-
-    /* Address index */
-    { "addressindex",       "getaddressmempool",      &getaddressmempool,      {}},
-    { "addressindex",       "getaddressutxos",        &getaddressutxos,        {} },
-    { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       {} },
-    { "addressindex",       "getaddresstxids",        &getaddresstxids,        {} },
-    { "addressindex",       "getaddressbalance",      &getaddressbalance,      {} },
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            {"timestamp"}},

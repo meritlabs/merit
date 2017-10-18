@@ -7,8 +7,14 @@
 
 #include "refdb.h"
 
-namespace pog 
+namespace pog
 {
+    struct RewardsAmount
+    {
+        CAmount mining = 0;
+        CAmount ambassador = 0;
+    };
+
     struct AmbassadorReward
     {
         referral::Address address;
@@ -23,7 +29,7 @@ namespace pog
         CAmount remainder;
     };
 
-    AmbassadorLottery RewardAmbassadors(const referral::AddressANVs& winners, CAmount total); 
+    AmbassadorLottery RewardAmbassadors(const referral::AddressANVs& winners, CAmount total);
 
 } // namespace pog
 

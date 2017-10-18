@@ -28,7 +28,6 @@ struct CAddressUnspentKey {
         txhash.Serialize(s);
         ser_writedata32(s, index);
         ser_writedata8(s, isCoinbase); //TODO: Make this even more compact than a byte.
-
     }
     template<typename Stream>
     void Unserialize(Stream& s) {
