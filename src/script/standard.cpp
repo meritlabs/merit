@@ -28,6 +28,7 @@ const char* GetTxnOutputType(txnouttype t)
     case TX_PUBKEY: return "pubkey";
     case TX_PUBKEYHASH: return "pubkeyhash";
     case TX_SCRIPTHASH: return "scripthash";
+    case TX_PARAMETERIZED_SCRIPTHASH: return "parameterized_scripthash";
     case TX_MULTISIG: return "multisig";
     case TX_EASYSEND: return "easysend";
     case TX_NULL_DATA: return "nulldata";
@@ -37,7 +38,7 @@ const char* GetTxnOutputType(txnouttype t)
     return nullptr;
 }
 
-bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::vector<unsigned char> >& vSolutionsRet)
+bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, Solutions& vSolutionsRet)
 {
     // Templates
     static std::multimap<txnouttype, CScript> mTemplates;
@@ -61,9 +62,11 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
     // Shortcut for pay-to-script-hash or paramed-pay-to-script-hash, which are more constrained than the other types:
     // it is always OP_HASH160 20 [20 byte hash] OP_EQUAL
     // or OP_HASH160 20 [20 byte hash] OP_EQUALVERIFY [param1] [param2] ...
-    if (scriptPubKey.IsPayToScriptHash() || scriptPubKey.IsParameterizedPayToScriptHash())
+    const bool is_pay_to_script_hash =  scriptPubKey.IsPayToScriptHash();
+    const bool is_parameterized_pay_to_script_hash = scriptPubKey.IsParameterizedPayToScriptHash();
+    if (is_pay_to_script_hash || is_parameterized_pay_to_script_hash)
     {
-        typeRet = TX_SCRIPTHASH;
+        typeRet = is_pay_to_script_hash ? TX_SCRIPTHASH : TX_PARAMETERIZED_SCRIPTHASH;
         std::vector<unsigned char> hashBytes(scriptPubKey.begin()+2, scriptPubKey.begin()+22);
         vSolutionsRet.push_back(hashBytes);
         return true;

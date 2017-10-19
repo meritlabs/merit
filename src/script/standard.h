@@ -61,6 +61,7 @@ enum txnouttype
     TX_PUBKEY,
     TX_PUBKEYHASH,
     TX_SCRIPTHASH,
+    TX_PARAMETERIZED_SCRIPTHASH,
     TX_MULTISIG,
     TX_EASYSEND,
     TX_NULL_DATA, //!< unspendable OP_RETURN script that carries data
@@ -89,6 +90,12 @@ bool IsValidDestination(const CTxDestination& dest);
 /** Get the name of a txnouttype as a C string, or nullptr if unknown. */
 const char* GetTxnOutputType(txnouttype t);
 
+
+/**
+ *  PubKeys or Hashes returned in Solver
+ */
+using Solutions = std::vector<std::vector<unsigned char> >;
+
 /**
  * Parse a scriptPubKey and identify script type for standard scripts. If
  * successful, returns script type and parsed pubkeys or hashes, depending on
@@ -100,7 +107,7 @@ const char* GetTxnOutputType(txnouttype t);
  * @param[out]  vSolutionsRet  Vector of parsed pubkeys and hashes
  * @return                     True if script matches standard template
  */
-bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::vector<unsigned char> >& vSolutionsRet);
+bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, Solutions& vSolutionsRet);
 
 /**
  * Parse a standard scriptPubKey for the destination address. Assigns result to

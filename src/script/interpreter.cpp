@@ -12,6 +12,7 @@
 #include "crypto/sha256.h"
 #include "pubkey.h"
 #include "script/script.h"
+#include "script/standard.h"
 #include "uint256.h"
 #include "util.h"
 
@@ -274,8 +275,18 @@ bool Pop(std::vector<std::vector<unsigned char>>& stack, Val& ret, ScriptError* 
     return true;
 }
 
-
-
+bool IsValidOutputTypeForCheckOutputSig(txnouttype type) {
+    switch(type) {
+        case TX_PUBKEYHASH:
+        case TX_SCRIPTHASH:
+        case TX_PARAMETERIZED_SCRIPTHASH:
+        case TX_WITNESS_V0_SCRIPTHASH:
+        case TX_WITNESS_V0_KEYHASH:
+            return true;
+        default:
+            return false;
+    }
+}
 
 bool EvalScript(
         Stack& stack,
@@ -1151,8 +1162,40 @@ bool EvalScript(
                                 return uint160{addrBytes};
                             });
 
-                    //TODO: Get output script and pull out addressses.
-                    //support standard, P2SH, and PRP2SH
+                    int output_index = 0;
+                    if(!Pop(stack, output_index, serror)) 
+                        return false;
+
+                    const auto* maybe_output = checker.GetTxnOutput(output_index);
+                    if(!maybe_output)
+                        return set_error(serror, SCRIPT_ERR_OUTPUT_INDEX_OUT_OF_BOUNDS);
+
+                    const auto& output_script = maybe_output->scriptPubKey;
+
+                    //quick check to see if the output script is a supported type.
+                    if(!output_script.IsStandardPayToHash())
+                        return set_error(serror, SCRIPT_ERR_OUTPUT_UNSUPPORTED);
+                    
+                    //get addresses from output type.
+                    txnouttype output_type;
+                    Solutions output_hashes;
+                    if(!Solver(output_script, output_type, output_hashes))
+                        return set_error(serror, SCRIPT_ERR_OUTPUT_UNSUPPORTED);
+
+                    //sanity check to validate we have a valid output type
+                    //after solving for the addresses.
+                    if(!IsValidOutputTypeForCheckOutputSig(output_type))
+                        return set_error(serror, SCRIPT_ERR_OUTPUT_UNSUPPORTED);
+
+                    if(output_hashes.size() != 1)
+                        return set_error(serror, SCRIPT_ERR_OUTPUT_UNSUPPORTED);
+
+                    uint160 output_addresse{output_hashes[0]};
+
+                    //TODO: check if output address is in one of the possible
+                    //addresses.
+                    //
+                    //if the address is a PRP2SH then check params
 
                 }
                 break;
@@ -1490,11 +1533,10 @@ bool TransactionSignatureChecker::CheckOutputAmount(int index, CAmount max_amoun
     assert(max_amount >= 0);
     assert(txTo);
 
-    if(index < 0 || index >= txTo->vout.size())
-        return false;
+    const auto* out = GetTxnOutput(index);
+    if(!out) return false;
 
-    const auto& out = txTo->vout[index];
-    return out.nValue <= max_amount;
+    return out->nValue <= max_amount;
 }
 
 bool TransactionSignatureChecker::CheckCoinHeight(const int maxHeight) const
@@ -1503,6 +1545,16 @@ bool TransactionSignatureChecker::CheckCoinHeight(const int maxHeight) const
     assert(blockHeight >= coinHeight);
     auto height = blockHeight - coinHeight;
     return maxHeight >= 0 && height <= maxHeight;
+}
+
+const CTxOut* TransactionSignatureChecker::GetTxnOutput(int index) const
+{
+    assert(txTo);
+
+    if(index < 0 || index >= static_cast<int>(txTo->vout.size()))
+        return nullptr;
+
+    return &txTo->vout[index];
 }
 
 static bool VerifyWitnessProgram(const CScriptWitness& witness, int witversion, const std::vector<unsigned char>& program, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror)

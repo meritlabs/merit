@@ -170,6 +170,11 @@ public:
          return false;
     }
 
+    virtual const CTxOut* GetTxnOutput(int index) const
+    {
+        return nullptr;
+    }
+
     virtual ~BaseSignatureChecker() {}
 };
 
@@ -226,6 +231,7 @@ public:
     bool CheckSequence(const CScriptNum& nSequence) const override;
     bool CheckOutputAmount(int index, CAmount max_amount) const override;
     bool CheckCoinHeight(int maxHeight) const override;
+    const CTxOut* GetTxnOutput(int index) const override;
 };
 
 class MutableTransactionSignatureChecker : public TransactionSignatureChecker

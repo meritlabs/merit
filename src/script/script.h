@@ -653,6 +653,18 @@ public:
     bool IsPayToScriptHash() const;
     bool IsParameterizedPayToScriptHash() const;
     bool IsPayToWitnessScriptHash() const;
+
+    /**
+     * Returns tre if the script pays to one of the standard pay to hash types
+     * listed here.
+     * 
+     * - Pay To Public Key Hash
+     * - Pay To Script Hash
+     * - Parameterized Pay To Script Hash
+     * - Pay To Witness Script Hash
+     */
+    bool IsStandardPayToHash() const;
+
     bool IsWitnessProgram(int& version, std::vector<unsigned char>& program) const;
 
     /** Called by IsStandardTx and P2SH/BIP62 VerifyScript (which makes it consensus-critical). */

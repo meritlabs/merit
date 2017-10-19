@@ -249,9 +249,13 @@ bool SignSignature(const CKeyStore &keystore, const CTransaction& txFrom, CMutab
     return SignSignature(keystore, txout.scriptPubKey, txTo, nIn, txout.nValue, nHashType);
 }
 
-static std::vector<valtype> CombineMultisig(const CScript& scriptPubKey, const BaseSignatureChecker& checker,
-                               const std::vector<valtype>& vSolutions,
-                               const std::vector<valtype>& sigs1, const std::vector<valtype>& sigs2, SigVersion sigversion)
+static std::vector<valtype> CombineMultisig(
+        const CScript& scriptPubKey,
+        const BaseSignatureChecker& checker,
+        const std::vector<valtype>& vSolutions,
+        const std::vector<valtype>& sigs1,
+        const std::vector<valtype>& sigs2,
+        SigVersion sigversion)
 {
     // Combine all the signatures we've got:
     std::set<valtype> allsigs;
