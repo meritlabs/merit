@@ -969,15 +969,19 @@ UniValue createvault(const JSONRPCRequest& request)
         GetScriptForVault(spend_key, reset_key);
 
     CScriptID script_id(vault_script);
-    CScript script_pub_key = GetParamedP2SH(script_id);
+    auto script_pub_key = GetParamedP2SH(script_id);
     script_pub_key << 100;
 
 
     Stack stack;
     ScriptError serror;
+
+    stack.push_back(std::vector<unsigned char>(vault_script.begin(), vault_script.end()));
+
     auto evaled = EvalScript(stack, script_pub_key, SCRIPT_VERIFY_MINIMALDATA, BaseSignatureChecker(), SIGVERSION_BASE, &serror);
 
     std::cerr << "STACK" << std::endl;
+    std::cerr << "ERR" << ScriptErrorString(serror) << std::endl;
     for(const auto& a : stack)
     {
         std::cerr << "\t";
@@ -3268,7 +3272,17 @@ UniValue listunspent(const JSONRPCRequest& request)
     assert(pwallet != nullptr);
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    pwallet->AvailableCoins(vecOutputs, !include_unsafe, nullptr, nMinimumAmount, nMaximumAmount, nMinimumSumAmount, nMaximumCount, nMinDepth, nMaxDepth);
+    pwallet->AvailableCoins(
+            vecOutputs,
+            !include_unsafe,
+            nullptr,
+            nMinimumAmount,
+            nMaximumAmount,
+            nMinimumSumAmount,
+            nMaximumCount,
+            nMinDepth,
+            nMaxDepth);
+
     for (const COutput& out : vecOutputs) {
         CTxDestination address;
         const CScript& scriptPubKey = out.tx->tx->vout[out.i].scriptPubKey;
@@ -3285,10 +3299,11 @@ UniValue listunspent(const JSONRPCRequest& request)
             entry.push_back(Pair("address", EncodeDestination(address)));
 
             if (pwallet->mapAddressBook.count(address)) {
-                entry.push_back(Pair("account", pwallet->mapAddressBook[address].name));
+                entry.push_back(
+                        Pair("account", pwallet->mapAddressBook[address].name));
             }
 
-            if (scriptPubKey.IsPayToScriptHash()) {
+            if (scriptPubKey.IsPayToScriptHash() || scriptPubKey.IsPayToScriptHash()) {
                 const CScriptID& hash = boost::get<CScriptID>(address);
                 CScript redeemScript;
                 if (pwallet->GetCScript(hash, redeemScript)) {

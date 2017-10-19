@@ -2029,13 +2029,13 @@ AddressPair ExtractAddress(const CTxOut& tout)
     int addressType = 0;
 
     if (tout.scriptPubKey.IsPayToPublicKey()) {
-        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin(), tout.scriptPubKey.begin()+20));
+        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin(), tout.scriptPubKey.begin()+20));
         addressType = 3;
-    } else if (tout.scriptPubKey.IsPayToScriptHash()) {
-        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
+    } else if (tout.scriptPubKey.IsPayToScriptHash() || tout.scriptPubKey.IsParamedPayToScriptHash()) {
+        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
         addressType = 2;
     } else if (tout.scriptPubKey.IsPayToPublicKeyHash()) {
-        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+3, tout.scriptPubKey.begin()+23));
+        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin()+3, tout.scriptPubKey.begin()+23));
         addressType = 1;
     }
 
@@ -2187,7 +2187,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
             for (unsigned int k = tx.vout.size(); k-- > 0;) {
                 const CTxOut &out = tx.vout[k];
 
-                if (out.scriptPubKey.IsPayToScriptHash()) {
+                if (out.scriptPubKey.IsPayToScriptHash() || out.scriptPubKey.IsParamedPayToScriptHash()) {
                     std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
 
                     // undo receiving activity

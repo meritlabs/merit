@@ -1641,6 +1641,10 @@ bool VerifyScript(
         if (!scriptSig.IsPushOnly())
             return set_error(serror, SCRIPT_ERR_SIG_PUSHONLY);
 
+        //at this point the stack should have only the params nessasary.
+        auto param_stack = stack;
+
+        //swap stack back to what is was after evaluating scriptSig
         swap(stack, stackCopy);
         assert(!stack.empty());
 
@@ -1649,20 +1653,17 @@ bool VerifyScript(
         CScript original_pubkey(serialized_script.begin(), serialized_script.end());
         popstack(stack);
 
-        //copy params into a new script
+        //Even though we already have the params of the stack we need
+        //We copy the params into a script and evaluate that they are push only
         assert(scriptPubKey.size() > P2SH_SIZE);
         CScript script_params{scriptPubKey.begin() + P2SH_SIZE, scriptPubKey.end()};
+        assert(script_params.size() == param_stack.size());
 
-        const auto stack_size_pre_push = stack.size();
-
-        //make sure it only pushes data onto the stack and execute
+        //make sure it only pushes data onto the stack
         if (!script_params.IsPushOnly())
             return set_error(serror, SCRIPT_ERR_SIG_PARAMS_PUSHONLY);
 
-        if (!EvalScript(stack, script_params, flags, checker, SIGVERSION_BASE, serror))
-            return false;
-
-        assert(stack.size() > stack_size_pre_push);
+        stack.insert(stack.end(), param_stack.begin(), param_stack.end());
 
         //execute the deserialized script with params at the top of the stack.
         //The script can then pop off params and use them in operands
@@ -1717,14 +1718,22 @@ bool VerifyScript(
     return set_success(serror);
 }
 
-size_t static WitnessSigOps(int witversion, const std::vector<unsigned char>& witprogram, const CScriptWitness& witness, int flags)
+size_t static WitnessSigOps(
+        int witversion,
+        const std::vector<unsigned char>& witprogram,
+        const CScriptWitness& witness,
+        int flags)
 {
     if (witversion == 0) {
         if (witprogram.size() == 20)
             return 1;
 
         if (witprogram.size() == 32 && witness.stack.size() > 0) {
-            CScript subscript(witness.stack.back().begin(), witness.stack.back().end());
+
+            CScript subscript(
+                    witness.stack.back().begin(),
+                    witness.stack.back().end());
+
             return subscript.GetSigOpCount(true);
         }
     }
@@ -1733,7 +1742,11 @@ size_t static WitnessSigOps(int witversion, const std::vector<unsigned char>& wi
     return 0;
 }
 
-size_t CountWitnessSigOps(const CScript& scriptSig, const CScript& scriptPubKey, const CScriptWitness* witness, unsigned int flags)
+size_t CountWitnessSigOps(
+        const CScript& scriptSig,
+        const CScript& scriptPubKey,
+        const CScriptWitness* witness,
+        unsigned int flags)
 {
     static const CScriptWitness witnessEmpty;
 
@@ -1745,16 +1758,23 @@ size_t CountWitnessSigOps(const CScript& scriptSig, const CScript& scriptPubKey,
     int witnessversion;
     std::vector<unsigned char> witnessprogram;
     if (scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram)) {
-        return WitnessSigOps(witnessversion, witnessprogram, witness ? *witness : witnessEmpty, flags);
+        return WitnessSigOps(
+                witnessversion,
+                witnessprogram,
+                witness ? *witness : witnessEmpty,
+                flags);
     }
 
-    if (scriptPubKey.IsPayToScriptHash() && scriptSig.IsPushOnly()) {
+    if ((scriptPubKey.IsPayToScriptHash() || scriptPubKey.IsParamedPayToScriptHash()) 
+            && scriptSig.IsPushOnly()) {
+
         CScript::const_iterator pc = scriptSig.begin();
         std::vector<unsigned char> data;
         while (pc < scriptSig.end()) {
             opcodetype opcode;
             scriptSig.GetOp(pc, opcode, data);
         }
+
         CScript subscript(data.begin(), data.end());
         if (subscript.IsWitnessProgram(witnessversion, witnessprogram)) {
             return WitnessSigOps(witnessversion, witnessprogram, witness ? *witness : witnessEmpty, flags);
