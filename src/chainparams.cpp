@@ -66,7 +66,7 @@ static CBlock CreateGenesisBlock(
 
         double time;
 
-        while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, pow, params, &time)) {
+        while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, pow, params, time)) {
             ++genesis.nNonce;
             --nMaxTries;
             printf("genesis.nNonce is %d\n", genesis.nNonce);
