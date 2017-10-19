@@ -603,7 +603,7 @@ static void MutateTxSign(CMutableTransaction& tx, const std::string& flagStr)
             // add redeemScript to the tempKeystore so it can be signed:
             if ((
                 scriptPubKey.IsPayToScriptHash() ||
-                scriptPubKey.IsParamedPayToScriptHash() || 
+                scriptPubKey.IsParameterizedPayToScriptHash() || 
                 scriptPubKey.IsPayToWitnessScriptHash()) 
                     && prevOut.exists("redeemScript")) {
 

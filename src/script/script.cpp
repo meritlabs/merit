@@ -186,7 +186,7 @@ unsigned int CScript::GetSigOpCount(bool fAccurate) const
 
 unsigned int CScript::GetSigOpCount(const CScript& scriptSig) const
 {
-    if (!(IsPayToScriptHash() || IsParamedPayToScriptHash()))
+    if (!(IsPayToScriptHash() || IsParameterizedPayToScriptHash()))
         return GetSigOpCount(true);
 
     // This is a pay-to-script-hash scriptPubKey;
@@ -234,7 +234,7 @@ bool CScript::IsPayToScriptHash() const
             (*this)[22] == OP_EQUAL);
 }
 
-bool CScript::IsParamedPayToScriptHash() const
+bool CScript::IsParameterizedPayToScriptHash() const
 {
     return (this->size() > 23 &&
             (*this)[0] == OP_HASH160 &&

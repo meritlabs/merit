@@ -145,10 +145,10 @@ CScript GetScriptForVault(
         const CPubKey& reeetkey);
 
 /**
- * Constructs a Paramed P2SH. You can push params onto script after calling
+ * Constructs a Parameterized P2SH. You can push params onto script after calling
  * this. 
  */
-CScript GetParamedP2SH(const CScriptID& dest);
+CScript GetParameterizedP2SH(const CScriptID& dest);
 
 /** Generate a P2PK script for the given pubkey. */
 CScript GetScriptForRawPubKey(const CPubKey& pubkey);

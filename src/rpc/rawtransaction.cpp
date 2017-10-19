@@ -966,7 +966,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
             if (
                     fGivenKeys &&
                     (scriptPubKey.IsPayToScriptHash() ||
-                     scriptPubKey.IsParamedPayToScriptHash() ||
+                     scriptPubKey.IsParameterizedPayToScriptHash() ||
                      scriptPubKey.IsPayToWitnessScriptHash())) {
 
                 RPCTypeCheckObj(prevOut,

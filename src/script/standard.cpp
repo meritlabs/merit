@@ -61,7 +61,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
     // Shortcut for pay-to-script-hash or paramed-pay-to-script-hash, which are more constrained than the other types:
     // it is always OP_HASH160 20 [20 byte hash] OP_EQUAL
     // or OP_HASH160 20 [20 byte hash] OP_EQUALVERIFY [param1] [param2] ...
-    if (scriptPubKey.IsPayToScriptHash() || scriptPubKey.IsParamedPayToScriptHash())
+    if (scriptPubKey.IsPayToScriptHash() || scriptPubKey.IsParameterizedPayToScriptHash())
     {
         typeRet = TX_SCRIPTHASH;
         std::vector<unsigned char> hashBytes(scriptPubKey.begin()+2, scriptPubKey.begin()+22);
@@ -331,7 +331,7 @@ CScript GetScriptForVault(
         << OP_TRUE;
 }
 
-CScript GetParamedP2SH(const CScriptID& dest)
+CScript GetParameterizedP2SH(const CScriptID& dest)
 {
     CScript script;
     script << OP_HASH160 << ToByteVector(dest) << OP_EQUALVERIFY;

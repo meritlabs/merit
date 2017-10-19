@@ -1152,7 +1152,7 @@ bool EvalScript(
                             });
 
                     //TODO: Get output script and pull out addressses.
-                    //support standard, P2SH, and PP2SH
+                    //support standard, P2SH, and PRP2SH
 
                 }
                 break;
@@ -1659,7 +1659,7 @@ bool VerifyScript(
         }
     // Execute the paramed pay to script hash which appends params
     // specified in the scriptPubKey to the script in the scriptSig
-    } else if (scriptPubKey.IsParamedPayToScriptHash()) {
+    } else if (scriptPubKey.IsParameterizedPayToScriptHash()) {
 
         if (!scriptSig.IsPushOnly())
             return set_error(serror, SCRIPT_ERR_SIG_PUSHONLY);
@@ -1788,7 +1788,7 @@ size_t CountWitnessSigOps(
                 flags);
     }
 
-    if ((scriptPubKey.IsPayToScriptHash() || scriptPubKey.IsParamedPayToScriptHash()) 
+    if ((scriptPubKey.IsPayToScriptHash() || scriptPubKey.IsParameterizedPayToScriptHash()) 
             && scriptSig.IsPushOnly()) {
 
         CScript::const_iterator pc = scriptSig.begin();
