@@ -12,21 +12,6 @@
 #include <stdint.h> // for types uint32_t,uint64_t
 #include <string.h> // for functions strlen, memset
 
-// proof-of-work parameters
-#ifndef EDGEBITS
-// the main parameter is the 2-log of the graph size,
-// which is the size in bits of the node identifiers
-#define EDGEBITS 19
-#endif
-
-// number of edges
-#define NEDGES ((uint32_t)1 << EDGEBITS)
-// used to mask siphash output
-#define EDGEMASK ((uint32_t)NEDGES - 1)
-
-// assume EDGEBITS < 31
-#define NNODES (2 * NEDGES)
-
 #define MAXPATHLEN 8192
 
 const char* errstr[] = {
@@ -141,15 +126,15 @@ bool FindCycle(const uint256& hash, const uint8_t nNodesBits, std::set<uint32_t>
     assert(ratio >= 0 && ratio <= 100);
     assert(nNodesBits <= 32);
 
-    printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofsize, EDGEBITS + 1, hash.GetHex().c_str(), ratio);
+    printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofsize, nNodesBits, hash.GetHex().c_str(), ratio);
 
     // edge mask is a max valid value of an edge.
     uint32_t edgeMask = (1 << (nNodesBits - 2)) - 1;
 
     uint32_t nodesCount = 1 << (nNodesBits - 1);
-    uint32_t difficulty = ratio / 100 * nodesCount;
+    uint32_t difficulty = ratio * (uint64_t)nodesCount / 100;
 
-    // printf("nNodesBits: %d, nodesCount: %zu, nodesCount: %x, edgeMask: %x\n", nNodesBits, nodesCount, nodesCount, edgeMask);
+    // printf("nNodesBits: %d, nodesCount: %zu, nodesCount: %x, edgeMask: %x, difficulty: %d\n", nNodesBits, nodesCount, nodesCount, edgeMask, difficulty);
 
     CuckooCtx ctx(const_cast<char*>(reinterpret_cast<const char*>(hash.begin())), hash.size(), difficulty, nodesCount);
 

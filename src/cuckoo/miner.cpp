@@ -5,6 +5,7 @@
 #include "cuckoo.h"
 #include "hash.h"
 #include "pow.h"
+#include "utiltime.h"
 #include <assert.h>
 #include <numeric>
 #include <set>
@@ -12,14 +13,17 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <vector>
-#include <ctime>
 
 namespace cuckoo
 {
-bool FindProofOfWork(uint256 hash, unsigned int nBits, uint8_t nNodesBits, std::set<uint32_t>& cycle, const Consensus::Params& params)
+bool FindProofOfWork(uint256 hash, unsigned int nBits, uint8_t nNodesBits, std::set<uint32_t>& cycle, const Consensus::Params& params, double& time)
 {
     assert(cycle.empty());
+    auto begin = GetTime();
     auto res = FindCycle(hash, nNodesBits, cycle, params.nCuckooProofSize, params.nCuckooDifficulty);
+    auto end = GetTime();
+
+    time = end - begin;
 
     // if cycle is found check that hash of that cycle is less than a difficulty (old school bitcoin pow)
     if (res && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {

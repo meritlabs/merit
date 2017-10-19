@@ -62,9 +62,14 @@ static CBlock CreateGenesisBlock(
         std::set<uint32_t> pow;
 
         uint32_t nMaxTries = 10000000;
-        while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, pow, params)) {
+        printf("genesis.nNonce is %d\n", genesis.nNonce);
+
+        double time;
+
+        while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, pow, params, &time)) {
             ++genesis.nNonce;
             --nMaxTries;
+            printf("genesis.nNonce is %d\n", genesis.nNonce);
         }
 
         if (nMaxTries == 0) {
@@ -224,8 +229,7 @@ public:
         consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35; //35%
         consensus.total_winning_ambassadors = 5;
-
-        consensus.nCuckooDifficulty = 50;
+        consensus.nCuckooDifficulty = 60;
         consensus.nCuckooProofSize = 42;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
@@ -249,7 +253,8 @@ public:
             0x23c84, 0x292f3, 0x2cebd, 0x2e462, 0x33017, 0x36007, 0x37ec9, 0x39c79, 0x3b732, 0x3dbc1, 0x3de21, 0x3f174,
             0x40b09, 0x41041, 0x428ab, 0x47f43, 0x4a6c4, 0x4b045, 0x53967, 0x54b89, 0x54bd0, 0x581f5, 0x5d4f0, 0x5e2a9,
             0x60928, 0x63b0f, 0x66945, 0x6b9f6, 0x709c2, 0x77464, 0x7cc1a, 0x7dbcf};
-        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 32, 1, 50 * COIN, consensus, true);
+        // TODO: Why nonce is 365 here???
+        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 28, 1, 50 * COIN, consensus, true);
         genesis.m_sCycle = pow;
 
         consensus.hashGenesisBlock = genesis.GetHash();
