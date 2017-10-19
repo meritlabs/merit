@@ -483,7 +483,7 @@ bool EvalScript(
                     break;
                 }
                 case OP_NOP1:
-                case OP_NOP6: case OP_NOP7: case OP_NOP8: case OP_NOP9: case OP_NOP10:
+                case OP_NOP7: case OP_NOP8: case OP_NOP9: case OP_NOP10:
                 {
                     if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
                         return set_error(serror, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);
@@ -1131,6 +1131,29 @@ bool EvalScript(
                         success = false;
 
                     stack.push_back(success ? vchTrue : vchFalse);
+                }
+                break;
+                case OP_CHECKOUTPUTSIG:
+                {
+                    size_t possible_address_count = 0;
+                    if(!Pop(stack, possible_address_count, serror)) 
+                        return false;
+
+                    if(possible_address_count < 1)
+                        return set_error(serror, SCRIPT_ERR_BAD_ADDRESS_COUNT);
+
+                    std::vector<uint160> possible_addresses(possible_address_count);
+                    std::generate_n(std::begin(possible_addresses), possible_address_count, 
+                            [&stack, serror]() {
+                                valtype addrBytes;
+                                if(!Pop(stack, addrBytes, serror))
+                                    throw std::runtime_error{"popstack(): expected key"};
+                                return uint160{addrBytes};
+                            });
+
+                    //TODO: Get output script and pull out addressses.
+                    //support standard, P2SH, and PP2SH
+
                 }
                 break;
 

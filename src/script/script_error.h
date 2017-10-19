@@ -47,6 +47,9 @@ typedef enum ScriptError_t
     SCRIPT_ERR_NEGATIVE_AMOUNT,
     SCRIPT_ERR_SIG_PARAMS_PUSHONLY,
 
+    /** CHECKOUTSIG **/
+    SCRIPT_ERR_BAD_ADDRESS_COUNT,
+
     /* Malleability */
     SCRIPT_ERR_SIG_HASHTYPE,
     SCRIPT_ERR_SIG_DER,
