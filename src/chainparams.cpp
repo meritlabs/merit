@@ -246,16 +246,16 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        std::set<uint32_t> pow = {0x10d96, 0x1a72f, 0x1b48e, 0x1fdb3, 0x24d3d, 0x26a04, 0x2961e, 0x347ed, 0x412a6, 0x59679,
-            0x627fb, 0x695c7, 0x7c4e2, 0x7f47d, 0x83184, 0x86562, 0x899ce, 0x8ff7e, 0x9507b, 0x95891, 0x98e31, 0x9c651,
-            0x9c761, 0x9de0e, 0xa1858, 0xa6afe, 0xa713e, 0xaba8f, 0xadc5b, 0xc6524, 0xca45f, 0xce0e1, 0xd1af0, 0xd219e,
-            0xeb3ec, 0xf88cb, 0x100c03, 0x10abaf, 0x1108be, 0x121302, 0x12c2e1, 0x12c982};
+        std::set<uint32_t> pow = {0x553, 0x2569, 0x3eb5, 0x4d78, 0x6101, 0x6a0f, 0x6e22, 0x6f77, 0x960c, 0xc912, 0x137e6,
+            0x16a9b, 0x1b08c, 0x1b6b1, 0x1eb9b, 0x1f10d, 0x206ae, 0x20bbe, 0x21330, 0x24e60, 0x259e8, 0x27d95, 0x27e18,
+            0x29cbb, 0x2c2bf, 0x2cf17, 0x2ddf6, 0x2e2b6, 0x2eba6, 0x2f1ba, 0x31045, 0x31c65, 0x31cfd, 0x31eb6, 0x33be5,
+            0x3519d, 0x3d46f, 0x3e252, 0x404bd, 0x40be5, 0x447e6, 0x4a59b};
         // TODO: Why nonce is 365 here???
-        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 22, 60, 1, 50 * COIN, consensus, false);
+        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 20, 60, 1, 50 * COIN, consensus, false);
         genesis.sCycle = pow;
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("4702562cf0b7fd2f20ed348bdfbcd7763caa0ad8be1cd766e872364a425005bc"));
+        assert(consensus.hashGenesisBlock == uint256S("f6b791c2c2b87f4a90042c26188fdd76591afe7d7cabb64c91effcd1737e6070"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
         vFixedSeeds.clear();

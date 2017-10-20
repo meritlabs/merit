@@ -72,7 +72,7 @@ if BUILD_MERITD
 endif
 
 if BUILD_MERIT_UTILS
-  bin_PROGRAMS += merit-cli
+  bin_PROGRAMS += merit-cli merit-tx
 endif
 
 .PHONY: FORCE check-symbols check-security
