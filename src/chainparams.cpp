@@ -170,10 +170,16 @@ public:
         nDefaultPort = 8445;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1503515697, 0, 0x207fffff, 32, 50, 1, 50 * COIN, consensus, false);
-        consensus.hashGenesisBlock = genesis.GetHash();
+        genesis = CreateGenesisBlock(1503515697, 131, 0x207fffff, 28, 50, 1, 50 * COIN, consensus, false);
 
-        assert(consensus.hashGenesisBlock == uint256S("43ca943c27513e6bfcf554c0afce0f2613d2a7346b9f0ac3d5f947462a128399"));
+        genesis.sCycle = {0x2077a, 0x4cbf3b, 0x60b30c, 0x6ff5d8, 0x992011, 0xb805cd, 0xbc47eb, 0xbf5169, 0xc1918c,
+            0xe87071, 0xfac34a, 0x1145fcb, 0x14c597e, 0x155646c, 0x174d8d0, 0x18b83c6, 0x19fd75a, 0x1a12b40, 0x1a7637e,
+            0x1adadd9, 0x1c0994f, 0x1e007ad, 0x22a00a2, 0x2374c5e, 0x276f9f4, 0x27910f8, 0x286c27a, 0x2a6f7c5, 0x2aee0e6,
+            0x2b6182f, 0x2c9174d, 0x2cc3922, 0x305c560, 0x340d0de, 0x34f3cc5, 0x36be4cd, 0x390c947, 0x3a90c9c, 0x3d40295,
+            0x3e31d30, 0x3e32e42, 0x3fe989b};
+
+        consensus.hashGenesisBlock = genesis.GetHash();
+        assert(consensus.hashGenesisBlock == uint256S("e69d09e1479a52cf739ba605a05d5abc85b0a70768b010d3f2c0c84fe75f2cef"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
         // Note that of those with the service bits flag, most only support a subset of possible options
@@ -198,7 +204,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("43ca943c27513e6bfcf554c0afce0f2613d2a7346b9f0ac3d5f947462a128399")},
+                {0, uint256S("e69d09e1479a52cf739ba605a05d5abc85b0a70768b010d3f2c0c84fe75f2cef")},
             }
         };
 
@@ -246,13 +252,12 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        std::set<uint32_t> pow = {0x553, 0x2569, 0x3eb5, 0x4d78, 0x6101, 0x6a0f, 0x6e22, 0x6f77, 0x960c, 0xc912, 0x137e6,
+        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 20, 60, 1, 50 * COIN, consensus, false);
+
+        genesis.sCycle = {0x553, 0x2569, 0x3eb5, 0x4d78, 0x6101, 0x6a0f, 0x6e22, 0x6f77, 0x960c, 0xc912, 0x137e6,
             0x16a9b, 0x1b08c, 0x1b6b1, 0x1eb9b, 0x1f10d, 0x206ae, 0x20bbe, 0x21330, 0x24e60, 0x259e8, 0x27d95, 0x27e18,
             0x29cbb, 0x2c2bf, 0x2cf17, 0x2ddf6, 0x2e2b6, 0x2eba6, 0x2f1ba, 0x31045, 0x31c65, 0x31cfd, 0x31eb6, 0x33be5,
             0x3519d, 0x3d46f, 0x3e252, 0x404bd, 0x40be5, 0x447e6, 0x4a59b};
-
-        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 20, 60, 1, 50 * COIN, consensus, true);
-        genesis.sCycle = pow;
 
         consensus.hashGenesisBlock = genesis.GetHash();
         assert(consensus.hashGenesisBlock == uint256S("f6b791c2c2b87f4a90042c26188fdd76591afe7d7cabb64c91effcd1737e6070"));
@@ -330,13 +335,12 @@ public:
         nDefaultPort = 18556;
         nPruneAfterHeight = 1000;
 
-        std::set<uint32_t> pow = {0x5dd, 0x10f3, 0x1725, 0x2336, 0x2f81, 0x336a, 0x3425, 0x3cc8, 0x4ec0, 0x57e7, 0x5ff5,
+        genesis = CreateGenesisBlock(1503670484, 55, 0x207fffff, 18, 60, 1, 50 * COIN, consensus, false);
+
+        genesis.sCycle = {0x5dd, 0x10f3, 0x1725, 0x2336, 0x2f81, 0x336a, 0x3425, 0x3cc8, 0x4ec0, 0x57e7, 0x5ff5,
             0x68c2, 0x7738, 0x7867, 0x7add, 0x8675, 0x8d59, 0x8e2a, 0x8edd, 0x917a, 0x953e, 0x9dea, 0x9fb4, 0xa0f4,
             0xa27e, 0xabd5, 0xb1c8, 0xb3c1, 0xb574, 0xbdc3, 0xc326, 0xc39f, 0xc990, 0xc9d5, 0xd713, 0xd9bb, 0xdfcb,
             0xe60b, 0xef13, 0xf392, 0xfba5, 0x104ae};
-
-        genesis = CreateGenesisBlock(1503670484, 55, 0x207fffff, 18, 60, 1, 50 * COIN, consensus, false);
-        genesis.sCycle = pow;
 
         consensus.hashGenesisBlock = genesis.GetHash();
         assert(consensus.hashGenesisBlock == uint256S("a0f73c7161105ba136853e99d18a4483b6319620d53adc1d14128c00fdc2d272"));
