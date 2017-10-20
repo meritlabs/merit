@@ -64,20 +64,14 @@ static CBlock CreateGenesisBlock(
         std::set<uint32_t> pow;
 
         uint32_t nMaxTries = 10000000;
-        printf("genesis.nNonce is %d\n", genesis.nNonce);
 
-        double time;
-
-        while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, genesis.nEdgesRatio, pow, params, time)) {
+        while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, genesis.nEdgesRatio, pow, params)) {
             ++genesis.nNonce;
             --nMaxTries;
-            printf("genesis.nNonce is %d, time: %0.2fm\n", genesis.nNonce, time / 60);
         }
 
-        printf("genesis.nNonce is %d, time: %0.2fm\n", genesis.nNonce, time / 60);
-
         if (nMaxTries == 0) {
-            printf("could not find cycle for genesis block");
+            printf("Could not find cycle for genesis block");
         } else {
             printf("Genesis block generated!!!\n");
             printf("==========================\n");

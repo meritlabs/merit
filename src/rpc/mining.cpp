@@ -138,8 +138,7 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
         }
 
         std::set<uint32_t> cycle;
-        double time;
-        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !cuckoo::FindProofOfWork(pblock->GetHash(), pblock->nBits, pblock->nNodesBits, pblock->nEdgesRatio, cycle, consensusParams, time)) {
+        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !cuckoo::FindProofOfWork(pblock->GetHash(), pblock->nBits, pblock->nNodesBits, pblock->nEdgesRatio, cycle, consensusParams)) {
             ++pblock->nNonce;
             --nMaxTries;
         }
