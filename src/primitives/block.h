@@ -11,6 +11,7 @@
 #include "primitives/referral.h"
 #include "serialize.h"
 #include "uint256.h"
+#include <set>
 
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work
@@ -29,6 +30,7 @@ public:
     uint32_t nTime;
     uint32_t nBits;
     uint32_t nNonce;
+    std::set<uint32_t> m_sCycle;
 
     CBlockHeader()
     {
@@ -45,6 +47,9 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
+        if (!(s.GetType() & SER_GETHASH)) {
+            READWRITE(m_sCycle);
+        }
     }
 
     void SetNull()
@@ -55,6 +60,7 @@ public:
         nTime = 0;
         nBits = 0;
         nNonce = 0;
+        m_sCycle.clear();
     }
 
     bool IsNull() const
@@ -77,6 +83,7 @@ public:
     // network and disk
     std::vector<CTransactionRef> vtx;
     std::vector<referral::ReferralRef> m_vRef;
+
 
     // memory only
     mutable bool fChecked;
@@ -118,6 +125,7 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
+        block.m_sCycle       = m_sCycle;
         return block;
     }
 

@@ -14,9 +14,11 @@
 #include <assert.h>
 
 #include "chainparamsseeds.h"
+#include "cuckoo/miner.h"
 #include <iostream>
+#include <set>
 
-static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward, Consensus::Params& params, bool findPoW)
 {
     CMutableTransaction txNew;
     txNew.nVersion = 1;
@@ -43,6 +45,32 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     genesis.m_vRef.push_back(referral::MakeReferralRef(std::move(refNew)));
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
+
+
+    if (findPoW) {
+        std::set<uint32_t> pow;
+
+        uint32_t nMaxTries = 10000000;
+        while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, pow, params)) {
+            ++genesis.nNonce;
+            --nMaxTries;
+        }
+
+        if (nMaxTries == 0) {
+            printf("could not find cycle for genesis block");
+        } else {
+            printf("Genesis block generated!!!\n");
+            printf("==========================\n");
+            printf("hash: %s\nnonce: %d\nnodes:\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
+            for (const auto& node : pow) {
+                printf("0x%x ", node);
+            }
+
+            printf("\n==========================\n");
+        }
+        exit(1);
+    }
+
     return genesis;
 }
 
@@ -57,11 +85,11 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
  *     CTxOut(nValue=50.00000000, scriptPubKey=0x5F1DF16B2B704C8A578D0B)
  *   vMerkleTree: 4a5e1e
  */
-static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
+static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward, Consensus::Params& params, bool findPoW = false)
 {
     const char* pszTimestamp = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
     const CScript genesisOutputScript = CScript() << ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35") << OP_CHECKSIG;
-    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
+    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward, params, findPoW);
 }
 
 void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout)
@@ -95,6 +123,9 @@ public:
         consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35; //35%
         consensus.total_winning_ambassadors = 5;
+        consensus.nCuckooDifficulty = 50;
+        consensus.nCuckooProofSize = 42;
+
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999; // December 31, 2008
@@ -117,8 +148,9 @@ public:
         nDefaultPort = 8445;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1503515697, 0, 0x207fffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1503515697, 0, 0x207fffff, 1, 50 * COIN, consensus, false);
         consensus.hashGenesisBlock = genesis.GetHash();
+
         assert(consensus.hashGenesisBlock == uint256S("43ca943c27513e6bfcf554c0afce0f2613d2a7346b9f0ac3d5f947462a128399"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
@@ -173,6 +205,10 @@ public:
         consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35; //35%
         consensus.total_winning_ambassadors = 5;
+
+        consensus.nCuckooDifficulty = 50;
+        consensus.nCuckooProofSize = 42;
+
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999; // December 31, 2008
@@ -190,9 +226,16 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 0, 0x207fffff, 1, 50 * COIN);
+        std::set<uint32_t> pow = {0x17d3, 0x227f, 0x6653, 0x8408, 0x14d71, 0x14e5a, 0x17134, 0x1bab0, 0x22bb6, 0x23bf4,
+            0x23c84, 0x292f3, 0x2cebd, 0x2e462, 0x33017, 0x36007, 0x37ec9, 0x39c79, 0x3b732, 0x3dbc1, 0x3de21, 0x3f174,
+            0x40b09, 0x41041, 0x428ab, 0x47f43, 0x4a6c4, 0x4b045, 0x53967, 0x54b89, 0x54bd0, 0x581f5, 0x5d4f0, 0x5e2a9,
+            0x60928, 0x63b0f, 0x66945, 0x6b9f6, 0x709c2, 0x77464, 0x7cc1a, 0x7dbcf};
+
+        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 1, 50 * COIN, consensus, false);
+        genesis.m_sCycle = pow;
+
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("6e49a1749718838ccce04562c86a2f0b1824a77cab117ae1893abf87eac93135"));
+        assert(consensus.hashGenesisBlock == uint256S("47bfc07f14e836d91a038dc8dbc4da9a7052aafe01579926a96b07acacfe4d45"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
         vFixedSeeds.clear();
@@ -248,6 +291,10 @@ public:
         consensus.nMinerConfirmationWindow = 144; // Faster than normal for regtest (144 instead of 2016)
         consensus.ambassador_percent_cut = 35; //35%
         consensus.total_winning_ambassadors = 5;
+
+        consensus.nCuckooDifficulty = 50;
+        consensus.nCuckooProofSize = 42;
+
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 0;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 999999999999ULL;
@@ -265,7 +312,12 @@ public:
         nDefaultPort = 18556;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503670484, 3, 0x207fffff, 1, 50 * COIN);
+        std::set<uint32_t> pow = {0x3a5e, 0x4de9, 0x7b50, 0xbad3, 0xe06a, 0xe413, 0x11c29, 0x154bb, 0x16d84, 0x16e71, 0x17945,
+            0x18b98, 0x1ce5f, 0x1ee77, 0x1fe14, 0x23ffc, 0x27565, 0x28e21, 0x2b201, 0x2f291, 0x33f9a, 0x34870, 0x41c4e, 0x42212,
+            0x45dff, 0x46670, 0x4ed9b, 0x531d6, 0x59f13, 0x5da0b, 0x5e373, 0x5f22e, 0x63bdc, 0x6b86f, 0x6c7e6, 0x6cc83, 0x6f776,
+            0x73e58, 0x74516, 0x7a2df, 0x7d2fa, 0x7da84};
+
+        genesis = CreateGenesisBlock(1503670484, 3, 0x207fffff, 1, 50 * COIN, consensus, false);
         consensus.hashGenesisBlock = genesis.GetHash();
         assert(consensus.hashGenesisBlock == uint256S("3b2e6158a8d299cbe3ff8a4fbbebbc09ebf89653b4c558896574f38711034f01"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));

@@ -241,14 +241,11 @@ UniValue isaddressbeaconed(const JSONRPCRequest& request)
     CTxDestination dest = DecodeDestination(request.params[0].get_str());
     bool isValid = IsValidDestination(dest);
 
-    const auto* key = boost::get<CKeyID>(&dest);
-
-    if (key) {
-        bool isBeaconed = CheckAddressBeaconed(*key);
-        ret.push_back(Pair("isbeaconed", isBeaconed));
-    }
-
     ret.push_back(Pair("isvalid", isValid));
+
+    if (isValid) {
+        ret.push_back(Pair("isbeaconed", CheckAddressBeaconed(dest)));
+    }
 
     return ret;
 }
@@ -846,6 +843,7 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
         output.push_back(Pair("script", HexStr(it->second.script.begin(), it->second.script.end())));
         output.push_back(Pair("satoshis", it->second.satoshis));
         output.push_back(Pair("height", it->second.blockHeight));
+        output.push_back(Pair("isCoinbase", it->first.isCoinbase));
         utxos.push_back(output);
     }
 

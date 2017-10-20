@@ -12,6 +12,7 @@
 #endif
 
 #include "amount.h"
+#include "base58.h"
 #include "coins.h"
 #include "fs.h"
 #include "protocol.h" // For CMessageHeader::MessageStartChars
@@ -507,8 +508,12 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 /** Check a block is completely valid from start to finish (only works on top of our current best block, with cs_main held) */
 bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
 
-/** Check that an address is valid and ready to send to */
+/** Check that an address is valid and ready to use */
 bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool = true);
+
+/** Check that an address is valid and ready to use */
+bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool = true);
+
 
 /** When there are blocks in the active chain with missing data, rewind the chainstate and remove them from the block index */
 bool RewindBlockIndex(const CChainParams& params);

@@ -47,6 +47,7 @@
 #include "validationinterface.h"
 #include "versionbits.h"
 #include "warnings.h"
+#include "cuckoo/miner.h"
 
 #include <atomic>
 #include <sstream>
@@ -1356,7 +1357,7 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
     }
 
     // Check the header
-    if (!CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
+    if (!cuckoo::VerifyProofOfWork(block.GetHash(), block.nBits, block.m_sCycle, consensusParams))
         return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
 
     return true;
@@ -2609,7 +2610,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                 uint160(hashBytes),
                                 txhash,
                                 k,
-                                tx.IsCoinBase()},
+                                tx.IsCoinBase()
+                            },
                             CAddressUnspentValue{
                                 out.nValue,
                                 out.scriptPubKey,
@@ -3688,7 +3690,7 @@ static bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, 
 static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
 {
     // Check proof of work matches claimed amount
-    if (fCheckPOW && !CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
+    if (fCheckPOW && !cuckoo::VerifyProofOfWork(block.GetHash(), block.nBits, block.m_sCycle, consensusParams))
         return state.DoS(50, false, REJECT_INVALID, "high-hash", false, "proof of work failed");
 
     return true;
@@ -3786,6 +3788,11 @@ bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
     }
 
     return beaconed;
+}
+
+bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool)
+{
+    return CheckAddressBeaconed(addr.Get(), checkMempool);
 }
 
 // Compute at which vout of the block's coinbase transaction the witness
