@@ -11,11 +11,11 @@
 #include "chainparams.h"
 #include "coins.h"
 #include "consensus/consensus.h"
-#include "consensus/tx_verify.h"
 #include "consensus/merkle.h"
+#include "consensus/tx_verify.h"
 #include "consensus/validation.h"
+#include "cuckoo/miner.h"
 #include "hash.h"
-#include "validation.h"
 #include "net.h"
 #include "policy/feerate.h"
 #include "policy/policy.h"
@@ -26,6 +26,7 @@
 #include "txmempool.h"
 #include "util.h"
 #include "utilmoneystr.h"
+#include "validation.h"
 #include "validationinterface.h"
 
 #include <algorithm>
@@ -234,6 +235,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     UpdateTime(pblock, chain_params, pindexPrev);
     pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, chain_params);
     pblock->nNonce         = 0;
+    pblock->nEdgesRatio    = cuckoo::GetNextEdgesRatioRequired(pindexPrev);
     pblocktemplate->vTxSigOpsCost[0] = WITNESS_SCALE_FACTOR * GetLegacySigOpCount(*pblock->vtx[0]);
 
     CValidationState state;

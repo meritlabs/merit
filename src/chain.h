@@ -214,8 +214,9 @@ public:
     unsigned int nBits;
     unsigned int nNonce;
     uint8_t nNodesBits;
+    uint8_t nEdgesRatio;
 
-    std::set<uint32_t> m_sCycle;
+    std::set<uint32_t> sCycle;
 
     //! (memory only) Sequential id assigned to distinguish order in which blocks are received.
     int32_t nSequenceId;
@@ -245,7 +246,8 @@ public:
         nBits          = 0;
         nNonce         = 0;
         nNodesBits     = 0;
-        m_sCycle.clear();
+        nEdgesRatio    = 0;
+        sCycle.clear();
     }
 
     CBlockIndex()
@@ -263,7 +265,8 @@ public:
         nBits          = block.nBits;
         nNonce         = block.nNonce;
         nNodesBits     = block.nNodesBits;
-        m_sCycle       = block.m_sCycle;
+        nEdgesRatio    = block.nEdgesRatio;
+        sCycle       = block.sCycle;
     }
 
     CDiskBlockPos GetBlockPos() const {
@@ -295,7 +298,8 @@ public:
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.nNodesBits     = nNodesBits;
-        block.m_sCycle       = m_sCycle;
+        block.nEdgesRatio    = nEdgesRatio;
+        block.sCycle       = sCycle;
         return block;
     }
 
@@ -416,7 +420,8 @@ public:
         READWRITE(nBits);
         READWRITE(nNonce);
         READWRITE(nNodesBits);
-        READWRITE(m_sCycle);
+        READWRITE(nEdgesRatio);
+        READWRITE(sCycle);
     }
 
     uint256 GetBlockHash() const
@@ -429,6 +434,7 @@ public:
         block.nBits           = nBits;
         block.nNonce          = nNonce;
         block.nNodesBits      = nNodesBits;
+        block.nEdgesRatio     = nEdgesRatio;
         return block.GetHash();
     }
 

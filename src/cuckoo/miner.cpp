@@ -16,11 +16,11 @@
 
 namespace cuckoo
 {
-bool FindProofOfWork(uint256 hash, unsigned int nBits, uint8_t nNodesBits, std::set<uint32_t>& cycle, const Consensus::Params& params, double& time)
+bool FindProofOfWork(const uint256 hash, unsigned int nBits, uint8_t nodesBits, uint8_t edgesRatio, std::set<uint32_t>& cycle, const Consensus::Params& params, double& time)
 {
     assert(cycle.empty());
     auto begin = GetTime();
-    auto res = FindCycle(hash, nNodesBits, cycle, params.nCuckooProofSize, params.nCuckooDifficulty);
+    auto res = FindCycle(hash, nodesBits, edgesRatio, params.nCuckooProofSize, cycle);
     auto end = GetTime();
 
     time = end - begin;
@@ -35,13 +35,13 @@ bool FindProofOfWork(uint256 hash, unsigned int nBits, uint8_t nNodesBits, std::
     return false;
 }
 
-bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t nNodesBits, const std::set<uint32_t>& cycle, const Consensus::Params& params)
+bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t nodesBits, const std::set<uint32_t>& cycle, const Consensus::Params& params)
 {
     assert(cycle.size() == params.nCuckooProofSize);
 
     std::vector<uint32_t> vCycle{cycle.begin(), cycle.end()};
 
-    int res = VerifyCycle(hash, nNodesBits, vCycle, params.nCuckooProofSize);
+    int res = VerifyCycle(hash, nodesBits, params.nCuckooProofSize, vCycle);
 
     if (res == verify_code::POW_OK) {
         // check that hash of a cycle is less than a difficulty (old school bitcoin pow)
@@ -49,5 +49,11 @@ bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t nNodesBits, con
     }
 
     return false;
+}
+
+// TODO: udpdate this function if we wanna control memory usage size
+uint8_t GetNextEdgesRatioRequired(const CBlockIndex* pindexLast)
+{
+    return pindexLast->nEdgesRatio;
 }
 }

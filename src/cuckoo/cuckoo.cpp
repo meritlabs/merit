@@ -121,20 +121,20 @@ void solution(CuckooCtx* ctx, uint32_t* us, int nu, uint32_t* vs, int nv, std::s
     printf("\n");
 }
 
-bool FindCycle(const uint256& hash, const uint8_t nNodesBits, std::set<uint32_t>& cycle, uint8_t proofsize, uint8_t ratio)
+bool FindCycle(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
-    assert(ratio >= 0 && ratio <= 100);
-    assert(nNodesBits <= 32);
+    assert(edgesRatio >= 0 && edgesRatio <= 100);
+    assert(nodesBits <= 32);
 
-    printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofsize, nNodesBits, hash.GetHex().c_str(), ratio);
+    printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofSize, nodesBits, hash.GetHex().c_str(), edgesRatio);
 
     // edge mask is a max valid value of an edge.
-    uint32_t edgeMask = (1 << (nNodesBits - 2)) - 1;
+    uint32_t edgeMask = (1 << (nodesBits - 2)) - 1;
 
-    uint32_t nodesCount = 1 << (nNodesBits - 1);
-    uint32_t difficulty = ratio * (uint64_t)nodesCount / 100;
+    uint32_t nodesCount = 1 << (nodesBits - 1);
+    uint32_t difficulty = edgesRatio * (uint64_t)nodesCount / 100;
 
-    // printf("nNodesBits: %d, nodesCount: %zu, nodesCount: %x, edgeMask: %x, difficulty: %d\n", nNodesBits, nodesCount, nodesCount, edgeMask, difficulty);
+    // printf("nodesBits: %d, nodesCount: %zu, nodesCount: %x, edgeMask: %x, difficulty: %d\n", nodesBits, nodesCount, nodesCount, edgeMask, difficulty);
 
     CuckooCtx ctx(const_cast<char*>(reinterpret_cast<const char*>(hash.begin())), hash.size(), difficulty, nodesCount);
 
@@ -154,7 +154,7 @@ bool FindCycle(const uint256& hash, const uint8_t nNodesBits, std::set<uint32_t>
             for (nu -= min, nv -= min; us[nu] != vs[nv]; nu++, nv++)
                 ;
             int len = nu + nv + 1;
-            if (len == proofsize) {
+            if (len == proofSize) {
                 // LogPrintf("% 4d-cycle found at %d%%\n", len, (int)(nonce * 100L / ctx.m_difficulty));
                 solution(&ctx, us, nu, vs, nv, cycle, edgeMask);
                 return true;
@@ -176,13 +176,13 @@ bool FindCycle(const uint256& hash, const uint8_t nNodesBits, std::set<uint32_t>
 }
 
 // verify that nonces are ascending and form a cycle in header-generated graph
-int VerifyCycle(const uint256& hash, const uint8_t nNodesBits, std::vector<uint32_t>& cycle, const uint8_t proofsize)
+int VerifyCycle(const uint256& hash, uint8_t nodesBits, uint8_t proofSize, const std::vector<uint32_t>& cycle)
 {
-    assert(cycle.size() == proofsize);
-    assert(nNodesBits <= 32);
+    assert(cycle.size() == proofSize);
+    assert(nodesBits <= 32);
     siphash_keys keys;
 
-    uint32_t nodesCount = 1 << (nNodesBits - 1);
+    uint32_t nodesCount = 1 << (nodesBits - 1);
     // edge mask is a max valid value of an edge (max index of nodes array).
     uint32_t edgeMask = nodesCount - 1;
 
@@ -193,10 +193,10 @@ int VerifyCycle(const uint256& hash, const uint8_t nNodesBits, std::vector<uint3
 
     CSipHasher hasher{keys.k0, keys.k1};
 
-    uint32_t uvs[2 * proofsize];
+    uint32_t uvs[2 * proofSize];
     uint32_t xor0 = 0, xor1 = 0;
 
-    for (uint32_t n = 0; n < proofsize; n++) {
+    for (uint32_t n = 0; n < proofSize; n++) {
         if (cycle[n] > edgeMask) {
             return POW_TOO_BIG;
         }
@@ -217,7 +217,7 @@ int VerifyCycle(const uint256& hash, const uint8_t nNodesBits, std::vector<uint3
 
     uint32_t n = 0, i = 0, j;
     do { // follow cycle
-        for (uint32_t k = j = i; (k = (k + 2) % (2 * proofsize)) != i;) {
+        for (uint32_t k = j = i; (k = (k + 2) % (2 * proofSize)) != i;) {
             if (uvs[k] == uvs[i]) { // find other edge endpoint identical to one at i
                 if (j != i) {       // already found one before
                     return POW_BRANCH;
@@ -234,5 +234,5 @@ int VerifyCycle(const uint256& hash, const uint8_t nNodesBits, std::vector<uint3
         n++;
     } while (i != 0); // must cycle back to start or we would have found branch
 
-    return n == proofsize ? POW_OK : POW_SHORT_CYCLE;
+    return n == proofSize ? POW_OK : POW_SHORT_CYCLE;
 }

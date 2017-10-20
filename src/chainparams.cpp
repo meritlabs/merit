@@ -26,6 +26,7 @@ static CBlock CreateGenesisBlock(
     uint32_t nNonce,
     uint32_t nBits,
     uint8_t nNodesBits,
+    uint8_t nEdgesRatio,
     int32_t nVersion,
     const CAmount& genesisReward,
     Consensus::Params& params,
@@ -52,6 +53,7 @@ static CBlock CreateGenesisBlock(
     genesis.nBits = nBits;
     genesis.nNonce = nNonce;
     genesis.nNodesBits = nNodesBits;
+    genesis.nEdgesRatio = nEdgesRatio;
     genesis.nVersion = nVersion;
     genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
     genesis.m_vRef.push_back(referral::MakeReferralRef(std::move(refNew)));
@@ -66,11 +68,13 @@ static CBlock CreateGenesisBlock(
 
         double time;
 
-        while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, pow, params, time)) {
+        while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, genesis.nEdgesRatio, pow, params, time)) {
             ++genesis.nNonce;
             --nMaxTries;
-            printf("genesis.nNonce is %d\n", genesis.nNonce);
+            printf("genesis.nNonce is %d, time: %0.2fm\n", genesis.nNonce, time / 60);
         }
+
+        printf("genesis.nNonce is %d, time: %0.2fm\n", genesis.nNonce, time / 60);
 
         if (nMaxTries == 0) {
             printf("could not find cycle for genesis block");
@@ -106,6 +110,7 @@ static CBlock CreateGenesisBlock(
     uint32_t nNonce,
     uint32_t nBits,
     uint8_t nNodesBits,
+    uint8_t nEdgesRatio,
     int32_t nVersion,
     const CAmount& genesisReward,
     Consensus::Params& params,
@@ -113,7 +118,7 @@ static CBlock CreateGenesisBlock(
 {
     const char* pszTimestamp = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
     const CScript genesisOutputScript = CScript() << ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35") << OP_CHECKSIG;
-    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nNodesBits, nVersion, genesisReward, params, findPoW);
+    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nNodesBits, nEdgesRatio, nVersion, genesisReward, params, findPoW);
 }
 
 void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout)
@@ -147,7 +152,6 @@ public:
         consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35; //35%
         consensus.total_winning_ambassadors = 5;
-        consensus.nCuckooDifficulty = 50;
         consensus.nCuckooProofSize = 42;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
@@ -172,7 +176,7 @@ public:
         nDefaultPort = 8445;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1503515697, 0, 0x207fffff, 32, 1, 50 * COIN, consensus, false);
+        genesis = CreateGenesisBlock(1503515697, 0, 0x207fffff, 32, 50, 1, 50 * COIN, consensus, false);
         consensus.hashGenesisBlock = genesis.GetHash();
 
         assert(consensus.hashGenesisBlock == uint256S("43ca943c27513e6bfcf554c0afce0f2613d2a7346b9f0ac3d5f947462a128399"));
@@ -229,7 +233,6 @@ public:
         consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35; //35%
         consensus.total_winning_ambassadors = 5;
-        consensus.nCuckooDifficulty = 60;
         consensus.nCuckooProofSize = 42;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
@@ -249,16 +252,16 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        std::set<uint32_t> pow = {0x17d3, 0x227f, 0x6653, 0x8408, 0x14d71, 0x14e5a, 0x17134, 0x1bab0, 0x22bb6, 0x23bf4,
-            0x23c84, 0x292f3, 0x2cebd, 0x2e462, 0x33017, 0x36007, 0x37ec9, 0x39c79, 0x3b732, 0x3dbc1, 0x3de21, 0x3f174,
-            0x40b09, 0x41041, 0x428ab, 0x47f43, 0x4a6c4, 0x4b045, 0x53967, 0x54b89, 0x54bd0, 0x581f5, 0x5d4f0, 0x5e2a9,
-            0x60928, 0x63b0f, 0x66945, 0x6b9f6, 0x709c2, 0x77464, 0x7cc1a, 0x7dbcf};
+        std::set<uint32_t> pow = {0x10d96, 0x1a72f, 0x1b48e, 0x1fdb3, 0x24d3d, 0x26a04, 0x2961e, 0x347ed, 0x412a6, 0x59679,
+            0x627fb, 0x695c7, 0x7c4e2, 0x7f47d, 0x83184, 0x86562, 0x899ce, 0x8ff7e, 0x9507b, 0x95891, 0x98e31, 0x9c651,
+            0x9c761, 0x9de0e, 0xa1858, 0xa6afe, 0xa713e, 0xaba8f, 0xadc5b, 0xc6524, 0xca45f, 0xce0e1, 0xd1af0, 0xd219e,
+            0xeb3ec, 0xf88cb, 0x100c03, 0x10abaf, 0x1108be, 0x121302, 0x12c2e1, 0x12c982};
         // TODO: Why nonce is 365 here???
-        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 28, 1, 50 * COIN, consensus, true);
-        genesis.m_sCycle = pow;
+        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 22, 60, 1, 50 * COIN, consensus, false);
+        genesis.sCycle = pow;
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("47bfc07f14e836d91a038dc8dbc4da9a7052aafe01579926a96b07acacfe4d45"));
+        assert(consensus.hashGenesisBlock == uint256S("4702562cf0b7fd2f20ed348bdfbcd7763caa0ad8be1cd766e872364a425005bc"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
         vFixedSeeds.clear();
@@ -314,8 +317,6 @@ public:
         consensus.nMinerConfirmationWindow = 144; // Faster than normal for regtest (144 instead of 2016)
         consensus.ambassador_percent_cut = 35; //35%
         consensus.total_winning_ambassadors = 5;
-
-        consensus.nCuckooDifficulty = 50;
         consensus.nCuckooProofSize = 42;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
@@ -340,7 +341,7 @@ public:
             0x45dff, 0x46670, 0x4ed9b, 0x531d6, 0x59f13, 0x5da0b, 0x5e373, 0x5f22e, 0x63bdc, 0x6b86f, 0x6c7e6, 0x6cc83, 0x6f776,
             0x73e58, 0x74516, 0x7a2df, 0x7d2fa, 0x7da84};
 
-        genesis = CreateGenesisBlock(1503670484, 3, 0x207fffff, 32, 1, 50 * COIN, consensus, false);
+        genesis = CreateGenesisBlock(1503670484, 3, 0x207fffff, 32, 50, 1, 50 * COIN, consensus, false);
         consensus.hashGenesisBlock = genesis.GetHash();
         assert(consensus.hashGenesisBlock == uint256S("3b2e6158a8d299cbe3ff8a4fbbebbc09ebf89653b4c558896574f38711034f01"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
