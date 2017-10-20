@@ -371,6 +371,8 @@ bool EvalPushOnlyScript(
     return set_success(serror);
 }
 
+#define PUSH_FALSE_AND_BREAK stack.push_back(vchFalse); break
+
 bool EvalScript(
         Stack& stack,
         const CScript& script,
@@ -1286,65 +1288,73 @@ bool EvalScript(
                             possible_addresses.end(),
                             output_address);
 
-                    auto success = matched_address != possible_addresses.end();
+                    if(matched_address == possible_addresses.end()) {
+                        PUSH_FALSE_AND_BREAK;
+                    }
 
-                    if(success && output_type == TX_PARAMETERIZED_SCRIPTHASH) {
+                    if(output_type == TX_PARAMETERIZED_SCRIPTHASH) {
                         
                         size_t param_size = 0;
-                        if(!Pop(stack, param_size, serror)) 
+                        if(!Pop(stack, param_size, serror)) {
                             return false;
+                        }
 
-                        if(stack.size() < param_size)
-                            return set_error(serror, SCRIPT_ERR_OUTPUT_NOT_ENOUGH_PARAMS);
+                        if(stack.size() < param_size) {
+                            return set_error(
+                                    serror,
+                                    SCRIPT_ERR_OUTPUT_NOT_ENOUGH_PARAMS);
+                        }
 
-                        success = param_size + P2SH_SIZE == output_script.size();
+                        if(param_size + P2SH_SIZE != output_script.size()) {
+                            PUSH_FALSE_AND_BREAK;
+                        }
 
-                        if(success) {
-                            CScript output_param_script{output_script.begin() + P2SH_SIZE, output_script.end()};
+                        CScript output_param_script{
+                            output_script.begin() + P2SH_SIZE,
+                            output_script.end()};
 
-                            success = output_param_script.IsPushOnly();
+                        if(!output_param_script.IsPushOnly()) {
+                            PUSH_FALSE_AND_BREAK;
+                        }
 
-                            if(success) {
-                                Stack output_stack;
+                        Stack output_stack;
 
-                                //Eval the output params to get the values onto a
-                                //stack so we can compare. Since the params
-                                //script must be push only thre should not be
-                                //possibility of recursion.
-                                success = !EvalPushOnlyScript(
-                                        output_stack,
-                                        output_param_script,
-                                        flags,
-                                        checker,
-                                        SIGVERSION_BASE,
-                                        serror);
+                        //Eval the output params to get the values onto a
+                        //stack so we can compare. Since the params
+                        //script must be push only thre should not be
+                        //possibility of recursion.
+                        if(!EvalPushOnlyScript(
+                                output_stack,
+                                output_param_script,
+                                flags,
+                                checker,
+                                SIGVERSION_BASE,
+                                serror)) {
+                            PUSH_FALSE_AND_BREAK;
+                        }
 
-                                if(success) {
-                                    assert(param_size <= stack.size());
+                        assert(param_size <= stack.size());
 
-                                    //compare params from left to right
-                                    //in the script to the output script.
-                                    // If the stack has vchFalse stack element,
-                                    // we will match any corresponding element
-                                    // in the output stack.
-                                    const auto r = std::mismatch(
-                                            stack.begin() + (stack.size() - param_size),
-                                            stack.end(),
-                                            output_stack.begin(),
-                                            [](const StackElement& a, const StackElement& b) { 
-                                                if(a == vchFalse) return true;
-                                                return a == b;
-                                            });
+                        //compare params from left to right
+                        //in the script to the output script.
+                        // If the stack has vchFalse stack element,
+                        // we will match any corresponding element
+                        // in the output stack.
+                        const auto r = std::mismatch(
+                                stack.begin() + (stack.size() - param_size),
+                                stack.end(),
+                                output_stack.begin(),
+                                [](const StackElement& a, const StackElement& b) { 
+                                if(a == vchFalse) return true;
+                                return a == b;
+                                });
 
-                                    success = 
-                                        r.first == stack.end() && 
-                                        r.second == output_stack.end();
-                                }
-                            }
+                        if(r.first != stack.end() || r.second != output_stack.end()) {
+                            PUSH_FALSE_AND_BREAK;
                         }
                     }
 
-                    stack.push_back(success ? vchTrue : vchFalse);
+                    stack.push_back(vchTrue);
                 }
                 break;
                 case OP_ANYVALUE:
