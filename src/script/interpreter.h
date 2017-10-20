@@ -19,7 +19,8 @@ class CScript;
 class CTransaction;
 class uint256;
 
-using Stack = std::vector<std::vector<unsigned char>>;
+using StackElement = std::vector<unsigned char>;
+using Stack = std::vector<StackElement>;
 
 /** Signature hash types/flags */
 enum

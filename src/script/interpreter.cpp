@@ -288,6 +288,89 @@ bool IsValidOutputTypeForCheckOutputSig(txnouttype type) {
     }
 }
 
+bool EvalPushOnlyScript(
+        Stack& stack,
+        const CScript& script,
+        unsigned int flags,
+        const BaseSignatureChecker& checker,
+        SigVersion sigversion,
+        ScriptError* serror)
+{
+    CScript::const_iterator pc = script.begin();
+    CScript::const_iterator pend = script.end();
+
+    opcodetype opcode;
+    valtype vchPushValue;
+    set_error(serror, SCRIPT_ERR_UNKNOWN_ERROR);
+    if (script.size() > MAX_SCRIPT_SIZE)
+        return set_error(serror, SCRIPT_ERR_SCRIPT_SIZE);
+
+    int nOpCount = 0;
+    bool fRequireMinimal = (flags & SCRIPT_VERIFY_MINIMALDATA) != 0;
+
+    try
+    {
+        while (pc < pend)
+        {
+            if (!script.GetOp(pc, opcode, vchPushValue))
+                return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
+            if (vchPushValue.size() > MAX_SCRIPT_ELEMENT_SIZE)
+                return set_error(serror, SCRIPT_ERR_PUSH_SIZE);
+
+            if (opcode > OP_16 && ++nOpCount > MAX_OPS_PER_SCRIPT)
+                return set_error(serror, SCRIPT_ERR_OP_COUNT);
+
+            if (0 <= opcode && opcode <= OP_PUSHDATA4) {
+                if (fRequireMinimal && !CheckMinimalPush(vchPushValue, opcode)) {
+                    return set_error(serror, SCRIPT_ERR_MINIMALDATA);
+                }
+                stack.push_back(vchPushValue);
+            } else if ((OP_IF <= opcode && opcode <= OP_ENDIF)) {
+                switch (opcode)
+                {
+                    case OP_1NEGATE:
+                    case OP_1:
+                    case OP_2:
+                    case OP_3:
+                    case OP_4:
+                    case OP_5:
+                    case OP_6:
+                    case OP_7:
+                    case OP_8:
+                    case OP_9:
+                    case OP_10:
+                    case OP_11:
+                    case OP_12:
+                    case OP_13:
+                    case OP_14:
+                    case OP_15:
+                    case OP_16:
+                        {
+                            CScriptNum bn((int)opcode - (int)(OP_1 - 1));
+                            stack.push_back(bn.getvch());
+                            // The result of these opcodes should always be the minimal way to push the data
+                            // they push, so no need for a CheckMinimalPush here.
+                        }
+                        break;
+
+                    default:
+                        return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
+                } 
+            }
+
+            // Size limits
+            if (stack.size() > MAX_STACK_SIZE)
+                return set_error(serror, SCRIPT_ERR_STACK_SIZE);
+        }
+    }
+    catch (...)
+    {
+        return set_error(serror, SCRIPT_ERR_UNKNOWN_ERROR);
+    }
+
+    return set_success(serror);
+}
+
 bool EvalScript(
         Stack& stack,
         const CScript& script,
@@ -494,7 +577,7 @@ bool EvalScript(
                     break;
                 }
                 case OP_NOP1:
-                case OP_NOP7: case OP_NOP8: case OP_NOP9: case OP_NOP10:
+                case OP_NOP8: case OP_NOP9: case OP_NOP10:
                 {
                     if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
                         return set_error(serror, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);
@@ -1155,11 +1238,17 @@ bool EvalScript(
 
                     std::vector<uint160> possible_addresses(possible_address_count);
                     std::generate_n(std::begin(possible_addresses), possible_address_count, 
-                            [&stack, serror]() {
+                            [&stack, &script, serror]() {
                                 valtype addrBytes;
                                 if(!Pop(stack, addrBytes, serror))
                                     throw std::runtime_error{"popstack(): expected key"};
-                                return uint160{addrBytes};
+
+                                //Either the possible addresses are a hash of 
+                                //the script coming into VerifyScript or a specific
+                                //address
+                                return addrBytes.size() == 1 && addrBytes[0] == 's' ? 
+                                        Hash160(script.begin(), script.end()) : 
+                                        uint160{addrBytes};
                             });
 
                     int output_index = 0;
@@ -1190,15 +1279,81 @@ bool EvalScript(
                     if(output_hashes.size() != 1)
                         return set_error(serror, SCRIPT_ERR_OUTPUT_UNSUPPORTED);
 
-                    uint160 output_addresse{output_hashes[0]};
+                    uint160 output_address{output_hashes[0]};
 
-                    //TODO: check if output address is in one of the possible
-                    //addresses.
-                    //
-                    //if the address is a PRP2SH then check params
+                    const auto matched_address = std::find(
+                            possible_addresses.begin(),
+                            possible_addresses.end(),
+                            output_address);
 
+                    auto success = matched_address != possible_addresses.end();
+
+                    if(success && output_type == TX_PARAMETERIZED_SCRIPTHASH) {
+                        
+                        size_t param_size = 0;
+                        if(!Pop(stack, param_size, serror)) 
+                            return false;
+
+                        if(stack.size() < param_size)
+                            return set_error(serror, SCRIPT_ERR_OUTPUT_NOT_ENOUGH_PARAMS);
+
+                        success = param_size + P2SH_SIZE == output_script.size();
+
+                        if(success) {
+                            CScript output_param_script{output_script.begin() + P2SH_SIZE, output_script.end()};
+
+                            success = output_param_script.IsPushOnly();
+
+                            if(success) {
+                                Stack output_stack;
+
+                                //Eval the output params to get the values onto a
+                                //stack so we can compare. Since the params
+                                //script must be push only thre should not be
+                                //possibility of recursion.
+                                success = !EvalPushOnlyScript(
+                                        output_stack,
+                                        output_param_script,
+                                        flags,
+                                        checker,
+                                        SIGVERSION_BASE,
+                                        serror);
+
+                                if(success) {
+                                    assert(param_size <= stack.size());
+
+                                    //compare params from left to right
+                                    //in the script to the output script.
+                                    // If the stack has vchFalse stack element,
+                                    // we will match any corresponding element
+                                    // in the output stack.
+                                    const auto r = std::mismatch(
+                                            stack.begin() + (stack.size() - param_size),
+                                            stack.end(),
+                                            output_stack.begin(),
+                                            [](const StackElement& a, const StackElement& b) { 
+                                                if(a == vchFalse) return true;
+                                                return a == b;
+                                            });
+
+                                    success = 
+                                        r.first == stack.end() && 
+                                        r.second == output_stack.end();
+                                }
+                            }
+                        }
+                    }
+
+                    stack.push_back(success ? vchTrue : vchFalse);
                 }
                 break;
+                case OP_ANYVALUE:
+                {
+                    stack.push_back(vchFalse);
+                }
+                break;
+
+
 
                 default:
                     return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
