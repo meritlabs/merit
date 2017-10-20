@@ -250,8 +250,8 @@ public:
             0x16a9b, 0x1b08c, 0x1b6b1, 0x1eb9b, 0x1f10d, 0x206ae, 0x20bbe, 0x21330, 0x24e60, 0x259e8, 0x27d95, 0x27e18,
             0x29cbb, 0x2c2bf, 0x2cf17, 0x2ddf6, 0x2e2b6, 0x2eba6, 0x2f1ba, 0x31045, 0x31c65, 0x31cfd, 0x31eb6, 0x33be5,
             0x3519d, 0x3d46f, 0x3e252, 0x404bd, 0x40be5, 0x447e6, 0x4a59b};
-        // TODO: Why nonce is 365 here???
-        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 20, 60, 1, 50 * COIN, consensus, false);
+
+        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 20, 60, 1, 50 * COIN, consensus, true);
         genesis.sCycle = pow;
 
         consensus.hashGenesisBlock = genesis.GetHash();
@@ -281,7 +281,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("6e49a1749718838ccce04562c86a2f0b1824a77cab117ae1893abf87eac93135")},
+                {0, uint256S("f6b791c2c2b87f4a90042c26188fdd76591afe7d7cabb64c91effcd1737e6070")},
             }
         };
 
@@ -330,14 +330,16 @@ public:
         nDefaultPort = 18556;
         nPruneAfterHeight = 1000;
 
-        std::set<uint32_t> pow = {0x3a5e, 0x4de9, 0x7b50, 0xbad3, 0xe06a, 0xe413, 0x11c29, 0x154bb, 0x16d84, 0x16e71, 0x17945,
-            0x18b98, 0x1ce5f, 0x1ee77, 0x1fe14, 0x23ffc, 0x27565, 0x28e21, 0x2b201, 0x2f291, 0x33f9a, 0x34870, 0x41c4e, 0x42212,
-            0x45dff, 0x46670, 0x4ed9b, 0x531d6, 0x59f13, 0x5da0b, 0x5e373, 0x5f22e, 0x63bdc, 0x6b86f, 0x6c7e6, 0x6cc83, 0x6f776,
-            0x73e58, 0x74516, 0x7a2df, 0x7d2fa, 0x7da84};
+        std::set<uint32_t> pow = {0x5dd, 0x10f3, 0x1725, 0x2336, 0x2f81, 0x336a, 0x3425, 0x3cc8, 0x4ec0, 0x57e7, 0x5ff5,
+            0x68c2, 0x7738, 0x7867, 0x7add, 0x8675, 0x8d59, 0x8e2a, 0x8edd, 0x917a, 0x953e, 0x9dea, 0x9fb4, 0xa0f4,
+            0xa27e, 0xabd5, 0xb1c8, 0xb3c1, 0xb574, 0xbdc3, 0xc326, 0xc39f, 0xc990, 0xc9d5, 0xd713, 0xd9bb, 0xdfcb,
+            0xe60b, 0xef13, 0xf392, 0xfba5, 0x104ae};
 
-        genesis = CreateGenesisBlock(1503670484, 3, 0x207fffff, 32, 50, 1, 50 * COIN, consensus, false);
+        genesis = CreateGenesisBlock(1503670484, 55, 0x207fffff, 18, 60, 1, 50 * COIN, consensus, false);
+        genesis.sCycle = pow;
+
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("3b2e6158a8d299cbe3ff8a4fbbebbc09ebf89653b4c558896574f38711034f01"));
+        assert(consensus.hashGenesisBlock == uint256S("a0f73c7161105ba136853e99d18a4483b6319620d53adc1d14128c00fdc2d272"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
@@ -349,7 +351,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("3b2e6158a8d299cbe3ff8a4fbbebbc09ebf89653b4c558896574f38711034f01")},
+                {0, uint256S("a0f73c7161105ba136853e99d18a4483b6319620d53adc1d14128c00fdc2d272")},
             }
         };
 
