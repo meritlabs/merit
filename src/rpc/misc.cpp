@@ -843,6 +843,7 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
         output.push_back(Pair("script", HexStr(it->second.script.begin(), it->second.script.end())));
         output.push_back(Pair("satoshis", it->second.satoshis));
         output.push_back(Pair("height", it->second.blockHeight));
+        output.push_back(Pair("isCoinbase", it->first.isCoinbase));
         utxos.push_back(output);
     }
 

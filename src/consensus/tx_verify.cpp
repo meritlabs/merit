@@ -42,18 +42,6 @@ std::pair<int, int64_t> CalculateSequenceLocks(const CTransaction &tx, int flags
     int nMinHeight = -1;
     int64_t nMinTime = -1;
 
-    // tx.nVersion is signed integer so requires cast to unsigned otherwise
-    // we would be doing a signed comparison and half the range of nVersion
-    // wouldn't support BIP 68.
-    bool fEnforceBIP68 = static_cast<uint32_t>(tx.nVersion) >= 2
-                      && flags & LOCKTIME_VERIFY_SEQUENCE;
-
-    // Do not enforce sequence numbers as a relative lock time
-    // unless we have been instructed to
-    if (!fEnforceBIP68) {
-        return std::make_pair(nMinHeight, nMinTime);
-    }
-
     for (size_t txinIndex = 0; txinIndex < tx.vin.size(); txinIndex++) {
         const CTxIn& txin = tx.vin[txinIndex];
 
@@ -88,6 +76,9 @@ std::pair<int, int64_t> CalculateSequenceLocks(const CTransaction &tx, int flags
             nMinHeight = std::max(nMinHeight, nCoinHeight + (int)(txin.nSequence & CTxIn::SEQUENCE_LOCKTIME_MASK) - 1);
         }
     }
+
+    assert(nMinHeight >= 0);
+    assert(nMinTime >= 0);
 
     return std::make_pair(nMinHeight, nMinTime);
 }
@@ -225,7 +216,7 @@ bool Consensus::CheckTxOutputs(
 
         const auto key = boost::get<CKeyID>(&dest);
         const auto script = boost::get<CScriptID>(&dest);
-        const referral::Address* addr = key ? 
+        const referral::Address* addr = key ?
             static_cast<referral::Address*>(key) :
             static_cast<referral::Address*>(script);
 
