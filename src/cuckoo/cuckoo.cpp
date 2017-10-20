@@ -8,6 +8,7 @@
 #include "cuckoo.h"
 #include "crypto/blake2/blake2.h"
 #include "hash.h"
+#include "util.h"
 
 #include <stdint.h> // for types uint32_t,uint64_t
 #include <string.h> // for functions strlen, memset
@@ -79,13 +80,13 @@ int path(uint32_t* cuckoo, uint32_t u, uint32_t* us)
     int nu;
     for (nu = 0; u; u = cuckoo[u]) {
         if (++nu >= MAXPATHLEN) {
-            printf("nu is %d\n", nu);
+            LogPrintf("nu is %d\n", nu);
             while (nu-- && us[nu] != u)
                 ;
             if (nu < 0)
-                printf("maximum path length exceeded\n");
+                LogPrintf("maximum path length exceeded\n");
             else
-                printf("illegal % 4d-cycle\n", MAXPATHLEN - nu);
+                LogPrintf("illegal % 4d-cycle\n", MAXPATHLEN - nu);
             exit(0);
         }
         us[nu] = u;
@@ -112,13 +113,12 @@ void solution(CuckooCtx* ctx, uint32_t* us, int nu, uint32_t* vs, int nv, std::s
     for (uint32_t nonce = n = 0; nonce < ctx->m_difficulty; nonce++) {
         edge e(sipnode(ctx->m_hasher, edgeMask, nonce, 0), sipnode(ctx->m_hasher, edgeMask, nonce, 1));
         if (cycle.find(e) != cycle.end()) {
-            // printf("%x ", nonce);
+            // LogPrintf("%x ", nonce);
             cycle.erase(e);
             nonces.insert(nonce);
         }
     }
-
-    printf("\n");
+    // LogPrintf("\n");
 }
 
 bool FindCycle(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
@@ -126,15 +126,13 @@ bool FindCycle(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8
     assert(edgesRatio >= 0 && edgesRatio <= 100);
     assert(nodesBits <= 32);
 
-    printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofSize, nodesBits, hash.GetHex().c_str(), edgesRatio);
+    LogPrintf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofSize, nodesBits, hash.GetHex().c_str(), edgesRatio);
 
     // edge mask is a max valid value of an edge.
     uint32_t edgeMask = (1 << (nodesBits - 2)) - 1;
 
     uint32_t nodesCount = 1 << (nodesBits - 1);
     uint32_t difficulty = edgesRatio * (uint64_t)nodesCount / 100;
-
-    // printf("nodesBits: %d, nodesCount: %zu, nodesCount: %x, edgeMask: %x, difficulty: %d\n", nodesBits, nodesCount, nodesCount, edgeMask, difficulty);
 
     CuckooCtx ctx(const_cast<char*>(reinterpret_cast<const char*>(hash.begin())), hash.size(), difficulty, nodesCount);
 
@@ -155,7 +153,6 @@ bool FindCycle(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8
                 ;
             int len = nu + nv + 1;
             if (len == proofSize) {
-                // LogPrintf("% 4d-cycle found at %d%%\n", len, (int)(nonce * 100L / ctx.m_difficulty));
                 solution(&ctx, us, nu, vs, nv, cycle, edgeMask);
                 return true;
             }

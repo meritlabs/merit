@@ -81,7 +81,7 @@ static CBlock CreateGenesisBlock(
         } else {
             printf("Genesis block generated!!!\n");
             printf("==========================\n");
-            printf("hash: %s\nnonce: %d, edges ratio: %d\nnodes:\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce, genesis.nEdgesRatio);
+            printf("hash: %s\nnonce: %d\nedges ratio: %d\nnodes:\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce, genesis.nEdgesRatio);
             for (const auto& node : pow) {
                 printf("0x%x ", node);
             }
