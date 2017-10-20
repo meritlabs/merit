@@ -52,6 +52,11 @@ bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t nodesBits, cons
 }
 
 // TODO: udpdate this function if we wanna control memory usage size
+uint8_t GetNextNodesBitsRequired(const CBlockIndex* pindexLast)
+{
+    return pindexLast->nNodesBits;
+}
+
 uint8_t GetNextEdgesRatioRequired(const CBlockIndex* pindexLast)
 {
     return pindexLast->nEdgesRatio;

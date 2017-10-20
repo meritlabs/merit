@@ -20,6 +20,7 @@ bool FindProofOfWork(uint256 hash, unsigned int nBits, uint8_t nodesBits, uint8_
 bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t nodesBits, const std::set<uint32_t>& cycle, const Consensus::Params& params);
 
 
+uint8_t GetNextNodesBitsRequired(const CBlockIndex* pindexLast);
 uint8_t GetNextEdgesRatioRequired(const CBlockIndex* pindexLast);
 }
 
