@@ -1345,8 +1345,8 @@ bool EvalScript(
                                 stack.end(),
                                 output_stack.begin(),
                                 [](const StackElement& a, const StackElement& b) { 
-                                if(a == vchFalse) return true;
-                                return a == b;
+                                    if(a == vchFalse) return true;
+                                    return a == b;
                                 });
 
                         if(r.first != stack.end() || r.second != output_stack.end()) {
