@@ -323,15 +323,38 @@ CScript GetScriptForEasySend(
         << OP_EASYSEND;
 }
 
-CScript GetScriptForVault(
-        const CPubKey& spendkey,
-        const CPubKey& resetkey)
+CScript GetScriptForVault()
 {
+    // <mode> <spend key> <renew key>
     //TODO: Write actual script here. This is a placeholder dummy
     return CScript() 
-        << ToByteVector(spendkey) 
-        << ToByteVector(resetkey)  
-        << OP_TRUE;
+        // <out index> <sig> <mode> <spend key> <renew key> |
+        << OP_TOALTSTACK   // <out index> <sig> <mode> <spend key> | <renew key>
+        << OP_TOALTSTACK   // <out index> <sig> <mode> | <renew key> <spend key>
+        << 0               // <out index> <sig> <mode> 0 | <renew key> <spend key>
+        << OP_EQUAL
+        << OP_IF
+        <<      OP_FROMALTSTACK     // <out index> <sig> <spend key> | <renew key>
+        <<      OP_FROMALTSTACK     // <out index> <sig> <spend key> <renew key>
+        <<      OP_DROP             // <out index> <sig> <spend key>
+        <<      OP_CHECKSIG         // <out index> <bool>
+        <<      OP_SWAP             // <bool> <out index>
+        <<      OP_DROP             // <bool>
+        << OP_ELSE
+        <<      OP_FROMALTSTACK     // <out index> <sig> <spend key> | <renew key>
+        <<      OP_DROP             // <out index> <sig> | <renew key>
+        <<      OP_FROMALTSTACK     // <out index> <sig> <renew key> | 
+        <<      OP_DUP              // <out index> <sig> <renew key> <renew key> | 
+        <<      OP_TOALTSTACK       // <out index> <sig> <renew key> | <renew key>
+        <<      OP_CHECKSIGVERIFY   // <out index> | <renew key>
+        <<      OP_TOALTSTACK       // | <renew key> <out index>
+        <<      OP_ANYVALUE         // <any> | <renew key> <out index>
+        <<      OP_ANYVALUE         // <any> <any> | <renew key> <out index>
+        <<      OP_FROMALTSTACK     // <any> <any> <out index> | <renew key>
+        <<      OP_FROMALTSTACK     // <any> <any> <out index> <renew key> |
+        <<      1                   // <any> <any> <out index> <renew key> 1 |
+        <<      OP_CHECKOUTPUTSIG   // <bool>
+        << OP_ENDIF;
 }
 
 CScript GetParameterizedP2SH(const CScriptID& dest)

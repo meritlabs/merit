@@ -966,7 +966,7 @@ UniValue createvault(const JSONRPCRequest& request)
     }
 
     auto vault_script = 
-        GetScriptForVault(spend_key, reset_key);
+        GetScriptForVault();
 
     CScriptID script_id(vault_script);
     auto script_pub_key = GetParameterizedP2SH(script_id);

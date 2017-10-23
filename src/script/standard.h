@@ -147,9 +147,7 @@ CScript GetScriptForEasySend(
  * Constructs a vault script which limits spending. Allows resetting and
  * chaning rules.
  */
-CScript GetScriptForVault(
-        const CPubKey& spendkey,
-        const CPubKey& reeetkey);
+CScript GetScriptForVault();
 
 /**
  * Constructs a Parameterized P2SH. You can push params onto script after calling
