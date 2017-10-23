@@ -155,6 +155,27 @@ CScript GetScriptForVault();
  */
 CScript GetParameterizedP2SH(const CScriptID& dest);
 
+namespace details
+{
+    template <class Param, class... Params>
+    void AppendParameterizedP2SH(CScript& script, Param p, Params... ps)
+    {
+        script << p;
+        AppendParameterizedP2SH(script, ps...);
+    }
+}
+
+CScript GetParameterizedP2SH(const CScriptID& dest);
+
+template <class... Params>
+CScript GetParameterizedP2SH(const CScriptID& dest, Params... ps)
+{
+    auto script = GetParameterizedP2SH(dest);
+    details::AppendParameterizedP2SH(script, ps...);
+    return script;
+}
+
+
 /** Generate a P2PK script for the given pubkey. */
 CScript GetScriptForRawPubKey(const CPubKey& pubkey);
 
