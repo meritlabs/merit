@@ -3861,8 +3861,17 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
 
     // Check proof of work
     const Consensus::Params& consensusParams = params.GetConsensus();
-    if (block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams))
+    if (block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams)) {
         return state.DoS(100, false, REJECT_INVALID, "bad-diffbits", false, "incorrect proof of work");
+    }
+
+    if (block.nNodesBits != cuckoo::GetNextNodesBitsRequired(pindexPrev)) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-nodesbits", false, "incorrect proof of work");
+    }
+
+    if (block.nEdgesRatio != cuckoo::GetNextEdgesRatioRequired(pindexPrev)) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-edgesratio", false, "incorrect proof of work");
+    }
 
     // Check against checkpoints
     if (fCheckpointsEnabled) {
