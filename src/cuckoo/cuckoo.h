@@ -24,9 +24,9 @@ enum verify_code {
 extern const char* errstr[];
 
 // Find proofsize-length cuckoo cycle in random graph
-bool FindCycle(const uint256& hash, std::set<uint32_t>& cycle, uint8_t proofsize, uint8_t ratio);
+bool FindCycle(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle);
 
 // verify that cycle is valid in block hash generated graph
-int VerifyCycle(const uint256& hash, std::vector<uint32_t>& cycle, const uint8_t proofsize);
+int VerifyCycle(const uint256& hash, uint8_t nodesBits, uint8_t proofSize, const std::vector<uint32_t>& cycle);
 
 #endif // MERIT_CUCKOO_CUCKOO_H

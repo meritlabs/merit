@@ -5,16 +5,23 @@
 #ifndef MERIT_CUCKOO_MINER_H
 #define MERIT_CUCKOO_MINER_H
 
-#include "uint256.h"
+#include "chain.h"
 #include "consensus/params.h"
+#include "uint256.h"
 #include <set>
+#include <vector>
 
-namespace cuckoo {
-    /** Find cycle for block that satisfies the proof-of-work requirement specified by block hash */
-    bool FindProofOfWork(uint256 hash, unsigned int nBits, std::set<uint32_t>& cycle, const Consensus::Params& params);
+namespace cuckoo
+{
+/** Find cycle for block that satisfies the proof-of-work requirement specified by block hash */
+bool FindProofOfWork(uint256 hash, unsigned int nBits, uint8_t nodesBits, uint8_t edgesRatio, std::set<uint32_t>& cycle, const Consensus::Params& params);
 
-    /** Check that provided cycle satisfies the proof-of-work requirement specified by block hash */
-    bool VerifyProofOfWork(uint256 hash, unsigned int nBits, const std::set<uint32_t>& cycle, const Consensus::Params& params);
+/** Check that provided cycle satisfies the proof-of-work requirement specified by block hash */
+bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t nodesBits, const std::set<uint32_t>& cycle, const Consensus::Params& params);
+
+
+uint8_t GetNextNodesBitsRequired(const CBlockIndex* pindexLast);
+uint8_t GetNextEdgesRatioRequired(const CBlockIndex* pindexLast);
 }
 
 #endif // MERIT_CUCKOO_MINER_H
