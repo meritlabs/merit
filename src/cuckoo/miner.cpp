@@ -18,10 +18,10 @@ namespace cuckoo
 bool FindProofOfWork(const uint256 hash, unsigned int nBits, uint8_t nodesBits, uint8_t edgesRatio, std::set<uint32_t>& cycle, const Consensus::Params& params)
 {
     assert(cycle.empty());
-    auto res = FindCycle(hash, nodesBits, edgesRatio, params.nCuckooProofSize, cycle);
+    bool cycleFound = FindCycle(hash, nodesBits, edgesRatio, params.nCuckooProofSize, cycle);
 
     // if cycle is found check that hash of that cycle is less than a difficulty (old school bitcoin pow)
-    if (res && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
+    if (cycleFound && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
         return true;
     }
 
