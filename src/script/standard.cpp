@@ -213,7 +213,9 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
         addressRet = CKeyID(uint160(vSolutions[0]));
         return true;
     }
-    else if (whichType == TX_SCRIPTHASH)
+    else if (
+            whichType == TX_SCRIPTHASH || 
+            whichType == TX_PARAMETERIZED_SCRIPTHASH)
     {
         addressRet = CScriptID(uint160(vSolutions[0]));
         return true;
@@ -323,7 +325,7 @@ CScript GetScriptForEasySend(
         << OP_EASYSEND;
 }
 
-CScript GetScriptForVault(const uint160& tag)
+CScript GetScriptForSimpleVault(const uint160& tag)
 {
     // params <spend key> <renew key> <tag>
     //TODO: Write actual script here. This is a placeholder dummy
@@ -352,9 +354,9 @@ CScript GetScriptForVault(const uint160& tag)
         <<      OP_ANYVALUE         // <any> | <renew key> <out index>
         <<      OP_ANYVALUE         // <any> <any> | <renew key> <out index>
         <<      ToByteVector(tag)   // <tag> <any> <any> | <renew key> <out index>
-        <<      OP_FROMALTSTACK     // <any> <any> <out index> | <renew key>
-        <<      OP_FROMALTSTACK     // <any> <any> <out index> <renew key> |
-        <<      1                   // <any> <any> <out index> <renew key> 1 |
+        <<      OP_FROMALTSTACK     // <tag> <any> <any> <out index> | <renew key>
+        <<      OP_FROMALTSTACK     // <tag> <any> <any> <out index> <renew key> |
+        <<      1                   // <tag> <any> <any> <out index> <renew key> 1 |
         <<      OP_CHECKOUTPUTSIG   // <bool>
         << OP_ENDIF;
 }

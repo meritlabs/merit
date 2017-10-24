@@ -79,7 +79,7 @@ public:
  * A txout script template with a specific destination. It is either:
  *  * CNoDestination: no destination set
  *  * CKeyID: TX_PUBKEYHASH destination
- *  * CScriptID: TX_SCRIPTHASH destination
+ *  * CScriptID: TX_SCRIPTHASH or TX_PARAMETERIZED_SCRIPTHASH destination
  *  A CTxDestination is the internal data type encoded in a merit address
  */
 typedef boost::variant<CNoDestination, CKeyID, CScriptID> CTxDestination;
@@ -148,7 +148,7 @@ CScript GetScriptForEasySend(
  * chaning rules. Returns a parameterized-pay-to-script-hash with the following
  * parameters: <tag> <spend_key> <renew_key>
  */
-CScript GetScriptForVault(const uint160& tag);
+CScript GetScriptForSimpleVault(const uint160& tag);
 
 /**
  * Constructs a Parameterized P2SH. You can push params onto script after calling

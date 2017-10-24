@@ -392,7 +392,32 @@ UniValue getaddressesbyaccount(const JSONRPCRequest& request)
     return ret;
 }
 
-static void SendMoney(CWallet * const pwallet, const CTxDestination &address, CAmount nValue, bool fSubtractFeeFromAmount, CWalletTx& wtxNew, const CCoinControl& coin_control)
+static void SendMoney(
+        CWallet * const pwallet,
+        const CTxDestination &address,
+        CAmount nValue,
+        bool fSubtractFeeFromAmount,
+        CWalletTx& wtxNew,
+        const CCoinControl& coin_control)
+{
+    // Parse Merit address
+    CScript scriptPubKey = GetScriptForDestination(address);
+    SendMoney(
+            pwallet,
+            scriptPubKey,
+            nValue,
+            fSubtractFeeFromAmount,
+            wtxNew,
+            coin_control);
+}
+
+static void SendMoney(
+        CWallet * const pwallet,
+        const CScript &scriptPubKey,
+        CAmount nValue,
+        bool fSubtractFeeFromAmount,
+        CWalletTx& wtxNew,
+        const CCoinControl& coin_control)
 {
     CAmount curBalance = pwallet->GetBalance();
 
@@ -406,9 +431,6 @@ static void SendMoney(CWallet * const pwallet, const CTxDestination &address, CA
     if (pwallet->GetBroadcastTransactions() && !g_connman) {
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
     }
-
-    // Parse Merit address
-    CScript scriptPubKey = GetScriptForDestination(address);
 
     // Create and send the transaction
     CReserveKey reservekey(pwallet);
@@ -429,7 +451,6 @@ static void SendMoney(CWallet * const pwallet, const CTxDestination &address, CA
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
 }
-
 static UniValue EasySend(
         CWallet&  pwallet,
         CAmount value,
@@ -924,96 +945,91 @@ UniValue createvault(const JSONRPCRequest& request)
 
     if (request.fHelp)
         throw std::runtime_error(
-            "createvault\n"
-            "\nSend an amount to a given channel.\n"
+            "createvault amount (\"type\")\n"
+            "\nCreate a simple vault with a specific amount.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
             "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
-            "2. \"password\"           (numeric) Optional password to further secure the transaction.\n"
-            "3. blocktimeout           (numeric) The amount of blocks the transaction can be buried until the receiver cannot accept funds\n"
-            "4. subtractfeefromamount  (boolean, optional, default=false) The fee will be deducted from the amount being sent.\n"
-            "                             The recipient will receive less merits than you enter in the amount field.\n"
-            "5. \"estimate_mode\"      (string, optional, default=UNSET) The fee estimate mode, must be one of:\n"
-            "       \"UNSET\"\n"
-            "       \"ECONOMICAL\"\n"
-            "       \"CONSERVATIVE\"\n"
+            "2. \"type\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
             "\nResult:\n"
             "\"txid\"                  (string) The transaction id.\n"
-            "\"pub\"                   (string) Escrow public key in hex.\n"
+            "\"vaultaddress\"          (string) Address of the vault.\n"
+            "\"spendkey\"              (string) public key used to spend.\n"
+            "\"renewkey\"              (string) public key used to renew.\n"
             "\nExamples:\n"
-            + HelpExampleCli("easysend", "0.1")
-            + HelpExampleCli("easysend", "0.1 abc124 100 true \"ECONOMICAL\"")
+            + HelpExampleCli("createvault", "0.1")
+            + HelpExampleCli("createvault", "0.1 whitelist key1 key2")
         );
 
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    CReserveKey reserve_key(pwallet);
+    CAmount amount = AmountFromValue(request.params[0]);
+    if (amount <= 0)
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
 
-    //TODO: spend_key and reset_key should actually come from cmdline
-    CPubKey spend_key;
-    if (!reserve_key.GetReservedKey(spend_key, true)) {
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Keypool ran out, please call keypoolrefill first");
-    }
+    std::string type = "simple";
+    if(!request.params[1].isNull())
+        type = request.params[1].get_str();
 
-    CPubKey renew_key;
-    if (!reserve_key.GetReservedKey(renew_key, true)) {
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Keypool ran out, please call keypoolrefill first");
-    }
-
-    auto vault_tag = renew_key.GetID();
-    auto vault_script = GetScriptForVault(vault_tag);
-
-    CScriptID script_id = vault_script;
-    auto script_pub_key = 
-        GetParameterizedP2SH(
-                script_id,
-                ToByteVector(spend_key),
-                ToByteVector(renew_key),
-                ToByteVector(vault_tag));
-
-    if(!pwallet->GenerateNewReferral(script_id, pwallet->ReferralCodeHash())) {
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Unable to generate referral for easy send script");
-    }
-
-    UniValue ret(UniValue::VOBJ);
-
-    //temporary test stuff
+    if(type == "simple")
     {
-        Stack stack;
-        ScriptError serror;
+        CReserveKey reserve_key(pwallet);
 
-        stack.push_back(std::vector<unsigned char>(vault_script.begin(), vault_script.end()));
-
-        auto evaled = EvalScript(stack, script_pub_key, SCRIPT_VERIFY_MINIMALDATA, BaseSignatureChecker(), SIGVERSION_BASE, &serror);
-
-        std::cerr << "ERR" << ScriptErrorString(serror) << std::endl;
-        std::cerr << "STACK" << std::endl;
-        for(const auto& a : stack)
-        {
-            std::cerr << "\t";
-            for(const auto& c : a)
-                std::cerr << static_cast<unsigned int>(c) << " ";
-            std::cerr << std::endl;
+        //TODO: spend_key and reset_key should actually come from cmdline
+        CPubKey spend_key;
+        if (!reserve_key.GetReservedKey(spend_key, true)) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Keypool ran out, please call keypoolrefill first");
         }
-        ret.push_back(Pair("evaled", evaled));
+
+        CPubKey renew_key;
+        if (!reserve_key.GetReservedKey(renew_key, true)) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Keypool ran out, please call keypoolrefill first");
+        }
+
+        auto vault_tag = renew_key.GetID();
+        auto vault_script = GetScriptForSimpleVault(vault_tag);
+
+        CScriptID script_id = vault_script;
+        auto script_pub_key = 
+            GetParameterizedP2SH(
+                    script_id,
+                    ToByteVector(spend_key),
+                    ToByteVector(renew_key),
+                    ToByteVector(vault_tag));
+
+        if(!pwallet->GenerateNewReferral(script_id, pwallet->ReferralCodeHash())) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Unable to generate referral for easy send script");
+        }
+
+        CWalletTx wtx;
+        CCoinControl no_coin_control; // This is a deprecated API
+        SendMoney(pwallet, script_pub_key, amount, false, wtx, no_coin_control);
+
+        const auto txid = wtx.GetHash().GetHex();
+
+        pwallet->AddCScript(vault_script);
+        pwallet->AddCScript(script_pub_key);
+        pwallet->SetAddressBook(script_id, "", "vault");
+
+        UniValue ret(UniValue::VOBJ);
+        ret.push_back(Pair("txid", txid));
+        ret.push_back(Pair("amount", ValueFromAmount(amount)));
+        ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
+        ret.push_back(Pair("tag", EncodeDestination(vault_tag)));
+        ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
+        ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_key.GetID())));
+        ret.push_back(Pair("renew_pubkey_id", EncodeDestination(renew_key.GetID())));
+        return ret;
+    } else {
+        throw JSONRPCError(RPC_TYPE_ERROR, "The type \"" + type + "\" is not valid");
     }
-
-    ret.push_back(Pair("vault_script", ScriptToAsmStr(vault_script, true)));
-    ret.push_back(Pair("script_pub_key", ScriptToAsmStr(script_pub_key, true)));
-    ret.push_back(Pair("vault_tag", EncodeDestination(vault_tag)));
-    ret.push_back(Pair("script_id", EncodeDestination(script_id)));
-    ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_key.GetID())));
-    ret.push_back(Pair("renew_pubkey_id", EncodeDestination(renew_key.GetID())));
-
-    return ret;
-
 }
 
 UniValue listaddressgroupings(const JSONRPCRequest& request)
