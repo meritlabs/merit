@@ -323,14 +323,15 @@ CScript GetScriptForEasySend(
         << OP_EASYSEND;
 }
 
-CScript GetScriptForVault()
+CScript GetScriptForVault(const uint160& tag)
 {
-    // <mode> <spend key> <renew key>
+    // params <spend key> <renew key> <tag>
     //TODO: Write actual script here. This is a placeholder dummy
     return CScript() 
-        // <out index> <sig> <mode> <spend key> <renew key> |
-        << OP_TOALTSTACK   // <out index> <sig> <mode> <spend key> | <renew key>
-        << OP_TOALTSTACK   // <out index> <sig> <mode> | <renew key> <spend key>
+        // <out index> <sig> <mode> <spend key> <renew key> <tag> |
+        << OP_DROP         // <out index> <sig> <mode> <renew key> <spend key> | 
+        << OP_TOALTSTACK   // <out index> <sig> <mode> <vault_tag> <spend key> | <renew key>
+        << OP_TOALTSTACK   // <out index> <sig> <mode> <vault_tag>  | <renew key> <spend key>
         << 0               // <out index> <sig> <mode> 0 | <renew key> <spend key>
         << OP_EQUAL
         << OP_IF
@@ -350,6 +351,7 @@ CScript GetScriptForVault()
         <<      OP_TOALTSTACK       // | <renew key> <out index>
         <<      OP_ANYVALUE         // <any> | <renew key> <out index>
         <<      OP_ANYVALUE         // <any> <any> | <renew key> <out index>
+        <<      ToByteVector(tag)   // <tag> <any> <any> | <renew key> <out index>
         <<      OP_FROMALTSTACK     // <any> <any> <out index> | <renew key>
         <<      OP_FROMALTSTACK     // <any> <any> <out index> <renew key> |
         <<      1                   // <any> <any> <out index> <renew key> 1 |

@@ -371,7 +371,7 @@ bool EvalPushOnlyScript(
     return set_success(serror);
 }
 
-#define PUSH_FALSE_AND_BREAK stack.push_back(vchFalse); break
+#define BREAK_OR_STOP(OPC) stack.push_back(vchFalse); if(opcode == OPC) { return false;} break
 
 bool EvalScript(
         Stack& stack,
@@ -579,7 +579,7 @@ bool EvalScript(
                         break;
                     }
                     case OP_NOP1:
-                    case OP_NOP8: case OP_NOP9: case OP_NOP10:
+                    case OP_NOP9: case OP_NOP10:
                     {
                         if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
                             return set_error(serror, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);
@@ -1229,6 +1229,8 @@ bool EvalScript(
                         stack.push_back(success ? vchTrue : vchFalse);
                     }
                     break;
+
+                    case OP_CHECKOUTPUTSIGVERIFY:
                     case OP_CHECKOUTPUTSIG:
                     {
                         size_t possible_address_count = 0;
@@ -1289,7 +1291,7 @@ bool EvalScript(
                                 output_address);
 
                         if(matched_address == possible_addresses.end()) {
-                            PUSH_FALSE_AND_BREAK;
+                            BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
                         }
 
                         if(output_type == TX_PARAMETERIZED_SCRIPTHASH) {
@@ -1306,7 +1308,7 @@ bool EvalScript(
                             }
 
                             if(param_size + P2SH_SIZE != output_script.size()) {
-                                PUSH_FALSE_AND_BREAK;
+                                BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
                             }
 
                             CScript output_param_script{
@@ -1314,7 +1316,7 @@ bool EvalScript(
                                 output_script.end()};
 
                             if(!output_param_script.IsPushOnly()) {
-                                PUSH_FALSE_AND_BREAK;
+                                BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
                             }
 
                             Stack output_stack;
@@ -1330,7 +1332,7 @@ bool EvalScript(
                                     checker,
                                     SIGVERSION_BASE,
                                     serror)) {
-                                PUSH_FALSE_AND_BREAK;
+                                BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
                             }
 
                             assert(param_size <= stack.size());
@@ -1350,11 +1352,12 @@ bool EvalScript(
                                     });
 
                             if(r.first != stack.end() || r.second != output_stack.end()) {
-                                PUSH_FALSE_AND_BREAK;
+                                BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
                             }
                         }
 
-                        stack.push_back(vchTrue);
+                        if(opcode != OP_CHECKOUTPUTSIGVERIFY)
+                            stack.push_back(vchTrue);
                     }
                     break;
                     case OP_ANYVALUE:

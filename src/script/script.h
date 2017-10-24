@@ -179,8 +179,8 @@ enum opcodetype
     OP_EASYSEND = 0xb3,
     OP_CHECKOUTAMOUNT = 0xb4,
     OP_CHECKOUTPUTSIG = 0xb5,
-    OP_ANYVALUE = 0xb6,
-    OP_NOP8 = 0xb7,
+    OP_CHECKOUTPUTSIGVERIFY = 0xb6,
+    OP_ANYVALUE = 0xb7,
     OP_NOP9 = 0xb8,
     OP_NOP10 = 0xb9,
 
@@ -440,7 +440,6 @@ public:
     explicit CScript(opcodetype b)     { operator<<(b); }
     explicit CScript(const CScriptNum& b) { operator<<(b); }
     explicit CScript(const std::vector<unsigned char>& b) { operator<<(b); }
-
 
     CScript& operator<<(int64_t b) { return push_int64(b); }
 

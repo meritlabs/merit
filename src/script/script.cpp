@@ -137,10 +137,10 @@ const char* GetOpName(opcodetype opcode)
     // output verification
     case OP_CHECKOUTAMOUNT         : return "OP_CHECKOUTAMOUNT";
     case OP_CHECKOUTPUTSIG         : return "OP_CHECKOUTPUTSIG";
+    case OP_CHECKOUTPUTSIGVERIFY   : return "OP_CHECKOUTPUTSIGVERIFY";
     case OP_ANYVALUE               : return "OP_ANYVALUE";
 
     case OP_NOP1                   : return "OP_NOP1";
-    case OP_NOP8                   : return "OP_NOP8";
     case OP_NOP9                   : return "OP_NOP9";
     case OP_NOP10                  : return "OP_NOP10";
 

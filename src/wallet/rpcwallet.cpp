@@ -492,7 +492,7 @@ static UniValue EasySend(
     auto easy_send_script =
         GetScriptForEasySend(max_blocks, sender_pub, receiver_pub);
 
-    CScriptID script_id(easy_send_script);
+    CScriptID script_id = easy_send_script;
     CScript script_pub_key = GetScriptForDestination(script_id);
 
     if(!pwallet.GenerateNewReferral(receiver_pub, pwallet.ReferralCodeHash())) {
@@ -586,7 +586,7 @@ static UniValue EasyReceive(
     auto escrow_pub = escrow_key.GetPubKey();
 
     auto easy_send_script = GetScriptForEasySend(max_blocks, sender_pub, escrow_pub);
-    CScriptID script_id(easy_send_script);
+    CScriptID script_id = easy_send_script;
 
     const int SCRIPT_TYPE = 2;
 
@@ -958,45 +958,59 @@ UniValue createvault(const JSONRPCRequest& request)
                 "Keypool ran out, please call keypoolrefill first");
     }
 
-    CPubKey reset_key;
-    if (!reserve_key.GetReservedKey(reset_key, true)) {
+    CPubKey renew_key;
+    if (!reserve_key.GetReservedKey(renew_key, true)) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Keypool ran out, please call keypoolrefill first");
     }
 
-    auto vault_script = 
-        GetScriptForVault();
+    auto vault_tag = renew_key.GetID();
+    auto vault_script = GetScriptForVault(vault_tag);
 
-    CScriptID script_id(vault_script);
+    CScriptID script_id = vault_script;
     auto script_pub_key = 
         GetParameterizedP2SH(
                 script_id,
                 ToByteVector(spend_key),
-                ToByteVector(reset_key));
+                ToByteVector(renew_key),
+                ToByteVector(vault_tag));
 
-    Stack stack;
-    ScriptError serror;
-
-    stack.push_back(std::vector<unsigned char>(vault_script.begin(), vault_script.end()));
-
-    auto evaled = EvalScript(stack, script_pub_key, SCRIPT_VERIFY_MINIMALDATA, BaseSignatureChecker(), SIGVERSION_BASE, &serror);
-
-    std::cerr << "STACK" << std::endl;
-    std::cerr << "ERR" << ScriptErrorString(serror) << std::endl;
-    for(const auto& a : stack)
-    {
-        std::cerr << "\t";
-        for(const auto& c : a)
-            std::cerr << static_cast<unsigned int>(c) << " ";
-        std::cerr << std::endl;
+    if(!pwallet->GenerateNewReferral(script_id, pwallet->ReferralCodeHash())) {
+        throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Unable to generate referral for easy send script");
     }
 
     UniValue ret(UniValue::VOBJ);
+
+    //temporary test stuff
+    {
+        Stack stack;
+        ScriptError serror;
+
+        stack.push_back(std::vector<unsigned char>(vault_script.begin(), vault_script.end()));
+
+        auto evaled = EvalScript(stack, script_pub_key, SCRIPT_VERIFY_MINIMALDATA, BaseSignatureChecker(), SIGVERSION_BASE, &serror);
+
+        std::cerr << "ERR" << ScriptErrorString(serror) << std::endl;
+        std::cerr << "STACK" << std::endl;
+        for(const auto& a : stack)
+        {
+            std::cerr << "\t";
+            for(const auto& c : a)
+                std::cerr << static_cast<unsigned int>(c) << " ";
+            std::cerr << std::endl;
+        }
+        ret.push_back(Pair("evaled", evaled));
+    }
+
     ret.push_back(Pair("vault_script", ScriptToAsmStr(vault_script, true)));
     ret.push_back(Pair("script_pub_key", ScriptToAsmStr(script_pub_key, true)));
+    ret.push_back(Pair("vault_tag", EncodeDestination(vault_tag)));
     ret.push_back(Pair("script_id", EncodeDestination(script_id)));
-    ret.push_back(Pair("evaled", evaled));
+    ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_key.GetID())));
+    ret.push_back(Pair("renew_pubkey_id", EncodeDestination(renew_key.GetID())));
 
     return ret;
 
@@ -1643,7 +1657,7 @@ UniValue addmultisigaddress(const JSONRPCRequest& request)
 
     // Construct using pay-to-script-hash:
     CScript inner = _createmultisig_redeemScript(pwallet, request.params);
-    CScriptID innerID(inner);
+    CScriptID innerID = inner;
     pwallet->AddCScript(inner);
 
     pwallet->SetAddressBook(innerID, strAccount, "send");
