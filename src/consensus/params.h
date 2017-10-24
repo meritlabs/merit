@@ -63,11 +63,6 @@ struct Params {
     size_t total_winning_ambassadors;
     uint256 nMinimumChainWork;
     uint256 defaultAssumeValid;
-    /**
-     * Edges to nodes ratio percent for cockoo cycles pow.
-     * The smaller the number, the higher the difficulty
-     */
-    uint8_t nCuckooDifficulty;
     /** Cuckoo cycle length */
     uint8_t nCuckooProofSize;
 };

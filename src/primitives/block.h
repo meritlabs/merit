@@ -30,7 +30,9 @@ public:
     uint32_t nTime;
     uint32_t nBits;
     uint32_t nNonce;
-    std::set<uint32_t> m_sCycle;
+    uint8_t nNodesBits;
+    uint8_t nEdgesRatio;
+    std::set<uint32_t> sCycle;
 
     CBlockHeader()
     {
@@ -47,8 +49,10 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
+        READWRITE(nNodesBits);
+        READWRITE(nEdgesRatio);
         if (!(s.GetType() & SER_GETHASH)) {
-            READWRITE(m_sCycle);
+            READWRITE(sCycle);
         }
     }
 
@@ -60,7 +64,9 @@ public:
         nTime = 0;
         nBits = 0;
         nNonce = 0;
-        m_sCycle.clear();
+        nNodesBits = 0;
+        nEdgesRatio = 0;
+        sCycle.clear();
     }
 
     bool IsNull() const
@@ -125,7 +131,9 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
-        block.m_sCycle       = m_sCycle;
+        block.nNodesBits     = nNodesBits;
+        block.nEdgesRatio    = nEdgesRatio;
+        block.sCycle       = sCycle;
         return block;
     }
 
