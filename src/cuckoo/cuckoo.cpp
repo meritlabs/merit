@@ -6,14 +6,10 @@
 // inspired by https://github.com/tromp/cuckoo/commit/65cabf4651a8e572e99714699fbeb669565910af
 
 #include "cuckoo.h"
-#include "crypto/blake2/blake2.h"
-#include "hash.h"
 #include "util.h"
 
 #include <stdint.h> // for types uint32_t,uint64_t
 #include <string.h> // for functions strlen, memset
-
-#define MAXPATHLEN 8192
 
 const char* errstr[] = {
   "OK",
@@ -24,31 +20,6 @@ const char* errstr[] = {
   "branch in cycle",
   "cycle dead ends",
   "cycle too short"};
-
-// siphash uses a pair of 64-bit keys,
-typedef struct {
-    uint64_t k0;
-    uint64_t k1;
-} siphash_keys;
-
-// generate edge endpoint in cuckoo graph
-uint32_t sipnode(CSipHasher* hasher, uint32_t mask, uint32_t nonce, uint32_t uorv)
-{
-    auto node = CSipHasher(*hasher).Write(2 * nonce + uorv).Finalize() & mask;
-
-    return node << 1 | uorv;
-}
-
-// convenience function for extracting siphash keys from header
-void setKeys(const char* header, const uint32_t headerlen, siphash_keys* keys)
-{
-    char hdrkey[32];
-    // SHA256((unsigned char *)header, headerlen, (unsigned char *)hdrkey);
-    blake2b((void*)hdrkey, sizeof(hdrkey), (const void*)header, headerlen, 0, 0);
-
-    keys->k0 = htole64(((uint64_t*)hdrkey)[0]);
-    keys->k1 = htole64(((uint64_t*)hdrkey)[1]);
-}
 
 class CuckooCtx
 {

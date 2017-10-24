@@ -4,7 +4,9 @@
 #include "miner.h"
 #include "cuckoo.h"
 #include "hash.h"
+#include "mean_cuckoo.h"
 #include "pow.h"
+
 #include <assert.h>
 #include <numeric>
 #include <set>
@@ -42,6 +44,21 @@ bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t nodesBits, cons
         // check that hash of a cycle is less than a difficulty (old school bitcoin pow)
         return ::CheckProofOfWork(SerializeHash(cycle), nBits, params);
     }
+
+    return false;
+}
+
+bool FindProofOfWorkAdvanced(const uint256 hash, unsigned int nBits, uint8_t nodesBits, uint8_t edgesRatio, std::set<uint32_t>& cycle, const Consensus::Params& params)
+{
+    assert(cycle.empty());
+    bool cycleFound = FindCycleAdvanced(hash, nodesBits, edgesRatio, params.nCuckooProofSize, cycle);
+
+    // if cycle is found check that hash of that cycle is less than a difficulty (old school bitcoin pow)
+    if (cycleFound && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
+        return true;
+    }
+
+    cycle.clear();
 
     return false;
 }

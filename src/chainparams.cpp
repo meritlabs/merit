@@ -65,7 +65,7 @@ static CBlock CreateGenesisBlock(
 
         uint32_t nMaxTries = 10000000;
 
-        while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, genesis.nEdgesRatio, pow, params)) {
+        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, genesis.nEdgesRatio, pow, params)) {
             ++genesis.nNonce;
             --nMaxTries;
         }
@@ -253,7 +253,7 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 20, 60, 1, 50 * COIN, consensus, false);
+        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 20, 60, 1, 50 * COIN, consensus, true);
 
         genesis.sCycle = {0x553, 0x2569, 0x3eb5, 0x4d78, 0x6101, 0x6a0f, 0x6e22, 0x6f77, 0x960c, 0xc912, 0x137e6,
             0x16a9b, 0x1b08c, 0x1b6b1, 0x1eb9b, 0x1f10d, 0x206ae, 0x20bbe, 0x21330, 0x24e60, 0x259e8, 0x27d95, 0x27e18,

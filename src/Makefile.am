@@ -114,7 +114,9 @@ MERIT_CORE_H = \
   merkleblock.h \
   miner.h \
   cuckoo/cuckoo.h \
+  cuckoo/osx_barrier.h \
   cuckoo/miner.h \
+  cuckoo/mean_cuckoo.h \
   net.h \
   net_processing.h \
   netaddress.h \
@@ -212,6 +214,7 @@ libmerit_server_a_SOURCES = \
   miner.cpp \
   cuckoo/cuckoo.cpp \
   cuckoo/miner.cpp \
+  cuckoo/mean_cuckoo.cpp \
   net.cpp \
   net_processing.cpp \
   noui.cpp \
