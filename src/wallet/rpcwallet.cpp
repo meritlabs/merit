@@ -969,9 +969,11 @@ UniValue createvault(const JSONRPCRequest& request)
         GetScriptForVault();
 
     CScriptID script_id(vault_script);
-    auto script_pub_key = GetParameterizedP2SH(script_id);
-    script_pub_key << 100;
-
+    auto script_pub_key = 
+        GetParameterizedP2SH(
+                script_id,
+                ToByteVector(spend_key),
+                ToByteVector(reset_key));
 
     Stack stack;
     ScriptError serror;

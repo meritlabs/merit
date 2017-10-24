@@ -357,6 +357,14 @@ CScript GetScriptForVault()
         << OP_ENDIF;
 }
 
+namespace details
+{
+    void AppendParameterizedP2SH(CScript& script) 
+    {
+        // nothing to append
+    }
+}
+
 CScript GetParameterizedP2SH(const CScriptID& dest)
 {
     CScript script;

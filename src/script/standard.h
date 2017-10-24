@@ -157,12 +157,15 @@ CScript GetParameterizedP2SH(const CScriptID& dest);
 
 namespace details
 {
+    void AppendParameterizedP2SH(CScript& script);
+
     template <class Param, class... Params>
     void AppendParameterizedP2SH(CScript& script, Param p, Params... ps)
     {
         script << p;
         AppendParameterizedP2SH(script, ps...);
     }
+
 }
 
 CScript GetParameterizedP2SH(const CScriptID& dest);
