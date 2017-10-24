@@ -77,9 +77,6 @@ std::pair<int, int64_t> CalculateSequenceLocks(const CTransaction &tx, int flags
         }
     }
 
-    assert(nMinHeight >= 0);
-    assert(nMinTime >= 0);
-
     return std::make_pair(nMinHeight, nMinTime);
 }
 
