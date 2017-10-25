@@ -1032,6 +1032,158 @@ UniValue createvault(const JSONRPCRequest& request)
     }
 }
 
+
+template <class Coins>
+auto FindUnspentCoin(const Coins& coins, bool from_mempool) -> typename Coins::const_iterator {
+    using Pair = typename Coins::value_type;
+    return std::find_if(std::begin(coins), std::end(coins),
+            [from_mempool](const Pair& p) {
+                bool spent = false;
+                CSpentIndexValue spent_value;
+                if(from_mempool) {
+                    spent = mempool.getSpentIndex(
+                            {p.first.txhash, static_cast<unsigned int>(p.first.index)},
+                            spent_value);
+                } else {
+                    spent = GetSpentIndex(
+                            {p.first.txhash, static_cast<unsigned int>(p.first.index)},
+                            spent_value);
+                }
+                return !spent;
+            });
+}
+
+using MaybeVaultID = boost::optional<uint256>;
+
+MaybeVaultID FindUnspentVaultTransactionID(const uint160& address) {
+    const int SCRIPT_TYPE = 2;
+    std::vector<std::pair<uint160, int> > addresses = {{address, 2}};
+    std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > mempool_coins;
+
+    mempool.getAddressIndex(addresses, mempool_coins);
+
+    UniValue ret(UniValue::VOBJ);
+    if(!mempool_coins.empty()) {
+        auto coin = FindUnspentCoin(mempool_coins, true);
+        if(coin == mempool_coins.end()) return {};
+
+        return coin->first.txhash;
+    } 
+
+    std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
+    GetAddressIndex(address, SCRIPT_TYPE, coins);
+
+    auto coin = FindUnspentCoin(coins, false);
+    if(coin == coins.end()) return {};
+
+    return coin->first.txhash;
+}
+
+UniValue renewvault(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp)
+        throw std::runtime_error(
+            "renewvault vault_address\n"
+            "\nCreate a simple vault with a specific amount.\n"
+            + HelpRequiringPassphrase(pwallet) +
+            "\nArguments:\n"
+            "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+            "2. \"type\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+            "\nResult:\n"
+            "\"txid\"                  (string) The transaction id.\n"
+            "\"vaultaddress\"          (string) Address of the vault.\n"
+            "\"spendkey\"              (string) public key used to spend.\n"
+            "\"renewkey\"              (string) public key used to renew.\n"
+            "\nExamples:\n"
+            + HelpExampleCli("renewvault", "")
+            + HelpExampleCli("renewvault", "")
+        );
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    std::string address = request.params[0].get_str();
+
+    CTxDestination dest = DecodeDestination(address);
+    if (!IsValidDestination(dest)) {
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
+    }
+
+    auto script_id = boost::get<CScriptID>(&dest);
+    if(!script_id) {
+        throw JSONRPCError(RPC_TYPE_ERROR, "Script Address Required");
+    }
+
+    auto maybe_transaction = FindUnspentVaultTransactionID(*script_id);
+
+    if(!maybe_transaction) {
+        throw JSONRPCError(
+                RPC_INVALID_ADDRESS_OR_KEY,
+                "Cannot find the vault by the address specified");
+    }
+
+    CTransactionRef tx;
+    uint256 hashBlock;
+    if (!GetTransaction(*maybe_transaction, tx, Params().GetConsensus(), hashBlock, true)) {
+        throw JSONRPCError(
+                RPC_INVALID_ADDRESS_OR_KEY,
+                "No information available about vault");
+    }
+
+    if(!tx) {
+        throw JSONRPCError(
+                RPC_INVALID_ADDRESS_OR_KEY,
+                "No information available about vault");
+    }
+
+    //TODO Walk the outputs of the transactions and find the vault ouptput
+
+    std::string type = "simple";
+    if(type == "simple") {
+
+
+        /*
+        auto vault_tag = //;
+        auto vault_script = GetScriptForSimpleVault(vault_tag);
+
+        auto script_pub_key = 
+            GetParameterizedP2SH(
+                    script_id,
+                    ToByteVector(spend_key),
+                    ToByteVector(renew_key),
+                    ToByteVector(vault_tag));
+
+        CWalletTx wtx;
+        CCoinControl no_coin_control; // This is a deprecated API
+        SendMoney(pwallet, script_pub_key, amount, false, wtx, no_coin_control);
+
+        const auto txid = wtx.GetHash().GetHex();
+
+        pwallet->AddCScript(vault_script);
+        pwallet->AddCScript(script_pub_key);
+        pwallet->SetAddressBook(script_id, "", "vault");
+
+        UniValue ret(UniValue::VOBJ);
+        ret.push_back(Pair("txid", txid));
+        ret.push_back(Pair("amount", ValueFromAmount(amount)));
+        ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
+        ret.push_back(Pair("tag", EncodeDestination(vault_tag)));
+        ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
+        ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_key.GetID())));
+        ret.push_back(Pair("renew_pubkey_id", EncodeDestination(renew_key.GetID())));
+        return ret;
+
+        */
+    } else {
+        throw JSONRPCError(RPC_TYPE_ERROR, "The type \"" + type + "\" is not valid");
+    }
+}
+
 UniValue listaddressgroupings(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
