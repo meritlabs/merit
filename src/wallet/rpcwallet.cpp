@@ -1152,7 +1152,22 @@ UniValue renewvault(const JSONRPCRequest& request)
                 "No information available about vault");
     }
 
-    //TODO Walk the outputs of the transactions and find the vault ouptput
+    const auto output_index = maybe_transaction_info->second;
+    if(output_index < 0 || output_index >= tx->vout.size()) {
+        throw JSONRPCError(
+                RPC_DATABASE_ERROR,
+                "Output index was out of range with actual blockchain. Potential database corruption.");
+    }
+
+    const auto& output = tx->vout[output_index];
+
+    UniValue ret(UniValue::VOBJ);
+    ret.push_back(Pair("txid", maybe_transaction_info->first.GetHex()));
+    ret.push_back(Pair("amount", ValueFromAmount(output.nValue)));
+    ret.push_back(Pair("script", ScriptToAsmStr(output.scriptPubKey, true)));
+
+    return ret;
+
 
     std::string type = "simple";
     if(type == "simple") {
@@ -4207,6 +4222,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "easysend",                 &easysend,                 {"amount", "password"} },
     { "wallet",             "easyreceive",              &easyreceive,              {"secret", "senderpubkey", "password"} },
     { "wallet",             "createvault",              &createvault,              {} },
+    { "wallet",             "renewvault",               &renewvault,               {} },
     { "wallet",             "setaccount",               &setaccount,               {"address","account"} },
     { "wallet",             "settxfee",                 &settxfee,                 {"amount"} },
     { "wallet",             "signmessage",              &signmessage,              {"address","message"} },
