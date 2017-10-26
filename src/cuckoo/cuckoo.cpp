@@ -95,14 +95,16 @@ void solution(CuckooCtx* ctx, uint32_t* us, int nu, uint32_t* vs, int nv, std::s
 bool FindCycle(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
     assert(edgesRatio >= 0 && edgesRatio <= 100);
-    assert(nodesBits <= 32);
+    assert(nodesBits <= 31);
 
     LogPrintf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofSize, nodesBits, hash.GetHex().c_str(), edgesRatio);
 
+    uint32_t nodesCount = 1 << nodesBits;
     // edge mask is a max valid value of an edge.
-    uint32_t edgeMask = (1 << (nodesBits - 2)) - 1;
+    // edge mask is twice less then nodes count - 1
+    // if nodesCount if 0x1000 then mask is 0x7ff
+    uint32_t edgeMask = (1 << (nodesBits - 1)) - 1;
 
-    uint32_t nodesCount = 1 << (nodesBits - 1);
     uint32_t difficulty = edgesRatio * (uint64_t)nodesCount / 100;
 
     auto hashStr = hash.GetHex();
@@ -129,6 +131,7 @@ bool FindCycle(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8
             for (nu -= min, nv -= min; us[nu] != vs[nv]; nu++, nv++)
                 ;
             int len = nu + nv + 1;
+            printf("% 4d-cycle found at %d%%\n", len, (int)(nonce*100L/difficulty));
             if (len == proofSize) {
                 solution(&ctx, us, nu, vs, nv, cycle, edgeMask);
 
@@ -165,9 +168,9 @@ int VerifyCycle(const uint256& hash, uint8_t nodesBits, uint8_t proofSize, const
     assert(nodesBits <= 32);
     siphash_keys keys;
 
-    uint32_t nodesCount = 1 << (nodesBits - 1);
+    uint32_t nodesCount = 1 << nodesBits;
     // edge mask is a max valid value of an edge (max index of nodes array).
-    uint32_t edgeMask = nodesCount - 1;
+    uint32_t edgeMask = (1 << (nodesBits - 1)) - 1;
 
     auto hashStr = hash.GetHex();
 
@@ -188,8 +191,8 @@ int VerifyCycle(const uint256& hash, uint8_t nodesBits, uint8_t proofSize, const
         }
 
         // sipnode edge mask should be nodesCount >> 1 as it would be shifted left after random number generated
-        xor0 ^= uvs[2 * n] = sipnode(&hasher, edgeMask >> 1, cycle[n], 0);
-        xor1 ^= uvs[2 * n + 1] = sipnode(&hasher, edgeMask >> 1, cycle[n], 1);
+        xor0 ^= uvs[2 * n] = sipnode(&keys, edgeMask, cycle[n], 0);
+        xor1 ^= uvs[2 * n + 1] = sipnode(&keys, edgeMask, cycle[n], 1);
     }
 
     // matching endpoints imply zero xors
