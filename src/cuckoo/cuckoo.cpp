@@ -29,7 +29,7 @@ public:
     uint32_t m_difficulty;
     uint32_t* m_cuckoo;
 
-    CuckooCtx(char* header, const uint32_t headerlen, uint32_t difficulty, uint32_t nodesCount)
+    CuckooCtx(const char* header, const uint32_t headerlen, uint32_t difficulty, uint32_t nodesCount)
     {
         setKeys(header, headerlen, &m_keys);
         m_hasher = new CSipHasher(m_keys.k0, m_keys.k1);
@@ -82,7 +82,7 @@ void solution(CuckooCtx* ctx, uint32_t* us, int nu, uint32_t* vs, int nv, std::s
     }
 
     for (uint32_t nonce = n = 0; nonce < ctx->m_difficulty; nonce++) {
-        edge e(sipnode(ctx->m_hasher, edgeMask, nonce, 0), sipnode(ctx->m_hasher, edgeMask, nonce, 1));
+        edge e(sipnode(&ctx->m_keys, edgeMask, nonce, 0), sipnode(&ctx->m_keys, edgeMask, nonce, 1));
         if (cycle.find(e) != cycle.end()) {
             // LogPrintf("%x ", nonce);
             cycle.erase(e);
@@ -105,14 +105,20 @@ bool FindCycle(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8
     uint32_t nodesCount = 1 << (nodesBits - 1);
     uint32_t difficulty = edgesRatio * (uint64_t)nodesCount / 100;
 
-    CuckooCtx ctx(const_cast<char*>(reinterpret_cast<const char*>(hash.begin())), hash.size(), difficulty, nodesCount);
+    auto hashStr = hash.GetHex();
+    CuckooCtx ctx(hashStr.c_str(), hashStr.size(), difficulty, nodesCount);
+
+    uint32_t timems;
+    struct timeval time0, time1;
+
+    gettimeofday(&time0, 0);
 
     uint32_t* cuckoo = ctx.m_cuckoo;
     uint32_t us[MAXPATHLEN], vs[MAXPATHLEN];
     for (uint32_t nonce = 0; nonce < ctx.m_difficulty; nonce++) {
-        uint32_t u0 = sipnode(ctx.m_hasher, edgeMask, nonce, 0);
+        uint32_t u0 = sipnode(&ctx.m_keys, edgeMask, nonce, 0);
         if (u0 == 0) continue; // reserve 0 as nil; v0 guaranteed non-zero
-        uint32_t v0 = sipnode(ctx.m_hasher, edgeMask, nonce, 1);
+        uint32_t v0 = sipnode(&ctx.m_keys, edgeMask, nonce, 1);
         uint32_t u = cuckoo[u0], v = cuckoo[v0];
         us[0] = u0;
         vs[0] = v0;
@@ -125,6 +131,11 @@ bool FindCycle(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8
             int len = nu + nv + 1;
             if (len == proofSize) {
                 solution(&ctx, us, nu, vs, nv, cycle, edgeMask);
+
+                gettimeofday(&time1, 0);
+                timems = (time1.tv_sec-time0.tv_sec)*1000 + (time1.tv_usec-time0.tv_usec)/1000;
+                printf("Time: %d ms\n", timems);
+
                 return true;
             }
             continue;
@@ -140,6 +151,10 @@ bool FindCycle(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8
         }
     }
 
+    gettimeofday(&time1, 0);
+    timems = (time1.tv_sec-time0.tv_sec)*1000 + (time1.tv_usec-time0.tv_usec)/1000;
+    printf("Time: %d ms\n", timems);
+
     return false;
 }
 
@@ -154,10 +169,9 @@ int VerifyCycle(const uint256& hash, uint8_t nodesBits, uint8_t proofSize, const
     // edge mask is a max valid value of an edge (max index of nodes array).
     uint32_t edgeMask = nodesCount - 1;
 
-    char* header = const_cast<char*>(reinterpret_cast<const char*>(hash.begin()));
-    uint32_t headerlen = hash.size();
+    auto hashStr = hash.GetHex();
 
-    setKeys(header, headerlen, &keys);
+    setKeys(hashStr.c_str(), hashStr.size(), &keys);
 
     CSipHasher hasher{keys.k0, keys.k1};
 

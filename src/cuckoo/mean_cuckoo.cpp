@@ -44,21 +44,6 @@
 #define NSIPHASH 1
 #endif
 
-#ifndef COMPRESSROUND
-#define COMPRESSROUND 14
-#endif
-
-#ifndef BIGSIZE
-#define BIGSIZE 5
-#endif
-
-// size in bytes of a small bucket entry
-#define SMALLSIZE BIGSIZE
-
-// initial entries could be smaller at percent or two slowdown
-#ifndef BIGSIZE0
-#define BIGSIZE0 BIGSIZE
-#endif
 
 #ifndef XBITS
 // 7 seems to give best performance
@@ -75,14 +60,60 @@
 #define EDGEBITS 27
 #endif
 
+
+// size in bytes of a big bucket entry
+#ifndef BIGSIZE
+#if EDGEBITS <= 15
+#define BIGSIZE 4
+// no compression needed
+#define COMPRESSROUND 0
+#else
+#define BIGSIZE 5
+// YZ compression round; must be even
+#ifndef COMPRESSROUND
+#define COMPRESSROUND 14
+#endif
+#endif
+#endif
+// size in bytes of a small bucket entry
+#define SMALLSIZE BIGSIZE
+
+// initial entries could be smaller at percent or two slowdown
+#ifndef BIGSIZE0
+#if EDGEBITS < 30 && !defined SAVEEDGES
+#define BIGSIZE0 4
+#else
+#define BIGSIZE0 BIGSIZE
+#endif
+#endif
+// but they may need syncing entries
+#if BIGSIZE0 == 4 && EDGEBITS > 27
+#define NEEDSYNC
+#endif
+
+typedef uint8_t uint8_t;
+typedef uint16_t uint16_t;
+
+#if EDGEBITS >= 30
+typedef uint64_t offset_t;
+#else
+typedef uint32_t offset_t;
+#endif
+
+#if BIGSIZE0 > 4
+typedef uint64_t BIGTYPE0;
+#else
+typedef uint32_t BIGTYPE0;
+#endif
+
 // number of edges
 #define NEDGES ((uint32_t)1 << EDGEBITS)
 // used to mask siphash output
 #define EDGEMASK ((uint32_t)NEDGES - 1)
 
-typedef uint64_t BIGTYPE0;
+// typedef uint32_t BIGTYPE0;
 
-typedef uint32_t offset_t;
+// typedef uint32_t offset_t;
 
 typedef uint32_t proof[PROOFSIZE];
 
@@ -135,49 +166,38 @@ const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
 // 1/32 reduces odds of overflowing z bucket on 2^30 nodes to 2^14*e^-32
 // (less than 1 in a billion) in theory. not so in practice (fails first at mean30 -n 1549)
 #ifndef BIGEPS
-#define BIGEPS 3 / 64
+#define BIGEPS 5 / 64
 #endif
 
 // 176/256 is safely over 1-e(-1) ~ 0.63 trimming fraction
 #ifndef TRIMFRAC256
-#define TRIMFRAC256 176
+#define TRIMFRAC256 184
 #endif
 
 const static uint32_t NTRIMMEDZ = NZ * TRIMFRAC256 / 256;
 
 const static uint32_t ZBUCKETSLOTS = NZ + NZ * BIGEPS;
-#ifdef SAVEEDGES
-const static uint32_t ZBUCKETSIZE = NTRIMMEDZ * (BIGSIZE + sizeof(uint32_t)); // assumes EDGEBITS <= 32
-#else
 const static uint32_t ZBUCKETSIZE = ZBUCKETSLOTS * BIGSIZE0;
-#endif
 const static uint32_t TBUCKETSIZE = ZBUCKETSLOTS * BIGSIZE;
 
 template <uint32_t BUCKETSIZE>
 struct zbucket {
     uint32_t size;
     const static uint32_t RENAMESIZE = 2 * NZ2 + 2 * (COMPRESSROUND ? NZ1 : 0);
-    alignas(16) union {
+    union alignas(16) {
         uint8_t bytes[BUCKETSIZE];
         struct {
-#ifdef SAVEEDGES
-            uint32_t words[BUCKETSIZE / sizeof(uint32_t) - RENAMESIZE - NTRIMMEDZ];
-#else
             uint32_t words[BUCKETSIZE / sizeof(uint32_t) - RENAMESIZE];
-#endif
             uint32_t renameu1[NZ2];
             uint32_t renamev1[NZ2];
             uint32_t renameu[COMPRESSROUND ? NZ1 : 0];
             uint32_t renamev[COMPRESSROUND ? NZ1 : 0];
-#ifdef SAVEEDGES
-            uint32_t edges[NTRIMMEDZ];
-#endif
         };
     };
     uint32_t setsize(uint8_t const* end)
     {
-        size = end - bytes;
-        printf("%d-%d\n", size, BUCKETSIZE);
+        size = end - bytes; // bytes is an address of the begining of bytes array, end is the address of it's end
+        // printf("size: %d, BUCKETSIZE: %d\n", size, BUCKETSIZE);
         assert(size <= BUCKETSIZE);
         return size;
     }
@@ -190,7 +210,7 @@ using matrix = yzbucket<BUCKETSIZE>[NX];
 
 template <uint32_t BUCKETSIZE>
 struct indexer {
-    offset_t index[NX];
+    offset_t index[NX]; // uint32_t[128] - array of addresses in trimmer->buckets matrix row or column
 
     void matrixv(const uint32_t y)
     {
@@ -202,8 +222,10 @@ struct indexer {
     {
         uint8_t const* base = (uint8_t*)buckets;
         offset_t sumsize = 0;
-        for (uint32_t x = 0; x < NX; x++)
+        for (uint32_t x = 0; x < NX; x++) {
+            // printf("base: %8x; x: %3d, index[x]: %8x\n", base, x, index[x]);
             sumsize += buckets[x][y].setsize(base + index[x]);
+        }
         return sumsize;
     }
     void matrixu(const uint32_t x)
@@ -306,46 +328,37 @@ public:
     void genUnodes(const uint32_t id, const uint32_t uorv)
     {
         uint64_t rdtsc0, rdtsc1;
-#ifdef NEEDSYNC
-        uint32_t last[NX];
-        ;
-#endif
-
         rdtsc0 = __rdtsc();
+
         uint8_t const* base = (uint8_t*)buckets;
         indexer<ZBUCKETSIZE> dst;
-        const uint32_t starty = NY * id / nthreads;
-        const uint32_t endy = NY * (id + 1) / nthreads;
-        uint32_t edge = starty << YZBITS, endedge = edge + NYZ;
-#if NSIPHASH == 8
-        static const __m256i vxmask = {XMASK, XMASK, XMASK, XMASK};
-        static const __m256i vyzmask = {YZMASK, YZMASK, YZMASK, YZMASK};
-        const __m256i vinit = _mm256_set_epi64x(
-            sip_keys.k1 ^ 0x7465646279746573ULL,
-            sip_keys.k0 ^ 0x6c7967656e657261ULL,
-            sip_keys.k1 ^ 0x646f72616e646f6dULL,
-            sip_keys.k0 ^ 0x736f6d6570736575ULL);
-        __m256i v0, v1, v2, v3, v4, v5, v6, v7;
-        const uint32_t e2 = 2 * edge + uorv;
-        __m256i vpacket0 = _mm256_set_epi64x(e2 + 6, e2 + 4, e2 + 2, e2 + 0);
-        __m256i vpacket1 = _mm256_set_epi64x(e2 + 14, e2 + 12, e2 + 10, e2 + 8);
-        static const __m256i vpacketinc = {16, 16, 16, 16};
-        uint64_t e1 = edge;
-        __m256i vhi0 = _mm256_set_epi64x((e1 + 3) << YZBITS, (e1 + 2) << YZBITS, (e1 + 1) << YZBITS, (e1 + 0) << YZBITS);
-        __m256i vhi1 = _mm256_set_epi64x((e1 + 7) << YZBITS, (e1 + 6) << YZBITS, (e1 + 5) << YZBITS, (e1 + 4) << YZBITS);
-        static const __m256i vhiinc = {8 << YZBITS, 8 << YZBITS, 8 << YZBITS, 8 << YZBITS};
-#endif
+        const uint32_t starty = NY * id / nthreads;     // 0 for nthreads = 1
+        const uint32_t endy = NY * (id + 1) / nthreads; // 128 for nthreads = 1
+        uint32_t edge = starty << YZBITS;               // 0 as starty is 0
+        uint32_t endedge = edge + NYZ;                  // 0 + 2^(7 + 13) = 1 048 576
+
+        // printf("starty: %d; endy: %d\n", starty, endy);
+        // printf("edge: %d; endedge: %d\n", edge, endedge);
+
         offset_t sumsize = 0;
         for (uint32_t my = starty; my < endy; my++, endedge += NYZ) {
             dst.matrixv(my);
 
+            // printf("my: %d; endedge: %d\n", my, endedge);
+
+            // edge is a "nonce" for sipnode()
             for (; edge < endedge; edge += NSIPHASH) {
 // bit        28..21     20..13    12..0
 // node       XXXXXX     YYYYYY    ZZZZZ
 #if NSIPHASH == 1
-                const uint32_t node = sipnode(hasher, edgeMask, edge, uorv);
-                const uint32_t ux = node >> YZBITS;
-                const BIGTYPE0 zz = (BIGTYPE0)edge << YZBITS | (node & YZMASK);
+                const uint32_t node = _sipnode(&sip_keys, edgeMask, edge, uorv); // node - generated random node for the graph
+
+                const uint32_t ux = node >> YZBITS;                             // ux - highest X (7) bits
+                const BIGTYPE0 zz = (BIGTYPE0)edge << YZBITS | (node & YZMASK); // - edge YYYYYY ZZZZZ
+
+                if (edge % 100000 == 0) {
+                    // printf("edge: %x, node: %7x; ux: %2x, zz: %8x, dst.index[ux]: %8x\n", edge, node, ux, zz, dst.index[ux]);
+                }
                 // bit        39..21     20..13    12..0
                 // write        edge     YYYYYY    ZZZZZ
                 *(BIGTYPE0*)(base + dst.index[ux]) = zz;
@@ -388,9 +401,6 @@ public:
                     // bit     39/31..21     20..13    12..0
                     // read         edge     UYYYYY    UZZZZ   within UX partition
                     BIGTYPE0 e = *(BIGTYPE0*)readbig;
-#if BIGSIZE0 > 4
-                    e &= BIGSLOTMASK0;
-#endif
                     edge += ((uint32_t)(e >> YZBITS) - edge) & (NNONYZ - 1);
                     // if (ux==78 && my==243) printf("id %d ux %d my %d e %08x prefedge %x edge %x\n", id, ux, my, e, e >> YZBITS, edge);
                     const uint32_t uy = (e >> ZBITS) & YMASK;
@@ -415,7 +425,6 @@ public:
                 for (uint8_t* rdsmall = readsmall; rdsmall < endreadsmall; rdsmall += SMALLSIZE)
                     degs[*(uint32_t*)rdsmall & ZMASK]++;
                 uint16_t* zs = tzs[id];
-
                 uint32_t* edges0 = tedges[id];
                 uint32_t *edges = edges0, edge = 0;
                 for (uint8_t* rdsmall = readsmall; rdsmall < endreadsmall; rdsmall += SMALLSIZE) {
@@ -441,7 +450,7 @@ public:
                 int64_t uy34 = (int64_t)uy << YZZBITS;
 
                 for (; readedge < edges; readedge++, readz++) { // process up to 7 leftover edges if NSIPHASH==8
-                    const uint32_t node = sipnode(hasher, edgeMask, *readedge, uorv);
+                    const uint32_t node = _sipnode(&sip_keys, edgeMask, *readedge, uorv);
                     const uint32_t vx = node >> YZBITS; // & XMASK;
                                                         // bit        39..34    33..21     20..13     12..0
                                                         // write      UYYYYY    UZZZZZ     VYYYYY     VZZZZ   within VX partition
@@ -450,6 +459,7 @@ public:
                     dst.index[vx] += BIGSIZE;
                 }
             }
+            // printf("sumsize: %d\n", sumsize);
             sumsize += dst.storeu(buckets, ux);
         }
         rdtsc1 = __rdtsc();
@@ -834,6 +844,11 @@ void* etworker(void* vp)
     return 0;
 }
 
+int nonce_cmp(const void* a, const void* b)
+{
+    return *(uint32_t*)a - *(uint32_t*)b;
+}
+
 // break circular reference with forward declaration
 class solver_ctx;
 
@@ -853,12 +868,14 @@ public:
     std::bitset<NXY> uxymap;
     std::vector<uint32_t> sols; // concatanation of all proof's indices
 
-    solver_ctx(char* header, const uint32_t headerlen, uint32_t difficulty, uint32_t edgeMaskIn, const uint32_t n_threads, const uint32_t n_trims, bool allrounds)
+    solver_ctx(const char* header, const uint32_t headerlen, uint32_t difficulty, uint32_t edgeMaskIn, const uint32_t n_threads, const uint32_t n_trims, bool allrounds)
     {
         trimmer = new edgetrimmer(n_threads, n_trims, edgeMaskIn, allrounds);
 
-        setKeys(header, headerlen, &trimmer->sip_keys);
+        // ((uint32_t *)header)[headerlen/sizeof(uint32_t)-1] = htole32(0); // place nonce at end
 
+        setKeys(header, headerlen, &trimmer->sip_keys);
+        printf("k0 k1 %lx %lx\n", trimmer->sip_keys.k0, trimmer->sip_keys.k1);
         trimmer->InitHasher();
 
         cuckoo = 0;
@@ -909,6 +926,22 @@ public:
         while (nv--)
             recordedge(ni++, vs[nv | 1], vs[(nv + 1) & ~1]); // u's in odd position; v's in even
         printf("\n");
+
+        void* matchworker(void* vp);
+
+        sols.resize(sols.size() + PROOFSIZE);
+        match_ctx* threads = new match_ctx[trimmer->nthreads];
+        for (uint32_t t = 0; t < trimmer->nthreads; t++) {
+            threads[t].id = t;
+            threads[t].solver = this;
+            int err = pthread_create(&threads[t].thread, NULL, matchworker, (void*)&threads[t]);
+            assert(err == 0);
+        }
+        for (uint32_t t = 0; t < trimmer->nthreads; t++) {
+            int err = pthread_join(threads[t].thread, NULL);
+            assert(err == 0);
+        }
+        qsort(&sols[sols.size() - PROOFSIZE], PROOFSIZE, sizeof(uint32_t), nonce_cmp);
     }
 
     static const uint32_t CUCKOO_NIL = ~0;
@@ -931,7 +964,7 @@ public:
         return nu - 1;
     }
 
-    void findcycles()
+    bool findcycles()
     {
         uint32_t us[MAXPATHLEN], vs[MAXPATHLEN];
         uint64_t rdtsc0, rdtsc1;
@@ -958,8 +991,10 @@ public:
                                 ;
                             const uint32_t len = nu + nv + 1;
                             printf("%4d-cycle found\n", len);
-                            if (len == PROOFSIZE)
+                            if (len == PROOFSIZE) {
                                 solution(us, nu, vs, nv);
+                                return true;
+                            }
                         } else if (nu < nv) {
                             while (nu--)
                                 cuckoo[us[nu + 1]] = us[nu];
@@ -975,16 +1010,18 @@ public:
         }
         rdtsc1 = __rdtsc();
         printf("findcycles rdtsc: %lu\n", rdtsc1 - rdtsc0);
+
+        return false;
     }
 
-    int solve()
+    bool solve()
     {
         assert((uint64_t)CUCKOO_SIZE * sizeof(uint32_t) <= trimmer->nthreads * sizeof(yzbucket<TBUCKETSIZE>));
         trimmer->trim();
         cuckoo = (uint32_t*)trimmer->tbuckets;
         memset(cuckoo, CUCKOO_NIL, CUCKOO_SIZE * sizeof(uint32_t));
-        findcycles();
-        return sols.size() / PROOFSIZE;
+        return findcycles();
+        // return sols.size() / PROOFSIZE;
     }
 
     void* matchUnodes(match_ctx* mc)
@@ -1001,10 +1038,10 @@ public:
 // bit        28..21     20..13    12..0
 // node       XXXXXX     YYYYYY    ZZZZZ
 #if NSIPHASH == 1
-                const uint32_t nodeu = sipnode(trimmer->hasher, trimmer->edgeMask, edge, 0);
+                const uint32_t nodeu = _sipnode(&trimmer->sip_keys, trimmer->edgeMask, edge, 0);
                 if (uxymap[nodeu >> ZBITS]) {
                     for (uint32_t j = 0; j < PROOFSIZE; j++) {
-                        if (cycleus[j] == nodeu && cyclevs[j] == sipnode(trimmer->hasher, trimmer->edgeMask, edge, 1)) {
+                        if (cycleus[j] == nodeu && cyclevs[j] == _sipnode(&trimmer->sip_keys, trimmer->edgeMask, edge, 1)) {
                             sols[sols.size() - PROOFSIZE + j] = edge;
                         }
                     }
@@ -1026,22 +1063,23 @@ public:
 
 bool FindCycleAdvanced(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
+    nodesBits = EDGEBITS + 1;
     assert(edgesRatio >= 0 && edgesRatio <= 100);
     assert(nodesBits <= 32);
 
-    // edge mask is a max valid value of an edge.
-    uint32_t edgeMask = (1 << (nodesBits - 2)) - 1;
-
     uint32_t nodesCount = 1 << (nodesBits - 1);
+    // edge mask is a max valid value of an edge.
+    uint32_t edgeMask = nodesCount - 1;
+
     uint32_t difficulty = edgesRatio * (uint64_t)nodesCount / 100;
 
-    uint8_t nthreads = 1;
+    uint8_t nthreads = 8;
     uint32_t ntrims = nodesBits > 31 ? 96 : 68;
     bool allrounds = false;
 
     printf("Looking for %d-cycle on cuckoo%d(\"%s\") with 50%% edges\n", proofSize, nodesBits, hash.GetHex().c_str());
 
-    solver_ctx ctx(const_cast<char*>(reinterpret_cast<const char*>(hash.begin())), hash.size(), difficulty, edgeMask, nthreads, ntrims, allrounds);
+    solver_ctx ctx(hash.GetHex().c_str(), hash.GetHex().size(), difficulty, edgeMask, nthreads, ntrims, allrounds);
 
     uint64_t sbytes = ctx.sharedbytes();
     uint32_t tbytes = ctx.threadbytes();
@@ -1055,35 +1093,31 @@ bool FindCycleAdvanced(const uint256& hash, uint8_t nodesBits, uint8_t edgesRati
     printf("%dx%d%cB thread memory at %lx,\n", nthreads, tbytes, " KMGT"[tunit], (uint64_t)ctx.trimmer->tbuckets);
     printf("%d-way siphash, and %d buckets.\n", NSIPHASH, NX);
 
-    uint32_t sumnsols = 0;
-    uint32_t nsols = ctx.solve();
+    uint32_t timems;
+    struct timeval time0, time1;
 
-    // for (unsigned s = 0; s < nsols; s++) {
+    gettimeofday(&time0, 0);
+
+    bool found = ctx.solve();
+
+    gettimeofday(&time1, 0);
+    timems = (time1.tv_sec - time0.tv_sec) * 1000 + (time1.tv_usec - time0.tv_usec) / 1000;
+    printf("Time: %d ms\n", timems);
+
+    if (found) {
+        copy(ctx.sols.begin(), ctx.sols.begin() + ctx.sols.size(), inserter(cycle, cycle.begin()));
+    }
+
+    // for (unsigned s = 0; s < 1; s++) {
     //     printf("Solution");
-    //     uint32_t* prf = &ctx.sols[s * PROOFSIZE];
-    //     for (uint32_t i = 0; i < PROOFSIZE; i++)
+    //     uint32_t* prf = &ctx.sols[s * proofSize];
+    //     for (uint32_t i = 0; i < proofSize; i++)
     //         printf(" %jx", (uintmax_t)prf[i]);
     //     printf("\n");
-    //     int pow_rc = verify(prf, &ctx.trimmer->sip_keys);
-    //     if (pow_rc == POW_OK) {
-    //         printf("Verified with cyclehash ");
-    //         unsigned char cyclehash[32];
-
-    //         blake2b((void*)cyclehash, sizeof(cyclehash), (const void*)prf, sizeof(proof), 0, 0);
-
-    //         for (int i = 0; i < 32; i++)
-    //             printf("%02x", cyclehash[i]);
-    //         printf("\n");
-    //     } else {
-    //         printf("FAILED due to %s\n", errstr[pow_rc]);
-    //     }
     // }
-    sumnsols += nsols;
 
-    printf("%d total solutions\n", sumnsols);
-    return 0;
 
-    return false;
+    return found;
 }
 
 void* matchworker(void* vp)

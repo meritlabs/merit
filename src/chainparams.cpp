@@ -41,7 +41,7 @@ static CBlock CreateGenesisBlock(
     txNew.vout[0].scriptPubKey = genesisOutputScript;
 
     auto rawKeyStr = ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35");
-    CPubKey rawPubKey {rawKeyStr};
+    CPubKey rawPubKey{rawKeyStr};
     CKeyID address = rawPubKey.GetID();
     referral::MutableReferral refNew;
     refNew.m_codeHash.SetHex("73a50383c1e58f5f215cdb40508b584bfd9f8d0e46cc3d0f17c79c6774a5dafd");
@@ -65,8 +65,11 @@ static CBlock CreateGenesisBlock(
 
         uint32_t nMaxTries = 10000000;
 
+        printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
         while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, genesis.nEdgesRatio, pow, params)) {
             ++genesis.nNonce;
+            printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
+
             --nMaxTries;
         }
 
@@ -132,9 +135,11 @@ void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64
  * + Contains no strange transactions
  */
 
-class CMainParams : public CChainParams {
+class CMainParams : public CChainParams
+{
 public:
-    CMainParams() {
+    CMainParams()
+    {
         strNetworkID = "main";
         consensus.nSubsidyHalvingInterval = 210000;
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
@@ -143,14 +148,14 @@ public:
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of 2016
-        consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
-        consensus.ambassador_percent_cut = 35; //35%
+        consensus.nMinerConfirmationWindow = 2016;       // nPowTargetTimespan / nPowTargetSpacing
+        consensus.ambassador_percent_cut = 35;           //35%
         consensus.total_winning_ambassadors = 5;
         consensus.nCuckooProofSize = 42;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
-        consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999; // December 31, 2008
+        consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000723d3581fe1bd55373540a");
@@ -190,9 +195,9 @@ public:
         vSeeds.emplace_back("seed.merit.jonasschnelli.ch", true); // Jonas Schnelli, only supports x1, x5, x9, and xd
         vSeeds.emplace_back("seed.MRT.petertodd.org", true); // Peter Todd, only supports x1, x5, x9, and xd*/
 
-        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,0);
-        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,5);
-        base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,128);
+        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 0);
+        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 5);
+        base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 128);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};
 
@@ -202,27 +207,26 @@ public:
         fRequireStandard = true;
         fMineBlocksOnDemand = false;
 
-        checkpointData = (CCheckpointData) {
+        checkpointData = (CCheckpointData){
             {
                 {0, uint256S("e69d09e1479a52cf739ba605a05d5abc85b0a70768b010d3f2c0c84fe75f2cef")},
-            }
-        };
+            }};
 
         chainTxData = ChainTxData{
             0,
             0,
-            0
-        };
-
+            0};
     }
 };
 
 /**
  * Testnet (v3)
  */
-class CTestNetParams : public CChainParams {
+class CTestNetParams : public CChainParams
+{
 public:
-    CTestNetParams() {
+    CTestNetParams()
+    {
         strNetworkID = "test";
         consensus.nSubsidyHalvingInterval = 210000;
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
@@ -231,14 +235,14 @@ public:
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
-        consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
-        consensus.ambassador_percent_cut = 35; //35%
+        consensus.nMinerConfirmationWindow = 2016;       // nPowTargetTimespan / nPowTargetSpacing
+        consensus.ambassador_percent_cut = 35;           //35%
         consensus.total_winning_ambassadors = 5;
         consensus.nCuckooProofSize = 42;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
-        consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999; // December 31, 2008
+        consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
@@ -253,15 +257,16 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 20, 60, 1, 50 * COIN, consensus, true);
+        genesis = CreateGenesisBlock(1503444726, 216, 0x207fffff, 28, 50, 1, 50 * COIN, consensus, false);
 
-        genesis.sCycle = {0x553, 0x2569, 0x3eb5, 0x4d78, 0x6101, 0x6a0f, 0x6e22, 0x6f77, 0x960c, 0xc912, 0x137e6,
-            0x16a9b, 0x1b08c, 0x1b6b1, 0x1eb9b, 0x1f10d, 0x206ae, 0x20bbe, 0x21330, 0x24e60, 0x259e8, 0x27d95, 0x27e18,
-            0x29cbb, 0x2c2bf, 0x2cf17, 0x2ddf6, 0x2e2b6, 0x2eba6, 0x2f1ba, 0x31045, 0x31c65, 0x31cfd, 0x31eb6, 0x33be5,
-            0x3519d, 0x3d46f, 0x3e252, 0x404bd, 0x40be5, 0x447e6, 0x4a59b};
+        genesis.sCycle = {0x246f0e, 0x6cd7e4, 0xd2d791, 0x12388ff, 0x1ae1244, 0x1c1b65a, 0x1d30489, 0x208fb3e, 0x247f9d0,
+            0x289d2b9, 0x29c69ee, 0x29d30ef, 0x2b5f98d, 0x2f1972b, 0x2f3e108, 0x32c85b5, 0x363d8a2, 0x3861de1, 0x39a006f,
+            0x3aa9118, 0x3acfe73, 0x3bbbbdf, 0x3ee119a, 0x424dd97, 0x4267553, 0x459aa6c, 0x46d7fe0, 0x4b51ec2, 0x5074e12,
+            0x547774d, 0x56c8838, 0x5886bc2, 0x5c70574, 0x5d106fc, 0x5ee190e, 0x60baefd, 0x6521e05, 0x6cce8ac, 0x6d60438,
+            0x717af0f, 0x71e216a, 0x7d4d5cc};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("f6b791c2c2b87f4a90042c26188fdd76591afe7d7cabb64c91effcd1737e6070"));
+        assert(consensus.hashGenesisBlock == uint256S("0ba35302cc5c429b42e0e3729628058a6719ff2126fbd8aeea7b5d3a1c4d92e0"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
         vFixedSeeds.clear();
@@ -272,9 +277,9 @@ public:
         vSeeds.emplace_back("testnet-seed.bluematt.me", false);
         vSeeds.emplace_back("testnet-seed.merit.schildbach.de", false);*/
 
-        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,111);
-        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,196);
-        base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,239);
+        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
+        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 196);
+        base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 239);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
 
@@ -285,27 +290,26 @@ public:
         fMineBlocksOnDemand = false;
 
 
-        checkpointData = (CCheckpointData) {
+        checkpointData = (CCheckpointData){
             {
-                {0, uint256S("f6b791c2c2b87f4a90042c26188fdd76591afe7d7cabb64c91effcd1737e6070")},
-            }
-        };
+                {0, uint256S("0ba35302cc5c429b42e0e3729628058a6719ff2126fbd8aeea7b5d3a1c4d92e0")},
+            }};
 
         chainTxData = ChainTxData{
             0,
             0,
-            0
-        };
-
+            0};
     }
 };
 
 /**
  * Regression test
  */
-class CRegTestParams : public CChainParams {
+class CRegTestParams : public CChainParams
+{
 public:
-    CRegTestParams() {
+    CRegTestParams()
+    {
         strNetworkID = "regtest";
         consensus.nSubsidyHalvingInterval = 15000;
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
@@ -314,8 +318,8 @@ public:
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = true;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains
-        consensus.nMinerConfirmationWindow = 144; // Faster than normal for regtest (144 instead of 2016)
-        consensus.ambassador_percent_cut = 35; //35%
+        consensus.nMinerConfirmationWindow = 144;       // Faster than normal for regtest (144 instead of 2016)
+        consensus.ambassador_percent_cut = 35;          //35%
         consensus.total_winning_ambassadors = 5;
         consensus.nCuckooProofSize = 42;
 
@@ -354,21 +358,19 @@ public:
         fRequireStandard = false;
         fMineBlocksOnDemand = true;
 
-        checkpointData = (CCheckpointData) {
+        checkpointData = (CCheckpointData){
             {
                 {0, uint256S("a0f73c7161105ba136853e99d18a4483b6319620d53adc1d14128c00fdc2d272")},
-            }
-        };
+            }};
 
         chainTxData = ChainTxData{
             0,
             0,
-            0
-        };
+            0};
 
-        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,111);
-        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,196);
-        base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,239);
+        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
+        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 196);
+        base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 239);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
     }
@@ -376,7 +378,8 @@ public:
 
 static std::unique_ptr<CChainParams> globalChainParams;
 
-const CChainParams &Params() {
+const CChainParams& Params()
+{
     assert(globalChainParams);
     return *globalChainParams;
 }
