@@ -1053,9 +1053,9 @@ auto FindUnspentCoin(const Coins& coins, bool from_mempool) -> typename Coins::c
             });
 }
 
-using MaybeVaultID = boost::optional<uint256>;
+using MaybeVaultTxIDAndIndex = boost::optional<std::pair<uint256, int>>;
 
-MaybeVaultID FindUnspentVaultTransactionID(const uint160& address) {
+MaybeVaultTxIDAndIndex FindUnspentVaultTransactionIDAndIndex(const uint160& address) {
     const int SCRIPT_TYPE = 2;
     std::vector<std::pair<uint160, int> > addresses = {{address, 2}};
     std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > mempool_coins;
@@ -1067,7 +1067,9 @@ MaybeVaultID FindUnspentVaultTransactionID(const uint160& address) {
         auto coin = FindUnspentCoin(mempool_coins, true);
         if(coin == mempool_coins.end()) return {};
 
-        return coin->first.txhash;
+        return std::make_pair(
+                coin->first.txhash,
+                static_cast<int>(coin->first.index));
     } 
 
     std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
@@ -1076,7 +1078,9 @@ MaybeVaultID FindUnspentVaultTransactionID(const uint160& address) {
     auto coin = FindUnspentCoin(coins, false);
     if(coin == coins.end()) return {};
 
-    return coin->first.txhash;
+    return std::make_pair(
+            coin->first.txhash,
+            static_cast<int>(coin->first.index));
 }
 
 UniValue renewvault(const JSONRPCRequest& request)
@@ -1119,9 +1123,10 @@ UniValue renewvault(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_TYPE_ERROR, "Script Address Required");
     }
 
-    auto maybe_transaction = FindUnspentVaultTransactionID(*script_id);
+    auto maybe_transaction_info = 
+        FindUnspentVaultTransactionIDAndIndex(*script_id);
 
-    if(!maybe_transaction) {
+    if(!maybe_transaction_info) {
         throw JSONRPCError(
                 RPC_INVALID_ADDRESS_OR_KEY,
                 "Cannot find the vault by the address specified");
@@ -1129,7 +1134,13 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     CTransactionRef tx;
     uint256 hashBlock;
-    if (!GetTransaction(*maybe_transaction, tx, Params().GetConsensus(), hashBlock, true)) {
+    if (!GetTransaction(
+                maybe_transaction_info->first,
+                tx,
+                Params().GetConsensus(),
+                hashBlock,
+                true)) {
+
         throw JSONRPCError(
                 RPC_INVALID_ADDRESS_OR_KEY,
                 "No information available about vault");
