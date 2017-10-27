@@ -244,7 +244,7 @@ bool CScript::IsParameterizedPayToScriptHash() const
 
 bool CScript::ExtractParameterizedPayToScriptHashParams(CScript& params) const 
 {
-    if(!IsPayToWitnessScriptHash()) return false;
+    if(!IsParameterizedPayToScriptHash()) return false;
 
     params = CScript(begin() + 23, end());
     return true;

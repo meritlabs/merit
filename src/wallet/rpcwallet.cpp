@@ -35,6 +35,7 @@
 #include <stdint.h>
 #include <univalue.h>
 #include <numeric>
+#include <sstream>
 
 static const std::string WALLET_ENDPOINT_BASE = "/wallet/";
 
@@ -1034,9 +1035,15 @@ UniValue createvault(const JSONRPCRequest& request)
 
 
 template <class Coins>
-auto FindUnspentCoin(const Coins& coins, bool from_mempool) -> typename Coins::const_iterator {
+Coins FindUnspentCoins(const Coins& coins, bool from_mempool) 
+{
     using Pair = typename Coins::value_type;
-    return std::find_if(std::begin(coins), std::end(coins),
+    Coins filtered;
+
+    std::copy_if(
+            std::begin(coins),
+            std::end(coins),
+            std::back_inserter(filtered),
             [from_mempool](const Pair& p) {
                 bool spent = false;
                 CSpentIndexValue spent_value;
@@ -1051,36 +1058,60 @@ auto FindUnspentCoin(const Coins& coins, bool from_mempool) -> typename Coins::c
                 }
                 return !spent;
             });
+    return filtered;
 }
 
-using MaybeVaultTxIDAndIndex = boost::optional<std::pair<uint256, int>>;
+using VaultTransactions = std::vector<std::pair<uint256, int>>;
 
-MaybeVaultTxIDAndIndex FindUnspentVaultTransactionIDAndIndex(const uint160& address) {
+VaultTransactions FindUnspentVaultTransactions(const uint160& address)
+{
     const int SCRIPT_TYPE = 2;
+
     std::vector<std::pair<uint160, int> > addresses = {{address, 2}};
-    std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > mempool_coins;
+
+    using MempoolCoins = std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>>;
+    MempoolCoins mempool_coins;
 
     mempool.getAddressIndex(addresses, mempool_coins);
 
     UniValue ret(UniValue::VOBJ);
+    VaultTransactions transactions;
     if(!mempool_coins.empty()) {
-        auto coin = FindUnspentCoin(mempool_coins, true);
-        if(coin == mempool_coins.end()) return {};
+        auto unspent_mempool_coins = FindUnspentCoins(mempool_coins, true);
 
-        return std::make_pair(
-                coin->first.txhash,
-                static_cast<int>(coin->first.index));
-    } 
+        transactions.resize(unspent_mempool_coins.size());
 
-    std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
+        std::transform(
+                unspent_mempool_coins.begin(),
+                unspent_mempool_coins.end(),
+                transactions.begin(),
+                [](const MempoolCoins::value_type& coin) {
+                    return std::make_pair(
+                        coin.first.txhash,
+                        static_cast<int>(coin.first.index));
+                });
+    }
+
+    using Coins = std::vector<std::pair<CAddressIndexKey, CAmount>>;
+    Coins coins;
     GetAddressIndex(address, SCRIPT_TYPE, coins);
 
-    auto coin = FindUnspentCoin(coins, false);
-    if(coin == coins.end()) return {};
+    if(!coins.empty()) {
+        auto unspent_coins = FindUnspentCoins(coins, false);
+        transactions.resize(transactions.size() + unspent_coins.size());
 
-    return std::make_pair(
-            coin->first.txhash,
-            static_cast<int>(coin->first.index));
+        std::transform(
+                unspent_coins.begin(),
+                unspent_coins.end(),
+                transactions.begin(),
+                [](const Coins::value_type& coin) {
+                    return std::make_pair(
+                        coin.first.txhash,
+                        static_cast<int>(coin.first.index));
+                });
+    }
+
+    return transactions;
 }
 
 UniValue renewvault(const JSONRPCRequest& request)
@@ -1092,21 +1123,21 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     if (request.fHelp)
         throw std::runtime_error(
-            "renewvault vault_address\n"
-            "\nCreate a simple vault with a specific amount.\n"
-            + HelpRequiringPassphrase(pwallet) +
-            "\nArguments:\n"
-            "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
-            "2. \"type\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
-            "\nResult:\n"
-            "\"txid\"                  (string) The transaction id.\n"
-            "\"vaultaddress\"          (string) Address of the vault.\n"
-            "\"spendkey\"              (string) public key used to spend.\n"
-            "\"renewkey\"              (string) public key used to renew.\n"
-            "\nExamples:\n"
-            + HelpExampleCli("renewvault", "")
-            + HelpExampleCli("renewvault", "")
-        );
+                "renewvault vault_address\n"
+                "\nCreate a simple vault with a specific amount.\n"
+                + HelpRequiringPassphrase(pwallet) +
+                "\nArguments:\n"
+                "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+                "2. \"type\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+                "\nResult:\n"
+                "\"txid\"                  (string) The transaction id.\n"
+                "\"vaultaddress\"          (string) Address of the vault.\n"
+                "\"spendkey\"              (string) public key used to spend.\n"
+                "\"renewkey\"              (string) public key used to renew.\n"
+                "\nExamples:\n"
+                + HelpExampleCli("renewvault", "")
+                + HelpExampleCli("renewvault", "")
+                );
 
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
@@ -1136,107 +1167,120 @@ UniValue renewvault(const JSONRPCRequest& request)
         }
     }
 
-    auto maybe_transaction_info = 
-        FindUnspentVaultTransactionIDAndIndex(*script_id);
+    auto transaction_refs = 
+        FindUnspentVaultTransactions(*script_id);
 
-    if(!maybe_transaction_info) {
+    if(transaction_refs.empty()) {
         throw JSONRPCError(
                 RPC_INVALID_ADDRESS_OR_KEY,
                 "Cannot find the vault by the address specified");
     }
 
-    CTransactionRef tx;
-    uint256 hashBlock;
-    if (!GetTransaction(
-                maybe_transaction_info->first,
-                tx,
-                Params().GetConsensus(),
-                hashBlock,
-                true)) {
 
-        throw JSONRPCError(
-                RPC_INVALID_ADDRESS_OR_KEY,
-                "No information available about vault");
-    }
-
-    if(!tx) {
-        throw JSONRPCError(
-                RPC_INVALID_ADDRESS_OR_KEY,
-                "No information available about vault");
-    }
-
-    const auto output_index = maybe_transaction_info->second;
-    if(output_index < 0 || output_index >= tx->vout.size()) {
-        throw JSONRPCError(
-                RPC_DATABASE_ERROR,
-                "Output index was out of range with actual blockchain. Potential database corruption.");
-    }
-
-    const auto& output = tx->vout[output_index];
-    const auto& scriptPubKey = output.scriptPubKey;
-
-    CScript script_params;
-    if(!scriptPubKey.ExtractParameterizedPayToScriptHashParams(script_params)) {
-        throw JSONRPCError(
-                RPC_INVALID_ADDRESS_OR_KEY,
-                "The address is not a vault");
-    }
-
-    Stack stack;
-    ScriptError serror;
-    EvalPushOnlyScript( stack, script_params, SCRIPT_VERIFY_MINIMALDATA, &serror);
-
-    if(stack.empty()) {
-        throw JSONRPCError(
-                RPC_MISC_ERROR,
-                "Unexpectedly couldn't parse vault params");
-    }
-
-    std::string type = "simple";
     UniValue ret(UniValue::VOBJ);
-    if(type == "simple") {
 
-        /*
-        auto vault_tag = //;
-        auto vault_script = GetScriptForSimpleVault(vault_tag);
+    for(const auto& transaction_ref : transaction_refs) {
 
-        auto script_pub_key = 
-            GetParameterizedP2SH(
-                    script_id,
-                    ToByteVector(spend_key),
-                    ToByteVector(renew_key),
-                    ToByteVector(vault_tag));
+        CTransactionRef tx;
+        uint256 hashBlock;
+        if (!GetTransaction(
+                    transaction_ref.first,
+                    tx,
+                    Params().GetConsensus(),
+                    hashBlock,
+                    true)) {
 
-        CWalletTx wtx;
-        CCoinControl no_coin_control; // This is a deprecated API
-        SendMoney(pwallet, script_pub_key, amount, false, wtx, no_coin_control);
+            throw JSONRPCError(
+                    RPC_INVALID_ADDRESS_OR_KEY,
+                    "No information available about vault");
+        }
 
-        const auto txid = wtx.GetHash().GetHex();
+        if(!tx) {
+            throw JSONRPCError(
+                    RPC_INVALID_ADDRESS_OR_KEY,
+                    "No information available about vault");
+        }
 
-        pwallet->AddCScript(vault_script);
-        pwallet->AddCScript(script_pub_key);
-        pwallet->SetAddressBook(script_id, "", "vault");
+        const auto output_index = transaction_ref.second;
+        if(output_index < 0 || output_index >= tx->vout.size()) {
+            throw JSONRPCError(
+                    RPC_DATABASE_ERROR,
+                    "Output index was out of range with actual blockchain. Potential database corruption.");
+        }
 
-        UniValue ret(UniValue::VOBJ);
-        ret.push_back(Pair("txid", txid));
-        ret.push_back(Pair("amount", ValueFromAmount(amount)));
-        ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
-        ret.push_back(Pair("tag", EncodeDestination(vault_tag)));
-        ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
-        ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_key.GetID())));
-        ret.push_back(Pair("renew_pubkey_id", EncodeDestination(renew_key.GetID())));
-        return ret;
+        const auto& output = tx->vout[output_index];
+        const auto& scriptPubKey = output.scriptPubKey;
 
-        ret.push_back(Pair("txid", maybe_transaction_info->first.GetHex()));
-        ret.push_back(Pair("amount", ValueFromAmount(output.nValue)));
-        ret.push_back(Pair("script", ScriptToAsmStr(output.scriptPubKey, true)));
+        CScript script_params;
+        if(!scriptPubKey.ExtractParameterizedPayToScriptHashParams(script_params)) {
+            throw JSONRPCError(
+                    RPC_INVALID_ADDRESS_OR_KEY,
+                    "The address is not a vault");
+        }
 
-        return ret;
+        Stack stack;
+        ScriptError serror;
+        EvalPushOnlyScript(stack, script_params, SCRIPT_VERIFY_MINIMALDATA, &serror);
 
-        */
-    } else {
-        throw JSONRPCError(RPC_TYPE_ERROR, "The type \"" + type + "\" is not valid");
+        if(stack.empty()) {
+            throw JSONRPCError(
+                    RPC_MISC_ERROR,
+                    "Unexpectedly couldn't parse vault params");
+        }
+
+
+        const CScriptNum type_num(stack.back(), true);
+        auto type = type_num.getint();
+
+        if(type == 0 /* simple */) {
+
+            if(stack.size() != 4) {
+                throw JSONRPCError(
+                        RPC_TYPE_ERROR,
+                        "Simple vault requires 4 parameters.");
+            }
+
+            const auto& vault_tag = stack[2];
+
+            auto vault_script = GetScriptForSimpleVault(uint160{vault_tag});
+
+            /*
+               CWalletTx wtx;
+               CCoinControl no_coin_control; // This is a deprecated API
+               SendMoney(pwallet, script_pub_key, amount, false, wtx, no_coin_control);
+
+               const auto txid = wtx.GetHash().GetHex();
+
+               pwallet->AddCScript(vault_script);
+               pwallet->AddCScript(script_pub_key);
+               pwallet->SetAddressBook(script_id, "", "vault");
+
+               UniValue ret(UniValue::VOBJ);
+               ret.push_back(Pair("txid", txid));
+               ret.push_back(Pair("amount", ValueFromAmount(amount)));
+               ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
+               ret.push_back(Pair("tag", EncodeDestination(vault_tag)));
+               ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
+               ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_key.GetID())));
+               ret.push_back(Pair("renew_pubkey_id", EncodeDestination(renew_key.GetID())));
+               return ret;
+               */
+
+            UniValue tmp(UniValue::VOBJ);
+            tmp.push_back(Pair("txid", transaction_ref.first.GetHex()));
+            tmp.push_back(Pair("amount", ValueFromAmount(output.nValue)));
+            tmp.push_back(Pair("script", ScriptToAsmStr(output.scriptPubKey, true)));
+            tmp.push_back(Pair("vault script", ScriptToAsmStr(vault_script, true)));
+            tmp.push_back(Pair("vault_id", EncodeDestination(CScriptID(vault_script))));
+            ret.push_back(Pair(transaction_ref.first.GetHex(), tmp));
+
+        } else {
+            std::stringstream e;
+            e << "The type \"" << type << "\" is not a valid vault";
+            throw JSONRPCError(RPC_TYPE_ERROR, e.str());
+        }
     }
+    return ret;
 }
 
 UniValue listaddressgroupings(const JSONRPCRequest& request)
