@@ -976,30 +976,28 @@ UniValue createvault(const JSONRPCRequest& request)
     {
         CReserveKey reserve_key(pwallet);
 
-        //TODO: spend_key and reset_key should actually come from cmdline
-        CPubKey spend_key;
-        if (!reserve_key.GetReservedKey(spend_key, true)) {
+        CPubKey spend_pub_key;
+        if (!reserve_key.GetReservedKey(spend_pub_key, true)) {
             throw JSONRPCError(
                     RPC_WALLET_ERROR,
                     "Keypool ran out, please call keypoolrefill first");
         }
 
-        CPubKey renew_key;
-        if (!reserve_key.GetReservedKey(renew_key, true)) {
-            throw JSONRPCError(
-                    RPC_WALLET_ERROR,
-                    "Keypool ran out, please call keypoolrefill first");
-        }
+        CKey renew_key;
+        renew_key.MakeNewKey(true);
 
-        auto vault_tag = renew_key.GetID();
+        auto renew_pub_key = renew_key.GetPubKey();
+
+        auto renew_pub_key_id = renew_pub_key.GetID();
+        auto vault_tag = Hash160(renew_pub_key_id.begin(), renew_pub_key_id.end());
         auto vault_script = GetScriptForSimpleVault(vault_tag);
 
         CScriptID script_id = vault_script;
         auto script_pub_key = 
             GetParameterizedP2SH(
                     script_id,
-                    ToByteVector(spend_key),
-                    ToByteVector(renew_key),
+                    ToByteVector(spend_pub_key),
+                    ToByteVector(renew_pub_key),
                     ToByteVector(vault_tag));
 
         if(!pwallet->GenerateNewReferral(script_id, pwallet->ReferralCodeHash())) {
@@ -1017,15 +1015,16 @@ UniValue createvault(const JSONRPCRequest& request)
         pwallet->AddCScript(vault_script);
         pwallet->AddCScript(script_pub_key);
         pwallet->SetAddressBook(script_id, "", "vault");
-
+        
         UniValue ret(UniValue::VOBJ);
         ret.push_back(Pair("txid", txid));
         ret.push_back(Pair("amount", ValueFromAmount(amount)));
         ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
         ret.push_back(Pair("tag", EncodeDestination(vault_tag)));
         ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
-        ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_key.GetID())));
-        ret.push_back(Pair("renew_pubkey_id", EncodeDestination(renew_key.GetID())));
+        ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_pub_key.GetID())));
+        ret.push_back(Pair("renew_sk", HexStr(renew_key.GetPrivKey())));
+        ret.push_back(Pair("renew_pk", HexStr(renew_key.GetPubKey())));
         return ret;
     } else {
         throw JSONRPCError(RPC_TYPE_ERROR, "The type \"" + type + "\" is not valid");
@@ -1121,6 +1120,19 @@ UniValue renewvault(const JSONRPCRequest& request)
     auto script_id = boost::get<CScriptID>(&dest);
     if(!script_id) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Script Address Required");
+    }
+
+    CKey renew_key;
+    {
+        auto renew_sk_data = ParseHex(request.params[1].get_str());
+        CPrivKey renew_sk(renew_sk_data.begin(), renew_sk_data.end());
+
+        auto renew_pk_data = ParseHex(request.params[2].get_str());
+        CPubKey renew_pk(renew_pk_data.begin(), renew_pk_data.end());
+
+        if(!renew_key.Load(renew_sk, renew_pk, false)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid renew key");
+        }
     }
 
     auto maybe_transaction_info = 
