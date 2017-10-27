@@ -242,6 +242,14 @@ bool CScript::IsParameterizedPayToScriptHash() const
             (*this)[22] == OP_EQUALVERIFY);
 }
 
+bool CScript::ExtractParameterizedPayToScriptHashParams(CScript& params) const 
+{
+    if(!IsPayToWitnessScriptHash()) return false;
+
+    params = CScript(begin() + 23, end());
+    return true;
+}
+
 bool CScript::IsPayToWitnessScriptHash() const
 {
     // Extra-fast test for pay-to-witness-script-hash CScripts:

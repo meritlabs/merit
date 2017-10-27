@@ -998,7 +998,8 @@ UniValue createvault(const JSONRPCRequest& request)
                     script_id,
                     ToByteVector(spend_pub_key),
                     ToByteVector(renew_pub_key),
-                    ToByteVector(vault_tag));
+                    ToByteVector(vault_tag),
+                    0 /* simple is type 0 */);
 
         if(!pwallet->GenerateNewReferral(script_id, pwallet->ReferralCodeHash())) {
             throw JSONRPCError(
@@ -1172,18 +1173,28 @@ UniValue renewvault(const JSONRPCRequest& request)
     }
 
     const auto& output = tx->vout[output_index];
+    const auto& scriptPubKey = output.scriptPubKey;
 
-    UniValue ret(UniValue::VOBJ);
-    ret.push_back(Pair("txid", maybe_transaction_info->first.GetHex()));
-    ret.push_back(Pair("amount", ValueFromAmount(output.nValue)));
-    ret.push_back(Pair("script", ScriptToAsmStr(output.scriptPubKey, true)));
+    CScript script_params;
+    if(!scriptPubKey.ExtractParameterizedPayToScriptHashParams(script_params)) {
+        throw JSONRPCError(
+                RPC_INVALID_ADDRESS_OR_KEY,
+                "The address is not a vault");
+    }
 
-    return ret;
+    Stack stack;
+    ScriptError serror;
+    EvalPushOnlyScript( stack, script_params, SCRIPT_VERIFY_MINIMALDATA, &serror);
 
+    if(stack.empty()) {
+        throw JSONRPCError(
+                RPC_MISC_ERROR,
+                "Unexpectedly couldn't parse vault params");
+    }
 
     std::string type = "simple";
+    UniValue ret(UniValue::VOBJ);
     if(type == "simple") {
-
 
         /*
         auto vault_tag = //;
@@ -1214,6 +1225,12 @@ UniValue renewvault(const JSONRPCRequest& request)
         ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
         ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_key.GetID())));
         ret.push_back(Pair("renew_pubkey_id", EncodeDestination(renew_key.GetID())));
+        return ret;
+
+        ret.push_back(Pair("txid", maybe_transaction_info->first.GetHex()));
+        ret.push_back(Pair("amount", ValueFromAmount(output.nValue)));
+        ret.push_back(Pair("script", ScriptToAsmStr(output.scriptPubKey, true)));
+
         return ret;
 
         */

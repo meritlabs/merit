@@ -256,6 +256,12 @@ public:
         txTo(*txToIn) {}
 };
 
+bool EvalPushOnlyScript(
+        Stack& stack,
+        const CScript& script,
+        unsigned int flags,
+        ScriptError* serror);
+
 bool EvalScript(
         Stack& stack,
         const CScript& script,

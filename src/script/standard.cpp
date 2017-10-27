@@ -327,13 +327,14 @@ CScript GetScriptForEasySend(
 
 CScript GetScriptForSimpleVault(const uint160& tag)
 {
-    // params <spend key> <renew key> <tag>
+    // params <spend key> <renew key> <tag> <vault type>
     //TODO: Write actual script here. This is a placeholder dummy
     return CScript() 
         // <out index> <sig> <mode> <spend key> <renew key> <tag> |
         << OP_DROP         // <out index> <sig> <mode> <renew key> <spend key> | 
-        << OP_TOALTSTACK   // <out index> <sig> <mode> <vault_tag> <spend key> | <renew key>
-        << OP_TOALTSTACK   // <out index> <sig> <mode> <vault_tag>  | <renew key> <spend key>
+        << OP_DROP         // <out index> <sig> <mode> <renew key> <spend key> <tag> | 
+        << OP_TOALTSTACK   // <out index> <sig> <mode> <spend key> | <renew key>
+        << OP_TOALTSTACK   // <out index> <sig> <mode> | <renew key> <spend key>
         << 0               // <out index> <sig> <mode> 0 | <renew key> <spend key>
         << OP_EQUAL
         << OP_IF

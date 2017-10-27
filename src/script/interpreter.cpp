@@ -292,8 +292,6 @@ bool EvalPushOnlyScript(
         Stack& stack,
         const CScript& script,
         unsigned int flags,
-        const BaseSignatureChecker& checker,
-        SigVersion sigversion,
         ScriptError* serror)
 {
     CScript::const_iterator pc = script.begin();
@@ -1329,8 +1327,6 @@ bool EvalScript(
                                     output_stack,
                                     output_param_script,
                                     flags,
-                                    checker,
-                                    SIGVERSION_BASE,
                                     serror)) {
                                 BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
                             }

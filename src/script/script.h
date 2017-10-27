@@ -649,6 +649,8 @@ public:
     bool IsParameterizedPayToScriptHash() const;
     bool IsPayToWitnessScriptHash() const;
 
+    bool ExtractParameterizedPayToScriptHashParams(CScript& params) const;
+
     /**
      * Returns tre if the script pays to one of the standard pay to hash types
      * listed here.
