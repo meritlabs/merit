@@ -1034,84 +1034,72 @@ UniValue createvault(const JSONRPCRequest& request)
 }
 
 
-template <class Coins>
-Coins FindUnspentCoins(const Coins& coins, bool from_mempool) 
-{
-    using Pair = typename Coins::value_type;
-    Coins filtered;
+using VaultCoins = std::vector<std::pair<COutPoint, Coin>>;
+using VaultOutputs = std::vector<COutPoint>;
 
-    std::copy_if(
-            std::begin(coins),
-            std::end(coins),
-            std::back_inserter(filtered),
-            [from_mempool](const Pair& p) {
-                bool spent = false;
-                CSpentIndexValue spent_value;
-                if(from_mempool) {
-                    spent = mempool.getSpentIndex(
-                            {p.first.txhash, static_cast<unsigned int>(p.first.index)},
-                            spent_value);
-                } else {
-                    spent = GetSpentIndex(
-                            {p.first.txhash, static_cast<unsigned int>(p.first.index)},
-                            spent_value);
-                }
-                return !spent;
-            });
-    return filtered;
+template <class Transactions>
+void ConvertToVaultOutputs(const Transactions& txns, VaultOutputs& outputs) 
+{
+    using Pair = typename Transactions::value_type;
+    outputs.resize(outputs.size() + txns.size());
+
+    std::transform(std::begin(txns), std::end(txns), std::begin(outputs),
+        [](const Pair& p) {
+            return COutPoint{
+                p.first.txhash,
+                static_cast<uint32_t>(p.first.index)};
+        });
 }
 
-using VaultTransactions = std::vector<std::pair<uint256, int>>;
-
-VaultTransactions FindUnspentVaultTransactions(const uint160& address)
+VaultOutputs GetUnspentOutputs(CCoinsViewCache& view, const VaultOutputs& outputs) 
 {
+    VaultOutputs unspent;
+    unspent.reserve(outputs.size());
+    std::copy_if(std::begin(outputs), std::end(outputs), std::back_inserter(unspent),
+            [&view](const COutPoint& p) {
+                return view.HaveCoin(p);
+            });
+
+    return unspent;
+}
+
+VaultCoins GetUnspentCoins(CCoinsViewCache& view, const VaultOutputs& unspent) 
+{
+    VaultCoins coins(unspent.size());
+    std::transform(std::begin(unspent), std::end(unspent), std::begin(coins),
+            [&view](const COutPoint& p) {
+                const auto& c = view.AccessCoin(p);
+                return std::make_pair(p, c);
+            });
+    return coins;
+}
+
+VaultCoins FindUnspentVaultCoins(const uint160& address) 
+{
+    VaultOutputs outputs;
+
+    //Get outputs from mempool
     const int SCRIPT_TYPE = 2;
+    std::vector<std::pair<uint160, int> > addresses = {{address, SCRIPT_TYPE}};
+    using MempoolOutputs = std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>>;
+    MempoolOutputs mempool_outputs;
+    mempool.getAddressIndex(addresses, mempool_outputs);
+    ConvertToVaultOutputs(mempool_outputs, outputs);
 
-    std::vector<std::pair<uint160, int> > addresses = {{address, 2}};
+    //Get outputs from chain
+    using ChainOutputs = std::vector<std::pair<CAddressIndexKey, CAmount>>;
+    ChainOutputs chain_outputs;
+    GetAddressIndex(address, SCRIPT_TYPE, chain_outputs);
+    ConvertToVaultOutputs(chain_outputs, outputs);
 
-    using MempoolCoins = std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>>;
-    MempoolCoins mempool_coins;
+    //Filter outputs and return only unspent coins
+    LOCK(mempool.cs);
+    CCoinsViewCache &view_chain = *pcoinsTip;
+    CCoinsViewMemPool viewMempool(&view_chain, mempool);
+    CCoinsViewCache view(&viewMempool);
 
-    mempool.getAddressIndex(addresses, mempool_coins);
-
-    UniValue ret(UniValue::VOBJ);
-    VaultTransactions transactions;
-    if(!mempool_coins.empty()) {
-        auto unspent_mempool_coins = FindUnspentCoins(mempool_coins, true);
-
-        transactions.resize(unspent_mempool_coins.size());
-
-        std::transform(
-                unspent_mempool_coins.begin(),
-                unspent_mempool_coins.end(),
-                transactions.begin(),
-                [](const MempoolCoins::value_type& coin) {
-                    return std::make_pair(
-                        coin.first.txhash,
-                        static_cast<int>(coin.first.index));
-                });
-    }
-
-    using Coins = std::vector<std::pair<CAddressIndexKey, CAmount>>;
-    Coins coins;
-    GetAddressIndex(address, SCRIPT_TYPE, coins);
-
-    if(!coins.empty()) {
-        auto unspent_coins = FindUnspentCoins(coins, false);
-        transactions.resize(transactions.size() + unspent_coins.size());
-
-        std::transform(
-                unspent_coins.begin(),
-                unspent_coins.end(),
-                transactions.begin(),
-                [](const Coins::value_type& coin) {
-                    return std::make_pair(
-                        coin.first.txhash,
-                        static_cast<int>(coin.first.index));
-                });
-    }
-
-    return transactions;
+    auto unspent_outputs = GetUnspentOutputs(view, outputs);
+    return GetUnspentCoins(view, unspent_outputs);
 }
 
 UniValue renewvault(const JSONRPCRequest& request)
@@ -1167,10 +1155,9 @@ UniValue renewvault(const JSONRPCRequest& request)
         }
     }
 
-    auto transaction_refs = 
-        FindUnspentVaultTransactions(*script_id);
+    auto unspent_coins = FindUnspentVaultCoins(*script_id);
 
-    if(transaction_refs.empty()) {
+    if(unspent_coins.empty()) {
         throw JSONRPCError(
                 RPC_INVALID_ADDRESS_OR_KEY,
                 "Cannot find the vault by the address specified");
@@ -1179,36 +1166,9 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VOBJ);
 
-    for(const auto& transaction_ref : transaction_refs) {
+    for(const auto& coin : unspent_coins) {
 
-        CTransactionRef tx;
-        uint256 hashBlock;
-        if (!GetTransaction(
-                    transaction_ref.first,
-                    tx,
-                    Params().GetConsensus(),
-                    hashBlock,
-                    true)) {
-
-            throw JSONRPCError(
-                    RPC_INVALID_ADDRESS_OR_KEY,
-                    "No information available about vault");
-        }
-
-        if(!tx) {
-            throw JSONRPCError(
-                    RPC_INVALID_ADDRESS_OR_KEY,
-                    "No information available about vault");
-        }
-
-        const auto output_index = transaction_ref.second;
-        if(output_index < 0 || output_index >= tx->vout.size()) {
-            throw JSONRPCError(
-                    RPC_DATABASE_ERROR,
-                    "Output index was out of range with actual blockchain. Potential database corruption.");
-        }
-
-        const auto& output = tx->vout[output_index];
+        const auto& output = coin.second.out;
         const auto& scriptPubKey = output.scriptPubKey;
 
         CScript script_params;
@@ -1267,12 +1227,12 @@ UniValue renewvault(const JSONRPCRequest& request)
                */
 
             UniValue tmp(UniValue::VOBJ);
-            tmp.push_back(Pair("txid", transaction_ref.first.GetHex()));
+            tmp.push_back(Pair("txid", coin.first.hash.GetHex()));
             tmp.push_back(Pair("amount", ValueFromAmount(output.nValue)));
             tmp.push_back(Pair("script", ScriptToAsmStr(output.scriptPubKey, true)));
             tmp.push_back(Pair("vault script", ScriptToAsmStr(vault_script, true)));
             tmp.push_back(Pair("vault_id", EncodeDestination(CScriptID(vault_script))));
-            ret.push_back(Pair(transaction_ref.first.GetHex(), tmp));
+            ret.push_back(Pair(coin.first.hash.GetHex(), tmp));
 
         } else {
             std::stringstream e;
