@@ -1034,7 +1034,8 @@ UniValue createvault(const JSONRPCRequest& request)
 }
 
 
-using VaultCoins = std::vector<std::pair<COutPoint, Coin>>;
+using VaultCoin = std::pair<COutPoint, Coin>;
+using VaultCoins = std::vector<VaultCoin>;
 using VaultOutputs = std::vector<COutPoint>;
 
 template <class Transactions>
@@ -1102,6 +1103,76 @@ VaultCoins FindUnspentVaultCoins(const uint160& address)
     return GetUnspentCoins(view, unspent_outputs);
 }
 
+//TODO: Parse coins and extract vault info
+struct Vault
+{
+    int type;
+    uint256 txid;
+    uint160 tag;
+    COutPoint out_point;
+    Coin coin;
+    CScript script;
+};
+
+using Vaults = std::vector<Vault>;
+
+Vault ParseVaultCoin(const VaultCoin& coin)
+{
+    Vault vault;
+
+    vault.txid = coin.first.hash;
+    vault.coin = coin.second;
+    vault.out_point = coin.first;
+
+    const auto& output = coin.second.out;
+    const auto& scriptPubKey = output.scriptPubKey;
+
+    CScript script_params;
+    if(!scriptPubKey.ExtractParameterizedPayToScriptHashParams(script_params)) {
+        throw JSONRPCError(
+                RPC_INVALID_ADDRESS_OR_KEY,
+                "The address is not a vault");
+    }
+
+    Stack stack;
+    ScriptError serror;
+    EvalPushOnlyScript(stack, script_params, SCRIPT_VERIFY_MINIMALDATA, &serror);
+
+    if(stack.empty()) {
+        throw JSONRPCError(
+                RPC_MISC_ERROR,
+                "Unexpectedly couldn't parse vault params");
+    }
+
+
+    const CScriptNum type_num(stack.back(), true);
+    vault.type = type_num.getint();
+
+    if(vault.type == 0 /* simple */) {
+
+        if(stack.size() != 4) {
+            throw JSONRPCError(
+                    RPC_TYPE_ERROR,
+                    "Simple vault requires 4 parameters.");
+        }
+
+        const auto& vault_tag = stack[2];
+        vault.tag = uint160{vault_tag};
+
+        auto vault_script = GetScriptForSimpleVault(uint160{vault_tag});
+        vault.script = vault_script;
+    }
+
+    return vault;
+}
+
+Vaults ParseVaultCoins(const VaultCoins& coins) 
+{
+    Vaults vaults(coins.size());
+    std::transform(coins.begin(), coins.end(), vaults.begin(), ParseVaultCoin);
+    return vaults;
+}
+
 UniValue renewvault(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
@@ -1166,43 +1237,9 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VOBJ);
 
-    for(const auto& coin : unspent_coins) {
+    auto vaults = ParseVaultCoins(unspent_coins);
 
-        const auto& output = coin.second.out;
-        const auto& scriptPubKey = output.scriptPubKey;
-
-        CScript script_params;
-        if(!scriptPubKey.ExtractParameterizedPayToScriptHashParams(script_params)) {
-            throw JSONRPCError(
-                    RPC_INVALID_ADDRESS_OR_KEY,
-                    "The address is not a vault");
-        }
-
-        Stack stack;
-        ScriptError serror;
-        EvalPushOnlyScript(stack, script_params, SCRIPT_VERIFY_MINIMALDATA, &serror);
-
-        if(stack.empty()) {
-            throw JSONRPCError(
-                    RPC_MISC_ERROR,
-                    "Unexpectedly couldn't parse vault params");
-        }
-
-
-        const CScriptNum type_num(stack.back(), true);
-        auto type = type_num.getint();
-
-        if(type == 0 /* simple */) {
-
-            if(stack.size() != 4) {
-                throw JSONRPCError(
-                        RPC_TYPE_ERROR,
-                        "Simple vault requires 4 parameters.");
-            }
-
-            const auto& vault_tag = stack[2];
-
-            auto vault_script = GetScriptForSimpleVault(uint160{vault_tag});
+    for(const auto& vault : vaults) {
 
             /*
                CWalletTx wtx;
@@ -1227,18 +1264,12 @@ UniValue renewvault(const JSONRPCRequest& request)
                */
 
             UniValue tmp(UniValue::VOBJ);
-            tmp.push_back(Pair("txid", coin.first.hash.GetHex()));
-            tmp.push_back(Pair("amount", ValueFromAmount(output.nValue)));
-            tmp.push_back(Pair("script", ScriptToAsmStr(output.scriptPubKey, true)));
-            tmp.push_back(Pair("vault script", ScriptToAsmStr(vault_script, true)));
-            tmp.push_back(Pair("vault_id", EncodeDestination(CScriptID(vault_script))));
-            ret.push_back(Pair(coin.first.hash.GetHex(), tmp));
-
-        } else {
-            std::stringstream e;
-            e << "The type \"" << type << "\" is not a valid vault";
-            throw JSONRPCError(RPC_TYPE_ERROR, e.str());
-        }
+            tmp.push_back(Pair("txid", vault.txid.GetHex()));
+            tmp.push_back(Pair("amount", ValueFromAmount(vault.coin.out.nValue)));
+            tmp.push_back(Pair("script", ScriptToAsmStr(vault.coin.out.scriptPubKey, true)));
+            tmp.push_back(Pair("vault script", ScriptToAsmStr(vault.script, true)));
+            tmp.push_back(Pair("vault_id", EncodeDestination(CScriptID(vault.script))));
+            ret.push_back(Pair(vault.txid.GetHex(), tmp));
     }
     return ret;
 }
