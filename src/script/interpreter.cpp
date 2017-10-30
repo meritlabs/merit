@@ -1088,12 +1088,22 @@ bool EvalScript(std::vector<std::vector<unsigned char>>& stack, const CScript& s
                     if(!Pop(stack, sig, serror))
                         return false;
 
+                    // Subset of script starting at the most recent codeseparator
+                    CScript script_code(pbegincodehash, pend);
+
+                    // Drop the signature in pre-segwit scripts but not segwit scripts
+                    if (sigversion == SIGVERSION_BASE) {
+                        script_code.FindAndDelete(CScript(sig));
+                    }
+
                     auto matching_key = 
                         std::find_if(std::begin(pub_keys), std::end(pub_keys),
-                            [&sig, flags, serror, sigversion](const valtype& pub_key) {
+                            [&sig, flags, serror, sigversion, &checker, &script_code]
+                            (const valtype& pub_key) {
                                 return 
                                     CheckSignatureEncoding(sig, flags, serror) && 
-                                    CheckPubKeyEncoding(pub_key, flags, sigversion, serror);
+                                    CheckPubKeyEncoding(pub_key, flags, sigversion, serror) &&
+                                    checker.CheckSig(sig, pub_key, script_code, sigversion);
                             });
 
                     bool success = matching_key != std::end(pub_keys);
