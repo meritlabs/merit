@@ -97,6 +97,14 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey, bool& 
             return ISMINE_SPENDABLE;
         break;
     case TX_PARAMETERIZED_SCRIPTHASH:
+    {
+        CScriptID scriptID = CScriptID(uint160(vSolutions[0]));
+        CScript subscript;
+        if(keystore.GetCScript(scriptID, subscript)) 
+            return ISMINE_WATCH_SOLVABLE;
+
+        break;
+    }
     case TX_SCRIPTHASH:
     {
         CScriptID scriptID = CScriptID(uint160(vSolutions[0]));

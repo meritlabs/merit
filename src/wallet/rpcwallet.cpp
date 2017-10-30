@@ -1272,7 +1272,7 @@ UniValue renewvault(const JSONRPCRequest& request)
     bool subtract_fee_from_amount = true;
     //TODO: create script with different spend key
     std::vector<CRecipient> recipients = {
-        {vaults[0].script, total_amount, subtract_fee_from_amount}
+        {vaults[0].coin.out.scriptPubKey, total_amount, subtract_fee_from_amount}
     };
 
     CWalletTx wtx;
