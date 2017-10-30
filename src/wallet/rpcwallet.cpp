@@ -1280,6 +1280,7 @@ UniValue renewvault(const JSONRPCRequest& request)
     CAmount fee_required = 0;
     int change_pos_ret = -1;
     std::string error;
+    const bool SIGN = true;
 
     if (!pwallet->CreateTransaction(
                 recipients,
@@ -1288,9 +1289,18 @@ UniValue renewvault(const JSONRPCRequest& request)
                 fee_required,
                 change_pos_ret,
                 error,
-                coin_control)) {
+                coin_control,
+                !SIGN)) {
 
         throw JSONRPCError(RPC_WALLET_ERROR, error);
+    }
+
+    assert(wtx.tx);
+
+    CMutableTransaction mtx{*wtx.tx};
+
+    for(const auto& in : mtx.vin) {
+        //TODO: Sign transaction and insert params
     }
 
     CValidationState state;
