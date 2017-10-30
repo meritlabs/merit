@@ -1237,32 +1237,21 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VOBJ);
 
-    auto vaults = ParseVaultCoins(unspent_coins);
+    const auto vaults = ParseVaultCoins(unspent_coins);
+    assert(!vaults.empty());
+
+    const auto total_amount = 
+        std::accumulate(vaults.begin(), vaults.end(), CAmount{0},
+           [](const CAmount t, const Vault& v) {
+                return t + v.coin.out.nValue;
+           }); 
+
+    CCoinControl coin_control;
+    for(const auto& vault : vaults) {
+        coin_control.Select(vault.out_point);
+    }
 
     for(const auto& vault : vaults) {
-
-            /*
-               CWalletTx wtx;
-               CCoinControl no_coin_control; // This is a deprecated API
-               SendMoney(pwallet, script_pub_key, amount, false, wtx, no_coin_control);
-
-               const auto txid = wtx.GetHash().GetHex();
-
-               pwallet->AddCScript(vault_script);
-               pwallet->AddCScript(script_pub_key);
-               pwallet->SetAddressBook(script_id, "", "vault");
-
-               UniValue ret(UniValue::VOBJ);
-               ret.push_back(Pair("txid", txid));
-               ret.push_back(Pair("amount", ValueFromAmount(amount)));
-               ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
-               ret.push_back(Pair("tag", EncodeDestination(vault_tag)));
-               ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
-               ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_key.GetID())));
-               ret.push_back(Pair("renew_pubkey_id", EncodeDestination(renew_key.GetID())));
-               return ret;
-               */
-
             UniValue tmp(UniValue::VOBJ);
             tmp.push_back(Pair("txid", vault.txid.GetHex()));
             tmp.push_back(Pair("amount", ValueFromAmount(vault.coin.out.nValue)));
@@ -1271,6 +1260,51 @@ UniValue renewvault(const JSONRPCRequest& request)
             tmp.push_back(Pair("vault_id", EncodeDestination(CScriptID(vault.script))));
             ret.push_back(Pair(vault.txid.GetHex(), tmp));
     }
+
+    coin_control.fAllowWatchOnly = true;
+
+    //Make sure to add keys and CScript before we create the transaction
+    //because CreateTransaction assumes things are in your wallet.
+    pwallet->AddKeyPubKey(renew_key, renew_key.GetPubKey());
+    pwallet->AddCScript(vaults[0].script);
+    pwallet->SetAddressBook(*script_id, "", "vault");
+
+    bool subtract_fee_from_amount = true;
+    //TODO: create script with different spend key
+    std::vector<CRecipient> recipients = {
+        {vaults[0].script, total_amount, subtract_fee_from_amount}
+    };
+
+    CWalletTx wtx;
+    CReserveKey reserve_key(pwallet);
+    CAmount fee_required = 0;
+    int change_pos_ret = -1;
+    std::string error;
+
+    if (!pwallet->CreateTransaction(
+                recipients,
+                wtx,
+                reserve_key,
+                fee_required,
+                change_pos_ret,
+                error,
+                coin_control)) {
+
+        throw JSONRPCError(RPC_WALLET_ERROR, error);
+    }
+
+    CValidationState state;
+    if (!pwallet->CommitTransaction(wtx, reserve_key, g_connman.get(), state)) {
+        error = strprintf(
+                "Error: The transaction was rejected! Reason given: %s",
+                state.GetRejectReason());
+        throw JSONRPCError(RPC_WALLET_ERROR, error);
+    }
+
+    //add script to wallet so we can redeem it later if needed.
+    ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
+    ret.push_back(Pair("amount", ValueFromAmount(total_amount)));
+
     return ret;
 }
 
