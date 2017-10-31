@@ -71,6 +71,42 @@ const std::map<unsigned char, std::string> mapSigHashTypes = {
     {static_cast<unsigned char>(SIGHASH_SINGLE|SIGHASH_ANYONECANPAY), std::string("SINGLE|ANYONECANPAY")},
 };
 
+std::string OpcodeToStr(
+        const opcodetype opcode,
+        const std::vector<unsigned char>& vch,
+        const bool attempt_sighash_decode,
+        const bool is_unspendable) 
+{
+    if(opcode < 0 || opcode > OP_PUSHDATA4) {
+        return GetOpName(opcode);
+    }
+
+    if (vch.size() <= static_cast<std::vector<unsigned char>::size_type>(4)) {
+        return strprintf("%d", CScriptNum(vch, false).getint());
+    } 
+
+    if (!attempt_sighash_decode || is_unspendable) {
+        return HexStr(vch);
+    }
+
+    std::string sighash_decode;
+    auto vch_end = vch.begin() + vch.size();
+    // goal: only attempt to decode a defined sighash type from data that looks like a signature within a scriptSig.
+    // this won't decode correctly formatted public keys in Pubkey or Multisig scripts due to
+    // the restrictions on the pubkey formats (see IsCompressedOrUncompressedPubKey) being incongruous with the
+    // checks in CheckSignatureEncoding.
+    if (CheckSignatureEncoding(vch, SCRIPT_VERIFY_STRICTENC, nullptr)) {
+        const unsigned char chSigHashType = vch.back();
+        if (mapSigHashTypes.count(chSigHashType)) {
+            sighash_decode = "[" + mapSigHashTypes.find(chSigHashType)->second + "]";
+            assert(vch.size() > 1);
+            vch_end = vch.begin() + vch.size() - 1;
+        }
+    }
+
+    return HexStr(vch.begin(), vch_end) + sighash_decode;
+}
+
 /**
  * Create the assembly string representation of a CScript object.
  * @param[in] script    CScript object to convert into the asm string representation.
@@ -78,7 +114,9 @@ const std::map<unsigned char, std::string> mapSigHashTypes = {
  *                                     of a signature. Only pass true for scripts you believe could contain signatures. For example,
  *                                     pass false, or omit the this argument (defaults to false), for scriptPubKeys.
  */
-std::string ScriptToAsmStr(const CScript& script, const bool fAttemptSighashDecode)
+std::string ScriptToAsmStr(
+        const CScript& script,
+        const bool attempt_sighash_decode)
 {
     std::string str;
     opcodetype opcode;
@@ -88,36 +126,17 @@ std::string ScriptToAsmStr(const CScript& script, const bool fAttemptSighashDeco
         if (!str.empty()) {
             str += " ";
         }
+
         if (!script.GetOp(pc, opcode, vch)) {
             str += "[error]";
             return str;
         }
-        if (0 <= opcode && opcode <= OP_PUSHDATA4) {
-            if (vch.size() <= static_cast<std::vector<unsigned char>::size_type>(4)) {
-                str += strprintf("%d", CScriptNum(vch, false).getint());
-            } else {
-                // the IsUnspendable check makes sure not to try to decode OP_RETURN data that may match the format of a signature
-                if (fAttemptSighashDecode && !script.IsUnspendable()) {
-                    std::string strSigHashDecode;
-                    // goal: only attempt to decode a defined sighash type from data that looks like a signature within a scriptSig.
-                    // this won't decode correctly formatted public keys in Pubkey or Multisig scripts due to
-                    // the restrictions on the pubkey formats (see IsCompressedOrUncompressedPubKey) being incongruous with the
-                    // checks in CheckSignatureEncoding.
-                    if (CheckSignatureEncoding(vch, SCRIPT_VERIFY_STRICTENC, nullptr)) {
-                        const unsigned char chSigHashType = vch.back();
-                        if (mapSigHashTypes.count(chSigHashType)) {
-                            strSigHashDecode = "[" + mapSigHashTypes.find(chSigHashType)->second + "]";
-                            vch.pop_back(); // remove the sighash type byte. it will be replaced by the decode.
-                        }
-                    }
-                    str += HexStr(vch) + strSigHashDecode;
-                } else {
-                    str += HexStr(vch);
-                }
-            }
-        } else {
-            str += GetOpName(opcode);
-        }
+
+        str += OpcodeToStr(
+                opcode,
+                vch,
+                attempt_sighash_decode,
+                script.IsUnspendable());
     }
     return str;
 }

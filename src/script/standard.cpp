@@ -364,7 +364,7 @@ CScript GetScriptForSimpleVault(const uint160& tag)
 
 namespace details
 {
-    void AppendParameterizedP2SH(CScript& script) 
+    void AppendParameterizedP2SH(CScript&, size_t&) 
     {
         // nothing to append
     }

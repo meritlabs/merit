@@ -49,7 +49,7 @@ std::vector<unsigned char> ToByteVector(const T& in)
 }
 
 /** Script opcodes */
-enum opcodetype
+enum opcodetype : short
 {
     // push value
     OP_0 = 0x00,

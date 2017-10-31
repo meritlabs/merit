@@ -242,7 +242,6 @@ UniValue blockToDeltasJSON(const CBlock& block, const CBlockIndex* blockindex)
             if (out.scriptPubKey.IsPayToScriptHash() || out.scriptPubKey.IsParameterizedPayToScriptHash()) {
                 std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
                 delta.push_back(Pair("address", CScriptID(uint160(hashBytes)).ToString()));
-
             } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
                 std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
                 delta.push_back(Pair("address", CKeyID(uint160(hashBytes)).ToString()));

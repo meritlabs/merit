@@ -217,29 +217,34 @@ bool CScript::IsPayToPublicKey() const
 bool CScript::IsPayToPublicKeyHash() const
 {
     // Extra-fast test for pay-to-pubkey-hash CScripts:
-    return (this->size() == 25 &&
-	    (*this)[0] == OP_DUP &&
-	    (*this)[1] == OP_HASH160 &&
-	    (*this)[2] == 0x14 &&
-	    (*this)[23] == OP_EQUALVERIFY &&
-	    (*this)[24] == OP_CHECKSIG);
+    return 
+        size() == 25 &&
+        (*this)[0] == OP_DUP &&
+        (*this)[1] == OP_HASH160 &&
+        (*this)[2] == 0x14 &&
+        (*this)[23] == OP_EQUALVERIFY &&
+        (*this)[24] == OP_CHECKSIG;
 }
 
 bool CScript::IsPayToScriptHash() const
 {
     // Extra-fast test for pay-to-script-hash CScripts:
-    return (this->size() == 23 &&
-            (*this)[0] == OP_HASH160 &&
-            (*this)[1] == 0x14 &&
-            (*this)[22] == OP_EQUAL);
+    return 
+        size() == 23 &&
+        (*this)[0] == OP_HASH160 &&
+        (*this)[1] == 0x14 &&
+        (*this)[22] == OP_EQUAL;
 }
 
 bool CScript::IsParameterizedPayToScriptHash() const
 {
-    return (this->size() > 23 &&
-            (*this)[0] == OP_HASH160 &&
-            (*this)[1] == 0x14 &&
-            (*this)[22] == OP_EQUALVERIFY);
+    return 
+        size() > 23 &&
+        (*this)[0] == OP_HASH160 &&
+        (*this)[1] == 0x14 &&
+        (*this)[22] == OP_EQUALVERIFY &&
+        (*this)[size() - 3] == OP_DEPTH &&
+        (*this)[size() - 1] == OP_EQUAL;
 }
 
 bool CScript::ExtractParameterizedPayToScriptHashParams(CScript& params) const 

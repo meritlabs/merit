@@ -16,6 +16,9 @@
 #include "uint256.h"
 #include "util.h"
 
+#include "core_io.h"
+#include "utilstrencodings.h"
+
 #include <type_traits>
 
 namespace {
@@ -310,6 +313,9 @@ bool EvalPushOnlyScript(
         {
             if (!script.GetOp(pc, opcode, vchPushValue))
                 return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
+
+            std::cerr << "POP: " << OpcodeToStr(opcode, vchPushValue) << std::endl;
+
             if (vchPushValue.size() > MAX_SCRIPT_ELEMENT_SIZE)
                 return set_error(serror, SCRIPT_ERR_PUSH_SIZE);
 
@@ -409,6 +415,12 @@ bool EvalScript(
             //
             if (!script.GetOp(pc, opcode, vchPushValue))
                 return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
+
+            std::cerr << "OP: " << OpcodeToStr(opcode, vchPushValue) << std::endl;
+            std::cerr << "STACK: " << std::endl;
+            for(const auto& s : stack)
+                std::cerr << '\t' << HexStr(s) << std::endl;
+
             if (vchPushValue.size() > MAX_SCRIPT_ELEMENT_SIZE)
                 return set_error(serror, SCRIPT_ERR_PUSH_SIZE);
 
@@ -1836,20 +1848,18 @@ bool VerifyScript(
     // Bare witness programs
     int witnessversion;
     std::vector<unsigned char> witnessprogram;
-    if (flags & SCRIPT_VERIFY_WITNESS) {
-        if (scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram)) {
-            hadWitness = true;
-            if (scriptSig.size() != 0) {
-                // The scriptSig must be _exactly_ CScript(), otherwise we reintroduce malleability.
-                return set_error(serror, SCRIPT_ERR_WITNESS_MALLEATED);
-            }
-            if (!VerifyWitnessProgram(*witness, witnessversion, witnessprogram, flags, checker, serror)) {
-                return false;
-            }
-            // Bypass the cleanstack check at the end. The actual stack is obviously not clean
-            // for witness programs.
-            stack.resize(1);
+    if ((flags & SCRIPT_VERIFY_WITNESS) && scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram)) {
+        hadWitness = true;
+        if (scriptSig.size() != 0) {
+            // The scriptSig must be _exactly_ CScript(), otherwise we reintroduce malleability.
+            return set_error(serror, SCRIPT_ERR_WITNESS_MALLEATED);
         }
+        if (!VerifyWitnessProgram(*witness, witnessversion, witnessprogram, flags, checker, serror)) {
+            return false;
+        }
+        // Bypass the cleanstack check at the end. The actual stack is obviously not clean
+        // for witness programs.
+        stack.resize(1);
     }
 
     // Additional validation for spend-to-script-hash transactions:
@@ -1882,21 +1892,19 @@ bool VerifyScript(
             return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
 
         // P2SH witness program
-        if (flags & SCRIPT_VERIFY_WITNESS) {
-            if (pubKey2.IsWitnessProgram(witnessversion, witnessprogram)) {
-                hadWitness = true;
-                if (scriptSig != CScript() << std::vector<unsigned char>(pubKey2.begin(), pubKey2.end())) {
-                    // The scriptSig must be _exactly_ a single push of the redeemScript. Otherwise we
-                    // reintroduce malleability.
-                    return set_error(serror, SCRIPT_ERR_WITNESS_MALLEATED_P2SH);
-                }
-                if (!VerifyWitnessProgram(*witness, witnessversion, witnessprogram, flags, checker, serror)) {
-                    return false;
-                }
-                // Bypass the cleanstack check at the end. The actual stack is obviously not clean
-                // for witness programs.
-                stack.resize(1);
+        if ((flags & SCRIPT_VERIFY_WITNESS) && pubKey2.IsWitnessProgram(witnessversion, witnessprogram)) {
+            hadWitness = true;
+            if (scriptSig != CScript() << std::vector<unsigned char>(pubKey2.begin(), pubKey2.end())) {
+                // The scriptSig must be _exactly_ a single push of the redeemScript. Otherwise we
+                // reintroduce malleability.
+                return set_error(serror, SCRIPT_ERR_WITNESS_MALLEATED_P2SH);
             }
+            if (!VerifyWitnessProgram(*witness, witnessversion, witnessprogram, flags, checker, serror)) {
+                return false;
+            }
+            // Bypass the cleanstack check at the end. The actual stack is obviously not clean
+            // for witness programs.
+            stack.resize(1);
         }
     // Execute the paramed pay to script hash which appends params
     // specified in the scriptPubKey to the script in the scriptSig
@@ -1906,6 +1914,9 @@ bool VerifyScript(
             return set_error(serror, SCRIPT_ERR_SIG_PUSHONLY);
 
         //at this point the stack should have only the params nessasary.
+        assert(!stack.empty());
+        stack.pop_back(); //Pop the bool off from OP_EQUAL off
+
         auto param_stack = stack;
 
         //swap stack back to what is was after evaluating scriptSig
@@ -1938,21 +1949,19 @@ bool VerifyScript(
         if (!CastToBool(stack.back()))
             return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
         
-        if (flags & SCRIPT_VERIFY_WITNESS) {
-            if (original_pubkey.IsWitnessProgram(witnessversion, witnessprogram)) {
-                hadWitness = true;
-                if (scriptSig != CScript() << std::vector<unsigned char>(original_pubkey.begin(), original_pubkey.end())) {
-                    // The scriptSig must be _exactly_ a single push of the redeemScript. Otherwise we
-                    // reintroduce malleability.
-                    return set_error(serror, SCRIPT_ERR_WITNESS_MALLEATED_P2SH);
-                }
-                if (!VerifyWitnessProgram(*witness, witnessversion, witnessprogram, flags, checker, serror)) {
-                    return false;
-                }
-                // Bypass the cleanstack check at the end. The actual stack is obviously not clean
-                // for witness programs.
-                stack.resize(1);
+        if ((flags & SCRIPT_VERIFY_WITNESS) && original_pubkey.IsWitnessProgram(witnessversion, witnessprogram)) {
+            hadWitness = true;
+            if (scriptSig != CScript() << std::vector<unsigned char>(original_pubkey.begin(), original_pubkey.end())) {
+                // The scriptSig must be _exactly_ a single push of the redeemScript. Otherwise we
+                // reintroduce malleability.
+                return set_error(serror, SCRIPT_ERR_WITNESS_MALLEATED_P2SH);
             }
+            if (!VerifyWitnessProgram(*witness, witnessversion, witnessprogram, flags, checker, serror)) {
+                return false;
+            }
+            // Bypass the cleanstack check at the end. The actual stack is obviously not clean
+            // for witness programs.
+            stack.resize(1);
         }
     }
 
