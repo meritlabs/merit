@@ -251,7 +251,8 @@ bool CScript::ExtractParameterizedPayToScriptHashParams(CScript& params) const
 {
     if(!IsParameterizedPayToScriptHash()) return false;
 
-    params = CScript(begin() + 23, end());
+    auto en = begin() + (size() - 3);
+    params = CScript(begin() + 23, en);
     return true;
 }
 

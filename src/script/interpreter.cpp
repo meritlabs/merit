@@ -1329,9 +1329,10 @@ bool EvalScript(
                                 BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
                             }
 
-                            CScript output_param_script{
-                                output_script.begin() + P2SH_SIZE,
-                                output_script.end()};
+                            CScript output_param_script;
+                            if(!output_script.ExtractParameterizedPayToScriptHashParams(output_param_script)) {
+                                BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
+                            }
 
                             if(!output_param_script.IsPushOnly()) {
                                 BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
@@ -1915,12 +1916,10 @@ bool VerifyScript(
 
         //at this point the stack should have only the params nessasary.
         assert(!stack.empty());
-        stack.pop_back(); //Pop the bool off from OP_EQUAL off
-
-        auto param_stack = stack;
 
         //swap stack back to what is was after evaluating scriptSig
         swap(stack, stackCopy);
+
         assert(!stack.empty());
 
         //pop off the serialized script in the scriptSig
@@ -1930,14 +1929,24 @@ bool VerifyScript(
 
         //Even though we already have the params of the stack we need
         //We copy the params into a script and evaluate that they are push only
-        assert(scriptPubKey.size() > P2SH_SIZE);
-        CScript script_params{scriptPubKey.begin() + P2SH_SIZE, scriptPubKey.end()};
-        assert(script_params.size() == param_stack.size());
+        CScript params_script;
+        if(!scriptPubKey.ExtractParameterizedPayToScriptHashParams(params_script)) {
+            return set_error(serror, SCRIPT_ERR_EXTRACT_PARAMS);
+        }
 
-        //make sure it only pushes data onto the stack
-        if (!script_params.IsPushOnly())
+        if (!params_script.IsPushOnly())
             return set_error(serror, SCRIPT_ERR_SIG_PARAMS_PUSHONLY);
 
+        Stack param_stack;
+        if(!EvalPushOnlyScript(
+                    param_stack,
+                    params_script,
+                    flags,
+                    serror)) {
+            return set_error(serror, SCRIPT_ERR_SIG_PARAMS_PUSHONLY);
+        }
+
+        //make sure it only pushes data onto the stack
         stack.insert(stack.end(), param_stack.begin(), param_stack.end());
 
         //execute the deserialized script with params at the top of the stack.
