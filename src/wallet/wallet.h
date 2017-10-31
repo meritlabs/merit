@@ -1293,8 +1293,10 @@ bool CWallet::DummySignTx(CMutableTransaction &txNew, const ContainerType &coins
         const CScript& scriptPubKey = coin.txout.scriptPubKey;
         SignatureData sigdata;
 
-        if (!ProduceSignature(DummySignatureCreator(this), scriptPubKey, sigdata))
-        {
+        if(scriptPubKey.IsParameterizedPayToScriptHash()) {
+            //TODO: Figure a way to add dummy signature.
+            return true;
+        } else if (!ProduceSignature(DummySignatureCreator(this), scriptPubKey, sigdata)) {
             return false;
         } else {
             UpdateTransaction(txNew, nIn, sigdata);

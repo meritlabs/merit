@@ -49,6 +49,8 @@
 #include "warnings.h"
 #include "cuckoo/miner.h"
 
+#include "core_io.h"
+
 #include <atomic>
 #include <sstream>
 
@@ -1823,6 +1825,7 @@ bool CheckInputs(
                 const CAmount amount = coin.out.nValue;
 
                 // Verify signature
+                std::cerr << "SIG: " << ScriptToAsmStr(scriptPubKey, true) << std::endl;
                 CScriptCheck check(
                         scriptPubKey,
                         amount,

@@ -18,8 +18,6 @@
 
 #include <type_traits>
 
-typedef std::vector<unsigned char> valtype;
-
 namespace {
 
     // size of paramed pay-to-script-hash script before params
@@ -1209,12 +1207,22 @@ bool EvalScript(
                         if(!Pop(stack, sig, serror))
                             return false;
 
+                        // Subset of script starting at the most recent codeseparator
+                        CScript script_code(pbegincodehash, pend);
+
+                        // Drop the signature in pre-segwit scripts but not segwit scripts
+                        if (sigversion == SIGVERSION_BASE) {
+                            script_code.FindAndDelete(CScript(sig));
+                        }
+
                         auto matching_key = 
                             std::find_if(std::begin(pub_keys), std::end(pub_keys),
-                                [&sig, flags, serror, sigversion](const valtype& pub_key) {
+                                [&sig, flags, serror, sigversion, &checker, &script_code]
+                                (const valtype& pub_key) {
                                     return 
                                         CheckSignatureEncoding(sig, flags, serror) && 
-                                        CheckPubKeyEncoding(pub_key, flags, sigversion, serror);
+                                        CheckPubKeyEncoding(pub_key, flags, sigversion, serror) &&
+                                        checker.CheckSig(sig, pub_key, script_code, sigversion);
                                 });
 
                         bool success = matching_key != std::end(pub_keys);
@@ -1515,7 +1523,14 @@ PrecomputedTransactionData::PrecomputedTransactionData(const CTransaction& txTo)
     hashOutputs = GetOutputsHash(txTo);
 }
 
-uint256 SignatureHash(const CScript& scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType, const CAmount& amount, SigVersion sigversion, const PrecomputedTransactionData* cache)
+uint256 SignatureHash(
+        const CScript& scriptCode,
+        const CTransaction& txTo,
+        unsigned int nIn,
+        int nHashType,
+        const CAmount& amount,
+        SigVersion sigversion,
+        const PrecomputedTransactionData* cache)
 {
     if (sigversion == SIGVERSION_WITNESS_V0) {
         uint256 hashPrevouts;
@@ -1526,7 +1541,10 @@ uint256 SignatureHash(const CScript& scriptCode, const CTransaction& txTo, unsig
             hashPrevouts = cache ? cache->hashPrevouts : GetPrevoutHash(txTo);
         }
 
-        if (!(nHashType & SIGHASH_ANYONECANPAY) && (nHashType & 0x1f) != SIGHASH_SINGLE && (nHashType & 0x1f) != SIGHASH_NONE) {
+        if (
+                !(nHashType & SIGHASH_ANYONECANPAY) && 
+                (nHashType & 0x1f) != SIGHASH_SINGLE && 
+                (nHashType & 0x1f) != SIGHASH_NONE) {
             hashSequence = cache ? cache->hashSequence : GetSequenceHash(txTo);
         }
 

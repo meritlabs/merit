@@ -19,6 +19,7 @@ class CScript;
 class CTransaction;
 class uint256;
 
+using valtype = std::vector<unsigned char>;
 using StackElement = std::vector<unsigned char>;
 using Stack = std::vector<StackElement>;
 

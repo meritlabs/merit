@@ -30,7 +30,11 @@ TransactionSignatureCreator::TransactionSignatureCreator(
     amount(amountIn),
     checker(txTo, nIn, amountIn, 0, 0) {}
 
-bool TransactionSignatureCreator::CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& address, const CScript& scriptCode, SigVersion sigversion) const
+bool TransactionSignatureCreator::CreateSig(
+        std::vector<unsigned char>& vchSig,
+        const CKeyID& address,
+        const CScript& scriptCode,
+        SigVersion sigversion) const
 {
     CKey key;
     if (!keystore->GetKey(address, key))
@@ -40,14 +44,21 @@ bool TransactionSignatureCreator::CreateSig(std::vector<unsigned char>& vchSig, 
     if (sigversion == SIGVERSION_WITNESS_V0 && !key.IsCompressed())
         return false;
 
-    uint256 hash = SignatureHash(scriptCode, *txTo, nIn, nHashType, amount, sigversion);
+    uint256 hash = 
+        SignatureHash(scriptCode, *txTo, nIn, nHashType, amount, sigversion);
+
     if (!key.Sign(hash, vchSig))
         return false;
     vchSig.push_back((unsigned char)nHashType);
     return true;
 }
 
-static bool Sign1(const CKeyID& address, const BaseSignatureCreator& creator, const CScript& scriptCode, std::vector<valtype>& ret, SigVersion sigversion)
+static bool Sign1(
+        const CKeyID& address,
+        const BaseSignatureCreator& creator,
+        const CScript& scriptCode,
+        std::vector<valtype>& ret,
+        SigVersion sigversion)
 {
     std::vector<unsigned char> vchSig;
     if (!creator.CreateSig(vchSig, address, scriptCode, sigversion))
@@ -56,7 +67,12 @@ static bool Sign1(const CKeyID& address, const BaseSignatureCreator& creator, co
     return true;
 }
 
-static bool SignN(const std::vector<valtype>& multisigdata, const BaseSignatureCreator& creator, const CScript& scriptCode, std::vector<valtype>& ret, SigVersion sigversion)
+static bool SignN(
+        const std::vector<valtype>& multisigdata,
+        const BaseSignatureCreator& creator,
+        const CScript& scriptCode,
+        std::vector<valtype>& ret,
+        SigVersion sigversion)
 {
     int nSigned = 0;
     int nRequired = multisigdata.front()[0];
@@ -76,16 +92,21 @@ static bool SignN(const std::vector<valtype>& multisigdata, const BaseSignatureC
  * unless whichTypeRet is TX_SCRIPTHASH, in which case scriptSigRet is the redemption script.
  * Returns false if scriptPubKey could not be completely satisfied.
  */
-static bool SignStep(const BaseSignatureCreator& creator, const CScript& scriptPubKey,
-                     std::vector<valtype>& ret, txnouttype& whichTypeRet, SigVersion sigversion)
+static bool SignStep(
+        const BaseSignatureCreator& creator,
+        const CScript& scriptPubKey,
+        std::vector<valtype>& ret,
+        txnouttype& whichTypeRet,
+        SigVersion sigversion)
 {
     CScript scriptRet;
     uint160 h160;
     ret.clear();
 
     std::vector<valtype> vSolutions;
-    if (!Solver(scriptPubKey, whichTypeRet, vSolutions))
+    if (!Solver(scriptPubKey, whichTypeRet, vSolutions)) {
         return false;
+    }
 
     CKeyID keyID;
     switch (whichTypeRet)
@@ -179,11 +200,13 @@ bool ProduceSignature(const BaseSignatureCreator& creator, const CScript& fromPu
         // the final scriptSig is the signatures from that
         // and then the serialized subscript:
         script = subscript = CScript(result[0].begin(), result[0].end());
+
         solved = 
             solved && 
             SignStep(creator, script, result, whichType, SIGVERSION_BASE) && 
             whichType != TX_SCRIPTHASH && 
             whichType != TX_PARAMETERIZED_SCRIPTHASH;
+
         P2SH = true;
     }
 
@@ -223,13 +246,15 @@ bool ProduceSignature(const BaseSignatureCreator& creator, const CScript& fromPu
     sigdata.scriptSig = PushAll(result);
 
     // Test solution
-    return 
+    bool ss = 
         solved && 
         VerifyScript(sigdata.scriptSig,
                 fromPubKey,
                 &sigdata.scriptWitness,
                 STANDARD_SCRIPT_VERIFY_FLAGS,
                 creator.Checker());
+
+    return ss;
 }
 
 SignatureData DataFromTransaction(const CMutableTransaction& tx, unsigned int nIn)

@@ -612,28 +612,39 @@ static UniValue EasyReceive(
 
     const int SCRIPT_TYPE = 2;
 
-    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>> unspent_coins;
-    if(!GetAddressUnspent(script_id, SCRIPT_TYPE, unspent_coins)) {
+    std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
+    if(!GetAddressIndex(script_id, SCRIPT_TYPE, coins)) {
+        throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Cannot find coin with address: " + EncodeDestination(script_id));
+    }
+
+    if(coins.empty()) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Cannot find unspent coin with address: " + EncodeDestination(script_id));
     }
 
-    if(unspent_coins.empty()) {
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Cannot find unspent coin with address: " + EncodeDestination(script_id));
-    }
-
-    if(unspent_coins.size() > 1) {
+    if(coins.size() > 1) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Only expected 1 coin with the address: " + EncodeDestination(script_id));
     }
 
-    const auto& unspent = unspent_coins.at(0);
-    const auto& unspent_key = unspent.first;
-    const auto& unspent_val = unspent.second;
+    const auto& coin = coins.at(0);
+    const auto& unspent_key = coin.first;
+    const auto& unspent_val = coin.second;
+
+    CSpentIndexValue spent_value;
+    if(GetSpentIndex(
+            {unspent_key.txhash, static_cast<unsigned int>(unspent_key.index)},
+            spent_value)) {
+
+        throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Coin has already been spent at address: " + EncodeDestination(script_id));
+    }
+
 
     //get the easy send transaction based on script_id
     CTransactionRef unspent_tx;
@@ -663,7 +674,7 @@ static UniValue EasyReceive(
 
     std::string error;
     std::vector<CRecipient> recipients = {
-        {script_pub_key, unspent_val.satoshis, fSubtractFeeFromAmount}
+        {script_pub_key, unspent_val, fSubtractFeeFromAmount}
     };
 
     int change_pos_ret = -1;
@@ -708,7 +719,7 @@ static UniValue EasyReceive(
     //add script to wallet so we can redeem it later if needed.
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
-    ret.push_back(Pair("amount", ValueFromAmount(unspent_val.satoshis)));
+    ret.push_back(Pair("amount", ValueFromAmount(unspent_val)));
 
     return ret;
 }
@@ -1234,7 +1245,6 @@ UniValue renewvault(const JSONRPCRequest& request)
                 "Cannot find the vault by the address specified");
     }
 
-
     UniValue ret(UniValue::VOBJ);
 
     const auto vaults = ParseVaultCoins(unspent_coins);
@@ -1299,9 +1309,37 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     CMutableTransaction mtx{*wtx.tx};
 
-    for(const auto& in : mtx.vin) {
+    assert(mtx.vin.size() == vaults.size());
+
+
+    for(size_t i = 0; i <  mtx.vin.size(); i++) {
+        auto& in = mtx.vin[i];
+        const auto& vault = vaults[i];
+
         //TODO: Sign transaction and insert params
+        uint256 hash = SignatureHash(
+                vault.script,
+                *wtx.tx,
+                i,
+                SIGHASH_ALL,
+                vault.coin.out.nValue,
+                SIGVERSION_BASE);
+
+        valtype sig;
+        if(!renew_key.Sign(hash, sig))
+            return false;
+
+
+        const int OUT_INDEX = 0;
+        const int RENEW_MODE = 1; 
+        in.scriptSig 
+            << OUT_INDEX 
+            << sig 
+            << RENEW_MODE 
+            << valtype(vault.script.begin(), vault.script.end());
     }
+
+    wtx.SetTx(std::make_shared<CTransaction>(mtx));
 
     CValidationState state;
     if (!pwallet->CommitTransaction(wtx, reserve_key, g_connman.get(), state)) {
