@@ -1005,9 +1005,11 @@ UniValue createvault(const JSONRPCRequest& request)
         auto vault_script = GetScriptForSimpleVault(vault_tag);
 
         CScriptID script_id = vault_script;
+        const int EXPECTED_SCRIPTSIG_PARAMS = 3;
         auto script_pub_key = 
             GetParameterizedP2SH(
                     script_id,
+                    EXPECTED_SCRIPTSIG_PARAMS,
                     ToByteVector(spend_pub_key),
                     ToByteVector(renew_pub_key),
                     ToByteVector(vault_tag),

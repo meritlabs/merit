@@ -244,7 +244,7 @@ bool CScript::IsParameterizedPayToScriptHash() const
         (*this)[1] == 0x14 &&
         (*this)[22] == OP_EQUALVERIFY &&
         (*this)[size() - 3] == OP_DEPTH &&
-        (*this)[size() - 1] == OP_EQUAL;
+        (*this)[size() - 1] == OP_GREATERTHANOREQUAL;
 }
 
 bool CScript::ExtractParameterizedPayToScriptHashParams(CScript& params) const 

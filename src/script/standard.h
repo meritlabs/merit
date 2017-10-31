@@ -177,7 +177,7 @@ CScript GetParameterizedP2SH(const CScriptID& dest, Params... ps)
     auto script = GetParameterizedP2SH(dest);
     size_t size = 0;
     details::AppendParameterizedP2SH(script, size, ps...);
-    script << OP_DEPTH << size << OP_EQUAL;
+    script << OP_DEPTH << size << OP_GREATERTHANOREQUAL;
     return script;
 }
 
