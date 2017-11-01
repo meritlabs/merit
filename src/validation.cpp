@@ -1825,7 +1825,6 @@ bool CheckInputs(
                 const CAmount amount = coin.out.nValue;
 
                 // Verify signature
-                std::cerr << "SIG: " << ScriptToAsmStr(scriptPubKey, true) << std::endl;
                 CScriptCheck check(
                         scriptPubKey,
                         amount,
