@@ -1379,8 +1379,6 @@ bool EvalScript(
                     }
                     break;
 
-
-
                     default:
                         return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
                 }
