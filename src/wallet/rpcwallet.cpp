@@ -687,7 +687,7 @@ static UniValue EasyReceive(
     unspent_wtx.nIndex = 0; //hack to get around not having CBlockIndex
 
     pwallet.AddToWallet(unspent_wtx);
-    coin_control.Select({unspent_key.txhash, unspent_key.index});
+    coin_control.Select({unspent_key.txhash, static_cast<unsigned int>(unspent_key.index)});
     coin_control.fAllowWatchOnly = true;
 
     //Make sure to add keys and CScript before we create the transaction
@@ -1006,7 +1006,7 @@ UniValue createvault(const JSONRPCRequest& request)
 
         CScriptID script_id = vault_script;
         const int EXPECTED_SCRIPTSIG_PARAMS = 3;
-        auto script_pub_key = 
+        auto script_pub_key =
             GetParameterizedP2SH(
                     script_id,
                     EXPECTED_SCRIPTSIG_PARAMS,
@@ -1030,7 +1030,7 @@ UniValue createvault(const JSONRPCRequest& request)
         pwallet->AddCScript(vault_script);
         pwallet->AddCScript(script_pub_key);
         pwallet->SetAddressBook(script_id, "", "vault");
-        
+
         UniValue ret(UniValue::VOBJ);
         ret.push_back(Pair("txid", txid));
         ret.push_back(Pair("amount", ValueFromAmount(amount)));
@@ -1052,7 +1052,7 @@ using VaultCoins = std::vector<VaultCoin>;
 using VaultOutputs = std::vector<COutPoint>;
 
 template <class Transactions>
-void ConvertToVaultOutputs(const Transactions& txns, VaultOutputs& outputs) 
+void ConvertToVaultOutputs(const Transactions& txns, VaultOutputs& outputs)
 {
     using Pair = typename Transactions::value_type;
     outputs.resize(outputs.size() + txns.size());
@@ -1065,7 +1065,7 @@ void ConvertToVaultOutputs(const Transactions& txns, VaultOutputs& outputs)
         });
 }
 
-VaultOutputs GetUnspentOutputs(CCoinsViewCache& view, const VaultOutputs& outputs) 
+VaultOutputs GetUnspentOutputs(CCoinsViewCache& view, const VaultOutputs& outputs)
 {
     VaultOutputs unspent;
     unspent.reserve(outputs.size());
@@ -1077,7 +1077,7 @@ VaultOutputs GetUnspentOutputs(CCoinsViewCache& view, const VaultOutputs& output
     return unspent;
 }
 
-VaultCoins GetUnspentCoins(CCoinsViewCache& view, const VaultOutputs& unspent) 
+VaultCoins GetUnspentCoins(CCoinsViewCache& view, const VaultOutputs& unspent)
 {
     VaultCoins coins(unspent.size());
     std::transform(std::begin(unspent), std::end(unspent), std::begin(coins),
@@ -1088,7 +1088,7 @@ VaultCoins GetUnspentCoins(CCoinsViewCache& view, const VaultOutputs& unspent)
     return coins;
 }
 
-VaultCoins FindUnspentVaultCoins(const uint160& address) 
+VaultCoins FindUnspentVaultCoins(const uint160& address)
 {
     VaultOutputs outputs;
 
@@ -1179,7 +1179,7 @@ Vault ParseVaultCoin(const VaultCoin& coin)
     return vault;
 }
 
-Vaults ParseVaultCoins(const VaultCoins& coins) 
+Vaults ParseVaultCoins(const VaultCoins& coins)
 {
     Vaults vaults(coins.size());
     std::transform(coins.begin(), coins.end(), vaults.begin(), ParseVaultCoin);
@@ -1252,11 +1252,11 @@ UniValue renewvault(const JSONRPCRequest& request)
     const auto vaults = ParseVaultCoins(unspent_coins);
     assert(!vaults.empty());
 
-    const auto total_amount = 
+    const auto total_amount =
         std::accumulate(vaults.begin(), vaults.end(), CAmount{0},
            [](const CAmount t, const Vault& v) {
                 return t + v.coin.out.nValue;
-           }); 
+           });
 
     CCoinControl coin_control;
     for(const auto& vault : vaults) {
@@ -1335,11 +1335,11 @@ UniValue renewvault(const JSONRPCRequest& request)
 
 
         const int OUT_INDEX = 0;
-        const int RENEW_MODE = 1; 
-        in.scriptSig 
-            << OUT_INDEX 
-            << sig 
-            << RENEW_MODE 
+        const int RENEW_MODE = 1;
+        in.scriptSig
+            << OUT_INDEX
+            << sig
+            << RENEW_MODE
             << valtype(vault.script.begin(), vault.script.end());
     }
 
