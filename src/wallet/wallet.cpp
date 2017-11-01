@@ -3093,7 +3093,6 @@ bool CWallet::CreateTransaction(
                                               nSequence));
 
                 // Fill in dummy signatures for fee calculation.
-                std::cerr << "DC: " << setCoins.size() << std::endl;
                 if (!DummySignTx(txNew, setCoins)) {
                     strFailReason = _("Signing transaction failed D");
                     return false;

@@ -480,7 +480,6 @@ bool EvalScript(
                     }
                     break;
 
-
                     //
                     // Control
                     //

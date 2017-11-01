@@ -331,8 +331,8 @@ CScript GetScriptForSimpleVault(const uint160& tag)
     //TODO: Write actual script here. This is a placeholder dummy
     return CScript() 
         // <out index> <sig> <mode> <spend key> <renew key> <tag> |
-        << OP_DROP         // <out index> <sig> <mode> <renew key> <spend key> | 
-        << OP_DROP         // <out index> <sig> <mode> <renew key> <spend key> <tag> | 
+        << OP_DROP         // <out index> <sig> <mode> <spend key> <renew key> | 
+        << OP_DROP         // <out index> <sig> <mode> <spend key> <renew key> <tag> | 
         << OP_TOALTSTACK   // <out index> <sig> <mode> <spend key> | <renew key>
         << OP_TOALTSTACK   // <out index> <sig> <mode> | <renew key> <spend key>
         << 0               // <out index> <sig> <mode> 0 | <renew key> <spend key>
@@ -351,15 +351,18 @@ CScript GetScriptForSimpleVault(const uint160& tag)
         <<      OP_DUP              // <out index> <sig> <renew key> <renew key> | 
         <<      OP_TOALTSTACK       // <out index> <sig> <renew key> | <renew key>
         <<      OP_CHECKSIGVERIFY   // <out index> | <renew key>
-        <<      OP_TOALTSTACK       // | <renew key> <out index>
+        <<      OP_FROMALTSTACK     // <out index> <renew key> |
+        <<      OP_SWAP             // <renew key> <output index> |
+        <<      OP_TOALTSTACK       // <renew key> | <out index>
+        <<      OP_TOALTSTACK       // | <out index> <renew key>
         <<      OP_ANYVALUE         // <any> | <renew key> <out index>
-        <<      OP_ANYVALUE         // <any> <any> | <renew key> <out index>
-        <<      ToByteVector(tag)   // <any> <any> <tag> | <renew key> <out index>
-        <<      0                   // <any> <any> <tag> <vault type> | <renew key> <out index>
-        <<      4                   // <any> <any> <tag> <vault type> 4 | <renew key> <out index>
-        <<      OP_FROMALTSTACK     // <any> <any> <tag> <vault type> 4 <out index> | <renew key>
-        <<      's'                 // <any> <any> <tag> <vault type> 4 <out index> <self> | <renew key>
-        <<      1                   // <any> <any> <tag> <vault type> 4 <out index> <self> 1 | <renew key>
+        <<      OP_FROMALTSTACK     // <any> <renew key> | <out index>
+        <<      ToByteVector(tag)   // <any> <renew key> <tag> | <out index>
+        <<      0                   // <any> <renew key> <tag> <vault type> | <out index>
+        <<      4                   // <any> <renew key> <tag> <vault type> 4 | <out index>
+        <<      OP_FROMALTSTACK     // <any> <renew key> <tag> <vault type> 4 <out index> |
+        <<      's'                 // <any> <renew key> <tag> <vault type> 4 <out index> <self> |
+        <<      1                   // <any> <renew key> <tag> <vault type> 4 <out index> <self> 1 |
         <<      OP_CHECKOUTPUTSIG   // <bool>
         << OP_ENDIF;
 }
