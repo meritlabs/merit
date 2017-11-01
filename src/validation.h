@@ -474,6 +474,7 @@ public:
         std::swap(ptxTo, check.ptxTo);
         std::swap(amount, check.amount);
         std::swap(blockHeight, check.blockHeight);
+        std::swap(coinHeight, check.coinHeight);
         std::swap(nIn, check.nIn);
         std::swap(nFlags, check.nFlags);
         std::swap(cacheStore, check.cacheStore);
