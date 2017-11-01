@@ -645,7 +645,6 @@ static UniValue EasyReceive(
                 "Coin has already been spent at address: " + EncodeDestination(script_id));
     }
 
-
     //get the easy send transaction based on script_id
     CTransactionRef unspent_tx;
     uint256 blockHash;
