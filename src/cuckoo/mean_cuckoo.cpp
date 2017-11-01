@@ -1206,10 +1206,79 @@ void* matchworker(void* vp)
     return 0;
 }
 
+
+
 bool FindCycleAdvanced(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
     assert(edgesRatio >= 0 && edgesRatio <= 100);
     assert(nodesBits >= 16 && nodesBits <= 32);
+
+
+    // prepare params for algorithm
+    const uint8_t edgeBits = nodesBits - 1;
+    const uint32_t edgeMask = (uint32_t)((1 << edgeBits) - 1);
+    const uint8_t xBits = 7;
+    const uint8_t yBits = 7;
+    const uint8_t zBits = edgeBits - xBits - yBits;
+    const uint8_t nThreads = 8;
+    // node bits have two groups of bucketbits (X for big and Y for small) and a remaining group Z of degree bits
+    const uint32_t nX = (uint32_t)(1 << xBits);
+    const uint32_t xMask = (uint32_t)(nX - 1);
+
+    const uint32_t nY = (uint32_t)(1 << yBits);
+    const uint32_t yMask = (uint32_t)(nY - 1);
+
+    const uint32_t nZ = (uint32_t)(1 << zBits);
+    const uint32_t zMask = (uint32_t)(nZ - 1);
+
+    const uint32_t xyBits = (uint32_t)(xBits + yBits);
+    const uint32_t nXY = (uint32_t)(1 << xyBits);
+
+    const uint8_t yzBits = (uint8_t)(edgeBits - xBits);
+    const uint32_t nYZ = (uint32_t)(1 << yzBits);
+    const uint32_t yzMask = (uint32_t)(nYZ - 1);
+
+    const uint32_t yz1Bits = (uint8_t)(yzBits < 15 ? yzBits : 15); // compressed YZ bits
+    const uint32_t nYZ1 = (uint32_t)(1 << yz1Bits);
+    const uint32_t yz1Mask = (uint32_t)(nYZ1 - 1);
+
+    const uint32_t z1Bits = (uint8_t)(yz1Bits - yBits);
+    const uint32_t nZ1 = (uint32_t)(1 << z1Bits);
+    const uint32_t z1Mask = (uint32_t)(nZ1 - 1);
+
+    const uint32_t yz2Bits = (uint8_t)(yzBits < 11 ? yzBits : 11); // more compressed YZ bits
+    const uint32_t nYZ2 = (uint32_t)(1 << yz2Bits);
+    const uint32_t yz2Mask = (uint32_t)(nYZ2 - 1);
+
+    const uint32_t z2Bits = (uint8_t)(yz2Bits - yBits);
+    const uint32_t nZ2 = (uint32_t)(1 << z2Bits);
+    const uint32_t z2Mask = (uint32_t)(nZ2 - 1);
+
+    const uint32_t yzzBits = (uint8_t)(yzBits + zBits);
+    const uint32_t yzz1Bits = (uint8_t)(yz1Bits + zBits);
+
+    const uint8_t bigSize = (uint8_t)(edgeBits <= 15 ? 4 : 5);
+    const uint8_t bigSize0 = (uint8_t)(edgeBits < 30 ? 4 : bigSize);
+    const uint8_t biggerSize = bigSize;
+    const uint8_t smallSize = bigSize;
+
+    const uint32_t bigSlotBits = (uint32_t)(bigSize * 8);
+    const uint32_t smallSlotBits = (uint32_t)(smallSize * 8);
+    const uint64_t bigSlotMask = (uint32_t)((1ULL << bigSlotBits) - 1ULL);
+    const uint64_t smallSlotMask = (uint32_t)((1ULL << smallSlotBits) - 1ULL);
+    const uint32_t bigSlotBits0 = (uint32_t)(bigSize0 * 8);
+    const uint64_t bigSlotMask0 = (uint32_t)((1ULL << bigSlotBits0) - 1ULL);
+
+    const uint32_t nonYZBits = (uint32_t)(bigSlotBits0 - yzBits);
+    const uint32_t nNonYZ = (uint32_t)(1 << nonYZBits);
+
+    const uint8_t compressRounds = (uint8_t)(edgeBits <= 15 ? 0 : 14);
+    const uint8_t expandRounds = compressRounds;
+
+    const uint32_t nTrimmedZ = (uint32_t)(nZ * TRIMFRAC256 / 256);
+    const uint32_t zBucketSlots = (uint32_t)(nZ + nZ * BIGEPS);
+    const uint32_t zBucketSize = (uint32_t)(zBucketSlots * bigSize0);
+    const uint32_t tBucketSize = (uint32_t)(zBucketSlots * bigSize);
 
     uint32_t nodesCount = 1 << (nodesBits - 1);
     // edge mask is a max valid value of an edge.
@@ -1235,13 +1304,13 @@ bool FindCycleAdvanced(const uint256& hash, uint8_t nodesBits, uint8_t edgesRati
         nthreads,
     };
 
-    solver_ctx<params.zBucketSize,
-        params.tBucketSize,
-        params.nX, params.nY,
-        params.nZ1, params.nZ2,
-        params.nYZ1, params.nTrimmedZ,
-        params.compressRounds,
-        params.nXY>
+    solver_ctx<zBucketSize,
+        tBucketSize,
+        nX, nY,
+        nZ1, nZ2,
+        nYZ1, nTrimmedZ,
+        compressRounds,
+        nXY>
         ctx(hashStr.c_str(), hashStr.size(), params, nthreads, ntrims, allrounds);
 
     uint64_t sbytes = ctx.sharedbytes();
