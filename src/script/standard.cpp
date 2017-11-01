@@ -354,10 +354,12 @@ CScript GetScriptForSimpleVault(const uint160& tag)
         <<      OP_TOALTSTACK       // | <renew key> <out index>
         <<      OP_ANYVALUE         // <any> | <renew key> <out index>
         <<      OP_ANYVALUE         // <any> <any> | <renew key> <out index>
-        <<      ToByteVector(tag)   // <tag> <any> <any> | <renew key> <out index>
-        <<      OP_FROMALTSTACK     // <tag> <any> <any> <out index> | <renew key>
-        <<      OP_FROMALTSTACK     // <tag> <any> <any> <out index> <renew key> |
-        <<      1                   // <tag> <any> <any> <out index> <renew key> 1 |
+        <<      ToByteVector(tag)   // <any> <any> <tag> | <renew key> <out index>
+        <<      0                   // <any> <any> <tag> <vault type> | <renew key> <out index>
+        <<      4                   // <any> <any> <tag> <vault type> 4 | <renew key> <out index>
+        <<      OP_FROMALTSTACK     // <any> <any> <tag> <vault type> 4 <out index> | <renew key>
+        <<      's'                 // <any> <any> <tag> <vault type> 4 <out index> <self> | <renew key>
+        <<      1                   // <any> <any> <tag> <vault type> 4 <out index> <self> 1 | <renew key>
         <<      OP_CHECKOUTPUTSIG   // <bool>
         << OP_ENDIF;
 }

@@ -70,6 +70,11 @@ static inline void popstack(std::vector<valtype>& stack)
     stack.pop_back();
 }
 
+static inline void popstack(std::vector<valtype>& stack, size_t n)
+{
+    while(n--) popstack(stack);
+}
+
 bool static IsCompressedOrUncompressedPubKey(const valtype &vchPubKey) {
     if (vchPubKey.size() < 33) {
         //  Non-canonical public key: too short
@@ -314,8 +319,6 @@ bool EvalPushOnlyScript(
             if (!script.GetOp(pc, opcode, vchPushValue))
                 return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
 
-            std::cerr << "POP: " << OpcodeToStr(opcode, vchPushValue) << std::endl;
-
             if (vchPushValue.size() > MAX_SCRIPT_ELEMENT_SIZE)
                 return set_error(serror, SCRIPT_ERR_PUSH_SIZE);
 
@@ -415,11 +418,6 @@ bool EvalScript(
             //
             if (!script.GetOp(pc, opcode, vchPushValue))
                 return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
-
-            std::cerr << "OP: " << OpcodeToStr(opcode, vchPushValue) << std::endl;
-            std::cerr << "STACK: " << std::endl;
-            for(const auto& s : stack)
-                std::cerr << '\t' << HexStr(s) << std::endl;
 
             if (vchPushValue.size() > MAX_SCRIPT_ELEMENT_SIZE)
                 return set_error(serror, SCRIPT_ERR_PUSH_SIZE);
@@ -1261,16 +1259,16 @@ bool EvalScript(
                         std::vector<uint160> possible_addresses(possible_address_count);
                         std::generate_n(std::begin(possible_addresses), possible_address_count, 
                                 [&stack, &script, serror]() {
-                                    valtype addrBytes;
-                                    if(!Pop(stack, addrBytes, serror))
+                                    valtype addr_bytes;
+                                    if(!Pop(stack, addr_bytes, serror))
                                         throw std::runtime_error{"popstack(): expected key"};
 
                                     //Either the possible addresses are a hash of 
                                     //the script coming into VerifyScript or a specific
                                     //address
-                                    return addrBytes.size() == 1 && addrBytes[0] == 's' ? 
+                                    return addr_bytes.size() != 160 ? 
                                             Hash160(script.begin(), script.end()) : 
-                                            uint160{addrBytes};
+                                            uint160{addr_bytes};
                                 });
 
                         int output_index = 0;
@@ -1325,10 +1323,6 @@ bool EvalScript(
                                         SCRIPT_ERR_OUTPUT_NOT_ENOUGH_PARAMS);
                             }
 
-                            if(param_size + P2SH_SIZE != output_script.size()) {
-                                BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
-                            }
-
                             CScript output_param_script;
                             if(!output_script.ExtractParameterizedPayToScriptHashParams(output_param_script)) {
                                 BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
@@ -1371,10 +1365,13 @@ bool EvalScript(
                             if(r.first != stack.end() || r.second != output_stack.end()) {
                                 BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
                             }
+
+                            popstack(stack, param_size);
                         }
 
-                        if(opcode != OP_CHECKOUTPUTSIGVERIFY)
+                        if(opcode != OP_CHECKOUTPUTSIGVERIFY) {
                             stack.push_back(vchTrue);
+                        }
                     }
                     break;
                     case OP_ANYVALUE:

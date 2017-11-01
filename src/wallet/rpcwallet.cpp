@@ -1327,9 +1327,11 @@ UniValue renewvault(const JSONRPCRequest& request)
                 vault.coin.out.nValue,
                 SIGVERSION_BASE);
 
+        //produce canonical DER signature
         valtype sig;
         if(!renew_key.Sign(hash, sig))
             return false;
+        sig.push_back(SIGHASH_ALL);
 
 
         const int OUT_INDEX = 0;
