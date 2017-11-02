@@ -47,9 +47,6 @@
 
 #define PROOFSIZE 42
 
-typedef uint8_t uint8_t;
-typedef uint16_t uint16_t;
-
 typedef uint32_t offset_t;
 
 typedef uint32_t BIGTYPE0;
@@ -135,6 +132,10 @@ struct Params {
     const static uint32_t ZBUCKETSLOTS = NZ + NZ * BIGEPS;
     const static uint32_t ZBUCKETSIZE = ZBUCKETSLOTS * BIGSIZE0;
     const static uint32_t TBUCKETSIZE = ZBUCKETSLOTS * BIGSIZE;
+
+    // grow with cube root of size, hardly affected by trimming
+    // const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
+    const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
 };
 
 // typedef uint32_t BIGTYPE0;
@@ -143,11 +144,6 @@ struct Params {
 
 typedef uint32_t proof[PROOFSIZE];
 
-
-// grow with cube root of size, hardly affected by trimming
-// const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
-const static uint32_t CUCKOO_SIZE = 2 * 128 * 128;
-
 template <uint8_t EDGEBITS, uint32_t BUCKETSIZE>
 struct zbucket {
     uint32_t size;
@@ -155,7 +151,7 @@ struct zbucket {
     union alignas(16) {
         uint8_t bytes[BUCKETSIZE];
         struct {
-            uint32_t words[BUCKETSIZE / sizeof(uint32_t) - RENAMESIZE];
+            uint32_t words[BUCKETSIZE / sizeof(uint32_t) - RENAMESIZE - Params<EDGEBITS>::NTRIMMEDZ];
             uint32_t renameu1[Params<EDGEBITS>::NZ2];
             uint32_t renamev1[Params<EDGEBITS>::NZ2];
             uint32_t renameu[Params<EDGEBITS>::COMPRESSROUND ? Params<EDGEBITS>::NZ1 : 0];
@@ -165,7 +161,6 @@ struct zbucket {
     uint32_t setsize(uint8_t const* end)
     {
         size = end - bytes; // bytes is an address of the begining of bytes array, end is the address of it's end
-        // printf("size: %d, BUCKETSIZE: %d\n", size, BUCKETSIZE);
         assert(size <= BUCKETSIZE);
         return size;
     }
@@ -282,7 +277,6 @@ public:
     pthread_barrier_t barry;
     uint8_t nodesBits;
     uint32_t difficulty;
-    uint32_t edgeMask;
 
     void touch(uint8_t* p, const offset_t n)
     {
@@ -292,8 +286,8 @@ public:
 
     edgetrimmer(const uint8_t nThreadsIn, const uint32_t nTrimsIn)
     {
-        // assert(sizeof(matrix<ZBUCKETSIZE, NZ1, NZ2, COMPRESSROUND, NY, NX>) == Params<EDGEBITS>::nX * sizeof(yzbucket<Params<EDGEBITS>::zBucketSize, Params<EDGEBITS>::nZ1, Params<EDGEBITS>::nZ2, Params<EDGEBITS>::COMPRESSROUND, Params<EDGEBITS>::nX>));
-        // assert(sizeof(matrix<TBUCKETSIZE, NZ1, NZ2, COMPRESSROUND, NY, NX>) == Params<EDGEBITS>::nX * sizeof(yzbucket<Params<EDGEBITS>::tBucketSize, Params<EDGEBITS>::nZ1, Params<EDGEBITS>::nZ2, Params<EDGEBITS>::COMPRESSROUND, Params<EDGEBITS>::nX>));
+        assert(sizeof(matrix<EDGEBITS, Params<EDGEBITS>::ZBUCKETSIZE>) == Params<EDGEBITS>::NX * sizeof(yzbucket<EDGEBITS, Params<EDGEBITS>::ZBUCKETSIZE>));
+        assert(sizeof(matrix<EDGEBITS, Params<EDGEBITS>::ZBUCKETSIZE>) == Params<EDGEBITS>::NX * sizeof(yzbucket<EDGEBITS, Params<EDGEBITS>::ZBUCKETSIZE>));
 
         nthreads = nThreadsIn;
         ntrims = nTrimsIn;
@@ -342,28 +336,20 @@ public:
         uint32_t edge = starty << Params<EDGEBITS>::YZBITS;               // 0 as starty is 0
         uint32_t endedge = edge + Params<EDGEBITS>::NYZ;                  // 0 + 2^(7 + 13) = 1 048 576
 
-        // printf("starty: %d; endy: %d\n", starty, endy);
-        // printf("edge: %d; endedge: %d\n", edge, endedge);
-
         offset_t sumsize = 0;
         for (uint32_t my = starty; my < endy; my++, endedge += Params<EDGEBITS>::NYZ) {
             dst.matrixv(my);
-
-            // printf("my: %d; endedge: %d\n", my, endedge);
 
             // edge is a "nonce" for sipnode()
             for (; edge < endedge; edge += NSIPHASH) {
 // bit        28..21     20..13    12..0
 // node       XXXXXX     YYYYYY    ZZZZZ
 #if NSIPHASH == 1
-                const uint32_t node = _sipnode(&sip_keys, edgeMask, edge, uorv); // node - generated random node for the graph
+                const uint32_t node = _sipnode(&sip_keys, Params<EDGEBITS>::EDGEMASK, edge, uorv); // node - generated random node for the graph
 
                 const uint32_t ux = node >> Params<EDGEBITS>::YZBITS;                                               // ux - highest X (7) bits
                 const BIGTYPE0 zz = (BIGTYPE0)edge << Params<EDGEBITS>::YZBITS | (node & Params<EDGEBITS>::YZMASK); // - edge YYYYYY ZZZZZ
 
-                if (edge % 100000 == 0) {
-                    // printf("edge: %x, node: %7x; ux: %2x, zz: %8x, dst.index[ux]: %8x\n", edge, node, ux, zz, dst.index[ux]);
-                }
                 // bit        39..21     20..13    12..0
                 // write        edge     YYYYYY    ZZZZZ
                 *(BIGTYPE0*)(base + dst.index[ux]) = zz;
@@ -376,7 +362,7 @@ public:
             sumsize += dst.storev(buckets, my);
         }
         rdtsc1 = __rdtsc();
-        // if (!id) printf("genUnodes round %2d size %u rdtsc: %lu\n", uorv, sumsize / Params<EDGEBITS>::bigSize0, rdtsc1 - rdtsc0);
+        // if (!id) printf("genUnodes round %2d size %u rdtsc: %lu\n", uorv, sumsize / Params<EDGEBITS>::BIGSIZE0, rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / Params<EDGEBITS>::BIGSIZE0;
     }
 
@@ -386,7 +372,6 @@ public:
     {
         uint64_t rdtsc0, rdtsc1;
 
-        printf("Params<EDGEBITS>::BIGSLOTBITS: %d\n", Params<EDGEBITS>::BIGSLOTBITS);
         static const uint32_t NONDEGBITS = std::min(40u, 2 * Params<EDGEBITS>::YZBITS) - Params<EDGEBITS>::ZBITS; // 28
         static const uint32_t NONDEGMASK = (1 << NONDEGBITS) - 1;
         indexer<EDGEBITS, Params<EDGEBITS>::ZBUCKETSIZE> dst;
@@ -425,6 +410,7 @@ public:
                     exit(0);
                 }
             }
+
             // counts of zz's for this ux
             uint8_t* degs = tdegs[id];
             small.storeu(tbuckets + id, 0);
@@ -470,7 +456,7 @@ public:
                 int64_t uy34 = (int64_t)uy << Params<EDGEBITS>::YZZBITS;
 
                 for (; readedge < edges; readedge++, readz++) { // process up to 7 leftover edges if NSIPHASH==8
-                    const uint32_t node = _sipnode(&sip_keys, edgeMask, *readedge, uorv);
+                    const uint32_t node = _sipnode(&sip_keys, Params<EDGEBITS>::EDGEMASK, *readedge, uorv);
                     const uint32_t vx = node >> Params<EDGEBITS>::YZBITS; // & XMASK;
 
                     // bit        39..34    33..21     20..13     12..0
@@ -484,7 +470,6 @@ public:
                     dst.index[vx] += Params<EDGEBITS>::BIGSIZE;
                 }
             }
-            // printf("sumsize: %d\n", sumsize);
             sumsize += dst.storeu(buckets, ux);
         }
         rdtsc1 = __rdtsc();
@@ -569,8 +554,8 @@ public:
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
         rdtsc1 = __rdtsc();
-        // if (showall || (!id && !(round & (round + 1))))
-        // printf("trimedges round %2d size %u rdtsc: %lu\n", round, sumsize / DSTSIZE, rdtsc1 - rdtsc0);
+        // if ((!id && !(round & (round + 1))))
+            // printf("trimedges round %2d size %u rdtsc: %lu\n", round, sumsize / DSTSIZE, rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / DSTSIZE;
     }
 
@@ -681,7 +666,7 @@ public:
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
         rdtsc1 = __rdtsc();
-        // if (showall || !id) printf("trimrename round %2d size %u rdtsc: %lu maxnnid %d\n", round, sumsize / DSTSIZE, rdtsc1 - rdtsc0, maxnnid);
+        // if (!id) printf("trimrename round %2d size %u rdtsc: %lu maxnnid %d\n", round, sumsize / DSTSIZE, rdtsc1 - rdtsc0, maxnnid);
         assert(maxnnid < Params<EDGEBITS>::NYZ1);
         tcounts[id] = sumsize / DSTSIZE;
     }
@@ -726,8 +711,8 @@ public:
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
         rdtsc1 = __rdtsc();
-        // if (showall || (!id && !(round & (round + 1))))
-        // printf("trimedges1 round %2d size %u rdtsc: %lu\n", round, sumsize / sizeof(uint32_t), rdtsc1 - rdtsc0);
+        // if ((!id && !(round & (round + 1))))
+            // printf("trimedges1 round %2d size %u rdtsc: %lu\n", round, sumsize / sizeof(uint32_t), rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / sizeof(uint32_t);
     }
 
@@ -787,7 +772,7 @@ public:
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
         rdtsc1 = __rdtsc();
-        // if (showall || !id) printf("trimrename1 round %2d size %u rdtsc: %lu maxnnid %d\n", round, sumsize / sizeof(uint32_t), rdtsc1 - rdtsc0, maxnnid);
+        // if (!id) printf("trimrename1 round %2d size %u rdtsc: %lu maxnnid %d\n", round, sumsize / sizeof(uint32_t), rdtsc1 - rdtsc0, maxnnid);
         assert(maxnnid < Params<EDGEBITS>::NYZ2);
         tcounts[id] = sumsize / sizeof(uint32_t);
     }
@@ -822,6 +807,7 @@ public:
         genUnodes(id, 0);
         barrier();
         genVnodes(id, 1);
+
         for (uint32_t round = 2; round < ntrims - 2; round += 2) {
             barrier();
             if (round < Params<EDGEBITS>::COMPRESSROUND) {
@@ -848,6 +834,7 @@ public:
             } else
                 trimedges1<false>(id, round + 1);
         }
+
         barrier();
         trimrename1<true>(id, ntrims - 2);
         barrier();
@@ -943,6 +930,12 @@ public:
             int err = pthread_join(threads[t].thread, NULL);
             assert(err == 0);
         }
+
+        for (const auto& sol: sols) {
+            printf("%d . ", sol);
+        }
+        printf("\n");
+
         qsort(&sols[sols.size() - PROOFSIZE], PROOFSIZE, sizeof(uint32_t), nonce_cmp);
     }
 
@@ -981,11 +974,13 @@ public:
                     // bit        21..11     10...0
                     // write      UYYZZZ'    VYYZZ'   within VX partition
                     const uint32_t e = *readbig;
-                    const uint32_t uxyz = (ux << Params<EDGEBITS>::YZ1BITS) | (e >> Params<EDGEBITS>::YZ2BITS);
+                    const uint32_t uxyz = (ux << Params<EDGEBITS>::YZ2BITS) | (e >> Params<EDGEBITS>::YZ2BITS);
                     const uint32_t vxyz = (vx << Params<EDGEBITS>::YZ2BITS) | (e & Params<EDGEBITS>::YZ2MASK);
+
                     const uint32_t u0 = uxyz << 1, v0 = (vxyz << 1) | 1;
                     if (u0 != CUCKOO_NIL) {
-                        uint32_t nu = path(u0, us), nv = path(v0, vs);
+                        uint32_t nu = path(u0, us);
+                        uint32_t nv = path(v0, vs);
                         // printf("vx %02x ux %02x e %08x uxyz %06x vxyz %06x u0 %x v0 %x nu %d nv %d\n", vx, ux, e, uxyz, vxyz, u0, v0, nu, nv);
                         if (us[nu] == vs[nv]) {
                             const uint32_t min = nu < nv ? nu : nv;
@@ -994,6 +989,7 @@ public:
                             const uint32_t len = nu + nv + 1;
                             printf("%4d-cycle found\n", len);
                             if (len == PROOFSIZE) {
+                                printf("solution\n");
                                 solution(us, nu, vs, nv);
                                 return true;
                             }
@@ -1018,10 +1014,10 @@ public:
 
     bool solve()
     {
-        assert((uint64_t)CUCKOO_SIZE * sizeof(uint32_t) <= trimmer->nthreads * sizeof(yzbucket<EDGEBITS, Params<EDGEBITS>::TBUCKETSIZE>));
+        assert((uint64_t)Params<EDGEBITS>::CUCKOO_SIZE * sizeof(uint32_t) <= trimmer->nthreads * sizeof(yzbucket<EDGEBITS, Params<EDGEBITS>::TBUCKETSIZE>));
         trimmer->trim();
         cuckoo = (uint32_t*)trimmer->tbuckets;
-        memset(cuckoo, CUCKOO_NIL, CUCKOO_SIZE * sizeof(uint32_t));
+        memset(cuckoo, CUCKOO_NIL, Params<EDGEBITS>::CUCKOO_SIZE * sizeof(uint32_t));
 
         return findcycles();
         // return sols.size() / PROOFSIZE;
@@ -1044,8 +1040,15 @@ public:
                 const uint32_t nodeu = _sipnode(&trimmer->sip_keys, Params<EDGEBITS>::EDGEMASK, edge, 0);
                 if (uxymap[nodeu >> Params<EDGEBITS>::ZBITS]) {
                     for (uint32_t j = 0; j < PROOFSIZE; j++) {
+                        if (cycleus[j] == nodeu) {
+                            printf("cycleus[j] == nodeu. j: %d, cycleus[j]: %x\n", j, cycleus[j]);
+                            printf("cyclevs[j]: %x\n", cyclevs[j]);
+                            printf("_sipnode: %x\n", _sipnode(&trimmer->sip_keys, Params<EDGEBITS>::EDGEMASK, edge, 1));
+                        }
+
                         if (cycleus[j] == nodeu && cyclevs[j] == _sipnode(&trimmer->sip_keys, Params<EDGEBITS>::EDGEMASK, edge, 1)) {
                             sols[sols.size() - PROOFSIZE + j] = edge;
+                            printf("%d . ", edge);
                         }
                     }
                 }
@@ -1057,6 +1060,8 @@ public:
 #endif
             }
         }
+        printf("\n", edge);
+
         rdtsc1 = __rdtsc();
         // if (trimmer->showall || !mc->id) printf("matchUnodes id %d rdtsc: %lu\n", mc->id, rdtsc1 - rdtsc0);
         pthread_exit(NULL);
