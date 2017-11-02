@@ -327,51 +327,57 @@ CScript GetScriptForEasySend(
 
 CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
 {
+    auto sizeof_addresses = num_addresses + 1; //includes the size value
+
     // params <spend key> <renew key> [addresses: <addr1> <addr2> <...> <num addresses>] <tag> <vault type>
     // mode = 0:  <sig> <mode> <spend key> <renew key> [addresses] <tag> |
     // mode = 1:  <sig> <mode> <spend key> <renew key> [addresses] <tag> |
     CScript script;
     script
-        << OP_DROP         // <sig> <mode> <spend key> <renew key> [addresses] <tag>| 
-        << OP_DROP;        // <sig> <mode> <spend key> <renew key> [addresses] | 
-
-    // <out index> <sig> <mode> | [addresses] <renew key> <spend key>
-    for(size_t c = 0; c < num_addresses + 1; c++)
-        script << OP_TOALTSTACK;
-
-    script
-        << OP_TOALTSTACK   // <sig> <mode> <spend key> | [addresses] <renew key>
-        << OP_TOALTSTACK   // <sig> <mode> | [addresses] <renew key> <spend key>
-        << 0               // <sig> <mode> 0 | [addresses] <renew key> <spend key>
+        << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] <tag>| 
+        << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] | 
+        << sizeof_addresses             // <sig> <mode> <spend key> <renew key> [addresses] n | 
+        << OP_NTOALTSTACK               // <out index> <sig> <mode> | [addresses]
+        << OP_TOALTSTACK                // <sig> <mode> <spend key> | [addresses] <renew key>
+        << OP_TOALTSTACK                // <sig> <mode> | [addresses] <renew key> <spend key>
+        << 0                            // <sig> <mode> 0 | [addresses] <renew key> <spend key>
         << OP_EQUAL
         << OP_IF
-        <<      OP_FROMALTSTACK     // <sig> <spend key> | [addresses] <renew key>
-        <<      OP_FROMALTSTACK     // <sig> <spend key> <renew key>| [addresses]   
-        <<      OP_DROP             // <sig> <spend key> | [addresses]   
-        <<      OP_CHECKSIGVERIFY   // | [addresses]
-        //TODO: do 2 OP_CHECKOUTPUTSIGs one to pay and the other to revault
+        <<      OP_FROMALTSTACK         // <sig> <spend key> | [addresses] <renew key>
+        <<      OP_DUP                  // <sig> <spend key> <spend key> | [addresses] <renew key>
+        <<      OP_TOALTSTACK           // <sig> <spend key> | [addresses] <renew key> <spend key>
+        <<      OP_CHECKSIGVERIFY       // | [addresses] <renew key> <spend key>
+        <<      OP_FROMALTSTACK         // <spend key> | [addresses] <renew key>
+        <<      OP_FROMALTSTACK         // <spend key> <renew key> | [addresses]
+        <<      0                       // <spend key> <renew key> <out index>| [addresses]
+        <<      sizeof_addresses        // <spend key> <renew key> <out index> n | [addresses]
+        <<      OP_NFROMALTSTACK        // <spend key> <renew key> <out index> [addresses] | [addresses]
+        <<      OP_CHECKOUTPUTSIGVERIFY // <spend key> <renew key> | [addresses]
+        <<      sizeof_addresses        // <spend key> <renew key> n | [addresses]
+        <<      OP_NDUP                 // <spend key> <renew key> [addresses] |
+        <<      ToByteVector(tag)       // <spend key> <renew key> [addresses] <tag> | 
+        <<      0                       // <spend key> <renew key> [addresses] <tag> <vault type> |
+        <<      4 + sizeof_addresses    // <spend key> <renew key> [addresses] <tag> <vault type> <total args> | 
+        <<      1                       // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> |
+        <<      OP_CHECKOUTPUTSIG       // <bool>
         << OP_ELSE
-        <<      OP_FROMALTSTACK     // <sig> <spend key> | [addresses] <renew key>
-        <<      OP_DROP             // <sig> | [addresses] <renew key>
-        <<      OP_FROMALTSTACK     // <sig> <renew key> | [addresses]  
-        <<      OP_DUP              // <sig> <renew key> <renew key> | [addresses]  
-        <<      OP_TOALTSTACK       // <sig> <renew key> | <renew key> | [addresses]
-        <<      OP_CHECKSIGVERIFY   // | <renew key> | [addresses]
-        <<      OP_ANYVALUE         // <any> | [addresses] <renew key>
-        <<      OP_FROMALTSTACK;    // <any> <renew key> | [addresses]
-
-    // <any> <renew key> [addresses] |
-    for(size_t c = 0; c < num_addresses + 1; c++)
-        script << OP_FROMALTSTACK;
-
-    script
-        <<      ToByteVector(tag)     // <any> <renew key> [addresses] <tag> | <out index>
-        <<      0                     // <any> <renew key> [addresses] <tag> <vault type> |
-        <<      4 + num_addresses + 1 // <any> <renew key> [addresses] <tag> <vault type> <total args> | 
-        <<      0                     // <any> <renew key> [addresses] <tag> <vault type> <total args> <out index> |
-        <<      's'                   // <any> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> |
-        <<      1                     // <any> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
-        <<      OP_CHECKOUTPUTSIG     // <bool>
+        <<      OP_FROMALTSTACK         // <sig> <spend key> | [addresses] <renew key>
+        <<      OP_DROP                 // <sig> | [addresses] <renew key>
+        <<      OP_FROMALTSTACK         // <sig> <renew key> | [addresses]  
+        <<      OP_DUP                  // <sig> <renew key> <renew key> | [addresses]  
+        <<      OP_TOALTSTACK           // <sig> <renew key> | <renew key> | [addresses]
+        <<      OP_CHECKSIGVERIFY       // | <renew key> | [addresses]
+        <<      OP_ANYVALUE             // <any> | [addresses] <renew key>
+        <<      OP_FROMALTSTACK         // <any> <renew key> | [addresses]
+        <<      sizeof_addresses        // <any> <renew key> | [addresses]
+        <<      OP_NFROMALTSTACK        // <any> <renew key> [addresses] |
+        <<      ToByteVector(tag)       // <any> <renew key> [addresses] <tag> |
+        <<      0                       // <any> <renew key> [addresses] <tag> <vault type> |
+        <<      4 + sizeof_addresses    // <any> <renew key> [addresses] <tag> <vault type> <total args> | 
+        <<      0                       // <any> <renew key> [addresses] <tag> <vault type> <total args> <out index> |
+        <<      's'                     // <any> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> |
+        <<      1                       // <any> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
+        <<      OP_CHECKOUTPUTSIG       // <bool>
         << OP_ENDIF;
 
     return script;

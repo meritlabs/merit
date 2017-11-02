@@ -246,7 +246,7 @@ bool static CheckMinimalPush(const valtype& data, opcodetype opcode) {
         return opcode == OP_1NEGATE;
     } else if (data.size() <= 75) {
         // Could have used a direct push (opcode indicating number of bytes pushed + those bytes).
-        return opcode == data.size();
+        return opcode == static_cast<int>(data.size());
     } else if (data.size() <= 255) {
         // Could have used OP_PUSHDATA.
         return opcode == OP_PUSHDATA1;
@@ -421,8 +421,15 @@ bool EvalScript(
 
 #ifdef DEBUG
             debug("Executing Opcode: %s",OpcodeToStr(opcode, vchPushValue)); 
-            for(size_t c = stack.size()-1; c >= 0; c++)
-                 debug("\tstack %d: %s", c, HexStr(stack[c]));
+
+            for(size_t c = 0; c < stack.size(); c++) {
+                 debug("\tstack %d: %s", c, HexStr(stack[stack.size() - 1 - c]));
+            }
+
+            for(size_t c = 0; c < altstack.size(); c++) {
+                 debug("\talt   %d: %s", c, HexStr(altstack[altstack.size() - 1 - c]));
+            }
+
 #endif
 
             if (vchPushValue.size() > MAX_SCRIPT_ELEMENT_SIZE)
@@ -432,10 +439,7 @@ bool EvalScript(
             if (opcode > OP_16 && ++nOpCount > MAX_OPS_PER_SCRIPT)
                 return set_error(serror, SCRIPT_ERR_OP_COUNT);
 
-            if (opcode == OP_CAT ||
-                opcode == OP_SUBSTR ||
-                opcode == OP_LEFT ||
-                opcode == OP_RIGHT ||
+            if (opcode == OP_RIGHT ||
                 opcode == OP_INVERT ||
                 opcode == OP_AND ||
                 opcode == OP_OR ||
@@ -679,6 +683,45 @@ bool EvalScript(
                         popstack(altstack);
                     }
                     break;
+                    case OP_NTOALTSTACK:
+                    {
+                        // (xn ... x2 x1 x0 n | <alt stack> )
+                        // ( <stack> | xn ... x2 x1 x0)
+                        if (stack.size() < 1)
+                            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+                        int n = CScriptNum(stacktop(-1), fRequireMinimal).getint();
+                        popstack(stack);
+
+                        if (n < 0 || n > static_cast<int>(stack.size()))
+                            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+                        for(int i = 0; i < n; i++) {
+                            altstack.push_back(stacktop(-1));
+                            popstack(stack);
+                        }
+                    }
+                    break;
+
+                    case OP_NFROMALTSTACK:
+                    {
+                        // ( n | xn ... x2 x1 x0)
+                        // (xn ... x2 x1 x0 | <alt stack> )
+                        if (stack.size() < 1)
+                            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+                        int n = CScriptNum(stacktop(-1), fRequireMinimal).getint();
+                        popstack(stack);
+
+                        if (n < 0 || n >  static_cast<int>(altstack.size()))
+                            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+                        for(int i = 0; i < n; i++) {
+                            stack.push_back(altstacktop(-1));
+                            popstack(altstack);
+                        }
+                    }
+                    break;
 
                     case OP_2DROP:
                     {
@@ -788,7 +831,25 @@ bool EvalScript(
                         stack.push_back(vch);
                     }
                     break;
+                    case OP_NDUP:
+                    {
+                        // (xn ... x2 x1 x0 n - xn ... x2 x1 x0)
+                        if (stack.size() < 1)
+                            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
 
+                        int n = CScriptNum(stacktop(-1), fRequireMinimal).getint();
+                        popstack(stack);
+
+                        if (n < 0 || n > static_cast<int>(stack.size()))
+                            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+                        if (stack.size() + altstack.size() + n > MAX_STACK_SIZE)
+                            return set_error(serror, SCRIPT_ERR_STACK_SIZE);
+
+                        for(int i = n; i > 0; i--)
+                            stack.push_back(stack[stack.size() - i]);
+                    }
+                    break;
                     case OP_NIP:
                     {
                         // (x1 x2 -- x2)
@@ -1388,7 +1449,7 @@ bool EvalScript(
                     default:
                         return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
                 }
-        }
+            }
 
             // Size limits
             if (stack.size() + altstack.size() > MAX_STACK_SIZE)

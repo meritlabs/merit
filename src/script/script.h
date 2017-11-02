@@ -109,11 +109,11 @@ enum opcodetype : short
     OP_ROT = 0x7b,
     OP_SWAP = 0x7c,
     OP_TUCK = 0x7d,
+    OP_NDUP = 0x7e,
+    OP_NTOALTSTACK = 0x7f,
+    OP_NFROMALTSTACK = 0x80,
 
     // splice ops
-    OP_CAT = 0x7e,
-    OP_SUBSTR = 0x7f,
-    OP_LEFT = 0x80,
     OP_RIGHT = 0x81,
     OP_SIZE = 0x82,
 

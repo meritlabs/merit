@@ -63,6 +63,7 @@ const char* GetOpName(opcodetype opcode)
     case OP_DEPTH                  : return "OP_DEPTH";
     case OP_DROP                   : return "OP_DROP";
     case OP_DUP                    : return "OP_DUP";
+    case OP_NDUP                   : return "OP_NDUP";
     case OP_NIP                    : return "OP_NIP";
     case OP_OVER                   : return "OP_OVER";
     case OP_PICK                   : return "OP_PICK";
@@ -70,11 +71,10 @@ const char* GetOpName(opcodetype opcode)
     case OP_ROT                    : return "OP_ROT";
     case OP_SWAP                   : return "OP_SWAP";
     case OP_TUCK                   : return "OP_TUCK";
+    case OP_NTOALTSTACK            : return "OP_NTOALTSTACK";
+    case OP_NFROMALTSTACK          : return "OP_NFROMALTSTACK";
 
     // splice ops
-    case OP_CAT                    : return "OP_CAT";
-    case OP_SUBSTR                 : return "OP_SUBSTR";
-    case OP_LEFT                   : return "OP_LEFT";
     case OP_RIGHT                  : return "OP_RIGHT";
     case OP_SIZE                   : return "OP_SIZE";
 
