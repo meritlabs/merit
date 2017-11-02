@@ -1126,6 +1126,8 @@ struct Vault
     COutPoint out_point;
     Coin coin;
     CScript script;
+    CPubKey spend_pub_key;
+    CPubKey renew_pub_key;
 };
 
 using Vaults = std::vector<Vault>;
@@ -1164,10 +1166,10 @@ Vault ParseVaultCoin(const VaultCoin& coin)
 
     if(vault.type == 0 /* simple */) {
 
-        if(stack.size() < 4) {
+        if(stack.size() < 5) {
             throw JSONRPCError(
                     RPC_TYPE_ERROR,
-                    "Simple vault requires 4 or more parameters.");
+                    "Simple vault requires 5 or more parameters.");
         }
 
         const auto& vault_tag = stack[stack.size() - 2];
@@ -1179,7 +1181,10 @@ Vault ParseVaultCoin(const VaultCoin& coin)
             GetScriptForSimpleVault(uint160{vault_tag}, num_addresses.getint());
 
         vault.script = vault_script;
+        vault.spend_pub_key.Set(stack[0]);
+        vault.renew_pub_key.Set(stack[1]);
     }
+
 
     return vault;
 }
@@ -1282,7 +1287,6 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     //Make sure to add keys and CScript before we create the transaction
     //because CreateTransaction assumes things are in your wallet.
-    pwallet->AddKeyPubKey(renew_key, renew_key.GetPubKey());
     pwallet->AddCScript(vaults[0].script);
     pwallet->SetAddressBook(*script_id, "", "vault");
 
@@ -1359,6 +1363,186 @@ UniValue renewvault(const JSONRPCRequest& request)
     //add script to wallet so we can redeem it later if needed.
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
     ret.push_back(Pair("amount", ValueFromAmount(total_amount)));
+
+    return ret;
+}
+
+UniValue spendvault(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 2) {
+        throw std::runtime_error(
+                "spendvault vault_address amount\n"
+                "\nSpends the amount specified to the allowed address.\n"
+                + HelpRequiringPassphrase(pwallet) +
+                "\nArguments:\n"
+                "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+                "2. \"type\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+                "\nResult:\n"
+                "\"txid\"                  (string) The transaction id.\n"
+                "\"vaultaddress\"          (string) Address of the vault.\n"
+                "\"spendkey\"              (string) public key used to spend.\n"
+                "\"renewkey\"              (string) public key used to renew.\n"
+                "\nExamples:\n"
+                + HelpExampleCli("spendvault", "")
+                + HelpExampleCli("spendvault", "")
+                );
+    }
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    std::string address = request.params[0].get_str();
+
+    CAmount amount = AmountFromValue(request.params[1]);
+    if (amount <= 0)
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
+
+    CTxDestination dest = DecodeDestination(address);
+    if (!IsValidDestination(dest)) {
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
+    }
+
+    auto script_id = boost::get<CScriptID>(&dest);
+    if(!script_id) {
+        throw JSONRPCError(RPC_TYPE_ERROR, "Script Address Required");
+    }
+
+    auto unspent_coins = FindUnspentVaultCoins(*script_id);
+
+    if(unspent_coins.empty()) {
+        throw JSONRPCError(
+                RPC_INVALID_ADDRESS_OR_KEY,
+                "Cannot find the vault by the address specified");
+    }
+
+    UniValue ret(UniValue::VOBJ);
+
+    const auto vaults = ParseVaultCoins(unspent_coins);
+    assert(!vaults.empty());
+
+    const auto total_amount =
+        std::accumulate(vaults.begin(), vaults.end(), CAmount{0},
+           [](const CAmount t, const Vault& v) {
+                return t + v.coin.out.nValue;
+           });
+
+    if(amount > total_amount) {
+        std::stringstream e;
+        e << "Insufficient funds, can only spend " << AmountFromValue(total_amount) << " merit";
+        throw JSONRPCError(RPC_TYPE_ERROR, e.str());
+    }
+
+    CCoinControl coin_control;
+    CAmount selected_amount = 0;
+    for(const auto& v : vaults) {
+        if(selected_amount >= amount) break;
+        coin_control.Select(v.out_point);
+        selected_amount += v.coin.out.nValue;
+    }
+
+    assert(selected_amount >= amount);
+    auto change = selected_amount - amount;
+
+    coin_control.fAllowWatchOnly = true;
+
+    //Make sure to add keys and CScript before we create the transaction
+    //because CreateTransaction assumes things are in your wallet.
+    pwallet->AddCScript(vaults[0].script);
+    pwallet->SetAddressBook(*script_id, "", "vault");
+
+    //The two recipients are the spend key and the vault.
+    //If there is change the change will go into the same vault. 
+    //The order of the recipients is important because the vault script requires
+    //the first is the spend key and the second is the vault where changes goes into.
+    bool subtract_fee_from_amount = true;
+    auto spend_address = vaults[0].spend_pub_key.GetID();
+    auto scriptPubKey = GetScriptForDestination(spend_address);
+
+    std::vector<CRecipient> recipients = {
+        {scriptPubKey, amount, subtract_fee_from_amount},
+    };
+
+    //TODO: Currently vault scipt requires there is change. It needs to be changed
+    //to figure out if change is required.
+    if(change > 0) {
+        recipients.push_back({vaults[0].coin.out.scriptPubKey, change, false});
+    }
+
+    CWalletTx wtx;
+    CReserveKey reserve_key(pwallet);
+    CAmount fee_required = 0;
+    int change_pos_ret = -1;
+    std::string error;
+    const bool SIGN = true;
+
+    if (!pwallet->CreateTransaction(
+                recipients,
+                wtx,
+                reserve_key,
+                fee_required,
+                change_pos_ret,
+                error,
+                coin_control,
+                !SIGN)) {
+
+        throw JSONRPCError(RPC_WALLET_ERROR, error);
+    }
+
+    assert(wtx.tx);
+
+    CMutableTransaction mtx{*wtx.tx};
+
+    assert(mtx.vin.size() == vaults.size());
+
+    CKey spend_key;
+    if (!pwallet->GetKey(spend_address, spend_key)) { 
+        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to find the spendkey in the keystore");
+    }
+
+    for(size_t i = 0; i <  mtx.vin.size(); i++) {
+        auto& in = mtx.vin[i];
+        const auto& vault = vaults[i];
+
+        //TODO: Sign transaction and insert params
+        uint256 hash = SignatureHash(
+                vault.script,
+                *wtx.tx,
+                i,
+                SIGHASH_ALL,
+                vault.coin.out.nValue,
+                SIGVERSION_BASE);
+
+        //produce canonical DER signature
+        valtype sig;
+        if(!spend_key.Sign(hash, sig))
+            return false;
+        sig.push_back(SIGHASH_ALL);
+
+        const int SPEND_MODE = 0;
+        in.scriptSig
+            << sig
+            << SPEND_MODE
+            << valtype(vault.script.begin(), vault.script.end());
+    }
+
+    wtx.SetTx(std::make_shared<CTransaction>(mtx));
+
+    CValidationState state;
+    if (!pwallet->CommitTransaction(wtx, reserve_key, g_connman.get(), state)) {
+        error = strprintf(
+                "Error: The transaction was rejected! Reason given: %s",
+                state.GetRejectReason());
+        throw JSONRPCError(RPC_WALLET_ERROR, error);
+    }
+
+    //add script to wallet so we can redeem it later if needed.
+    ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
+    ret.push_back(Pair("amount", ValueFromAmount(amount)));
 
     return ret;
 }
@@ -4376,6 +4560,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "easyreceive",              &easyreceive,              {"secret", "senderpubkey", "password"} },
     { "wallet",             "createvault",              &createvault,              {} },
     { "wallet",             "renewvault",               &renewvault,               {} },
+    { "wallet",             "spendvault",               &spendvault,               {} },
     { "wallet",             "setaccount",               &setaccount,               {"address","account"} },
     { "wallet",             "settxfee",                 &settxfee,                 {"amount"} },
     { "wallet",             "signmessage",              &signmessage,              {"address","message"} },

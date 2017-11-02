@@ -36,6 +36,7 @@
 
 #include <assert.h>
 #include <numeric>
+#include <sstream>
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/thread.hpp>
@@ -2894,7 +2895,11 @@ bool CWallet::CreateTransaction(
 
         //check blockchain and mempool for beacon
         if (!CheckAddressBeaconed(dest, true)) {
-            strFailReason = _("Transaction recipient address is not beaconed");
+            std::stringstream e;
+            e << _("Transaction recipient address \"") 
+              << EncodeDestination(dest) 
+              << _("\"is not beaconed");
+            strFailReason = e.str();
 
             return false;
         }
