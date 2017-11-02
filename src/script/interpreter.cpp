@@ -330,7 +330,7 @@ bool EvalPushOnlyScript(
                     return set_error(serror, SCRIPT_ERR_MINIMALDATA);
                 }
                 stack.push_back(vchPushValue);
-            } else if ((OP_IF <= opcode && opcode <= OP_ENDIF)) {
+            } else {
                 switch (opcode)
                 {
                     case OP_1NEGATE:
@@ -418,6 +418,12 @@ bool EvalScript(
             //
             if (!script.GetOp(pc, opcode, vchPushValue))
                 return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
+
+#ifdef DEBUG
+            debug("Executing Opcode: %s",OpcodeToStr(opcode, vchPushValue)); 
+            for(size_t c = stack.size()-1; c >= 0; c++)
+                 debug("\tstack %d: %s", c, HexStr(stack[c]));
+#endif
 
             if (vchPushValue.size() > MAX_SCRIPT_ELEMENT_SIZE)
                 return set_error(serror, SCRIPT_ERR_PUSH_SIZE);

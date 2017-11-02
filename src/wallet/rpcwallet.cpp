@@ -994,6 +994,8 @@ UniValue createvault(const JSONRPCRequest& request)
                     "Keypool ran out, please call keypoolrefill first");
         }
 
+        auto spend_pub_key_id = spend_pub_key.GetID();
+
         CKey renew_key;
         renew_key.MakeNewKey(true);
 
@@ -1001,16 +1003,16 @@ UniValue createvault(const JSONRPCRequest& request)
 
         auto renew_pub_key_id = renew_pub_key.GetID();
         auto vault_tag = Hash160(renew_pub_key_id.begin(), renew_pub_key_id.end());
-        auto vault_script = GetScriptForSimpleVault(vault_tag);
+        auto vault_script = GetScriptForSimpleVault(vault_tag, 1);
 
         CScriptID script_id = vault_script;
-        const int EXPECTED_SCRIPTSIG_PARAMS = 3;
         auto script_pub_key =
             GetParameterizedP2SH(
                     script_id,
-                    EXPECTED_SCRIPTSIG_PARAMS,
                     ToByteVector(spend_pub_key),
                     ToByteVector(renew_pub_key),
+                    ToByteVector(spend_pub_key_id),
+                    1,
                     ToByteVector(vault_tag),
                     0 /* simple is type 0 */);
 
@@ -1036,7 +1038,7 @@ UniValue createvault(const JSONRPCRequest& request)
         ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
         ret.push_back(Pair("tag", EncodeDestination(vault_tag)));
         ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
-        ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_pub_key.GetID())));
+        ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_pub_key_id)));
         ret.push_back(Pair("renew_sk", HexStr(renew_key.GetPrivKey())));
         ret.push_back(Pair("renew_pk", HexStr(renew_key.GetPubKey())));
         return ret;
@@ -1162,16 +1164,20 @@ Vault ParseVaultCoin(const VaultCoin& coin)
 
     if(vault.type == 0 /* simple */) {
 
-        if(stack.size() != 4) {
+        if(stack.size() < 4) {
             throw JSONRPCError(
                     RPC_TYPE_ERROR,
-                    "Simple vault requires 4 parameters.");
+                    "Simple vault requires 4 or more parameters.");
         }
 
-        const auto& vault_tag = stack[2];
+        const auto& vault_tag = stack[stack.size() - 2];
         vault.tag = uint160{vault_tag};
 
-        auto vault_script = GetScriptForSimpleVault(uint160{vault_tag});
+        CScriptNum num_addresses(stack[stack.size() - 3], false);
+
+        auto vault_script = 
+            GetScriptForSimpleVault(uint160{vault_tag}, num_addresses.getint());
+
         vault.script = vault_script;
     }
 
@@ -1333,10 +1339,8 @@ UniValue renewvault(const JSONRPCRequest& request)
         sig.push_back(SIGHASH_ALL);
 
 
-        const int OUT_INDEX = 0;
         const int RENEW_MODE = 1;
         in.scriptSig
-            << OUT_INDEX
             << sig
             << RENEW_MODE
             << valtype(vault.script.begin(), vault.script.end());
