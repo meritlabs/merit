@@ -351,14 +351,20 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
         <<      OP_FROMALTSTACK         // <spend key> <renew key> | [addresses]
         <<      0                       // <spend key> <renew key> <out index>| [addresses]
         <<      sizeof_addresses        // <spend key> <renew key> <out index> n | [addresses]
-        <<      OP_NFROMALTSTACK        // <spend key> <renew key> <out index> [addresses] | [addresses]
+        <<      OP_NFROMALTSTACK        // <spend key> <renew key> <out index> [addresses] |
+        <<      sizeof_addresses        // <spend key> <renew key> <out index> [addresses] n |
+        <<      OP_NDUP                 // <spend key> <renew key> <out index> [addresses] [addresses] |
+        <<      sizeof_addresses        // <spend key> <renew key> <out index> [addresses] [addresses] n |
+        <<      OP_NTOALTSTACK          // <spend key> <renew key> <out index> [addresses] | [addresses]
         <<      OP_CHECKOUTPUTSIGVERIFY // <spend key> <renew key> | [addresses]
         <<      sizeof_addresses        // <spend key> <renew key> n | [addresses]
-        <<      OP_NDUP                 // <spend key> <renew key> [addresses] |
+        <<      OP_NFROMALTSTACK        // <spend key> <renew key> [addresses] |
         <<      ToByteVector(tag)       // <spend key> <renew key> [addresses] <tag> | 
         <<      0                       // <spend key> <renew key> [addresses] <tag> <vault type> |
         <<      4 + sizeof_addresses    // <spend key> <renew key> [addresses] <tag> <vault type> <total args> | 
         <<      1                       // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> |
+        <<      's'                     // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> |
+        <<      1                       // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
         <<      OP_CHECKOUTPUTSIG       // <bool>
         << OP_ELSE
         <<      OP_FROMALTSTACK         // <sig> <spend key> | [addresses] <renew key>
