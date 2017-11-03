@@ -1089,6 +1089,25 @@ VaultCoins GetUnspentCoins(CCoinsViewCache& view, const VaultOutputs& unspent)
     return coins;
 }
 
+VaultCoins FilterVaultCoins(const VaultCoins& coins, const uint160& address)
+{
+    VaultCoins vault_coins;
+    vault_coins.reserve(coins.size());
+    std::copy_if(coins.begin(), coins.end(), std::back_inserter(vault_coins),
+            [&address](const VaultCoin& coin) {
+                CTxDestination dest;
+                if(!ExtractDestination(coin.second.out.scriptPubKey, dest)) {
+                    return false;
+                }
+                auto script_id = boost::get<CScriptID>(&dest);
+                if(!script_id) {
+                    return false;
+                }
+                return *script_id == address;
+            });
+    return vault_coins;
+}
+
 VaultCoins FindUnspentVaultCoins(const uint160& address)
 {
     VaultOutputs outputs;
@@ -1114,7 +1133,8 @@ VaultCoins FindUnspentVaultCoins(const uint160& address)
     CCoinsViewCache view(&viewMempool);
 
     auto unspent_outputs = GetUnspentOutputs(view, outputs);
-    return GetUnspentCoins(view, unspent_outputs);
+    auto unspent_coins = GetUnspentCoins(view, unspent_outputs);
+    return FilterVaultCoins(unspent_coins, address);
 }
 
 //TODO: Parse coins and extract vault info
