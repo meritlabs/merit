@@ -203,6 +203,7 @@ public:
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
 
+        fMiningRequiresPeers = true;
         fDefaultConsistencyChecks = false;
         fRequireStandard = true;
         fMineBlocksOnDemand = false;
@@ -257,7 +258,9 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 216, 0x207fffff, 28, 55, 1, 50 * COIN, consensus, true);
+        genesis = CreateGenesisBlock(1503444726, 216, 0x207fffff, 28, 50, 1, 50 * COIN, consensus, false);
+
+
 
         genesis.sCycle = {0x246f0e, 0x6cd7e4, 0xd2d791, 0x12388ff, 0x1ae1244, 0x1c1b65a, 0x1d30489, 0x208fb3e, 0x247f9d0,
             0x289d2b9, 0x29c69ee, 0x29d30ef, 0x2b5f98d, 0x2f1972b, 0x2f3e108, 0x32c85b5, 0x363d8a2, 0x3861de1, 0x39a006f,
@@ -285,6 +288,7 @@ public:
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_test, pnSeed6_test + ARRAYLEN(pnSeed6_test));
 
+        fMiningRequiresPeers = true;
         fDefaultConsistencyChecks = false;
         fRequireStandard = false;
         fMineBlocksOnDemand = false;
@@ -354,6 +358,7 @@ public:
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
 
+        fMiningRequiresPeers = false;
         fDefaultConsistencyChecks = true;
         fRequireStandard = false;
         fMineBlocksOnDemand = true;

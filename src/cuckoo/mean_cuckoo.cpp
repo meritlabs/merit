@@ -71,8 +71,8 @@ struct Params {
 
     // prepare params for algorithm
     const static uint32_t EDGEMASK = (1 << EDGEBITS) - 1;
-    const static uint8_t XBITS = 7;
-    const static uint8_t YBITS = 7;
+    const static uint8_t XBITS = EDGEBITS >= 27 ? 7 : (EDGEBITS >= 25 ? 5 : 2);
+    const static uint8_t YBITS = XBITS;
     // node bits have two groups of bucketbits (X for big and Y for small) and a remaining group Z of degree bits
     const static uint32_t NX = 1 << XBITS;
     const static uint32_t XMASK = NX - 1;
@@ -1121,6 +1121,8 @@ bool FindCycleAdvanced(const uint256& hash, uint8_t nodesBits, uint8_t edgesRati
     const auto edgeBits = nodesBits - 1;
 
     switch (edgeBits) {
+    case 20:
+        return run<20u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 26:
         return run<26u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 27:
