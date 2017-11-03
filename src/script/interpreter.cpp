@@ -846,8 +846,10 @@ bool EvalScript(
                         if (stack.size() + altstack.size() + n > MAX_STACK_SIZE)
                             return set_error(serror, SCRIPT_ERR_STACK_SIZE);
 
-                        for(int i = n; i > 0; i--)
-                            stack.push_back(stack[stack.size() - i]);
+                        auto start = stack.size() - n;
+                        auto end = stack.size();
+                        for(size_t i = start; i < end; i++)
+                            stack.push_back(stack[i]);
                     }
                     break;
                     case OP_NIP:
@@ -1332,7 +1334,7 @@ bool EvalScript(
                                     //Either the possible addresses are a hash of 
                                     //the script coming into VerifyScript or a specific
                                     //address
-                                    return addr_bytes.size() != 160 ? 
+                                    return addr_bytes.size() != 20 ?
                                             Hash160(script.begin(), script.end()) : 
                                             uint160{addr_bytes};
                                 });
