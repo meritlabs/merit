@@ -67,6 +67,8 @@ typedef uint32_t BIGTYPE0;
 
 template <uint8_t EDGEBITS>
 struct Params {
+    uint32_t nEdgesPerBucket;
+
     // prepare params for algorithm
     const static uint32_t EDGEMASK = (1 << EDGEBITS) - 1;
     const static uint8_t XBITS = 7;
@@ -134,6 +136,10 @@ struct Params {
     // grow with cube root of size, hardly affected by trimming
     // const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
     const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
+
+    Params(uint8_t difficulty) {
+        uint32_t nEdgesPerBucket = difficulty * (uint64_t) (2 * NYZ) / 100;
+    }
 };
 
 // typedef uint32_t BIGTYPE0;
@@ -268,11 +274,10 @@ public:
     zbucket16<EDGEBITS>* tzs;
     zbucket8<EDGEBITS>* tdegs;
     offset_t* tcounts;
-    uint32_t nTrims;
     uint8_t nThreads;
+    uint32_t nTrims;
+    Params<EDGEBITS> params;
     pthread_barrier_t barry;
-    uint8_t nodesBits;
-    uint32_t difficulty;
 
     void touch(uint8_t* p, const offset_t n)
     {
@@ -280,13 +285,10 @@ public:
             *(uint32_t*)(p + i) = 0;
     }
 
-    edgetrimmer(const uint8_t nThreadsIn, const uint32_t nTrimsIn)
+    edgetrimmer(const uint8_t nThreadsIn, const uint32_t nTrimsIn, const Params<EDGEBITS>& paramsIn) : nThreads{nThreadsIn}, nTrims{nTrimsIn}, params{paramsIn}
     {
         assert(sizeof(matrix<EDGEBITS, Params<EDGEBITS>::ZBUCKETSIZE>) == Params<EDGEBITS>::NX * sizeof(yzbucket<EDGEBITS, Params<EDGEBITS>::ZBUCKETSIZE>));
         assert(sizeof(matrix<EDGEBITS, Params<EDGEBITS>::ZBUCKETSIZE>) == Params<EDGEBITS>::NX * sizeof(yzbucket<EDGEBITS, Params<EDGEBITS>::ZBUCKETSIZE>));
-
-        nThreads = nThreadsIn;
-        nTrims = nTrimsIn;
 
         buckets = new yzbucket<EDGEBITS, Params<EDGEBITS>::ZBUCKETSIZE>[Params<EDGEBITS>::NX];
         touch((uint8_t*)buckets, sizeof(matrix<EDGEBITS, Params<EDGEBITS>::ZBUCKETSIZE>));
@@ -861,11 +863,11 @@ public:
     std::bitset<Params<EDGEBITS>::NXY> uxymap;
     std::vector<uint32_t> sols; // concatanation of all proof's indices
     uint8_t proofSize;
+    Params<EDGEBITS> params;
 
-    solver_ctx(const char* header, const uint32_t headerlen, const uint32_t nThreads, const uint32_t nTrims, const uint8_t proofSizeIn)
+    solver_ctx(const char* header, const uint32_t headerlen, const uint32_t nThreads, const uint32_t nTrims, const uint8_t proofSizeIn, const Params<EDGEBITS>& paramsIn) : proofSize{proofSizeIn}, params{paramsIn}
     {
-        trimmer = new edgetrimmer<EDGEBITS>(nThreads, nTrims);
-        proofSize = proofSizeIn;
+        trimmer = new edgetrimmer<EDGEBITS>(nThreads, nTrims, params);
 
         cycleus.reserve(proofSize);
         cyclevs.reserve(proofSize);
@@ -1072,8 +1074,6 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
     uint8_t nodesBits = edgeBits + 1;
     uint32_t nodesCount = 1 << (nodesBits - 1);
 
-    uint32_t difficulty = edgesRatio * (uint64_t)nodesCount / 100;
-
     uint8_t nThreads = 8;
     uint32_t nTrims = nodesBits > 31 ? 96 : 68;
 
@@ -1081,7 +1081,9 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
 
     printf("Looking for %d-cycle on cuckoo%d(\"%s\") with 50%% edges\n", proofSize, edgeBits, hashStr.c_str());
 
-    solver_ctx<EDGEBITS> ctx(hashStr.c_str(), hashStr.size(), nThreads, nTrims, proofSize);
+    Params<EDGEBITS> params{edgesRatio};
+
+    solver_ctx<EDGEBITS> ctx(hashStr.c_str(), hashStr.size(), nThreads, nTrims, proofSize, params);
 
     uint64_t sbytes = ctx.sharedbytes();
     uint32_t tbytes = ctx.threadbytes();
@@ -1091,6 +1093,7 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
         ;
     for (tunit = 0; tbytes >= 10240; tbytes >>= 10, tunit++)
         ;
+
     printf("Using %llu%cB bucket memory at %llx,\n", sbytes, " KMGT"[sunit], (uint64_t)ctx.trimmer->buckets);
     printf("%dx%d%cB thread memory at %llx,\n", nThreads, tbytes, " KMGT"[tunit], (uint64_t)ctx.trimmer->tbuckets);
     printf("%d-way siphash, and %d buckets.\n", NSIPHASH, 1 << 7);
