@@ -1510,8 +1510,6 @@ UniValue spendvault(const JSONRPCRequest& request)
 
     CMutableTransaction mtx{*wtx.tx};
 
-    assert(mtx.vin.size() == vaults.size());
-
     CKey spend_key;
     if (!pwallet->GetKey(spend_address, spend_key)) { 
         throw JSONRPCError(
