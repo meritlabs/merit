@@ -1293,16 +1293,6 @@ UniValue renewvault(const JSONRPCRequest& request)
         coin_control.Select(vault.out_point);
     }
 
-    for(const auto& vault : vaults) {
-            UniValue tmp(UniValue::VOBJ);
-            tmp.push_back(Pair("txid", vault.txid.GetHex()));
-            tmp.push_back(Pair("amount", ValueFromAmount(vault.coin.out.nValue)));
-            tmp.push_back(Pair("script", ScriptToAsmStr(vault.coin.out.scriptPubKey, true)));
-            tmp.push_back(Pair("vault script", ScriptToAsmStr(vault.script, true)));
-            tmp.push_back(Pair("vault_id", EncodeDestination(CScriptID(vault.script))));
-            ret.push_back(Pair(vault.txid.GetHex(), tmp));
-    }
-
     coin_control.fAllowWatchOnly = true;
 
     //Make sure to add keys and CScript before we create the transaction
@@ -1312,6 +1302,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     bool subtract_fee_from_amount = true;
     //TODO: create script with different spend key
+    //TODO: validate all unspent coins have the same vault param.
     std::vector<CRecipient> recipients = {
         {vaults[0].coin.out.scriptPubKey, total_amount, subtract_fee_from_amount}
     };
@@ -1480,6 +1471,8 @@ UniValue spendvault(const JSONRPCRequest& request)
     //The order of the recipients is important because the vault script requires
     //the first is the spend key and the second is the vault where changes goes into.
     bool subtract_fee_from_amount = true;
+
+    //TODO: This will be param in rpc call since we will have a list.
     auto spend_address = vaults[0].spend_pub_key.GetID();
     auto scriptPubKey = GetScriptForDestination(spend_address);
 
@@ -1521,7 +1514,8 @@ UniValue spendvault(const JSONRPCRequest& request)
 
     CKey spend_key;
     if (!pwallet->GetKey(spend_address, spend_key)) { 
-        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to find the spendkey in the keystore");
+        throw JSONRPCError(
+                RPC_WALLET_ERROR, "Unable to find the spendkey in the keystore");
     }
 
     for(size_t i = 0; i <  mtx.vin.size(); i++) {
