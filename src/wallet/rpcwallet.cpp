@@ -663,7 +663,7 @@ static UniValue EasyReceive(
     unspent_wtx.nIndex = 0; //hack to get around not having CBlockIndex
 
     pwallet.AddToWallet(unspent_wtx);
-    coin_control.Select({unspent_key.txhash, unspent_key.index});
+    coin_control.Select({unspent_key.txhash, static_cast<unsigned int>(unspent_key.index)});
     coin_control.fAllowWatchOnly = true;
 
     //Make sure to add keys and CScript before we create the transaction
