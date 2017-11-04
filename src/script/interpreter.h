@@ -177,6 +177,11 @@ public:
         return nullptr;
     }
 
+    virtual size_t GetOutputCount() const
+    {
+        return 0;
+    }
+
     virtual ~BaseSignatureChecker() {}
 };
 
@@ -234,6 +239,7 @@ public:
     bool CheckOutputAmount(int index, CAmount max_amount) const override;
     bool CheckCoinHeight(int maxHeight) const override;
     const CTxOut* GetTxnOutput(int index) const override;
+    size_t GetOutputCount() const override;
 };
 
 class MutableTransactionSignatureChecker : public TransactionSignatureChecker

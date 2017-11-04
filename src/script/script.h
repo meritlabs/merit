@@ -114,11 +114,9 @@ enum opcodetype : short
     OP_NFROMALTSTACK = 0x80,
 
     // splice ops
-    OP_RIGHT = 0x81,
     OP_SIZE = 0x82,
 
     // bit logic
-    OP_INVERT = 0x83,
     OP_AND = 0x84,
     OP_OR = 0x85,
     OP_XOR = 0x86,
@@ -171,15 +169,19 @@ enum opcodetype : short
     OP_CHECKMULTISIG = 0xae,
     OP_CHECKMULTISIGVERIFY = 0xaf,
 
+    //output opcodes
+    OP_CHECKOUTAMOUNT = 0xb4,
+    OP_CHECKOUTPUTSIG = 0xb5,
+    OP_CHECKOUTPUTSIGVERIFY = 0xb6,
+    OP_CHECKOUTPUTCOUNT = 0x81,
+    OP_CHECKOUTPUTCOUNTVERIFY = 0x83,
+
     // expansion
     OP_NOP1 = 0xb0,
     OP_CHECKLOCKTIMEVERIFY = 0xb1,
     OP_NOP2 = OP_CHECKLOCKTIMEVERIFY,
     OP_CHECKSEQUENCEVERIFY = 0xb2,
     OP_EASYSEND = 0xb3,
-    OP_CHECKOUTAMOUNT = 0xb4,
-    OP_CHECKOUTPUTSIG = 0xb5,
-    OP_CHECKOUTPUTSIGVERIFY = 0xb6,
     OP_ANYVALUE = 0xb7,
     OP_NOP9 = 0xb8,
     OP_NOP10 = 0xb9,

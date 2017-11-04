@@ -429,7 +429,6 @@ bool EvalScript(
             for(size_t c = 0; c < altstack.size(); c++) {
                  debug("\talt   %d: %s", c, HexStr(altstack[altstack.size() - 1 - c]));
             }
-
 #endif
 
             if (vchPushValue.size() > MAX_SCRIPT_ELEMENT_SIZE)
@@ -439,9 +438,7 @@ bool EvalScript(
             if (opcode > OP_16 && ++nOpCount > MAX_OPS_PER_SCRIPT)
                 return set_error(serror, SCRIPT_ERR_OP_COUNT);
 
-            if (opcode == OP_RIGHT ||
-                opcode == OP_INVERT ||
-                opcode == OP_AND ||
+            if (opcode == OP_AND ||
                 opcode == OP_OR ||
                 opcode == OP_XOR ||
                 opcode == OP_2MUL ||
@@ -687,11 +684,9 @@ bool EvalScript(
                     {
                         // (xn ... x2 x1 x0 n | <alt stack> )
                         // ( <stack> | xn ... x2 x1 x0)
-                        if (stack.size() < 1)
-                            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
-
-                        int n = CScriptNum(stacktop(-1), fRequireMinimal).getint();
-                        popstack(stack);
+                        int n = 0;
+                        if(!Pop(stack, n, serror))
+                            return false;
 
                         if (n < 0 || n > static_cast<int>(stack.size()))
                             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
@@ -707,11 +702,9 @@ bool EvalScript(
                     {
                         // ( n | xn ... x2 x1 x0)
                         // (xn ... x2 x1 x0 | <alt stack> )
-                        if (stack.size() < 1)
-                            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
-
-                        int n = CScriptNum(stacktop(-1), fRequireMinimal).getint();
-                        popstack(stack);
+                        int n = 0;
+                        if(!Pop(stack, n, serror))
+                            return false;
 
                         if (n < 0 || n >  static_cast<int>(altstack.size()))
                             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
@@ -834,11 +827,9 @@ bool EvalScript(
                     case OP_NDUP:
                     {
                         // (xn ... x2 x1 x0 n - xn ... x2 x1 x0)
-                        if (stack.size() < 1)
-                            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
-
-                        int n = CScriptNum(stacktop(-1), fRequireMinimal).getint();
-                        popstack(stack);
+                        int n = 0;
+                        if(!Pop(stack, n, serror))
+                            return false;
 
                         if (n < 0 || n > static_cast<int>(stack.size()))
                             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
@@ -1254,7 +1245,7 @@ bool EvalScript(
                     {
                         // (sig max_block_depth [pubkey ...] num_of_pubkeys -- bool)
                         size_t key_id_count = 0;
-                        if(!Pop(stack, key_id_count, serror)) 
+                        if(!Pop(stack, key_id_count, serror))
                             return false;
 
                         if(key_id_count < 2 || key_id_count > MAX_EASY_SEND_KEYS)
@@ -1445,6 +1436,32 @@ bool EvalScript(
                     case OP_ANYVALUE:
                     {
                         stack.push_back(vchFalse);
+                    }
+                    break;
+                    case OP_CHECKOUTPUTCOUNTVERIFY:
+                    case OP_CHECKOUTPUTCOUNT:
+                    {
+                        int expected_count = 0;
+                        if(!Pop(stack, expected_count, serror)) {
+                            return false;
+                        }
+
+                        int actual_amount =  checker.GetOutputCount();
+
+                        bool success = expected_count == actual_amount;
+
+                        stack.push_back(success ? vchTrue : vchFalse);
+
+                        if (opcode == OP_CHECKOUTPUTCOUNTVERIFY)
+                        {
+                            if (success) {
+                                popstack(stack);
+                            } else {
+                                return set_error(
+                                        serror,
+                                        SCRIPT_ERR_CHECKOUTPUTCOUNTVERIFY);
+                            }
+                        }
                     }
                     break;
 
@@ -1814,6 +1831,12 @@ const CTxOut* TransactionSignatureChecker::GetTxnOutput(int index) const
         return nullptr;
 
     return &txTo->vout[index];
+}
+
+size_t TransactionSignatureChecker::GetOutputCount() const
+{
+    assert(txTo);
+    return txTo->vout.size();
 }
 
 static bool VerifyWitnessProgram(

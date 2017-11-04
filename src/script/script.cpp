@@ -75,11 +75,9 @@ const char* GetOpName(opcodetype opcode)
     case OP_NFROMALTSTACK          : return "OP_NFROMALTSTACK";
 
     // splice ops
-    case OP_RIGHT                  : return "OP_RIGHT";
     case OP_SIZE                   : return "OP_SIZE";
 
     // bit logic
-    case OP_INVERT                 : return "OP_INVERT";
     case OP_AND                    : return "OP_AND";
     case OP_OR                     : return "OP_OR";
     case OP_XOR                    : return "OP_XOR";
@@ -139,6 +137,8 @@ const char* GetOpName(opcodetype opcode)
     case OP_CHECKOUTPUTSIG         : return "OP_CHECKOUTPUTSIG";
     case OP_CHECKOUTPUTSIGVERIFY   : return "OP_CHECKOUTPUTSIGVERIFY";
     case OP_ANYVALUE               : return "OP_ANYVALUE";
+    case OP_CHECKOUTPUTCOUNT       : return "OP_CHECKOUTPUTCOUNT";
+    case OP_CHECKOUTPUTCOUNTVERIFY : return "OP_CHECKOUTPUTCOUNTVERIFY";
 
     case OP_NOP1                   : return "OP_NOP1";
     case OP_NOP9                   : return "OP_NOP9";
