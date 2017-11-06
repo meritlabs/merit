@@ -254,6 +254,11 @@ public:
         m_value = set_vch(vch);
     }
 
+    operator std::vector<unsigned char>() const
+    {
+        return getvch();
+    }
+
     inline bool operator==(const int64_t& rhs) const    { return m_value == rhs; }
     inline bool operator!=(const int64_t& rhs) const    { return m_value != rhs; }
     inline bool operator<=(const int64_t& rhs) const    { return m_value <= rhs; }

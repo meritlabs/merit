@@ -327,7 +327,9 @@ CScript GetScriptForEasySend(
 
 CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
 {
-    auto sizeof_addresses = num_addresses + 1; //includes the size value
+    assert(num_addresses > 0);
+
+    const auto sizeof_addresses = num_addresses + 1;
 
     // params <spend key> <renew key> [addresses: <addr1> <addr2> <...> <num addresses>] <tag> <vault type>
     // stack on start0:  <sig> <mode> <spend key> <renew key> [addresses] <tag> |
@@ -335,7 +337,6 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
     script
         << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] <tag>| 
         << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] | 
-        << sizeof_addresses             // <sig> <mode> <spend key> <renew key> [addresses] n | 
         << OP_NTOALTSTACK               // <out index> <sig> <mode> | [addresses]
         << OP_TOALTSTACK                // <sig> <mode> <spend key> | [addresses] <renew key>
         << OP_TOALTSTACK                // <sig> <mode> | [addresses] <renew key> <spend key>
@@ -349,14 +350,10 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
         <<      OP_FROMALTSTACK         // <spend key> | [addresses] <renew key>
         <<      OP_FROMALTSTACK         // <spend key> <renew key> | [addresses]
         <<      0                       // <spend key> <renew key> <out index>| [addresses]
-        <<      sizeof_addresses        // <spend key> <renew key> <out index> n | [addresses]
         <<      OP_NFROMALTSTACK        // <spend key> <renew key> <out index> [addresses] |
-        <<      sizeof_addresses        // <spend key> <renew key> <out index> [addresses] n |
         <<      OP_NDUP                 // <spend key> <renew key> <out index> [addresses] [addresses] |
-        <<      sizeof_addresses        // <spend key> <renew key> <out index> [addresses] [addresses] n |
         <<      OP_NTOALTSTACK          // <spend key> <renew key> <out index> [addresses] | [addresses]
         <<      OP_CHECKOUTPUTSIGVERIFY // <spend key> <renew key> | [addresses]
-        <<      sizeof_addresses        // <spend key> <renew key> n | [addresses]
         <<      OP_NFROMALTSTACK        // <spend key> <renew key> [addresses] |
         <<      ToByteVector(tag)       // <spend key> <renew key> [addresses] <tag> | 
         <<      0                       // <spend key> <renew key> [addresses] <tag> <vault type> |
@@ -376,7 +373,6 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
         <<      OP_CHECKSIGVERIFY       // | <renew key> | [addresses]
         <<      OP_ANYVALUE             // <any> | [addresses] <renew key>
         <<      OP_FROMALTSTACK         // <any> <renew key> | [addresses]
-        <<      sizeof_addresses        // <any> <renew key> | [addresses]
         <<      OP_NFROMALTSTACK        // <any> <renew key> [addresses] |
         <<      ToByteVector(tag)       // <any> <renew key> [addresses] <tag> |
         <<      0                       // <any> <renew key> [addresses] <tag> <vault type> |

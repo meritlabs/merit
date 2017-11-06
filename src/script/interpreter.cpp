@@ -258,26 +258,36 @@ bool static CheckMinimalPush(const valtype& data, opcodetype opcode) {
 }
 
 template<class Val, typename std::enable_if<!std::is_integral<Val>::value, bool>::type = 0>
-bool Pop(std::vector<std::vector<unsigned char>>& stack, Val& ret, ScriptError* serror)
+bool Peek(Stack& stack, Val& ret, ScriptError* serror)
 {
     if (stack.empty()) {
         return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
     }
 
     ret = stacktop(-1);
-    popstack(stack);
-
     return true;
 }
 
 template<class Val, typename std::enable_if<std::is_integral<Val>::value, bool>::type = 0>
-bool Pop(std::vector<std::vector<unsigned char>>& stack, Val& ret, ScriptError* serror)
+bool Peek(Stack& stack, Val& ret, ScriptError* serror)
 {
     valtype bytes;
-    if(!Pop(stack, bytes, serror))
+    if(!Peek(stack, bytes, serror))
         return false;
 
     ret = CScriptNum(bytes, true).getint();
+    return true;
+}
+
+template<class Val>
+bool Pop(Stack& stack, Val& ret, ScriptError* serror)
+{
+    if(!Peek(stack, ret, serror)) {
+        return false;
+    }
+
+    popstack(stack);
+
     return true;
 }
 
@@ -351,8 +361,7 @@ bool EvalPushOnlyScript(
                     case OP_15:
                     case OP_16:
                         {
-                            CScriptNum bn((int)opcode - (int)(OP_1 - 1));
-                            stack.push_back(bn.getvch());
+                            stack.push_back(CScriptNum{(int)opcode - (int)(OP_1 - 1)});
                             // The result of these opcodes should always be the minimal way to push the data
                             // they push, so no need for a CheckMinimalPush here.
                         }
@@ -480,8 +489,7 @@ bool EvalScript(
                     case OP_16:
                     {
                         // ( -- value)
-                        CScriptNum bn((int)opcode - (int)(OP_1 - 1));
-                        stack.push_back(bn.getvch());
+                        stack.push_back(CScriptNum{(int)opcode - (int)(OP_1 - 1)});
                         // The result of these opcodes should always be the minimal way to push the data
                         // they push, so no need for a CheckMinimalPush here.
                     }
@@ -695,6 +703,9 @@ bool EvalScript(
                             altstack.push_back(stacktop(-1));
                             popstack(stack);
                         }
+
+                        altstack.push_back(CScriptNum{n});
+
                     }
                     break;
 
@@ -703,7 +714,7 @@ bool EvalScript(
                         // ( n | xn ... x2 x1 x0)
                         // (xn ... x2 x1 x0 | <alt stack> )
                         int n = 0;
-                        if(!Pop(stack, n, serror))
+                        if(!Pop(altstack, n, serror))
                             return false;
 
                         if (n < 0 || n >  static_cast<int>(altstack.size()))
@@ -713,6 +724,8 @@ bool EvalScript(
                             stack.push_back(altstacktop(-1));
                             popstack(altstack);
                         }
+
+                        stack.push_back(CScriptNum{n});
                     }
                     break;
 
@@ -828,8 +841,11 @@ bool EvalScript(
                     {
                         // (xn ... x2 x1 x0 n - xn ... x2 x1 x0)
                         int n = 0;
-                        if(!Pop(stack, n, serror))
+                        if(!Peek(stack, n, serror))
                             return false;
+
+                        //include the size element
+                        n ++;
 
                         if (n < 0 || n > static_cast<int>(stack.size()))
                             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
