@@ -31,8 +31,9 @@ namespace pog
         r.reserve(addresses.size());
 
         for(const auto& a : addresses) {
-            if(auto maybe_anv = ComputeANV(a, db))
+            if(auto maybe_anv = ComputeANV(a, db)) {
                 r.push_back({a, *maybe_anv});
+            }
         }
 
         assert(r.size() <= addresses.size());
