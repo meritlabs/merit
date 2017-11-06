@@ -25,7 +25,7 @@ static CBlock CreateGenesisBlock(
     uint32_t nTime,
     uint32_t nNonce,
     uint32_t nBits,
-    uint8_t nNodesBits,
+    uint8_t nEdgesBits,
     uint8_t nEdgesRatio,
     int32_t nVersion,
     const CAmount& genesisReward,
@@ -52,7 +52,7 @@ static CBlock CreateGenesisBlock(
     genesis.nTime = nTime;
     genesis.nBits = nBits;
     genesis.nNonce = nNonce;
-    genesis.nNodesBits = nNodesBits;
+    genesis.nEdgesBits = nEdgesBits;
     genesis.nEdgesRatio = nEdgesRatio;
     genesis.nVersion = nVersion;
     genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
@@ -66,7 +66,7 @@ static CBlock CreateGenesisBlock(
         uint32_t nMaxTries = 10000000;
 
         printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
-        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, genesis.nEdgesRatio, pow, params)) {
+        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, genesis.nEdgesRatio, pow, params)) {
             ++genesis.nNonce;
             printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
 
@@ -106,7 +106,7 @@ static CBlock CreateGenesisBlock(
     uint32_t nTime,
     uint32_t nNonce,
     uint32_t nBits,
-    uint8_t nNodesBits,
+    uint8_t nEdgesBits,
     uint8_t nEdgesRatio,
     int32_t nVersion,
     const CAmount& genesisReward,
@@ -115,7 +115,7 @@ static CBlock CreateGenesisBlock(
 {
     const char* pszTimestamp = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
     const CScript genesisOutputScript = CScript() << ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35") << OP_CHECKSIG;
-    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nNodesBits, nEdgesRatio, nVersion, genesisReward, params, findPoW);
+    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nEdgesBits, nEdgesRatio, nVersion, genesisReward, params, findPoW);
 }
 
 void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout)
@@ -258,18 +258,16 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 216, 0x207fffff, 28, 50, 1, 50 * COIN, consensus, false);
+        genesis = CreateGenesisBlock(1503444726, 35, 0x207fffff, 19, 50, 1, 50 * COIN, consensus, false);
 
 
-
-        genesis.sCycle = {0x246f0e, 0x6cd7e4, 0xd2d791, 0x12388ff, 0x1ae1244, 0x1c1b65a, 0x1d30489, 0x208fb3e, 0x247f9d0,
-            0x289d2b9, 0x29c69ee, 0x29d30ef, 0x2b5f98d, 0x2f1972b, 0x2f3e108, 0x32c85b5, 0x363d8a2, 0x3861de1, 0x39a006f,
-            0x3aa9118, 0x3acfe73, 0x3bbbbdf, 0x3ee119a, 0x424dd97, 0x4267553, 0x459aa6c, 0x46d7fe0, 0x4b51ec2, 0x5074e12,
-            0x547774d, 0x56c8838, 0x5886bc2, 0x5c70574, 0x5d106fc, 0x5ee190e, 0x60baefd, 0x6521e05, 0x6cce8ac, 0x6d60438,
-            0x717af0f, 0x71e216a, 0x7d4d5cc};
+        genesis.sCycle = {0xd71, 0x19d2, 0x31d2, 0x7286, 0x80ef, 0xd24f, 0xda18, 0x11dc3, 0x12e71, 0x164a4, 0x17001,
+            0x1cd32, 0x21279, 0x29685, 0x2a0c8, 0x2ba43, 0x30982, 0x31700, 0x31c24, 0x37ceb, 0x3885f, 0x3db21, 0x3e70e,
+            0x3fd07, 0x40528, 0x43316, 0x482ec, 0x4fda2, 0x549df, 0x58029, 0x59287, 0x5b02f, 0x5de76, 0x5efc7, 0x5facc,
+            0x64829, 0x648ec, 0x6da00, 0x6f50a, 0x6ff15, 0x73916, 0x7902d};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0ba35302cc5c429b42e0e3729628058a6719ff2126fbd8aeea7b5d3a1c4d92e0"));
+        assert(consensus.hashGenesisBlock == uint256S("c5273e0b25bd807a27262f50ee1d9700e36c357d949bfe6a428bc271ee4f119d"));
         assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
 
         vFixedSeeds.clear();

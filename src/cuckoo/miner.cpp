@@ -17,10 +17,10 @@
 
 namespace cuckoo
 {
-bool FindProofOfWork(const uint256 hash, unsigned int nBits, uint8_t nodesBits, uint8_t edgesRatio, std::set<uint32_t>& cycle, const Consensus::Params& params)
+bool FindProofOfWork(const uint256 hash, unsigned int nBits, uint8_t edgeBits, uint8_t edgesRatio, std::set<uint32_t>& cycle, const Consensus::Params& params)
 {
     assert(cycle.empty());
-    bool cycleFound = FindCycle(hash, nodesBits, edgesRatio, params.nCuckooProofSize, cycle);
+    bool cycleFound = FindCycle(hash, edgeBits, edgesRatio, params.nCuckooProofSize, cycle);
 
     // if cycle is found check that hash of that cycle is less than a difficulty (old school bitcoin pow)
     if (cycleFound && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
@@ -32,13 +32,13 @@ bool FindProofOfWork(const uint256 hash, unsigned int nBits, uint8_t nodesBits, 
     return false;
 }
 
-bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t nodesBits, const std::set<uint32_t>& cycle, const Consensus::Params& params)
+bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t edgeBits, const std::set<uint32_t>& cycle, const Consensus::Params& params)
 {
     assert(cycle.size() == params.nCuckooProofSize);
 
     std::vector<uint32_t> vCycle{cycle.begin(), cycle.end()};
 
-    int res = VerifyCycle(hash, nodesBits, params.nCuckooProofSize, vCycle);
+    int res = VerifyCycle(hash, edgeBits, params.nCuckooProofSize, vCycle);
 
     if (res == verify_code::POW_OK) {
         // check that hash of a cycle is less than a difficulty (old school bitcoin pow)
@@ -48,10 +48,10 @@ bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t nodesBits, cons
     return false;
 }
 
-bool FindProofOfWorkAdvanced(const uint256 hash, unsigned int nBits, uint8_t nodesBits, uint8_t edgesRatio, std::set<uint32_t>& cycle, const Consensus::Params& params)
+bool FindProofOfWorkAdvanced(const uint256 hash, unsigned int nBits, uint8_t edgeBits, uint8_t edgesRatio, std::set<uint32_t>& cycle, const Consensus::Params& params)
 {
     assert(cycle.empty());
-    bool cycleFound = FindCycleAdvanced(hash, nodesBits, edgesRatio, params.nCuckooProofSize, cycle);
+    bool cycleFound = FindCycleAdvanced(hash, edgeBits, edgesRatio, params.nCuckooProofSize, cycle);
 
     // if cycle is found check that hash of that cycle is less than a difficulty (old school bitcoin pow)
     if (cycleFound && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
@@ -66,7 +66,7 @@ bool FindProofOfWorkAdvanced(const uint256 hash, unsigned int nBits, uint8_t nod
 // TODO: udpdate this function if we wanna control memory usage size
 uint8_t GetNextNodesBitsRequired(const CBlockIndex* pindexLast)
 {
-    return pindexLast->nNodesBits;
+    return pindexLast->nEdgesBits;
 }
 
 uint8_t GetNextEdgesRatioRequired(const CBlockIndex* pindexLast)

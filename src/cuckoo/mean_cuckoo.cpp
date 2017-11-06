@@ -58,7 +58,7 @@ typedef uint32_t BIGTYPE0;
 // 1/32 reduces odds of overflowing z bucket on 2^30 nodes to 2^14*e^-32
 // (less than 1 in a billion) in theory. not so in practice (fails first at mean30 -n 1549)
 #ifndef BIGEPS
-#define BIGEPS 5 / 64
+#define BIGEPS 6 / 64
 #endif
 
 // 176/256 is safely over 1-e(-1) ~ 0.63 trimming fraction
@@ -72,7 +72,8 @@ struct Params {
 
     // prepare params for algorithm
     const static uint32_t EDGEMASK = (1 << EDGEBITS) - 1;
-    const static uint8_t XBITS = EDGEBITS >= 27 ? 7 : (EDGEBITS >= 25 ? 5 : 2);
+    const static uint8_t XBITS = EDGEBITS >= 26 ? 7 : (EDGEBITS >= 24 ? 5 : (EDGEBITS >= 16 ? 2 : 0));
+
     const static uint8_t YBITS = XBITS;
     // node bits have two groups of bucketbits (X for big and Y for small) and a remaining group Z of degree bits
     const static uint32_t NX = 1 << XBITS;
@@ -156,7 +157,7 @@ struct zbucket {
     union alignas(16) {
         uint8_t bytes[BUCKETSIZE];
         struct {
-            uint32_t words[BUCKETSIZE / sizeof(uint32_t) - RENAMESIZE - P::NTRIMMEDZ];
+            uint32_t words[BUCKETSIZE / sizeof(uint32_t) - RENAMESIZE];
             uint32_t renameu1[P::NZ2];
             uint32_t renamev1[P::NZ2];
             uint32_t renameu[P::COMPRESSROUND ? P::NZ1 : 0];
@@ -602,9 +603,6 @@ public:
                     const uint32_t node = _sipnode(&sip_keys, P::EDGEMASK, *readedge, uorv);
                     const uint32_t vx = node >> P::YZBITS; // & XMASK;
 
-                    if (*readedge % 1000000 == 0) {
-                        // printf("vx: %3d, uy: %3d, edge: %07x, node: %07x\n", vx, uy, *readedge, node);
-                    }
                     // bit        39..34    33..21     20..13     12..0
                     // write      UYYYYY    UZZZZZ     VYYYYY     VZZZZ   within VX partition
                     // prev bucket info generated in genUnodes is overwritten here,
@@ -1279,7 +1277,6 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
     // static const uint8_t EDGEBITS = 27;
 
     uint8_t nodesBits = edgeBits + 1;
-    uint32_t nodesCount = 1 << (nodesBits - 1);
 
     uint8_t nThreads = 8;
     uint32_t nTrims = nodesBits > 31 ? 96 : 68;
@@ -1323,19 +1320,23 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
     return found;
 }
 
-bool FindCycleAdvanced(const uint256& hash, uint8_t nodesBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
+bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
-    const auto edgeBits = nodesBits - 1;
-
     switch (edgeBits) {
-    case 20:
-        return run<20u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 19:
+        return run<19u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 24:
+        return run<24u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 25:
+        return run<25u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 26:
         return run<26u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 27:
         return run<27u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 28:
         return run<28u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 29:
+        return run<29u>(hash, edgeBits, edgesRatio, proofSize, cycle);
 
     default:
         throw std::runtime_error(strprintf("%s: EDGEBITS equal to %d is not suppoerted", __func__, edgeBits));
