@@ -258,7 +258,7 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 35, 0x207fffff, 19, 50, 1, 50 * COIN, consensus, false);
+        genesis = CreateGenesisBlock(1503444726, 0, 0x207fffff, 28, 50, 1, 50 * COIN, consensus, true);
 
 
         genesis.sCycle = {0xd71, 0x19d2, 0x31d2, 0x7286, 0x80ef, 0xd24f, 0xda18, 0x11dc3, 0x12e71, 0x164a4, 0x17001,

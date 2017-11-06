@@ -58,17 +58,19 @@ typedef uint32_t BIGTYPE0;
 // 1/32 reduces odds of overflowing z bucket on 2^30 nodes to 2^14*e^-32
 // (less than 1 in a billion) in theory. not so in practice (fails first at mean30 -n 1549)
 #ifndef BIGEPS
-#define BIGEPS 6 / 64
+#define BIGEPS 3 / 64
 #endif
 
 // 176/256 is safely over 1-e(-1) ~ 0.63 trimming fraction
 #ifndef TRIMFRAC256
-#define TRIMFRAC256 184
+#define TRIMFRAC256 176
 #endif
 
 template <uint8_t EDGEBITS>
 struct Params {
     uint32_t nEdgesPerBucket;
+
+    const static bool SAVEEDGES = EDGEBITS > 27;
 
     // prepare params for algorithm
     const static uint32_t EDGEMASK = (1 << EDGEBITS) - 1;
@@ -113,7 +115,7 @@ struct Params {
     const static uint32_t YZZ1BITS = YZ1BITS + ZBITS;
 
     const static uint8_t BIGSIZE = EDGEBITS <= 15 ? 4 : 5;
-    const static uint8_t BIGSIZE0 = EDGEBITS < 30 ? 4 : BIGSIZE;
+    const static uint8_t BIGSIZE0 = !SAVEEDGES ? 4 : BIGSIZE;
     const static uint8_t SMALLSIZE = BIGSIZE;
     const static uint8_t BIGGERSIZE = BIGSIZE;
 
@@ -132,8 +134,10 @@ struct Params {
 
     const static uint32_t NTRIMMEDZ = NZ * TRIMFRAC256 / 256;
     const static uint32_t ZBUCKETSLOTS = NZ + NZ * BIGEPS;
-    const static uint32_t ZBUCKETSIZE = ZBUCKETSLOTS * BIGSIZE0;
+    const static uint32_t ZBUCKETSIZE = !SAVEEDGES ? ZBUCKETSLOTS * BIGSIZE0 : NTRIMMEDZ * (BIGSIZE + sizeof(uint32_t));
     const static uint32_t TBUCKETSIZE = ZBUCKETSLOTS * BIGSIZE;
+
+    const static bool NEEDSYNC = BIGSIZE0 == 4 && EDGEBITS > 27;
 
     // grow with cube root of size, hardly affected by trimming
     // const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
@@ -157,11 +161,12 @@ struct zbucket {
     union alignas(16) {
         uint8_t bytes[BUCKETSIZE];
         struct {
-            uint32_t words[BUCKETSIZE / sizeof(uint32_t) - RENAMESIZE];
+            uint32_t words[BUCKETSIZE / sizeof(uint32_t) - RENAMESIZE - (P::SAVEEDGES ? P::NTRIMMEDZ : 0)];
             uint32_t renameu1[P::NZ2];
             uint32_t renamev1[P::NZ2];
             uint32_t renameu[P::COMPRESSROUND ? P::NZ1 : 0];
             uint32_t renamev[P::COMPRESSROUND ? P::NZ1 : 0];
+            uint32_t edges[P::SAVEEDGES ? P::NTRIMMEDZ : 0];
         };
     };
     uint32_t setsize(uint8_t const* end)
@@ -304,7 +309,11 @@ public:
         tbuckets = new yzbucket<EDGEBITS, P::TBUCKETSIZE>[nThreads];
         touch((uint8_t*)tbuckets, nThreads * sizeof(yzbucket<EDGEBITS, P::TBUCKETSIZE>));
 
-        tedges = new zbucket32<EDGEBITS>[nThreads];
+        if (P::SAVEEDGES) {
+            tedges = 0;
+        } else {
+            tedges = new zbucket32<EDGEBITS>[nThreads];
+        }
         tdegs = new zbucket8<EDGEBITS>[nThreads];
         tzs = new zbucket16<EDGEBITS>[nThreads];
         tcounts = new offset_t[nThreads];
@@ -335,6 +344,9 @@ public:
     {
         uint64_t rdtsc0, rdtsc1;
         rdtsc0 = __rdtsc();
+
+        // if NEEDSYNC
+        uint32_t last[P::NX];
 
         uint8_t const* base = (uint8_t*)buckets;
         indexer<EDGEBITS, P::ZBUCKETSIZE> dst;
@@ -367,21 +379,35 @@ public:
         for (uint32_t my = starty; my < endy; my++, endedge += P::NYZ) {
             dst.matrixv(my);
 
+            if (P::NEEDSYNC) {
+                for (uint32_t x = 0; x < P::NX; x++) {
+                    last[x] = edge;
+                }
+            }
             // edge is a "nonce" for sipnode()
             for (; edge < endedge; edge += NSIPHASH) {
 // bit        28..21     20..13    12..0
 // node       XXXXXX     YYYYYY    ZZZZZ
 
 #if NSIPHASH == 1
-                const uint32_t node = _sipnode(&sip_keys, P::EDGEMASK, edge, uorv); // node - generated random node for the graph
-                const uint32_t ux = node >> P::YZBITS;                              // ux - highest X (7) bits
-
+                const uint32_t node = _sipnode(&sip_keys, P::EDGEMASK, edge, uorv);   // node - generated random node for the graph
+                const uint32_t ux = node >> P::YZBITS;                                // ux - highest X (7) bits
                 const BIGTYPE0 zz = (BIGTYPE0)edge << P::YZBITS | (node & P::YZMASK); // - edge YYYYYY ZZZZZ
 
-                // bit        39..21     20..13    12..0
-                // write        edge     YYYYYY    ZZZZZ
-                *(BIGTYPE0*)(base + dst.index[ux]) = zz;
-                dst.index[ux] += P::BIGSIZE0;
+                if (!P::NEEDSYNC) {
+                    // bit        39..21     20..13    12..0
+                    // write        edge     YYYYYY    ZZZZZ
+                    *(BIGTYPE0*)(base + dst.index[ux]) = zz;
+                    dst.index[ux] += P::BIGSIZE0;
+                } else {
+                    if (zz) {
+                        for (; unlikely(last[ux] + P::NNONYZ <= edge); last[ux] += P::NNONYZ, dst.index[ux] += P::BIGSIZE0)
+                            *(uint32_t*)(base + dst.index[ux]) = 0;
+                        *(uint32_t*)(base + dst.index[ux]) = zz;
+                        dst.index[ux] += P::BIGSIZE0;
+                        last[ux] = edge;
+                    }
+                }
 #elif NSIPHASH == 8
                 v3 = _mm256_permute4x64_epi64(vinit, 0xFF);
                 v0 = _mm256_permute4x64_epi64(vinit, 0x00);
@@ -418,23 +444,48 @@ public:
 
                 uint32_t ux;
 
-#define STORE0(i, v, x, w)                                               \
-    ux = _mm256_extract_epi32(v, x);                                     \
-    *(uint64_t*)(base + dst.index[ux]) = _mm256_extract_epi64(w, i % 4); \
-    dst.index[ux] += P::BIGSIZE0;
+                auto store = [&](uint8_t i, __m256i v, uint8_t x, __m256i w) {
+                    if (!P::NEEDSYNC) {
+                        ux = _mm256_extract_epi32(v, x);
+                        *(uint64_t*)(base + dst.index[ux]) = _mm256_extract_epi64(w, i % 4);
+                        dst.index[ux] += P::BIGSIZE0;
+                    } else {
+                        uint32_t zz = _mm256_extract_epi32(w, x);
 
-                STORE0(0, v1, 0, v0);
-                STORE0(1, v1, 2, v0);
-                STORE0(2, v1, 4, v0);
-                STORE0(3, v1, 6, v0);
-                STORE0(4, v5, 0, v4);
-                STORE0(5, v5, 2, v4);
-                STORE0(6, v5, 4, v4);
-                STORE0(7, v5, 6, v4);
+                        if (i || likely(zz)) {
+                            ux = _mm256_extract_epi32(v, x);
+                            for (; unlikely(last[ux] + P::NNONYZ <= edge + i); last[ux] += P::NNONYZ, dst.index[ux] += P::BIGSIZE0)
+                                *(uint32_t*)(base + dst.index[ux]) = 0;
+                            *(uint32_t*)(base + dst.index[ux]) = zz;
+                            dst.index[ux] += P::BIGSIZE0;
+                            last[ux] = edge + i;
+                        }
+                    }
+                };
+
+
+                store(0, v1, 0, v0);
+                store(1, v1, 2, v0);
+                store(2, v1, 4, v0);
+                store(3, v1, 6, v0);
+                store(4, v5, 0, v4);
+                store(5, v5, 2, v4);
+                store(6, v5, 4, v4);
+                store(7, v5, 6, v4);
 #else
 #error not implemented
 #endif
             }
+
+            if (P::NEEDSYNC) {
+                for (uint32_t ux = 0; ux < P::NX; ux++) {
+                    for (; last[ux] < endedge - P::NNONYZ; last[ux] += P::NNONYZ) {
+                        *(uint32_t*)(base + dst.index[ux]) = 0;
+                        dst.index[ux] += P::BIGSIZE0;
+                    }
+                }
+            }
+
             sumsize += dst.storev(buckets, my);
         }
         rdtsc1 = __rdtsc();
@@ -515,7 +566,12 @@ public:
                 }
 
                 uint16_t* zs = tzs[id];
-                uint32_t* edges0 = tedges[id]; // list of nodes with 2+ edges
+                uint32_t *edges0;
+                if (P::SAVEEDGES) {
+                    edges0 = buckets[ux][uy].edges;
+                } else {
+                    edges0 = tedges[id]; // list of nodes with 2+ edges
+                }
                 uint32_t *edges = edges0, edge = 0;
                 for (uint8_t* rdsmall = readsmall; rdsmall < endreadsmall; rdsmall += P::SMALLSIZE) {
                     // bit         39..13     12..0
