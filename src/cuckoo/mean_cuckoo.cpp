@@ -41,8 +41,8 @@
 // A final pair of compression rounds remap YZ values from 15 into 11 bits.
 
 
-#ifndef NSIPHASH
-#define NSIPHASH 1
+#ifndef _NSIPHASH
+#define _NSIPHASH 8
 #endif
 
 typedef uint32_t offset_t;
@@ -70,6 +70,7 @@ struct Params {
     uint32_t nEdgesPerBucket;
 
     // prepare params for algorithm
+    const static uint8_t NSIPHASH = _NSIPHASH;
     const static uint32_t EDGEMASK = (1 << EDGEBITS) - 1;
     const static uint8_t XBITS = EDGEBITS >= 27 ? 7 : (EDGEBITS >= 25 ? 5 : 2);
     const static uint8_t YBITS = XBITS;
@@ -137,8 +138,9 @@ struct Params {
     // const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
     const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
 
-    Params(uint8_t difficulty) {
-        uint32_t nEdgesPerBucket = difficulty * (uint64_t) (2 * NYZ) / 100;
+    Params(uint8_t difficulty)
+    {
+        uint32_t nEdgesPerBucket = difficulty * (uint64_t)(2 * NYZ) / 100;
     }
 };
 
@@ -332,34 +334,98 @@ public:
         const uint32_t starty = Params<EDGEBITS>::NY * id / nThreads;     // 0 for nThreads = 1
         const uint32_t endy = Params<EDGEBITS>::NY * (id + 1) / nThreads; // 128 for nThreads = 1
         uint32_t edge = starty << Params<EDGEBITS>::YZBITS;               // 0 as starty is 0
-        uint32_t endedge = edge + Params<EDGEBITS>::NYZ;                  // 0 + 2^(7 + 13) = 1 048 576
+
+        if (Params<EDGEBITS>::NSIPHASH == 8) {
+            static const __m256i vxmask = {Params<EDGEBITS>::XMASK, Params<EDGEBITS>::XMASK, Params<EDGEBITS>::XMASK, Params<EDGEBITS>::XMASK};
+            static const __m256i vyzmask = {Params<EDGEBITS>::YZMASK, Params<EDGEBITS>::YZMASK, Params<EDGEBITS>::YZMASK, Params<EDGEBITS>::YZMASK};
+            const __m256i vinit = _mm256_set_epi64x(
+                sip_keys.k1 ^ 0x7465646279746573ULL,
+                sip_keys.k0 ^ 0x6c7967656e657261ULL,
+                sip_keys.k1 ^ 0x646f72616e646f6dULL,
+                sip_keys.k0 ^ 0x736f6d6570736575ULL);
+            __m256i v0, v1, v2, v3, v4, v5, v6, v7;
+            const uint32_t e2 = 2 * edge + uorv;
+            __m256i vpacket0 = _mm256_set_epi64x(e2 + 6, e2 + 4, e2 + 2, e2 + 0);
+            __m256i vpacket1 = _mm256_set_epi64x(e2 + 14, e2 + 12, e2 + 10, e2 + 8);
+            static const __m256i vpacketinc = {16, 16, 16, 16};
+            u64 e1 = edge;
+            __m256i vhi0 = _mm256_set_epi64x((e1 + 3) << Params<EDGEBITS>::YZBITS, (e1 + 2) << Params<EDGEBITS>::YZBITS, (e1 + 1) << Params<EDGEBITS>::YZBITS, (e1 + 0) << Params<EDGEBITS>::YZBITS);
+            __m256i vhi1 = _mm256_set_epi64x((e1 + 7) << Params<EDGEBITS>::YZBITS, (e1 + 6) << Params<EDGEBITS>::YZBITS, (e1 + 5) << Params<EDGEBITS>::YZBITS, (e1 + 4) << Params<EDGEBITS>::YZBITS);
+            static const __m256i vhiinc = {8 << Params<EDGEBITS>::YZBITS, 8 << Params<EDGEBITS>::YZBITS, 8 << Params<EDGEBITS>::YZBITS, 8 << Params<EDGEBITS>::YZBITS};
+        }
+
+        uint32_t endedge = edge + Params<EDGEBITS>::NYZ; // 0 + 2^(7 + 13) = 1 048 576
 
         offset_t sumsize = 0;
         for (uint32_t my = starty; my < endy; my++, endedge += Params<EDGEBITS>::NYZ) {
             dst.matrixv(my);
 
             // edge is a "nonce" for sipnode()
-            for (; edge < endedge; edge += NSIPHASH) {
-// bit        28..21     20..13    12..0
-// node       XXXXXX     YYYYYY    ZZZZZ
-#if NSIPHASH == 1
-                const uint32_t node = _sipnode(&sip_keys, Params<EDGEBITS>::EDGEMASK, edge, uorv); // node - generated random node for the graph
+            for (; edge < endedge; edge += Params<EDGEBITS>::NSIPHASH) {
+                // bit        28..21     20..13    12..0
+                // node       XXXXXX     YYYYYY    ZZZZZ
+                if (Params<EDGEBITS>::NSIPHASH == 1) {
+                    const uint32_t node = _sipnode(&sip_keys, Params<EDGEBITS>::EDGEMASK, edge, uorv); // node - generated random node for the graph
+                    const uint32_t ux = node >> Params<EDGEBITS>::YZBITS;                              // ux - highest X (7) bits
 
-                const uint32_t ux = node >> Params<EDGEBITS>::YZBITS; // ux - highest X (7) bits
+                    const BIGTYPE0 zz = (BIGTYPE0)edge << Params<EDGEBITS>::YZBITS | (node & Params<EDGEBITS>::YZMASK); // - edge YYYYYY ZZZZZ
 
-                if (edge % 1000000 == 0) {
-                    // printf("ux: %3d, my: %3d, edge: %07x, node: %07x\n", ux, my, edge, node);
+                    // bit        39..21     20..13    12..0
+                    // write        edge     YYYYYY    ZZZZZ
+                    *(BIGTYPE0*)(base + dst.index[ux]) = zz;
+                    dst.index[ux] += Params<EDGEBITS>::BIGSIZE0;
+                } else if (Params<EDGEBITS>::NSIPHASH == 8) {
+                    v3 = _mm256_permute4x64_epi64(vinit, 0xFF);
+                    v0 = _mm256_permute4x64_epi64(vinit, 0x00);
+                    v1 = _mm256_permute4x64_epi64(vinit, 0x55);
+                    v2 = _mm256_permute4x64_epi64(vinit, 0xAA);
+                    v7 = _mm256_permute4x64_epi64(vinit, 0xFF);
+                    v4 = _mm256_permute4x64_epi64(vinit, 0x00);
+                    v5 = _mm256_permute4x64_epi64(vinit, 0x55);
+                    v6 = _mm256_permute4x64_epi64(vinit, 0xAA);
+
+                    v3 = XOR(v3, vpacket0);
+                    v7 = XOR(v7, vpacket1);
+                    SIPROUNDX8;
+                    SIPROUNDX8;
+                    v0 = XOR(v0, vpacket0);
+                    v4 = XOR(v4, vpacket1);
+                    v2 = XOR(v2, _mm256_broadcastq_epi64(_mm_cvtsi64_si128(0xff)));
+                    v6 = XOR(v6, _mm256_broadcastq_epi64(_mm_cvtsi64_si128(0xff)));
+                    SIPROUNDX8;
+                    SIPROUNDX8;
+                    SIPROUNDX8;
+                    SIPROUNDX8;
+                    v0 = XOR(XOR(v0, v1), XOR(v2, v3));
+                    v4 = XOR(XOR(v4, v5), XOR(v6, v7));
+
+                    vpacket0 = _mm256_add_epi64(vpacket0, vpacketinc);
+                    vpacket1 = _mm256_add_epi64(vpacket1, vpacketinc);
+                    v1 = _mm256_srli_epi64(v0, Params<EDGEBITS>::YZBITS) & vxmask;
+                    v5 = _mm256_srli_epi64(v4, Params<EDGEBITS>::YZBITS) & vxmask;
+                    v0 = (v0 & vyzmask) | vhi0;
+                    v4 = (v4 & vyzmask) | vhi1;
+                    vhi0 = _mm256_add_epi64(vhi0, vhiinc);
+                    vhi1 = _mm256_add_epi64(vhi1, vhiinc);
+
+                    uint32_t ux;
+
+#define STORE0(i, v, x, w)                                          \
+    ux = _mm256_extract_epi32(v, x);                                \
+    *(u64*)(base + dst.index[ux]) = _mm256_extract_epi64(w, i % 4); \
+    dst.index[ux] += BIGSIZE0;
+
+                    STORE0(0, v1, 0, v0);
+                    STORE0(1, v1, 2, v0);
+                    STORE0(2, v1, 4, v0);
+                    STORE0(3, v1, 6, v0);
+                    STORE0(4, v5, 0, v4);
+                    STORE0(5, v5, 2, v4);
+                    STORE0(6, v5, 4, v4);
+                    STORE0(7, v5, 6, v4);
+                } else {
+                    throw std::runtime_error("not implemented");
                 }
-                const BIGTYPE0 zz = (BIGTYPE0)edge << Params<EDGEBITS>::YZBITS | (node & Params<EDGEBITS>::YZMASK); // - edge YYYYYY ZZZZZ
-
-                // bit        39..21     20..13    12..0
-                // write        edge     YYYYYY    ZZZZZ
-                *(BIGTYPE0*)(base + dst.index[ux]) = zz;
-                dst.index[ux] += Params<EDGEBITS>::BIGSIZE0;
-
-#else
-#error not implemented
-#endif
             }
             sumsize += dst.storev(buckets, my);
         }
@@ -1035,10 +1101,10 @@ public:
         uint32_t edge = starty << Params<EDGEBITS>::YZBITS, endedge = edge + Params<EDGEBITS>::NYZ;
 
         for (uint32_t my = starty; my < endy; my++, endedge += Params<EDGEBITS>::NYZ) {
-            for (; edge < endedge; edge += NSIPHASH) {
+            for (; edge < endedge; edge += Params<EDGEBITS>::NSIPHASH) {
 // bit        28..21     20..13    12..0
 // node       XXXXXX     YYYYYY    ZZZZZ
-#if NSIPHASH == 1
+#if _NSIPHASH == 1
                 const uint32_t nodeu = _sipnode(&trimmer->sip_keys, Params<EDGEBITS>::EDGEMASK, edge, 0);
                 if (uxymap[nodeu >> Params<EDGEBITS>::ZBITS]) {
                     for (uint32_t j = 0; j < proofSize; j++) {
@@ -1096,7 +1162,7 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
 
     printf("Using %llu%cB bucket memory at %llx,\n", sbytes, " KMGT"[sunit], (uint64_t)ctx.trimmer->buckets);
     printf("%dx%d%cB thread memory at %llx,\n", nThreads, tbytes, " KMGT"[tunit], (uint64_t)ctx.trimmer->tbuckets);
-    printf("%d-way siphash, and %d buckets.\n", NSIPHASH, 1 << 7);
+    printf("%d-way siphash, and %d buckets.\n", _NSIPHASH, 1 << 7);
 
     uint32_t timems;
     struct timeval time0, time1;
