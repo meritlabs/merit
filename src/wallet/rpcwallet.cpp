@@ -4372,9 +4372,12 @@ UniValue getanv(const JSONRPCRequest& request)
             auto dest = DecodeDestination(key_hex_str);
             if(auto key = boost::get<CKeyID>(&dest)) {
                 keys.push_back(*key);
+            } else if (auto script_id = boost::get<CScriptID>(&dest)){
+                keys.push_back(*script_id);
             }
         }
     }
+
 
     auto anvs = pog::GetANVs(keys, *prefviewdb);
 

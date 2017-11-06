@@ -2033,9 +2033,8 @@ AddressPair ExtractAddress(const CTxOut& tout)
 
 using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
-using DebitsAndCredits = std::vector<std::pair<referral::Address, CAmount>>;
 
-bool DebitAndCreditANV(const DebitsAndCredits& debits_and_credits)
+bool UpdateANV(const DebitsAndCredits& debits_and_credits)
 {
     //apply the debit and credits to the addresses in the block transactions.
     for (const auto& t : debits_and_credits) {
@@ -2049,87 +2048,68 @@ bool DebitAndCreditANV(const DebitsAndCredits& debits_and_credits)
     return true;
 }
 
-bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo)
+void GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransaction& tx, CCoinsViewCache& view, bool undo)
 {
-    assert(tx);
-
-    // Debit and Credit all ANVs of addresses in the block
-    DebitsAndCredits debits_and_credits;
-
-    auto debitDir = !undo ? -1 : 1;
-    auto creditDir = !undo ? 1 : -1;
+    int64_t debitDir = !undo ? -1 : 1;
+    int64_t creditDir = !undo ? 1 : -1;
 
     //debit senders
-    if (!tx->IsCoinBase()) {
-        for (const auto& in :  tx->vin) {
+    if (!tx.IsCoinBase()) {
+        for (const auto& in :  tx.vin) {
             const auto &in_out = view.AccessCoin(in.prevout).out;
+            assert(in_out.nValue >= 0);
 
             auto address = ExtractAddress(in_out);
+            const CAmount amount = in_out.nValue * debitDir;
             if(address.second == 0) continue;
 
-            debits_and_credits.push_back({address.first, CAmount{in_out.nValue * debitDir}});
+            debits_and_credits.push_back({address.first, amount});
         }
     }
 
     //credit recipients
-    for (const auto& out : tx->vout) {
+    for (const auto& out : tx.vout) {
         auto address = ExtractAddress(out);
         if(address.second == 0) continue;
 
-        debits_and_credits.push_back({address.first, CAmount{out.nValue * creditDir}});
+        const CAmount amount = out.nValue * creditDir;
+        debits_and_credits.push_back({address.first, amount});
     }
-
-    return DebitAndCreditANV(debits_and_credits);
 }
 
-bool IndexReferralsAndUpdateANV(const std::vector<CTransactionRef> vtx, const std::vector<referral::ReferralRef> vref, CCoinsViewCache& view)
+bool UpdateANV(const CBlock& block, CCoinsViewCache& view) {
+    DebitsAndCredits debits_and_credits;
+    for(const auto& tx: block.vtx) {
+        assert(tx);
+        GetDebitsAndCredits(debits_and_credits, *tx, view);
+    }
+    return UpdateANV(debits_and_credits);
+}
+
+bool IndexReferrals(const CBlock& block)
 {
     assert(prefviewdb);
 
     // Update offset and Record referrals into the referral DB
-    for (const auto& rtx : vref) {
+    for (const auto& rtx : block.m_vRef) {
         if(!prefviewdb->InsertReferral(*rtx)) {
             return false;
         }
     }
 
-    // Debit and Credit all ANVs of addresses in transactions set
-    for (const auto& txn : vtx) {
-        if (!UpdateANV(txn, view)) {
-            return false;
-        }
-    }
-
     return true;
 }
 
-bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
-{
-    return IndexReferralsAndUpdateANV(block.vtx, block.m_vRef, view);
-}
-
-bool RemoveReferralsAndUndoANV(const std::vector<CTransactionRef> vtx, const std::vector<referral::ReferralRef> vref, CCoinsViewCache& view)
+bool RemoveReferrals(const CBlock& block)
 {
     assert(prefviewdb);
 
-    // reverse the Debit and Credits of all ANVs of addresses in transactions set
-    for (const auto& txn : vtx) {
-        if (!UpdateANV(txn, view, true)) {
-            return false;
-        }
-    }
-
     // Update offset and Record referrals into the referral DB
-    for (const auto& rtx : vref) {
+    for (const auto& rtx : block.m_vRef) {
         if(!prefviewdb->RemoveReferral(*rtx))
             return false;
     }
     return true;
-}
-
-bool RemoveReferralsAndUndoANV(const CBlock& block, CCoinsViewCache& view)
-{
-    return RemoveReferralsAndUndoANV(block.vtx, block.m_vRef, view);
 }
 
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
@@ -2139,11 +2119,6 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
     debug("DisconnectBlock: %s", block.GetHash().GetHex());
 
     bool fClean = true;
-
-    if(!memory_only && !RemoveReferralsAndUndoANV(block, view)){
-        error("DisconnectBlock(): unable to undo referrals");
-        return DISCONNECT_FAILED;
-    }
 
     CBlockUndo blockUndo;
     CDiskBlockPos pos = pindex->GetUndoPos();
@@ -2164,6 +2139,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
     std::vector<std::pair<CAddressIndexKey, CAmount> > addressIndex;
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
+    DebitsAndCredits debits_and_credits;
 
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
@@ -2230,10 +2206,17 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
             }
             // At this point, all of txundo.vprevout should have been moved out.
         }
+        GetDebitsAndCredits(debits_and_credits, tx, view, true);
     }
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
+
+    if(!memory_only && !(UpdateANV(debits_and_credits) && RemoveReferrals(block))){
+        error("DisconnectBlock(): unable to undo referrals");
+        return DISCONNECT_FAILED;
+    }
+
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
@@ -2391,8 +2374,12 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     if (block.GetHash() == chainparams.GetConsensus().hashGenesisBlock) {
         if (!fJustCheck) {
             view.SetBestBlock(pindex->GetBlockHash());
-            if(!IndexReferralsAndUpdateANV(block, view)) {
-                return AbortNode(state, "Failed to write referral and ANV index");
+            if(!IndexReferrals(block)) {
+                return AbortNode(state, "Failed to write referral index");
+            }
+
+            if(!UpdateANV(block, view)) {
+                return AbortNode(state, "Failed to write ANV index");
             }
         }
         return true;
@@ -2486,6 +2473,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     KeyActivity addressIndex;
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
+
+    // Update referral tree and ANV cache.
+    DebitsAndCredits debits_and_credits;
 
     for (int i = 0; i < static_cast<int>(block.vtx.size()); i++)
     {
@@ -2626,6 +2616,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         if (i > 0) {
             blockundo.vtxundo.push_back(CTxUndo());
         }
+
+        GetDebitsAndCredits(debits_and_credits, tx, view);
         UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
 
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
@@ -2753,9 +2745,12 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
 
-    // Update referral tree and ANV cache.
-    if(!IndexReferralsAndUpdateANV(block, view)) {
-        return AbortNode(state, "Failed to write referral and ANV index");
+    if(!IndexReferrals(block)) {
+        return AbortNode(state, "Failed to write referral index");
+    }
+
+    if(!UpdateANV(debits_and_credits)) {
+        return AbortNode(state, "Failed to write referral ANV index");
     }
 
     int64_t nTime6 = GetTimeMicros(); nTimeConnect += nTime6 - nTime5;
@@ -4889,7 +4884,8 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
 
         if (!prefviewdb->ReferralCodeExists(block.m_vRef[0]->m_codeHash)) {
-            IndexReferralsAndUpdateANV(block, *pcoinsTip);
+            IndexReferrals(block);
+            UpdateANV(block, *pcoinsTip);
         }
 
         // Check whether we're already initialized by checking for genesis in

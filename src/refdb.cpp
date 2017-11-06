@@ -106,7 +106,7 @@ bool ReferralsViewDB::WalletIdExists(const Address& address) const
  */
 bool ReferralsViewDB::UpdateANV(const Address& start_address, CAmount change)
 {
-    debug("\tUpdateANV: %s -> %d", EncodeDestination(start_address), change);
+    debug("\tUpdateANV: %s + %d", EncodeDestination(start_address), change);
     MaybeAddress address = start_address;
     size_t levels = 0;
 
@@ -117,7 +117,7 @@ bool ReferralsViewDB::UpdateANV(const Address& start_address, CAmount change)
         CAmount anv = 0;
         m_db.Read(std::make_pair(DB_ANV, *address), anv);
 
-        debug("\t\t %d %s %d -> %d", levels, EncodeDestination(*address), anv, change);
+        debug("\t\t %d %s %d + %d", levels, EncodeDestination(*address), anv, change);
 
         anv += change;
         if(!m_db.Write(std::make_pair(DB_ANV, *address), anv)) {
