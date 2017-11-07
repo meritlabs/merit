@@ -46,10 +46,6 @@
 #define NSIPHASH 1
 #endif
 
-typedef uint32_t offset_t;
-
-typedef uint32_t BIGTYPE0;
-
 // for p close to 0, Pr(X>=k) < e^{-n*p*eps^2} where k=n*p*(1+eps)
 // see https://en.wikipedia.org/wiki/Binomial_distribution#Tail_bounds
 // eps should be at least 1/sqrt(n*p/64)
@@ -58,23 +54,22 @@ typedef uint32_t BIGTYPE0;
 // 1/32 reduces odds of overflowing z bucket on 2^30 nodes to 2^14*e^-32
 // (less than 1 in a billion) in theory. not so in practice (fails first at mean30 -n 1549)
 #ifndef BIGEPS
-#define BIGEPS 3 / 64
+#define BIGEPS 5 / 64
 #endif
 
 // 176/256 is safely over 1-e(-1) ~ 0.63 trimming fraction
 #ifndef TRIMFRAC256
-#define TRIMFRAC256 176
+#define TRIMFRAC256 184
 #endif
 
-template <uint8_t EDGEBITS>
+template <uint8_t EDGEBITS, uint8_t XBITS>
 struct Params {
     uint32_t nEdgesPerBucket;
 
-    const static bool SAVEEDGES = EDGEBITS > 27;
+    const static bool SAVEEDGES = false; //EDGEBITS > 27;
 
     // prepare params for algorithm
     const static uint32_t EDGEMASK = (1 << EDGEBITS) - 1;
-    const static uint8_t XBITS = EDGEBITS >= 26 ? 7 : (EDGEBITS >= 24 ? 5 : (EDGEBITS >= 16 ? 2 : 0));
 
     const static uint8_t YBITS = XBITS;
     // node bits have two groups of bucketbits (X for big and Y for small) and a remaining group Z of degree bits
@@ -115,7 +110,7 @@ struct Params {
     const static uint32_t YZZ1BITS = YZ1BITS + ZBITS;
 
     const static uint8_t BIGSIZE = EDGEBITS <= 15 ? 4 : 5;
-    const static uint8_t BIGSIZE0 = !SAVEEDGES ? 4 : BIGSIZE;
+    const static uint8_t BIGSIZE0 = EDGEBITS < 30 ? 4 : BIGSIZE;
     const static uint8_t SMALLSIZE = BIGSIZE;
     const static uint8_t BIGGERSIZE = BIGSIZE;
 
@@ -149,13 +144,9 @@ struct Params {
     }
 };
 
-// typedef uint32_t BIGTYPE0;
-
-// typedef uint32_t offset_t;
-
-template <uint8_t EDGEBITS, uint32_t BUCKETSIZE>
+template <uint8_t EDGEBITS, uint8_t XBITS, uint32_t BUCKETSIZE>
 struct zbucket {
-    using P = Params<EDGEBITS>;
+    using P = Params<EDGEBITS, XBITS>;
     uint32_t size;
     const static uint32_t RENAMESIZE = 2 * P::NZ2 + 2 * (P::COMPRESSROUND ? P::NZ1 : 0);
     union alignas(16) {
@@ -177,25 +168,25 @@ struct zbucket {
     }
 };
 
-template <uint8_t EDGEBITS, uint32_t BUCKETSIZE>
-using yzbucket = zbucket<EDGEBITS, BUCKETSIZE>[Params<EDGEBITS>::NY];
+template <uint8_t EDGEBITS, uint8_t XBITS, uint32_t BUCKETSIZE>
+using yzbucket = zbucket<EDGEBITS, XBITS, BUCKETSIZE>[Params<EDGEBITS, XBITS>::NY];
 
-template <uint8_t EDGEBITS, uint32_t BUCKETSIZE>
-using matrix = yzbucket<EDGEBITS, BUCKETSIZE>[Params<EDGEBITS>::NX];
+template <uint8_t EDGEBITS, uint8_t XBITS, uint32_t BUCKETSIZE>
+using matrix = yzbucket<EDGEBITS, XBITS, BUCKETSIZE>[Params<EDGEBITS, XBITS>::NX];
 
-template <uint8_t EDGEBITS, uint32_t BUCKETSIZE>
+template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS, uint32_t BUCKETSIZE>
 struct indexer {
-    using P = Params<EDGEBITS>;
+    using P = Params<EDGEBITS, XBITS>;
 
     offset_t index[P::NX]; // uint32_t[128] - array of addresses in trimmer->buckets matrix row or column
 
     void matrixv(const uint32_t y)
     {
-        const yzbucket<EDGEBITS, BUCKETSIZE>* foo = 0;
+        const yzbucket<EDGEBITS, XBITS, BUCKETSIZE>* foo = 0;
         for (uint32_t x = 0; x < P::NX; x++)
             index[x] = foo[x][y].bytes - (uint8_t*)foo;
     }
-    offset_t storev(yzbucket<EDGEBITS, BUCKETSIZE>* buckets, const uint32_t y)
+    offset_t storev(yzbucket<EDGEBITS, XBITS, BUCKETSIZE>* buckets, const uint32_t y)
     {
         uint8_t const* base = (uint8_t*)buckets;
         offset_t sumsize = 0;
@@ -206,11 +197,11 @@ struct indexer {
     }
     void matrixu(const uint32_t x)
     {
-        const yzbucket<EDGEBITS, BUCKETSIZE>* foo = 0;
+        const yzbucket<EDGEBITS, XBITS, BUCKETSIZE>* foo = 0;
         for (uint32_t y = 0; y < P::NY; y++)
             index[y] = foo[x][y].bytes - (uint8_t*)foo;
     }
-    offset_t storeu(yzbucket<EDGEBITS, BUCKETSIZE>* buckets, const uint32_t x)
+    offset_t storeu(yzbucket<EDGEBITS, XBITS, BUCKETSIZE>* buckets, const uint32_t x)
     {
         uint8_t const* base = (uint8_t*)buckets;
         offset_t sumsize = 0;
@@ -225,73 +216,82 @@ struct indexer {
 
 // break circular reference with forward declaration
 
-template <uint8_t EDGEBITS>
+template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 class edgetrimmer;
 
-template <uint8_t EDGEBITS>
+template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 class solver_ctx;
 
-template <uint8_t EDGEBITS>
+template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 struct thread_ctx {
     uint32_t id;
     pthread_t thread;
-    edgetrimmer<EDGEBITS>* et;
+    edgetrimmer<offset_t, EDGEBITS, XBITS>* et;
 };
 
-template <uint8_t EDGEBITS>
+template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 void* etworker(void* vp)
 {
-    thread_ctx<EDGEBITS>* tp = (thread_ctx<EDGEBITS>*)vp;
+    thread_ctx<offset_t, EDGEBITS, XBITS>* tp = (thread_ctx<offset_t, EDGEBITS, XBITS>*)vp;
     tp->et->trimmer(tp->id);
     pthread_exit(NULL);
     return 0;
 }
 
-template <uint8_t EDGEBITS>
+template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 struct match_ctx {
     uint32_t id;
     pthread_t thread;
-    solver_ctx<EDGEBITS>* solver;
+    solver_ctx<offset_t, EDGEBITS, XBITS>* solver;
 };
 
-template <uint8_t EDGEBITS>
+template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 void* matchworker(void* vp)
 {
-    match_ctx<EDGEBITS>* tp = (match_ctx<EDGEBITS>*)vp;
+    match_ctx<offset_t, EDGEBITS, XBITS>* tp = (match_ctx<offset_t, EDGEBITS, XBITS>*)vp;
     tp->solver->matchUnodes(tp);
     pthread_exit(NULL);
 
     return 0;
 }
 
-template <uint8_t EDGEBITS>
-using zbucket8 = uint8_t[2 * Params<EDGEBITS>::NYZ1];
+template <uint8_t EDGEBITS, uint8_t XBITS>
+using zbucket8 = uint8_t[2 * Params<EDGEBITS, XBITS>::NYZ1];
 
-template <uint8_t EDGEBITS>
-using zbucket16 = uint16_t[Params<EDGEBITS>::NTRIMMEDZ];
+template <uint8_t EDGEBITS, uint8_t XBITS>
+using zbucket16 = uint16_t[Params<EDGEBITS, XBITS>::NTRIMMEDZ];
 
-template <uint8_t EDGEBITS>
-using zbucket32 = uint32_t[Params<EDGEBITS>::NTRIMMEDZ];
+template <uint8_t EDGEBITS, uint8_t XBITS>
+using zbucket32 = uint32_t[Params<EDGEBITS, XBITS>::NTRIMMEDZ];
 
 // maintains set of trimmable edges
-template <uint8_t EDGEBITS>
+template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 class edgetrimmer
 {
 public:
-    using P = Params<EDGEBITS>;
+    using P = Params<EDGEBITS, XBITS>;
+    using zbucket8P = zbucket8<EDGEBITS, XBITS>;
+    using zbucket16P = zbucket16<EDGEBITS, XBITS>;
+    using zbucket32P = zbucket32<EDGEBITS, XBITS>;
+    using zbucketZ = zbucket<EDGEBITS, XBITS, P::ZBUCKETSIZE>;
+    using yzbucketZ = yzbucket<EDGEBITS, XBITS, P::ZBUCKETSIZE>;
+    using yzbucketT = yzbucket<EDGEBITS, XBITS, P::TBUCKETSIZE>;
+    using indexerZ = indexer<offset_t, EDGEBITS, XBITS, P::ZBUCKETSIZE>;
+    using indexerT = indexer<offset_t, EDGEBITS, XBITS, P::TBUCKETSIZE>;
 
     siphash_keys sip_keys;
-    yzbucket<EDGEBITS, P::ZBUCKETSIZE>* buckets;
-    yzbucket<EDGEBITS, P::TBUCKETSIZE>* tbuckets;
-    zbucket32<EDGEBITS>* tedges;
-    zbucket16<EDGEBITS>* tzs;
-    zbucket8<EDGEBITS>* tdegs;
+    yzbucketZ* buckets;
+    yzbucketT* tbuckets;
+    zbucket32P* tedges;
+    zbucket16P* tzs;
+    zbucket8P* tdegs;
     offset_t* tcounts;
     uint8_t nThreads;
     uint32_t nTrims;
-    Params<EDGEBITS> params;
+    Params<EDGEBITS, XBITS> params;
     pthread_barrier_t barry;
 
+    using BIGTYPE0 = offset_t;
 
     void touch(uint8_t* p, const offset_t n)
     {
@@ -299,23 +299,23 @@ public:
             *(uint32_t*)(p + i) = 0;
     }
 
-    edgetrimmer(const uint8_t nThreadsIn, const uint32_t nTrimsIn, const Params<EDGEBITS>& paramsIn) : nThreads{nThreadsIn}, nTrims{nTrimsIn}, params{paramsIn}
+    edgetrimmer(const uint8_t nThreadsIn, const uint32_t nTrimsIn, const Params<EDGEBITS, XBITS>& paramsIn) : nThreads{nThreadsIn}, nTrims{nTrimsIn}, params{paramsIn}
     {
-        assert(sizeof(matrix<EDGEBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucket<EDGEBITS, P::ZBUCKETSIZE>));
-        assert(sizeof(matrix<EDGEBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucket<EDGEBITS, P::ZBUCKETSIZE>));
+        assert(sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucketZ));
+        assert(sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucketZ));
 
-        buckets = new yzbucket<EDGEBITS, P::ZBUCKETSIZE>[P::NX];
-        touch((uint8_t*)buckets, sizeof(matrix<EDGEBITS, P::ZBUCKETSIZE>));
-        tbuckets = new yzbucket<EDGEBITS, P::TBUCKETSIZE>[nThreads];
-        touch((uint8_t*)tbuckets, nThreads * sizeof(yzbucket<EDGEBITS, P::TBUCKETSIZE>));
+        buckets = new yzbucketZ[P::NX];
+        touch((uint8_t*)buckets, sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>));
+        tbuckets = new yzbucketT[nThreads];
+        touch((uint8_t*)tbuckets, nThreads * sizeof(yzbucketT));
 
         if (P::SAVEEDGES) {
             tedges = 0;
         } else {
-            tedges = new zbucket32<EDGEBITS>[nThreads];
+            tedges = new zbucket32P[nThreads];
         }
-        tdegs = new zbucket8<EDGEBITS>[nThreads];
-        tzs = new zbucket16<EDGEBITS>[nThreads];
+        tdegs = new zbucket8P[nThreads];
+        tzs = new zbucket16P[nThreads];
         tcounts = new offset_t[nThreads];
 
         int err = pthread_barrier_init(&barry, NULL, nThreads);
@@ -342,6 +342,11 @@ public:
     // There's no notion of odd/even node in the process of generating nodes (why?)
     void genUnodes(const uint32_t id, const uint32_t uorv)
     {
+        // printf("EDGEBITS: %d, BIGSIZE: %d, BIGSIZE0: %d", EDGEBITS, P::BIGSIZE, P::BIGSIZE0);
+        // printf(" NEEDSYNC %sdefined", P::NEEDSYNC ? "" : "is not ");
+        // printf(" SAVEEDGES %sdefined\n", P::SAVEEDGES ? "" : "is not ");
+
+
         uint64_t rdtsc0, rdtsc1;
         rdtsc0 = __rdtsc();
 
@@ -349,7 +354,7 @@ public:
         uint32_t last[P::NX];
 
         uint8_t const* base = (uint8_t*)buckets;
-        indexer<EDGEBITS, P::ZBUCKETSIZE> dst;
+        indexerZ dst;
         const uint32_t starty = P::NY * id / nThreads;     // 0 for nThreads = 1
         const uint32_t endy = P::NY * (id + 1) / nThreads; // 128 for nThreads = 1
         uint32_t edge = starty << P::YZBITS;               // 0 as starty is 0
@@ -463,7 +468,6 @@ public:
                     }
                 };
 
-
                 store(0, v1, 0, v0);
                 store(1, v1, 2, v0);
                 store(2, v1, 4, v0);
@@ -513,8 +517,8 @@ public:
 
         static const uint32_t NONDEGBITS = std::min(40u, 2 * P::YZBITS) - P::ZBITS; // 28
         static const uint32_t NONDEGMASK = (1 << NONDEGBITS) - 1;
-        indexer<EDGEBITS, P::ZBUCKETSIZE> dst;
-        indexer<EDGEBITS, P::TBUCKETSIZE> small;
+        indexerZ dst;
+        indexerT small;
 
         rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
@@ -534,6 +538,14 @@ public:
                     // bit     39/31..21     20..13    12..0
                     // read         edge     UYYYYY    UZZZZ   within UX partition
                     BIGTYPE0 e = *(BIGTYPE0*)readbig;
+                    if (P::BIGSIZE0 > 4) {
+                        e &= P::BIGSLOTMASK0;
+                    } else if (P::NEEDSYNC) {
+                        if (unlikely(!e)) {
+                            edge += P::NNONYZ;
+                            continue;
+                        }
+                    }
                     // restore edge generated in genUnodes
                     edge += ((uint32_t)(e >> P::YZBITS) - edge) & (P::NNONYZ - 1);
                     // if (ux==78 && my==243) printf("id %d ux %d my %d e %08x prefedge %x edge %x\n", id, ux, my, e, e >> P::yzBits, edge);
@@ -566,7 +578,7 @@ public:
                 }
 
                 uint16_t* zs = tzs[id];
-                uint32_t *edges0;
+                uint32_t* edges0;
                 if (P::SAVEEDGES) {
                     edges0 = buckets[ux][uy].edges;
                 } else {
@@ -689,8 +701,8 @@ public:
         const uint32_t DSTPREFBITS = DSTSLOTBITS - P::YZZBITS;
         const uint32_t DSTPREFMASK = (1 << DSTPREFBITS) - 1;
         uint64_t rdtsc0, rdtsc1;
-        indexer<EDGEBITS, P::ZBUCKETSIZE> dst;
-        indexer<EDGEBITS, P::TBUCKETSIZE> small;
+        indexerZ dst;
+        indexerT small;
 
         rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
@@ -702,7 +714,7 @@ public:
             small.matrixu(0);
             for (uint32_t ux = 0; ux < P::NX; ux++) {
                 uint32_t uxyz = ux << P::YZBITS;
-                zbucket<EDGEBITS, P::ZBUCKETSIZE>& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
+                zbucketZ& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
                 const uint8_t *readbig = zb.bytes, *endreadbig = readbig + zb.size;
                 // printf("id %d vx %d ux %d size %u\n", id, vx, ux, zb.size/SRCSIZE);
                 for (; readbig < endreadbig; readbig += SRCSIZE) {
@@ -769,8 +781,8 @@ public:
         const uint32_t SRCPREFBITS2 = SRCSLOTBITS - P::YZZBITS;
         const uint32_t SRCPREFMASK2 = (1 << SRCPREFBITS2) - 1;
         uint64_t rdtsc0, rdtsc1;
-        indexer<EDGEBITS, P::ZBUCKETSIZE> dst;
-        indexer<EDGEBITS, P::TBUCKETSIZE> small;
+        indexerZ dst;
+        indexerT small;
         static uint32_t maxnnid = 0;
 
         rdtsc0 = __rdtsc();
@@ -783,7 +795,7 @@ public:
             small.matrixu(0);
             for (uint32_t ux = 0; ux < P::NX; ux++) {
                 uint32_t uyz = 0;
-                zbucket<EDGEBITS, P::ZBUCKETSIZE>& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
+                zbucketZ& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
                 const uint8_t *readbig = zb.bytes, *endreadbig = readbig + zb.size;
                 // printf("id %d vx %d ux %d size %u\n", id, vx, ux, zb.size/SRCSIZE);
                 for (; readbig < endreadbig; readbig += SRCSIZE) {
@@ -841,7 +853,7 @@ public:
                             degs[vz] = vdeg = 32 + nrenames++;
                             *renames++ = vy << P::ZBITS | vz;
                             if (renames == endrenames) {
-                                endrenames += (TRIMONV ? sizeof(yzbucket<EDGEBITS, P::ZBUCKETSIZE>) : sizeof(zbucket<EDGEBITS, P::ZBUCKETSIZE>)) / sizeof(uint32_t);
+                                endrenames += (TRIMONV ? sizeof(yzbucketZ) : sizeof(zbucketZ)) / sizeof(uint32_t);
                                 renames = endrenames - P::NZ1;
                             }
                         }
@@ -875,7 +887,7 @@ public:
     void trimedges1(const uint32_t id, const uint32_t round)
     {
         uint64_t rdtsc0, rdtsc1;
-        indexer<EDGEBITS, P::ZBUCKETSIZE> dst;
+        indexerZ dst;
 
         rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
@@ -887,14 +899,14 @@ public:
             TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
             memset(degs, 0xff, P::NYZ1);
             for (uint32_t ux = 0; ux < P::NX; ux++) {
-                zbucket<EDGEBITS, P::ZBUCKETSIZE>& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
+                zbucketZ& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
                 uint32_t *readbig = zb.words, *endreadbig = readbig + zb.size / sizeof(uint32_t);
                 // printf("id %d vx %d ux %d size %d\n", id, vx, ux, zb.size/SRCSIZE);
                 for (; readbig < endreadbig; readbig++)
                     degs[*readbig & P::YZ1MASK]++;
             }
             for (uint32_t ux = 0; ux < P::NX; ux++) {
-                zbucket<EDGEBITS, P::ZBUCKETSIZE>& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
+                zbucketZ& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
                 uint32_t *readbig = zb.words, *endreadbig = readbig + zb.size / sizeof(uint32_t);
                 for (; readbig < endreadbig; readbig++) {
                     // bit       29..22    21..15     14..7     6..0
@@ -920,7 +932,7 @@ public:
     void trimrename1(const uint32_t id, const uint32_t round)
     {
         uint64_t rdtsc0, rdtsc1;
-        indexer<EDGEBITS, P::ZBUCKETSIZE> dst;
+        indexerZ dst;
         static uint32_t maxnnid = 0;
 
         rdtsc0 = __rdtsc();
@@ -933,7 +945,7 @@ public:
             TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
             memset(degs, 0xff, 2 * P::NYZ1); // sets each uint16_t entry to 0xffff
             for (uint32_t ux = 0; ux < P::NX; ux++) {
-                zbucket<EDGEBITS, P::ZBUCKETSIZE>& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
+                zbucketZ& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
                 uint32_t *readbig = zb.words, *endreadbig = readbig + zb.size / sizeof(uint32_t);
                 // printf("id %d vx %d ux %d size %d\n", id, vx, ux, zb.size/SRCSIZE);
                 for (; readbig < endreadbig; readbig++)
@@ -943,7 +955,7 @@ public:
             uint32_t* renames = TRIMONV ? buckets[0][vx].renamev1 : buckets[vx][0].renameu1;
             uint32_t* endrenames = renames + P::NZ2;
             for (uint32_t ux = 0; ux < P::NX; ux++) {
-                zbucket<EDGEBITS, P::ZBUCKETSIZE>& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
+                zbucketZ& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
                 uint32_t *readbig = zb.words, *endreadbig = readbig + zb.size / sizeof(uint32_t);
                 for (; readbig < endreadbig; readbig++) {
                     // bit       29...15     14...0
@@ -956,7 +968,7 @@ public:
                             degs[vyz] = vdeg = 32 + newnodeid++;
                             *renames++ = vyz;
                             if (renames == endrenames) {
-                                endrenames += (TRIMONV ? sizeof(yzbucket<EDGEBITS, P::ZBUCKETSIZE>) : sizeof(zbucket<EDGEBITS, P::ZBUCKETSIZE>)) / sizeof(uint32_t);
+                                endrenames += (TRIMONV ? sizeof(yzbucketZ) : sizeof(zbucketZ)) / sizeof(uint32_t);
                                 renames = endrenames - P::NZ2;
                             }
                         }
@@ -983,11 +995,11 @@ public:
             trimmer(0);
             return;
         }
-        thread_ctx<EDGEBITS>* threads = new thread_ctx<EDGEBITS>[nThreads];
+        thread_ctx<offset_t, EDGEBITS, XBITS>* threads = new thread_ctx<offset_t, EDGEBITS, XBITS>[nThreads];
         for (uint32_t t = 0; t < nThreads; t++) {
             threads[t].id = t;
             threads[t].et = this;
-            int err = pthread_create(&threads[t].thread, NULL, etworker<EDGEBITS>, (void*)&threads[t]);
+            int err = pthread_create(&threads[t].thread, NULL, etworker<offset_t, EDGEBITS, XBITS>, (void*)&threads[t]);
             assert(err == 0);
         }
         for (uint32_t t = 0; t < nThreads; t++) {
@@ -1047,24 +1059,29 @@ int nonce_cmp(const void* a, const void* b)
     return *(uint32_t*)a - *(uint32_t*)b;
 }
 
-template <uint8_t EDGEBITS>
+template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 class solver_ctx
 {
 public:
-    using P = Params<EDGEBITS>;
+    using P = Params<EDGEBITS, XBITS>;
+    using zbucket8P = zbucket8<EDGEBITS, XBITS>;
+    using zbucket16P = zbucket16<EDGEBITS, XBITS>;
+    using zbucket32P = zbucket32<EDGEBITS, XBITS>;
+    using zbucketZ = zbucket<EDGEBITS, XBITS, P::ZBUCKETSIZE>;
+    using yzbucketT = yzbucket<EDGEBITS, XBITS, P::TBUCKETSIZE>;
 
-    edgetrimmer<EDGEBITS>* trimmer;
+    edgetrimmer<offset_t, EDGEBITS, XBITS>* trimmer;
     uint32_t* cuckoo = 0;
     std::vector<uint32_t> cycleus;
     std::vector<uint32_t> cyclevs;
     std::bitset<P::NXY> uxymap;
     std::vector<uint32_t> sols; // concatanation of all proof's indices
     uint8_t proofSize;
-    Params<EDGEBITS> params;
+    Params<EDGEBITS, XBITS> params;
 
-    solver_ctx(const char* header, const uint32_t headerlen, const uint32_t nThreads, const uint32_t nTrims, const uint8_t proofSizeIn, const Params<EDGEBITS>& paramsIn) : proofSize{proofSizeIn}, params{paramsIn}
+    solver_ctx(const char* header, const uint32_t headerlen, const uint32_t nThreads, const uint32_t nTrims, const uint8_t proofSizeIn, const Params<EDGEBITS, XBITS>& paramsIn) : proofSize{proofSizeIn}, params{paramsIn}
     {
-        trimmer = new edgetrimmer<EDGEBITS>(nThreads, nTrims, params);
+        trimmer = new edgetrimmer<offset_t, EDGEBITS, XBITS>(nThreads, nTrims, params);
 
         cycleus.reserve(proofSize);
         cyclevs.reserve(proofSize);
@@ -1082,12 +1099,12 @@ public:
 
     uint64_t sharedbytes() const
     {
-        return sizeof(matrix<EDGEBITS, P::ZBUCKETSIZE>);
+        return sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>);
     }
 
     uint32_t threadbytes() const
     {
-        return sizeof(thread_ctx<EDGEBITS>) + sizeof(yzbucket<EDGEBITS, P::TBUCKETSIZE>) + sizeof(zbucket8<EDGEBITS>) + sizeof(zbucket16<EDGEBITS>) + sizeof(zbucket32<EDGEBITS>);
+        return sizeof(thread_ctx<offset_t, EDGEBITS, XBITS>) + sizeof(yzbucketT) + sizeof(zbucket8P) + sizeof(zbucket16P) + sizeof(zbucket32P);
     }
 
     void recordedge(const uint32_t i, const uint32_t u2, const uint32_t v2)
@@ -1124,11 +1141,11 @@ public:
             recordedge(ni++, vs[nv | 1], vs[(nv + 1) & ~1]); // u's in odd position; v's in even
 
         sols.resize(sols.size() + proofSize);
-        match_ctx<EDGEBITS>* threads = new match_ctx<EDGEBITS>[trimmer->nThreads];
+        match_ctx<offset_t, EDGEBITS, XBITS>* threads = new match_ctx<offset_t, EDGEBITS, XBITS>[trimmer->nThreads];
         for (uint32_t t = 0; t < trimmer->nThreads; t++) {
             threads[t].id = t;
             threads[t].solver = this;
-            int err = pthread_create(&threads[t].thread, NULL, matchworker<EDGEBITS>, (void*)&threads[t]);
+            int err = pthread_create(&threads[t].thread, NULL, matchworker<offset_t, EDGEBITS, XBITS>, (void*)&threads[t]);
             assert(err == 0);
         }
 
@@ -1168,7 +1185,7 @@ public:
         rdtsc0 = __rdtsc();
         for (uint32_t vx = 0; vx < P::NX; vx++) {
             for (uint32_t ux = 0; ux < P::NX; ux++) {
-                zbucket<EDGEBITS, P::ZBUCKETSIZE>& zb = trimmer->buckets[ux][vx];
+                zbucketZ& zb = trimmer->buckets[ux][vx];
                 uint32_t *readbig = zb.words, *endreadbig = readbig + zb.size / sizeof(uint32_t);
                 // printf("id %d vx %d ux %d size %u\n", id, vx, ux, zb.size/4);
                 for (; readbig < endreadbig; readbig++) {
@@ -1214,7 +1231,7 @@ public:
 
     bool solve()
     {
-        assert((uint64_t)P::CUCKOO_SIZE * sizeof(uint32_t) <= trimmer->nThreads * sizeof(yzbucket<EDGEBITS, P::TBUCKETSIZE>));
+        assert((uint64_t)P::CUCKOO_SIZE * sizeof(uint32_t) <= trimmer->nThreads * sizeof(yzbucketT));
         trimmer->trim();
         cuckoo = (uint32_t*)trimmer->tbuckets;
         memset(cuckoo, CUCKOO_NIL, P::CUCKOO_SIZE * sizeof(uint32_t));
@@ -1222,7 +1239,7 @@ public:
         return findcycles();
     }
 
-    void* matchUnodes(match_ctx<EDGEBITS>* mc)
+    void* matchUnodes(match_ctx<offset_t, EDGEBITS, XBITS>* mc)
     {
         uint64_t rdtsc0, rdtsc1;
 
@@ -1324,7 +1341,7 @@ public:
     }
 };
 
-template <uint8_t EDGEBITS>
+template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
     assert(edgesRatio >= 0 && edgesRatio <= 100);
@@ -1341,9 +1358,9 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
 
     printf("Looking for %d-cycle on cuckoo%d(\"%s\") with 50%% edges\n", proofSize, edgeBits, hashStr.c_str());
 
-    Params<EDGEBITS> params{edgesRatio};
+    Params<EDGEBITS, XBITS> params{edgesRatio};
 
-    solver_ctx<EDGEBITS> ctx(hashStr.c_str(), hashStr.size(), nThreads, nTrims, proofSize, params);
+    solver_ctx<offset_t, EDGEBITS, XBITS> ctx(hashStr.c_str(), hashStr.size(), nThreads, nTrims, proofSize, params);
 
     uint64_t sbytes = ctx.sharedbytes();
     uint32_t tbytes = ctx.threadbytes();
@@ -1356,7 +1373,7 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
 
     printf("Using %llu%cB bucket memory at %llx,\n", sbytes, " KMGT"[sunit], (uint64_t)ctx.trimmer->buckets);
     printf("%dx%d%cB thread memory at %llx,\n", nThreads, tbytes, " KMGT"[tunit], (uint64_t)ctx.trimmer->tbuckets);
-    printf("%d-way siphash, and %d buckets.\n", NSIPHASH, 1 << 7);
+    printf("%d-way siphash, and %d buckets.\n", NSIPHASH, 1 << XBITS);
 
     uint32_t timems;
     struct timeval time0, time1;
@@ -1379,20 +1396,26 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
 bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
     switch (edgeBits) {
+    case 16:
+        return run<uint32_t, 16u, 0u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 19:
-        return run<19u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 19u, 2u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 20:
+        return run<uint32_t, 20u, 2u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 24:
-        return run<24u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 24u, 5u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 25:
-        return run<25u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 25u, 5u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 26:
-        return run<26u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 26u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 27:
-        return run<27u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 27u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 28:
-        return run<28u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 28u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 29:
-        return run<29u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 29u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 30:
+        return run<uint64_t, 30u, 8u>(hash, edgeBits, edgesRatio, proofSize, cycle);
 
     default:
         throw std::runtime_error(strprintf("%s: EDGEBITS equal to %d is not suppoerted", __func__, edgeBits));
