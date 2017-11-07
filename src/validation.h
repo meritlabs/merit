@@ -361,7 +361,12 @@ void PruneAndFlush();
 void PruneBlockFilesManual(int nManualPruneHeight);
 
 /** Update ANV using given transaction */
-bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo = false);
+using DebitsAndCredits = std::vector<std::pair<referral::Address, CAmount>>;
+void GetDebitsAndCredits(
+        DebitsAndCredits& debits_and_credits,
+        const CTransaction& tx,
+        CCoinsViewCache& view,
+        bool undo = false);
 
 bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationState& state,
         const referral::ReferralRef& referral, bool& pfMissingReferrer);
