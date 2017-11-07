@@ -579,27 +579,22 @@ bool EvalScript(
 
                         break;
                     }
-                    case OP_CHECKOUTAMOUNT:
+                    case OP_OUTPUTAMOUNT:
                     {
-                        // ( out_index amount -- bool)
-                        CAmount max_amount = 0;
-                        if(!Pop(stack, max_amount, serror))
-                            return false;
-
-                        if(max_amount < 0)
-                            return set_error(serror, SCRIPT_ERR_NEGATIVE_AMOUNT);
-
+                        // ( out_index -- amount)
                         int output_index = 0;
                         if(!Pop(stack, output_index, serror))
                             return false;
 
-                        const auto success = checker.CheckOutputAmount(output_index, max_amount);
-
-                        stack.push_back(success ? vchTrue : vchFalse);
-                        break;
+                        CAmount amount;
+                        if(!checker.GetOutputAmount(output_index, amount)) {
+                            return set_error(serror, SCRIPT_ERR_OUTPUT_INDEX_OUT_OF_BOUNDS);
+                        }
+                        stack.push_back(CScriptNum{amount});
                     }
+                    break;
                     case OP_NOP1:
-                    case OP_NOP9: case OP_NOP10:
+                    case OP_NOP8: case OP_NOP9: case OP_NOP10:
                     {
                         if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
                             return set_error(serror, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);
@@ -1454,30 +1449,10 @@ bool EvalScript(
                         stack.push_back(vchFalse);
                     }
                     break;
-                    case OP_CHECKOUTPUTCOUNTVERIFY:
-                    case OP_CHECKOUTPUTCOUNT:
+                    case OP_OUTPUTCOUNT:
                     {
-                        int expected_count = 0;
-                        if(!Pop(stack, expected_count, serror)) {
-                            return false;
-                        }
-
-                        int actual_amount =  checker.GetOutputCount();
-
-                        bool success = expected_count == actual_amount;
-
-                        stack.push_back(success ? vchTrue : vchFalse);
-
-                        if (opcode == OP_CHECKOUTPUTCOUNTVERIFY)
-                        {
-                            if (success) {
-                                popstack(stack);
-                            } else {
-                                return set_error(
-                                        serror,
-                                        SCRIPT_ERR_CHECKOUTPUTCOUNTVERIFY);
-                            }
-                        }
+                        stack.push_back(CScriptNum{
+                                static_cast<int64_t>(checker.GetOutputCount())});
                     }
                     break;
 
@@ -1820,15 +1795,15 @@ bool TransactionSignatureChecker::CheckSequence(const CScriptNum& nSequence) con
     return true;
 }
 
-bool TransactionSignatureChecker::CheckOutputAmount(int index, CAmount max_amount) const
+bool TransactionSignatureChecker::GetOutputAmount(int index, CAmount& amount) const
 {
-    assert(max_amount >= 0);
     assert(txTo);
 
     const auto* out = GetTxnOutput(index);
     if(!out) return false;
 
-    return out->nValue <= max_amount;
+    amount = out->nValue;
+    return true;
 }
 
 bool TransactionSignatureChecker::CheckCoinHeight(const int maxHeight) const

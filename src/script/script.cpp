@@ -133,14 +133,14 @@ const char* GetOpName(opcodetype opcode)
     case OP_CHECKSEQUENCEVERIFY    : return "OP_CHECKSEQUENCEVERIFY";
 
     // output verification
-    case OP_CHECKOUTAMOUNT         : return "OP_CHECKOUTAMOUNT";
+    case OP_OUTPUTAMOUNT           : return "OP_OUTPUTAMOUNT";
     case OP_CHECKOUTPUTSIG         : return "OP_CHECKOUTPUTSIG";
     case OP_CHECKOUTPUTSIGVERIFY   : return "OP_CHECKOUTPUTSIGVERIFY";
     case OP_ANYVALUE               : return "OP_ANYVALUE";
-    case OP_CHECKOUTPUTCOUNT       : return "OP_CHECKOUTPUTCOUNT";
-    case OP_CHECKOUTPUTCOUNTVERIFY : return "OP_CHECKOUTPUTCOUNTVERIFY";
+    case OP_OUTPUTCOUNT            : return "OP_OUTPUTCOUNT";
 
     case OP_NOP1                   : return "OP_NOP1";
+    case OP_NOP8                   : return "OP_NOP8";
     case OP_NOP9                   : return "OP_NOP9";
     case OP_NOP10                  : return "OP_NOP10";
 

@@ -170,11 +170,11 @@ enum opcodetype : short
     OP_CHECKMULTISIGVERIFY = 0xaf,
 
     //output opcodes
-    OP_CHECKOUTAMOUNT = 0xb4,
+    OP_OUTPUTAMOUNT = 0xb4,
     OP_CHECKOUTPUTSIG = 0xb5,
     OP_CHECKOUTPUTSIGVERIFY = 0xb6,
-    OP_CHECKOUTPUTCOUNT = 0x81,
-    OP_CHECKOUTPUTCOUNTVERIFY = 0x83,
+    OP_OUTPUTCOUNT = 0x81,
+    OP_ANYVALUE = 0xb7,
 
     // expansion
     OP_NOP1 = 0xb0,
@@ -182,10 +182,9 @@ enum opcodetype : short
     OP_NOP2 = OP_CHECKLOCKTIMEVERIFY,
     OP_CHECKSEQUENCEVERIFY = 0xb2,
     OP_EASYSEND = 0xb3,
-    OP_ANYVALUE = 0xb7,
+    OP_NOP8 = 0x83,
     OP_NOP9 = 0xb8,
     OP_NOP10 = 0xb9,
-
 
     // template matching params
     OP_SMALLINTEGER = 0xfa,

@@ -362,8 +362,9 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
         <<      's'                     // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> |
         <<      1                       // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
         <<      OP_CHECKOUTPUTSIGVERIFY // |
-        <<      2                       // n |
-        <<      OP_CHECKOUTPUTCOUNT     // <bool>
+        <<      2                       // 2 |
+        <<      OP_OUTPUTCOUNT          // <count>
+        <<      OP_EQUAL                // <bool>
         << OP_ELSE
         <<      OP_FROMALTSTACK         // <sig> <spend key> | [addresses] <renew key>
         <<      OP_DROP                 // <sig> | [addresses] <renew key>
@@ -381,8 +382,9 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
         <<      's'                     // <any> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> |
         <<      1                       // <any> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
         <<      OP_CHECKOUTPUTSIGVERIFY //  |
-        <<      1                       // n |
-        <<      OP_CHECKOUTPUTCOUNT     // <bool>
+        <<      1                       // 1 |
+        <<      OP_OUTPUTCOUNT          // <count>
+        <<      OP_EQUAL                // <bool>
         << OP_ENDIF;
 
     return script;
