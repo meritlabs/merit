@@ -2059,17 +2059,17 @@ void GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
             const auto &in_out = view.AccessCoin(in.prevout).out;
             assert(in_out.nValue >= 0);
 
-            auto address = ExtractAddress(in_out);
-            const CAmount amount = in_out.nValue * debitDir;
+            const auto address = ExtractAddress(in_out);
             if(address.second == 0) continue;
 
+            const CAmount amount = in_out.nValue * debitDir;
             debits_and_credits.push_back({address.first, amount});
         }
     }
 
     //credit recipients
     for (const auto& out : tx.vout) {
-        auto address = ExtractAddress(out);
+        const auto address = ExtractAddress(out);
         if(address.second == 0) continue;
 
         const CAmount amount = out.nValue * creditDir;
@@ -2212,11 +2212,21 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
 
-    if(!memory_only && !(UpdateANV(debits_and_credits) && RemoveReferrals(block))){
-        error("DisconnectBlock(): unable to undo referrals");
-        return DISCONNECT_FAILED;
-    }
+    if(!memory_only) {
+        // The order here is important. The ANV values must be updated
+        // before the tree is manipulated to properly debit and credit the
+        // correct addresses because RemoveReferrals will change referral 
+        // tree.
+        if(!UpdateANV(debits_and_credits)) {
+            error("DisconnectBlock(): unable to undo referrals");
+            return DISCONNECT_FAILED;
+        }
 
+        if(!RemoveReferrals(block)){
+            error("DisconnectBlock(): unable to undo referrals");
+            return DISCONNECT_FAILED;
+        }
+    }
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
@@ -2374,6 +2384,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     if (block.GetHash() == chainparams.GetConsensus().hashGenesisBlock) {
         if (!fJustCheck) {
             view.SetBestBlock(pindex->GetBlockHash());
+
+            //The order is important here. We must insert the referrals so that
+            //the referral tree is updated to be correct before we debit/credit 
+            //the ANV to the appropriate addresses.
             if(!IndexReferrals(block)) {
                 return AbortNode(state, "Failed to write referral index");
             }
@@ -2745,6 +2759,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
 
+    //The order is important here. We must insert the referrals so that
+    //the referral tree is updated to be correct before we debit/credit 
+    //the ANV to the appropriate addresses.
     if(!IndexReferrals(block)) {
         return AbortNode(state, "Failed to write referral index");
     }
@@ -4884,8 +4901,15 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
 
         if (!prefviewdb->ReferralCodeExists(block.m_vRef[0]->m_codeHash)) {
-            IndexReferrals(block);
-            UpdateANV(block, *pcoinsTip);
+            //The order is important here. We must insert the referrals so that
+            //the referral tree is updated to be correct before we debit/credit 
+            //the ANV to the appropriate addresses.
+            if(!IndexReferrals(block)) {
+                return error("%s: IndexReferrals failed", __func__);
+            }
+            if(!UpdateANV(block, *pcoinsTip)) {
+                return error("%s: UpdateANV failed", __func__);
+            }
         }
 
         // Check whether we're already initialized by checking for genesis in
