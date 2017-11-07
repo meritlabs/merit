@@ -404,6 +404,8 @@ public:
         Init(pwalletIn);
     }
 
+    virtual ~CWalletTx() {}
+
     void Init(const CWallet* pwalletIn)
     {
         pwallet = pwalletIn;

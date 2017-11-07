@@ -1276,7 +1276,7 @@ UniValue spendvault(const JSONRPCRequest& request)
 
     if(amount > total_amount) {
         std::stringstream e;
-        e << "Insufficient funds, can only spend " << AmountFromValue(total_amount) << " merit";
+        e << "Insufficient funds, can only spend " << ValueFromAmount(total_amount).get_real() << " merit";
         throw JSONRPCError(RPC_TYPE_ERROR, e.str());
     }
 
