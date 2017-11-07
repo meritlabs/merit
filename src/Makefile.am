@@ -178,6 +178,7 @@ MERIT_CORE_H = \
   wallet/init.h \
   wallet/rpcwallet.h \
   wallet/wallet.h \
+  wallet/vault.h \
   wallet/walletdb.h \
   warnings.h \
   zmq/zmqabstractnotifier.h \
@@ -266,6 +267,7 @@ libmerit_wallet_a_SOURCES = \
   wallet/rpcdump.cpp \
   wallet/rpcwallet.cpp \
   wallet/wallet.cpp \
+  wallet/vault.cpp \
   wallet/walletdb.cpp \
   $(MERIT_CORE_H)
 
