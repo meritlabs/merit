@@ -66,8 +66,6 @@ template <uint8_t EDGEBITS, uint8_t XBITS>
 struct Params {
     uint32_t nEdgesPerBucket;
 
-    const static bool SAVEEDGES = false; //EDGEBITS > 27;
-
     // prepare params for algorithm
     const static uint32_t EDGEMASK = (1 << EDGEBITS) - 1;
 
@@ -129,7 +127,7 @@ struct Params {
 
     const static uint32_t NTRIMMEDZ = NZ * TRIMFRAC256 / 256;
     const static uint32_t ZBUCKETSLOTS = NZ + NZ * BIGEPS;
-    const static uint32_t ZBUCKETSIZE = !SAVEEDGES ? ZBUCKETSLOTS * BIGSIZE0 : NTRIMMEDZ * (BIGSIZE + sizeof(uint32_t));
+    const static uint32_t ZBUCKETSIZE = ZBUCKETSLOTS * BIGSIZE0;
     const static uint32_t TBUCKETSIZE = ZBUCKETSLOTS * BIGSIZE;
 
     const static bool NEEDSYNC = BIGSIZE0 == 4 && EDGEBITS > 27;
@@ -152,12 +150,11 @@ struct zbucket {
     union alignas(16) {
         uint8_t bytes[BUCKETSIZE];
         struct {
-            uint32_t words[BUCKETSIZE / sizeof(uint32_t) - RENAMESIZE - (P::SAVEEDGES ? P::NTRIMMEDZ : 0)];
+            uint32_t words[BUCKETSIZE / sizeof(uint32_t) - RENAMESIZE];
             uint32_t renameu1[P::NZ2];
             uint32_t renamev1[P::NZ2];
             uint32_t renameu[P::COMPRESSROUND ? P::NZ1 : 0];
             uint32_t renamev[P::COMPRESSROUND ? P::NZ1 : 0];
-            uint32_t edges[P::SAVEEDGES ? P::NTRIMMEDZ : 0];
         };
     };
     uint32_t setsize(uint8_t const* end)
@@ -309,11 +306,7 @@ public:
         tbuckets = new yzbucketT[nThreads];
         touch((uint8_t*)tbuckets, nThreads * sizeof(yzbucketT));
 
-        if (P::SAVEEDGES) {
-            tedges = 0;
-        } else {
-            tedges = new zbucket32P[nThreads];
-        }
+        tedges = new zbucket32P[nThreads];
         tdegs = new zbucket8P[nThreads];
         tzs = new zbucket16P[nThreads];
         tcounts = new offset_t[nThreads];
@@ -344,7 +337,6 @@ public:
     {
         // printf("EDGEBITS: %d, BIGSIZE: %d, BIGSIZE0: %d", EDGEBITS, P::BIGSIZE, P::BIGSIZE0);
         // printf(" NEEDSYNC %sdefined", P::NEEDSYNC ? "" : "is not ");
-        // printf(" SAVEEDGES %sdefined\n", P::SAVEEDGES ? "" : "is not ");
 
 
         uint64_t rdtsc0, rdtsc1;
@@ -579,12 +571,9 @@ public:
 
                 uint16_t* zs = tzs[id];
                 uint32_t* edges0;
-                if (P::SAVEEDGES) {
-                    edges0 = buckets[ux][uy].edges;
-                } else {
-                    edges0 = tedges[id]; // list of nodes with 2+ edges
-                }
+                edges0 = tedges[id]; // list of nodes with 2+ edges
                 uint32_t *edges = edges0, edge = 0;
+
                 for (uint8_t* rdsmall = readsmall; rdsmall < endreadsmall; rdsmall += P::SMALLSIZE) {
                     // bit         39..13     12..0
                     // read          edge     UZZZZ    sorted by UY within UX partition
