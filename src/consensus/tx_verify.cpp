@@ -5,6 +5,7 @@
 
 #include "tx_verify.h"
 
+#include "chainparams.h"
 #include "consensus.h"
 #include "primitives/transaction.h"
 #include "script/interpreter.h"
@@ -259,7 +260,7 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, c
 
             // If prev is coinbase, check that it's matured
             if (coin.IsCoinBase()) {
-                if (nSpendHeight - coin.nHeight < COINBASE_MATURITY)
+                if (nSpendHeight - coin.nHeight < static_cast<int>(::Params().GetConsensus().nBlocksToMaturity))
                     return state.Invalid(false,
                         REJECT_INVALID, "bad-txns-premature-spend-of-coinbase",
                         strprintf("tried to spend coinbase at depth %d", nSpendHeight - coin.nHeight));
