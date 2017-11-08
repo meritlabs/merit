@@ -373,14 +373,16 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
         <<      OP_TOALTSTACK           // <sig> <renew key> | <renew key> | [addresses]
         <<      OP_CHECKSIGVERIFY       // | <renew key> | [addresses]
         <<      OP_ANYVALUE             // <any> | [addresses] <renew key>
-        <<      OP_FROMALTSTACK         // <any> <renew key> | [addresses]
-        <<      OP_NFROMALTSTACK        // <any> <renew key> [addresses] |
-        <<      ToByteVector(tag)       // <any> <renew key> [addresses] <tag> |
-        <<      0                       // <any> <renew key> [addresses] <tag> <vault type> |
-        <<      4 + sizeof_addresses    // <any> <renew key> [addresses] <tag> <vault type> <total args> | 
-        <<      0                       // <any> <renew key> [addresses] <tag> <vault type> <total args> <out index> |
-        <<      's'                     // <any> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> |
-        <<      1                       // <any> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
+        <<      OP_ANYVALUE             // <any spend key> <any renew key> | [addresses]
+        <<      num_addresses           // <any spend key> <any renew key> <num addresses>
+        <<      OP_NREPEAT              
+        <<      num_addresses           //<any spend key> <any renew key> [any addresses]
+        <<      ToByteVector(tag)       // <any spend key> <any renew key> [any addresses] <tag> |
+        <<      0                       // <any spend key> <any renew key> [any addresses] <tag> <vault type> |
+        <<      4 + sizeof_addresses    // <any spend key> <any renew key> [any addresses] <tag> <vault type> <total args> | 
+        <<      0                       // <any spend key> <any renew key> [any addresses] <tag> <vault type> <total args> <out index> |
+        <<      's'                     // <any spend key> <any renew key> [any addresses] <tag> <vault type> <total args> <out index> <self> |
+        <<      1                       // <any spend key> <any renew key> [any addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
         <<      OP_CHECKOUTPUTSIGVERIFY //  |
         <<      1                       // 1 |
         <<      OP_OUTPUTCOUNT          // <count>

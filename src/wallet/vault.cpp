@@ -157,8 +157,9 @@ Vault ParseVaultCoin(const VaultCoin& coin)
             GetScriptForSimpleVault(uint160{vault_tag}, num_addresses);
 
         vault.script = vault_script;
+        vault.address = vault_script;
         vault.spend_pub_key.Set(stack[0]);
-        vault.renew_pub_key.Set(stack[1]);
+        vault.master_pub_key.Set(stack[1]);
     }
 
 

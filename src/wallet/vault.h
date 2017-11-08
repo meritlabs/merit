@@ -9,6 +9,7 @@
 #include "primitives/transaction.h"
 #include "pubkey.h"
 #include "script/script.h"
+#include "script/standard.h"
 
 #include <utility>
 #include <vector>
@@ -36,8 +37,9 @@ struct Vault
     COutPoint out_point;
     Coin coin;
     CScript script;
+    CScriptID address;
     CPubKey spend_pub_key;
-    CPubKey renew_pub_key;
+    CPubKey master_pub_key;
     Whitelist whitelist;
 };
 

@@ -153,10 +153,10 @@ public:
     bool VerifyPubKey(const CPubKey& vchPubKey) const;
 
     //! Load private key and check that public key matches.
-    bool Load(CPrivKey& privkey, CPubKey& vchPubKey, bool fSkipCheck);
+    bool Load(const CPrivKey& privkey, const CPubKey& vchPubKey, bool fSkipCheck);
 
     //! Load private key. 
-    bool Load(CPrivKey& privkey, bool compressed);
+    bool Load(const CPrivKey& privkey, bool compressed);
 };
 
 struct CExtKey {

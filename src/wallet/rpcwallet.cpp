@@ -948,10 +948,7 @@ UniValue easyreceive(const JSONRPCRequest& request)
             coin_control);
 }
 
-using WhitelistAddress = std::vector<unsigned char>;
-using Whitelist = std::vector<WhitelistAddress>;
-
-void ExtractWhitelist(const UniValue& options, Whitelist& whitelist)
+void ExtractWhitelist(const UniValue& options, vault::Whitelist& whitelist)
 {
     const auto& list = options["whitelist"];
     if(!list.isArray()) {
@@ -1017,7 +1014,7 @@ UniValue createvault(const JSONRPCRequest& request)
     if(!request.params[1].isNull())
         options = request.params[1];
 
-    Whitelist whitelist;
+    vault::Whitelist whitelist;
 
     if(options.isObject()) {
         if(options.exists("whitelist")) {
@@ -1105,7 +1102,7 @@ UniValue renewvault(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() != 3) {
+    if (request.fHelp || request.params.size() != 2) {
         throw std::runtime_error(
                 "renewvault vault_address master_sk \n"
                 "\nCreate a simple vault with a specific amount.\n"
@@ -1146,6 +1143,10 @@ UniValue renewvault(const JSONRPCRequest& request)
         }
     }
 
+    UniValue options;
+    if(!request.params[2].isNull())
+        options = request.params[2];
+
     auto unspent_coins = vault::FindUnspentVaultCoins(*script_id);
 
     if(unspent_coins.empty()) {
@@ -1178,10 +1179,73 @@ UniValue renewvault(const JSONRPCRequest& request)
     pwallet->SetAddressBook(*script_id, "", "vault");
 
     bool subtract_fee_from_amount = true;
+
+    CScript script_pub_key;
+    if(!options.isNull() && options.isObject()) {
+        //since all vault coins should be the same at this point
+        //just pick the first.
+        const auto& vault = vaults[0];
+
+        if(vault.type == 0) {
+
+            vault::Whitelist whitelist = vault.whitelist;
+            if(options.exists("whitelist")) {
+                ExtractWhitelist(options, whitelist);
+            }
+
+            auto spend_pub_key = vault.spend_pub_key;
+            if(options.exists("spend_pk")) {
+                const auto spend_pk_bytes = ParseHex(options["spend_pk"].get_str());
+                spend_pub_key.Set(spend_pk_bytes.begin(), spend_pk_bytes.end());
+            }
+
+            auto master_pub_key = vault.master_pub_key;
+            if(options.exists("master_pk") && options.exists("master_sk")) {
+                const auto master_sk_bytes = ParseHex(options["master_sk"].get_str());
+                const CPrivKey master_sk(master_sk_bytes.begin(), master_sk_bytes.end());
+
+                const auto master_pk_bytes = ParseHex(options["master_pk"].get_str());
+                master_pub_key.Set(master_pk_bytes.begin(), master_pk_bytes.end());
+
+                CKey new_master_key;
+                if(!new_master_key.Load(master_sk, master_pub_key, false)) {
+                    throw JSONRPCError(
+                            RPC_INVALID_PARAMS,
+                            "The new master public key provided isn't a valid public key.");
+                }
+            }
+
+            if(whitelist.size() != vault.whitelist.size()) {
+                std::stringstream e;
+                e << "New whitelist must be the same size as the old whitelist. Old size is " 
+                  << vault.whitelist.size() << " entries.";
+                    throw JSONRPCError(
+                            RPC_INVALID_PARAMS,
+                            e.str());
+            }
+
+            script_pub_key =
+                GetParameterizedP2SH(
+                        *script_id,
+                        ToByteVector(spend_pub_key),
+                        ToByteVector(master_pub_key),
+                        ExpandParam(whitelist),
+                        whitelist.size(),
+                        ToByteVector(vault.tag),
+                        0 /* simple is type 0 */);
+        } else {
+            throw JSONRPCError(
+                    RPC_MISC_ERROR,
+                    "Vault type isn't supported");
+        }
+    } else {
+        script_pub_key = vaults[0].coin.out.scriptPubKey;
+    }
+
     //TODO: create script with different spend key
     //TODO: validate all unspent coins have the same vault param.
     std::vector<CRecipient> recipients = {
-        {vaults[0].coin.out.scriptPubKey, total_amount, subtract_fee_from_amount}
+        {script_pub_key, total_amount, subtract_fee_from_amount}
     };
 
     CWalletTx wtx;
@@ -1326,10 +1390,14 @@ UniValue spendvault(const JSONRPCRequest& request)
 
     if(amount > total_amount) {
         std::stringstream e;
-        e << "Insufficient funds, can only spend " << ValueFromAmount(total_amount).get_real() << " merit";
+        e << "Insufficient funds, can only spend " 
+          << ValueFromAmount(total_amount).get_real() 
+          << " merit";
         throw JSONRPCError(RPC_TYPE_ERROR, e.str());
     }
 
+    //Select enough coins to satisfy the amount we want to send.
+    //At this point we should have enough coins.
     CCoinControl coin_control;
     CAmount selected_amount = 0;
     for(const auto& v : vaults) {
