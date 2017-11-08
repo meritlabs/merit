@@ -138,7 +138,10 @@ struct Params {
 
     Params(uint8_t difficulty)
     {
-        uint32_t nEdgesPerBucket = difficulty * (uint64_t)(2 * NYZ) / 100;
+        nEdgesPerBucket = ((difficulty * (uint64_t)(2 * NYZ) / 100) / NSIPHASH) * NSIPHASH;
+        printf("difficulty:             %d\n", difficulty);
+        printf("NYZ:                    %d\n", NYZ);
+        printf("params.nEdgesPerBucket: %u\n", nEdgesPerBucket);
     }
 };
 
@@ -370,10 +373,10 @@ public:
         static const __m256i vhiinc = {8 << P::YZBITS, 8 << P::YZBITS, 8 << P::YZBITS, 8 << P::YZBITS};
 #endif
 
-        uint32_t endedge = edge + P::NYZ; // 0 + 2^(7 + 13) = 1 048 576
+        uint32_t endedge = edge + params.nEdgesPerBucket; // 0 + 2^(7 + 13) = 1 048 576
 
         offset_t sumsize = 0;
-        for (uint32_t my = starty; my < endy; my++, endedge += P::NYZ) {
+        for (uint32_t my = starty; my < endy; my++, endedge += params.nEdgesPerBucket) {
             dst.matrixv(my);
 
             if (P::NEEDSYNC) {
@@ -548,7 +551,7 @@ public:
                     // printf("id %d ux %d y %d e %010lx e' %010x\n", id, ux, my, e, ((uint64_t)edge << ZBITS) | (e >> YBITS));
                     small.index[uy] += P::SMALLSIZE;
                 }
-                if (unlikely(edge >> P::NONYZBITS != (((my + 1) << P::YZBITS) - 1) >> P::NONYZBITS)) {
+                if (unlikely(edge >> P::NONYZBITS > (((my + 1) << P::YZBITS) - 1) >> P::NONYZBITS)) {
                     printf("OOPS1: id %d ux %d y %d edge %x vs %x\n", id, ux, my, edge, ((my + 1) << P::YZBITS) - 1);
                     exit(0);
                 }
@@ -1070,7 +1073,7 @@ public:
 
     solver_ctx(const char* header, const uint32_t headerlen, const uint32_t nThreads, const uint32_t nTrims, const uint8_t proofSizeIn, const Params<EDGEBITS, XBITS>& paramsIn) : proofSize{proofSizeIn}, params{paramsIn}
     {
-        trimmer = new edgetrimmer<offset_t, EDGEBITS, XBITS>(nThreads, nTrims, params);
+        trimmer = new edgetrimmer<offset_t, EDGEBITS, XBITS>(nThreads, nTrims, paramsIn);
 
         cycleus.reserve(proofSize);
         cyclevs.reserve(proofSize);
@@ -1235,7 +1238,7 @@ public:
         rdtsc0 = __rdtsc();
         const uint32_t starty = P::NY * mc->id / trimmer->nThreads;
         const uint32_t endy = P::NY * (mc->id + 1) / trimmer->nThreads;
-        uint32_t edge = starty << P::YZBITS, endedge = edge + P::NYZ;
+        uint32_t edge = starty << P::YZBITS, endedge = edge + params.nEdgesPerBucket;
 #if NSIPHASH == 8
         static const __m256i vnodemask = {P::EDGEMASK, P::EDGEMASK, P::EDGEMASK, P::EDGEMASK};
         const __m256i vinit = _mm256_set_epi64x(
@@ -1251,7 +1254,7 @@ public:
 #endif
 
 
-        for (uint32_t my = starty; my < endy; my++, endedge += P::NYZ) {
+        for (uint32_t my = starty; my < endy; my++, endedge += params.nEdgesPerBucket) {
             for (; edge < endedge; edge += NSIPHASH) {
 // bit        28..21     20..13    12..0
 // node       XXXXXX     YYYYYY    ZZZZZ
@@ -1333,7 +1336,12 @@ public:
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
-    assert(edgesRatio >= 0 && edgesRatio <= 100);
+    // edgesRatio less than 45 makes no sense as the probobility to find a cycle gets too low
+    // edgesRatio more than 50 is not supported yet, as with 50 we tight to NYZ value and we occupy
+    // all available BUCKETSIZE array.
+    // TODO: modify checks in the algorith the way we would be able to generate more edges
+    // should require changes of BUCKETSIZE values
+    assert(edgesRatio >= 45 && edgesRatio <= 50);
     assert(edgeBits >= 15 && edgeBits <= 31);
 
     // static const uint8_t EDGEBITS = 27;
@@ -1345,7 +1353,7 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
 
     auto hashStr = hash.GetHex();
 
-    printf("Looking for %d-cycle on cuckoo%d(\"%s\") with 50%% edges\n", proofSize, edgeBits, hashStr.c_str());
+    printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofSize, edgeBits, hashStr.c_str(), edgesRatio);
 
     Params<EDGEBITS, XBITS> params{edgesRatio};
 
