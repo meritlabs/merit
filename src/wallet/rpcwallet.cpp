@@ -948,6 +948,34 @@ UniValue easyreceive(const JSONRPCRequest& request)
             coin_control);
 }
 
+using WhitelistAddress = std::vector<unsigned char>;
+using Whitelist = std::vector<WhitelistAddress>;
+
+void ExtractWhitelist(const UniValue& options, Whitelist& whitelist)
+{
+    const auto& list = options["whitelist"];
+    if(!list.isArray()) {
+        throw JSONRPCError(RPC_TYPE_ERROR, "Whitelist must be a list");
+    }
+
+    for(size_t i = 0; i < list.size(); i++) {
+        auto address_str = list[i].get_str();
+        auto dest =  DecodeDestination(address_str);
+        uint160 address;
+        if(auto key_id = boost::get<CKeyID>(&dest)) {
+            address = *key_id;
+        } else if(auto script_id = boost::get<CKeyID>(&dest)) {
+            address = *script_id;
+        } else {
+            std::stringstream e;
+            e << "The whitelist element \"" << address_str << "\" is not a valid address";
+            throw JSONRPCError(RPC_TYPE_ERROR, e.str());
+        }
+
+        whitelist.push_back(ToByteVector(address));
+    }
+}
+
 UniValue createvault(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
@@ -955,23 +983,31 @@ UniValue createvault(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp)
+    if (request.fHelp || request.params.empty()) {
         throw std::runtime_error(
-            "createvault amount (\"type\")\n"
+            "createvault amount ({\"type\": \"...\", \"whitelist\": [...]})\n"
             "\nCreate a simple vault with a specific amount.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
             "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
-            "2. \"type\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+            "2. \"options\"            (json) optional json object \n"
+            "    {\n"
+            "        \"type\": <\"simple\"| ...>, \n"
+            "        \"addresses\": [<address>,...], \n"
+            "    }\n"
             "\nResult:\n"
-            "\"txid\"                  (string) The transaction id.\n"
-            "\"vaultaddress\"          (string) Address of the vault.\n"
-            "\"spendkey\"              (string) public key used to spend.\n"
-            "\"renewkey\"              (string) public key used to renew.\n"
+            "\"vault_address\"         (string) Address of the vault.\n"
+            "\"txid\"                  (string) The transaction id creating the vault.\n"
+            "\"amount\"                (number) Amount put in the vault.\n"
+            "\"tag\"                   (string) Tag used to create the vault address.\n"
+            "\"spend_pubkey_id\"       (string) Address of the key that can be used to spend from the vault.\n"
+            "\"master_sk\"             (string) Master key used to update a vault. Save this.\n"
+            "\"master_pk\"             (string) Master key public key. Save this.\n"
             "\nExamples:\n"
             + HelpExampleCli("createvault", "0.1")
-            + HelpExampleCli("createvault", "0.1 whitelist key1 key2")
+            + HelpExampleCli("createvault", "0.1 {\"whitelist\": [\"key1\", \"key2\"]}")
         );
+    }
 
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
@@ -981,8 +1017,21 @@ UniValue createvault(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
 
     std::string type = "simple";
+    UniValue options;
     if(!request.params[1].isNull())
-        type = request.params[1].get_str();
+        options = request.params[1];
+
+    Whitelist whitelist;
+
+    if(options.isObject()) {
+        if(options.exists("whitelist")) {
+            ExtractWhitelist(options, whitelist);
+        }
+
+        if(options.exists("type")) {
+            type = options["type"].get_str();
+        }
+    }
 
     if(type == "simple")
     {
@@ -997,23 +1046,28 @@ UniValue createvault(const JSONRPCRequest& request)
 
         auto spend_pub_key_id = spend_pub_key.GetID();
 
-        CKey renew_key;
-        renew_key.MakeNewKey(true);
+        CKey master_key;
+        master_key.MakeNewKey(true);
 
-        auto renew_pub_key = renew_key.GetPubKey();
+        auto master_pub_key = master_key.GetPubKey();
 
-        auto renew_pub_key_id = renew_pub_key.GetID();
-        auto vault_tag = Hash160(renew_pub_key_id.begin(), renew_pub_key_id.end());
+        auto master_pub_key_id = master_pub_key.GetID();
+        auto vault_tag = Hash160(master_pub_key_id.begin(), master_pub_key_id.end());
         auto vault_script = GetScriptForSimpleVault(vault_tag, 1);
+
+        //If the whitelist is not specified, just whitelist the spend key address.
+        if(whitelist.empty()) {
+            whitelist.push_back(ToByteVector(master_pub_key_id));
+        }
 
         CScriptID script_id = vault_script;
         auto script_pub_key =
             GetParameterizedP2SH(
                     script_id,
                     ToByteVector(spend_pub_key),
-                    ToByteVector(renew_pub_key),
-                    ToByteVector(spend_pub_key_id),
-                    1,
+                    ToByteVector(master_pub_key),
+                    ExpandParam(whitelist),
+                    whitelist.size(),
                     ToByteVector(vault_tag),
                     0 /* simple is type 0 */);
 
@@ -1034,14 +1088,14 @@ UniValue createvault(const JSONRPCRequest& request)
         pwallet->SetAddressBook(script_id, "", "vault");
 
         UniValue ret(UniValue::VOBJ);
+        ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
         ret.push_back(Pair("txid", txid));
         ret.push_back(Pair("amount", ValueFromAmount(amount)));
         ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
         ret.push_back(Pair("tag", EncodeDestination(vault_tag)));
-        ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
         ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_pub_key_id)));
-        ret.push_back(Pair("renew_sk", HexStr(renew_key.GetPrivKey())));
-        ret.push_back(Pair("renew_pk", HexStr(renew_key.GetPubKey())));
+        ret.push_back(Pair("master_sk", HexStr(master_key.GetPrivKey())));
+        ret.push_back(Pair("master_pk", HexStr(master_key.GetPubKey())));
         return ret;
     } else {
         throw JSONRPCError(RPC_TYPE_ERROR, "The type \"" + type + "\" is not valid");
@@ -1055,23 +1109,22 @@ UniValue renewvault(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp)
+    if (request.fHelp || request.params.size() != 3) {
         throw std::runtime_error(
-                "renewvault vault_address\n"
+                "renewvault vault_address master_sk master_pk\n"
                 "\nCreate a simple vault with a specific amount.\n"
                 + HelpRequiringPassphrase(pwallet) +
                 "\nArguments:\n"
-                "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
-                "2. \"type\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+                "1. \"vault_address\"      (string) Address of the vault.\n"
+                "2. \"master_sk\"          (string) The master secret key.\n"
+                "3. \"master_pk\"          (string) The master public key.\n"
                 "\nResult:\n"
                 "\"txid\"                  (string) The transaction id.\n"
-                "\"vaultaddress\"          (string) Address of the vault.\n"
-                "\"spendkey\"              (string) public key used to spend.\n"
-                "\"renewkey\"              (string) public key used to renew.\n"
+                "\"amount\"          (string) Address of the vault.\n"
                 "\nExamples:\n"
-                + HelpExampleCli("renewvault", "")
-                + HelpExampleCli("renewvault", "")
+                + HelpExampleCli("renewvault", "2NFg1HWEUKd7ipSjnmMVUySXgQ18MeUChyz <master secrety key> <master public key>")
                 );
+    }
 
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
@@ -1088,15 +1141,15 @@ UniValue renewvault(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_TYPE_ERROR, "Script Address Required");
     }
 
-    CKey renew_key;
+    CKey master_key;
     {
-        auto renew_sk_data = ParseHex(request.params[1].get_str());
-        CPrivKey renew_sk(renew_sk_data.begin(), renew_sk_data.end());
+        auto master_sk_data = ParseHex(request.params[1].get_str());
+        CPrivKey master_sk(master_sk_data.begin(), master_sk_data.end());
 
-        auto renew_pk_data = ParseHex(request.params[2].get_str());
-        CPubKey renew_pk(renew_pk_data.begin(), renew_pk_data.end());
+        auto master_pk_data = ParseHex(request.params[2].get_str());
+        CPubKey master_pk(master_pk_data.begin(), master_pk_data.end());
 
-        if(!renew_key.Load(renew_sk, renew_pk, false)) {
+        if(!master_key.Load(master_sk, master_pk, false)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid renew key");
         }
     }
@@ -1181,7 +1234,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
         //produce canonical DER signature
         valtype sig;
-        if(!renew_key.Sign(hash, sig))
+        if(!master_key.Sign(hash, sig))
             return false;
         sig.push_back(SIGHASH_ALL);
 
@@ -1219,20 +1272,18 @@ UniValue spendvault(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() != 2) {
         throw std::runtime_error(
-                "spendvault vault_address amount\n"
-                "\nSpends the amount specified to the allowed address.\n"
+                "spendvault vault_address amount destination_address\n"
+                "\nSpends the amount specified to the destination address.\n"
                 + HelpRequiringPassphrase(pwallet) +
                 "\nArguments:\n"
-                "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
-                "2. \"type\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+                "1. \"vault_address\"       (string) Address of the vault.\n"
+                "2. \"amount\"              (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
+                "3. \"destination_address\" (string) Destination of funds.\n"
                 "\nResult:\n"
-                "\"txid\"                  (string) The transaction id.\n"
-                "\"vaultaddress\"          (string) Address of the vault.\n"
-                "\"spendkey\"              (string) public key used to spend.\n"
-                "\"renewkey\"              (string) public key used to renew.\n"
+                "\"txid\"                   (string) The transaction id.\n"
+                "\"amount\"                 (number) amount sent.\n"
                 "\nExamples:\n"
-                + HelpExampleCli("spendvault", "")
-                + HelpExampleCli("spendvault", "")
+                + HelpExampleCli("spendvault", "2NFg1HWEUKd7ipSjnmMVUySXgQ18MeUChyz 5 1NAg1HWEUKd7ipSjnmMVUySXgQ18Mezfjyz")
                 );
     }
 
