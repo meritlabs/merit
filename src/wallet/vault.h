@@ -19,6 +19,8 @@ namespace vault
 using VaultCoin = std::pair<COutPoint, Coin>;
 using VaultCoins = std::vector<VaultCoin>;
 using VaultOutputs = std::vector<COutPoint>;
+using WhitelistAddress = std::vector<unsigned char>;
+using Whitelist = std::vector<WhitelistAddress>;
 
 VaultOutputs GetUnspentOutputs(CCoinsViewCache& view, const VaultOutputs& outputs);
 VaultCoins GetUnspentCoins(CCoinsViewCache& view, const VaultOutputs& unspent);
@@ -36,6 +38,7 @@ struct Vault
     CScript script;
     CPubKey spend_pub_key;
     CPubKey renew_pub_key;
+    Whitelist whitelist;
 };
 
 using Vaults = std::vector<Vault>;

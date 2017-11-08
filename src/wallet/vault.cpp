@@ -128,20 +128,33 @@ Vault ParseVaultCoin(const VaultCoin& coin)
     vault.type = type_num.getint();
 
     if(vault.type == 0 /* simple */) {
+        const int stack_size = stack.size();
 
-        if(stack.size() < 5) {
+        if(stack_size < 5) {
             throw JSONRPCError(
                     RPC_TYPE_ERROR,
                     "Simple vault requires 5 or more parameters.");
         }
 
-        const auto& vault_tag = stack[stack.size() - 2];
+        const auto& vault_tag = stack[stack_size - 2];
         vault.tag = uint160{vault_tag};
 
-        CScriptNum num_addresses(stack[stack.size() - 3], false);
+        const auto num_address_idx = stack_size - 3;
+        CScriptNum script_num_addresses(stack[num_address_idx], false);
+        auto num_addresses = script_num_addresses.getint();
+
+        if(stack_size < 3 + num_addresses) {
+            throw JSONRPCError(
+                    RPC_MISC_ERROR,
+                    "Vault seems to be incompatible");
+        }
+
+        for(int i = num_address_idx - num_addresses; i < num_address_idx; i++) {
+            vault.whitelist.push_back(stack[i]);
+        }
 
         auto vault_script = 
-            GetScriptForSimpleVault(uint160{vault_tag}, num_addresses.getint());
+            GetScriptForSimpleVault(uint160{vault_tag}, num_addresses);
 
         vault.script = vault_script;
         vault.spend_pub_key.Set(stack[0]);
