@@ -13,6 +13,8 @@
 #include "primitives/transaction.h"
 #include "primitives/block.h"
 
+#include <numeric>
+
 /** "reject" message codes */
 static const unsigned char REJECT_MALFORMED = 0x01;
 static const unsigned char REJECT_INVALID = 0x10;
@@ -93,6 +95,27 @@ public:
 static inline int64_t GetTransactionWeight(const CTransaction& tx)
 {
     return ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) * (WITNESS_SCALE_FACTOR -1) + ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
+}
+
+static inline int64_t GetReferralWeight(const referral::Referral& ref)
+{
+    return ::GetSerializeSize(ref, SER_NETWORK, PROTOCOL_VERSION) * WITNESS_SCALE_FACTOR;
+}
+
+static inline int64_t GetTransactionsWeight(const CBlock& block)
+{
+    return std::accumulate(block.vtx.begin(), block.vtx.end(), 0,
+        [](uint64_t acc, const CTransactionRef tx) {
+            return acc + GetTransactionWeight(*tx);
+        });
+}
+
+static inline int64_t GetReferralsWeight(const CBlock& block)
+{
+    return std::accumulate(block.m_vRef.begin(), block.m_vRef.end(), 0,
+        [](uint64_t acc, const referral::ReferralRef ref) {
+            return acc + GetReferralWeight(*ref);
+        });
 }
 
 static inline int64_t GetBlockWeight(const CBlock& block)

@@ -298,7 +298,18 @@ bool BlockAssembler::TestPackageTransactions(const CTxMemPool::setEntries& packa
             return false;
         if (fNeedSizeAccounting) {
             uint64_t nTxSize = ::GetSerializeSize(it->GetTx(), SER_NETWORK, PROTOCOL_VERSION);
-            if (nPotentialBlockSize + nTxSize >= nBlockMaxSize) {
+
+            printf("\n");
+            printf("\n");
+            printf("\n");
+            printf("nTxSize: %llu\n", nTxSize);
+            printf("nPotentialBlockSize: %llu\n", nPotentialBlockSize);
+            printf("\n");
+            printf("\n");
+            printf("\n");
+
+            // share block size by transactions and referrals
+            if (nPotentialBlockSize + nTxSize >= nBlockMaxSize / 2) {
                 return false;
             }
             nPotentialBlockSize += nTxSize;
@@ -384,8 +395,35 @@ void BlockAssembler::SortForBlock(const CTxMemPool::setEntries& package, CTxMemP
 
 void BlockAssembler::AddReferrals()
 {
-    for(auto const &ref: mempoolReferral.mapRTx) {
+    uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
+
+    for (auto const& ref : mempoolReferral.mapRTx) {
+        uint64_t nRefSize = ::GetSerializeSize(*ref.second, SER_NETWORK, PROTOCOL_VERSION);
+
+        printf("\n");
+        printf("\n");
+        printf("\n");
+        printf("nRefSize: %llu\n", nRefSize);
+        printf("nPotentialBlockSize: %llu\n", nPotentialBlockSize);
+        printf("\n");
+        printf("\n");
+        printf("\n");
+
+        if (fNeedSizeAccounting) {
+            // share block size by transactions and referrals
+            if (nPotentialBlockSize + nRefSize >= nBlockMaxSize / 2) {
+                break;
+            }
+            nPotentialBlockSize += nRefSize;
+        }
+
         pblock->m_vRef.push_back(ref.second);
+        if (fNeedSizeAccounting) {
+            nBlockSize = nPotentialBlockSize;
+        }
+
+        nBlockWeight += GetReferralWeight(*ref.second);
+
         ++nBlockRef;
     }
 }
