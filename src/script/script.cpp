@@ -73,12 +73,12 @@ const char* GetOpName(opcodetype opcode)
     case OP_TUCK                   : return "OP_TUCK";
     case OP_NTOALTSTACK            : return "OP_NTOALTSTACK";
     case OP_NFROMALTSTACK          : return "OP_NFROMALTSTACK";
+    case OP_NREPEAT                : return "OP_NREPEAT";
 
     // splice ops
     case OP_SIZE                   : return "OP_SIZE";
 
     // bit logic
-    case OP_AND                    : return "OP_AND";
     case OP_OR                     : return "OP_OR";
     case OP_XOR                    : return "OP_XOR";
     case OP_EQUAL                  : return "OP_EQUAL";

@@ -112,12 +112,12 @@ enum opcodetype : short
     OP_NDUP = 0x7e,
     OP_NTOALTSTACK = 0x7f,
     OP_NFROMALTSTACK = 0x80,
+    OP_NREPEAT = 0x84,
 
     // splice ops
     OP_SIZE = 0x82,
 
     // bit logic
-    OP_AND = 0x84,
     OP_OR = 0x85,
     OP_XOR = 0x86,
     OP_EQUAL = 0x87,
@@ -197,7 +197,7 @@ enum opcodetype : short
 };
 
 // Maximum value that an opcode can be
-static const unsigned int MAX_OPCODE = OP_NOP10;
+static const short MAX_OPCODE = OP_NOP10;
 
 const char* GetOpName(opcodetype opcode);
 

@@ -447,8 +447,7 @@ bool EvalScript(
             if (opcode > OP_16 && ++nOpCount > MAX_OPS_PER_SCRIPT)
                 return set_error(serror, SCRIPT_ERR_OP_COUNT);
 
-            if (opcode == OP_AND ||
-                opcode == OP_OR ||
+            if (opcode == OP_OR ||
                 opcode == OP_XOR ||
                 opcode == OP_2MUL ||
                 opcode == OP_2DIV ||
@@ -852,6 +851,23 @@ bool EvalScript(
                         auto end = stack.size();
                         for(size_t i = start; i < end; i++)
                             stack.push_back(stack[i]);
+                    }
+                    break;
+                    case OP_NREPEAT:
+                    {
+                        // (x n - x x x ... n)
+                        int n = 0;
+                        if(!Pop(stack, n, serror))
+                            return false;
+
+                        if (n < 0 || stack.size() < 2)
+                            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+
+                        if (stack.size() + altstack.size() + n > MAX_STACK_SIZE)
+                            return set_error(serror, SCRIPT_ERR_STACK_SIZE);
+
+                        const auto elem = stacktop(-1);
+                        while(n--) stack.push_back(elem);
                     }
                     break;
                     case OP_NIP:
@@ -1319,26 +1335,29 @@ bool EvalScript(
                     case OP_CHECKOUTPUTSIGVERIFY:
                     case OP_CHECKOUTPUTSIG:
                     {
+                        // ( [arg1 arg2 ... argN num_args ] output_index add1 add2 .. addN num_addresses-- bool)
                         size_t possible_address_count = 0;
                         if(!Pop(stack, possible_address_count, serror)) 
                             return false;
 
-                        if(possible_address_count < 1)
+                        if(possible_address_count < 1 || possible_address_count > stack.size()) {
                             return set_error(serror, SCRIPT_ERR_BAD_ADDRESS_COUNT);
+                        }
 
                         std::vector<uint160> possible_addresses(possible_address_count);
                         std::generate_n(std::begin(possible_addresses), possible_address_count, 
                                 [&stack, &script, serror]() {
-                                    valtype addr_bytes;
-                                    if(!Pop(stack, addr_bytes, serror))
-                                        throw std::runtime_error{"popstack(): expected key"};
+                                    valtype address;
+                                    auto popped = Pop(stack, address, serror);
+
+                                    assert(popped);
 
                                     //Either the possible addresses are a hash of 
                                     //the script coming into VerifyScript or a specific
                                     //address
-                                    return addr_bytes.size() != 20 ?
+                                    return address.size() != 20 ?
                                             Hash160(script.begin(), script.end()) : 
-                                            uint160{addr_bytes};
+                                            uint160{address};
                                 });
 
                         int output_index = 0;
@@ -1413,6 +1432,10 @@ bool EvalScript(
                                     output_param_script,
                                     flags,
                                     serror)) {
+                                BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
+                            }
+
+                            if(param_size != output_stack.size()) {
                                 BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
                             }
 
@@ -1905,12 +1928,12 @@ bool VerifyScript(
 
     set_error(serror, SCRIPT_ERR_UNKNOWN_ERROR);
 
-    if ((flags & SCRIPT_VERIFY_SIGPUSHONLY) != 0 && !scriptSig.IsPushOnly()) {
+    if (!scriptSig.IsPushOnly()) {
         return set_error(serror, SCRIPT_ERR_SIG_PUSHONLY);
     }
 
     Stack stack, stackCopy;
-    if (!EvalScript(stack, scriptSig, flags, checker, SIGVERSION_BASE, serror))
+    if (!EvalPushOnlyScript(stack, scriptSig, flags, serror))
         // serror is set
         return false;
     if (flags & SCRIPT_VERIFY_P2SH)
@@ -1945,10 +1968,6 @@ bool VerifyScript(
     {
         //TODO: Do beacon verification here. 
         
-        // scriptSig must be literals-only or validation fails
-        if (!scriptSig.IsPushOnly())
-            return set_error(serror, SCRIPT_ERR_SIG_PUSHONLY);
-
         // Restore stack.
         swap(stack, stackCopy);
 
@@ -1988,11 +2007,7 @@ bool VerifyScript(
     // specified in the scriptPubKey to the script in the scriptSig
     } else if (scriptPubKey.IsParameterizedPayToScriptHash()) {
 
-        if (!scriptSig.IsPushOnly())
-            return set_error(serror, SCRIPT_ERR_SIG_PUSHONLY);
-
-        //at this point the stack should have only the params nessasary.
-        assert(!stack.empty());
+        //TODO: Do beacon verification here. 
 
         //swap stack back to what is was after evaluating scriptSig
         swap(stack, stackCopy);
@@ -2001,7 +2016,7 @@ bool VerifyScript(
 
         //pop off the serialized script in the scriptSig
         const valtype& serialized_script = stack.back();
-        CScript original_pubkey(serialized_script.begin(), serialized_script.end());
+        CScript redeem_script(serialized_script.begin(), serialized_script.end());
         popstack(stack);
 
         //Even though we already have the params of the stack we need
@@ -2028,16 +2043,16 @@ bool VerifyScript(
 
         //execute the deserialized script with params at the top of the stack.
         //The script can then pop off params and use them in operands
-        if (!EvalScript(stack, original_pubkey, flags, checker, SIGVERSION_BASE, serror))
+        if (!EvalScript(stack, redeem_script, flags, checker, SIGVERSION_BASE, serror))
             return false;
         if (stack.empty())
             return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
         if (!CastToBool(stack.back()))
             return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
         
-        if ((flags & SCRIPT_VERIFY_WITNESS) && original_pubkey.IsWitnessProgram(witnessversion, witnessprogram)) {
+        if ((flags & SCRIPT_VERIFY_WITNESS) && redeem_script.IsWitnessProgram(witnessversion, witnessprogram)) {
             hadWitness = true;
-            if (scriptSig != CScript() << std::vector<unsigned char>(original_pubkey.begin(), original_pubkey.end())) {
+            if (scriptSig != CScript() << std::vector<unsigned char>(redeem_script.begin(), redeem_script.end())) {
                 // The scriptSig must be _exactly_ a single push of the redeemScript. Otherwise we
                 // reintroduce malleability.
                 return set_error(serror, SCRIPT_ERR_WITNESS_MALLEATED_P2SH);
