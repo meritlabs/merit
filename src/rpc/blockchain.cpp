@@ -1273,36 +1273,6 @@ UniValue verifychain(const JSONRPCRequest& request)
     return CVerifyDB().VerifyDB(Params(), pcoinsTip, nCheckLevel, nCheckDepth);
 }
 
-/** Implementation of IsSuperMajority with better feedback */
-static UniValue SoftForkMajorityDesc(int version, CBlockIndex* pindex, const Consensus::Params& consensusParams)
-{
-    UniValue rv(UniValue::VOBJ);
-    bool activated = false;
-    switch(version)
-    {
-        case 2:
-            activated = pindex->nHeight >= consensusParams.BIP34Height;
-            break;
-        case 3:
-            activated = pindex->nHeight >= consensusParams.BIP66Height;
-            break;
-        case 4:
-            activated = pindex->nHeight >= consensusParams.BIP65Height;
-            break;
-    }
-    rv.push_back(Pair("status", activated));
-    return rv;
-}
-
-static UniValue SoftForkDesc(const std::string &name, int version, CBlockIndex* pindex, const Consensus::Params& consensusParams)
-{
-    UniValue rv(UniValue::VOBJ);
-    rv.push_back(Pair("id", name));
-    rv.push_back(Pair("version", version));
-    rv.push_back(Pair("reject", SoftForkMajorityDesc(version, pindex, consensusParams)));
-    return rv;
-}
-
 UniValue getblockchaininfo(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 0)
@@ -1321,31 +1291,6 @@ UniValue getblockchaininfo(const JSONRPCRequest& request)
             "  \"chainwork\": \"xxxx\"     (string) total amount of work in active chain, in hexadecimal\n"
             "  \"pruned\": xx,             (boolean) if the blocks are subject to pruning\n"
             "  \"pruneheight\": xxxxxx,    (numeric) lowest-height complete block stored\n"
-            "  \"softforks\": [            (array) status of softforks in progress\n"
-            "     {\n"
-            "        \"id\": \"xxxx\",        (string) name of softfork\n"
-            "        \"version\": xx,         (numeric) block version\n"
-            "        \"reject\": {            (object) progress toward rejecting pre-softfork blocks\n"
-            "           \"status\": xx,       (boolean) true if threshold reached\n"
-            "        },\n"
-            "     }, ...\n"
-            "  ],\n"
-            "  \"bip9_softforks\": {          (object) status of BIP9 softforks in progress\n"
-            "     \"xxxx\" : {                (string) name of the softfork\n"
-            "        \"status\": \"xxxx\",    (string) one of \"defined\", \"started\", \"locked_in\", \"active\", \"failed\"\n"
-            "        \"bit\": xx,             (numeric) the bit (0-28) in the block version field used to signal this softfork (only for \"started\" status)\n"
-            "        \"startTime\": xx,       (numeric) the minimum median time past of a block at which the bit gains its meaning\n"
-            "        \"timeout\": xx,         (numeric) the median time past of a block at which the deployment is considered failed if not yet locked in\n"
-            "        \"since\": xx,           (numeric) height of the first block to which the status applies\n"
-            "        \"statistics\": {        (object) numeric statistics about BIP9 signalling for a softfork (only for \"started\" status)\n"
-            "           \"period\": xx,       (numeric) the length in blocks of the BIP9 signalling period \n"
-            "           \"threshold\": xx,    (numeric) the number of blocks with the version bit set required to activate the feature \n"
-            "           \"elapsed\": xx,      (numeric) the number of blocks elapsed since the beginning of the current period \n"
-            "           \"count\": xx,        (numeric) the number of blocks with the version bit set in the current period \n"
-            "           \"possible\": xx      (boolean) returns false if there are not enough blocks left in this period to pass activation threshold \n"
-            "        }\n"
-            "     }\n"
-            "  }\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getblockchaininfo", "")
@@ -1367,13 +1312,6 @@ UniValue getblockchaininfo(const JSONRPCRequest& request)
 
     const Consensus::Params& consensusParams = Params().GetConsensus();
     CBlockIndex* tip = chainActive.Tip();
-    UniValue softforks(UniValue::VARR);
-    UniValue bip9_softforks(UniValue::VOBJ);
-    softforks.push_back(SoftForkDesc("bip34", 2, tip, consensusParams));
-    softforks.push_back(SoftForkDesc("bip66", 3, tip, consensusParams));
-    softforks.push_back(SoftForkDesc("bip65", 4, tip, consensusParams));
-    obj.push_back(Pair("softforks",             softforks));
-    obj.push_back(Pair("bip9_softforks", bip9_softforks));
 
     if (fPruneMode)
     {
