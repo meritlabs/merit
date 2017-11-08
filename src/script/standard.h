@@ -12,6 +12,7 @@
 
 #include <boost/variant.hpp>
 
+#include <initializer_list>
 #include <stdint.h>
 
 static const bool DEFAULT_ACCEPT_DATACARRIER = true;
@@ -156,15 +157,85 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses);
  */
 CScript GetParameterizedP2SH(const CScriptID& dest);
 
+/**
+ * This can be used to expand a vector of elements in the GetParameterizedP2SH
+ * like so.
+ *
+ * Example:
+ *      std::vector<int> a = { 1,2,3};
+ *      GetParameterizedP2SH(destination, param1, param2, ExpandParam(a));
+ *
+ * is the same as
+ *
+ *      GetParameterizedP2SH(destination, param1, param2, 1, 2, 3);
+ *
+ */
+template <class Elem>
+struct ExpandParamT {
+    using Vec = std::vector<Elem>;
+    Vec params;
+
+    explicit ExpandParamT() : params() {}
+    explicit ExpandParamT(const Vec& v) : params(v) {}
+
+    template<class Iterator>
+    explicit ExpandParamT(Iterator begin, Iterator end) :
+        params(begin, end) {}
+
+    explicit ExpandParamT(std::initializer_list<Elem> lst) :
+        params(lst.begin(). lst.end()) {}
+};
+
+template<class Elem>
+ExpandParamT<Elem> ExpandParam(const std::vector<Elem>& v)
+{
+    return ExpandParam<Elem>(v);
+}
+
 namespace details
 {
-    void AppendParameterizedP2SH(CScript&, size_t&);
+    void AppendParameterizedP2SHTrampoline(CScript&, size_t&);
 
     template <class Param, class... Params>
-    void AppendParameterizedP2SH(CScript& script, size_t& size, Param p, Params... ps)
+    void AppendParameterizedP2SHTrampoline(
+            CScript& script,
+            size_t& size,
+            Param p,
+            Params... ps);
+
+    template <class Elem, class... Params>
+    void AppendParameterizedP2SH(
+            CScript& script,
+            size_t& size,
+            const ExpandParamT<Elem>& v,
+            Params... ps)
+    {
+        for(const auto& e : v.params) {
+            size++;
+            script << e;
+        }
+        AppendParameterizedP2SHTrampoline(script, size, ps...);
+    }
+
+    template <class Param, class... Params>
+    void AppendParameterizedP2SH(
+            CScript& script,
+            size_t& size,
+            Param p,
+            Params... ps)
     {
         size++;
         script << p;
+        AppendParameterizedP2SHTrampoline(script, size, ps...);
+    }
+
+    template <class Param, class... Params>
+    void AppendParameterizedP2SHTrampoline(
+            CScript& script,
+            size_t& size,
+            Param p,
+            Params... ps)
+    {
         AppendParameterizedP2SH(script, size, ps...);
     }
 }
@@ -176,7 +247,7 @@ CScript GetParameterizedP2SH(const CScriptID& dest, Params... ps)
 {
     auto script = GetParameterizedP2SH(dest);
     size_t size = 0;
-    details::AppendParameterizedP2SH(script, size, ps...);
+    details::AppendParameterizedP2SHTrampoline(script, size, ps...);
     script << OP_DEPTH << size << OP_GREATERTHANOREQUAL;
     return script;
 }

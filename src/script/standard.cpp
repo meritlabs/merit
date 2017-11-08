@@ -392,7 +392,7 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
 
 namespace details
 {
-    void AppendParameterizedP2SH(CScript&, size_t&) 
+    void AppendParameterizedP2SHTrampoline(CScript&, size_t&)
     {
         // nothing to append
     }
