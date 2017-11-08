@@ -444,6 +444,24 @@ CScript GetScriptForWitness(const CScript& redeemscript)
     return ret;
 }
 
-bool IsValidDestination(const CTxDestination& dest) {
+bool IsValidDestination(const CTxDestination& dest)
+{
     return dest.which() != 0;
+}
+
+bool GetUint160(const CTxDestination& dest, uint160& addr)
+{
+    if(!IsValidDestination(dest)) {
+        return false;
+    }
+
+    if(auto key_id = boost::get<CKeyID>(&dest)) {
+        addr = *key_id;
+    } else if (auto script_id = boost::get<CScriptID>(&dest)) { 
+        addr = *script_id;
+    } else { 
+        assert(false && "forgot to implement a case");
+    }
+
+    return true;
 }

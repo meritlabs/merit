@@ -88,6 +88,9 @@ typedef boost::variant<CNoDestination, CKeyID, CScriptID> CTxDestination;
 /** Check whether a CTxDestination is a CNoDestination. */
 bool IsValidDestination(const CTxDestination& dest);
 
+/** returns the uin160 from the CKeyID or CScriptID if it is a valid destination */
+bool GetUint160(const CTxDestination& dest, uint160& addr);
+
 /** Get the name of a txnouttype as a C string, or nullptr if unknown. */
 const char* GetTxnOutputType(txnouttype t);
 

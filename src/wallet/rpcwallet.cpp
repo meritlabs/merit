@@ -962,11 +962,7 @@ void ExtractWhitelist(const UniValue& options, Whitelist& whitelist)
         auto address_str = list[i].get_str();
         auto dest =  DecodeDestination(address_str);
         uint160 address;
-        if(auto key_id = boost::get<CKeyID>(&dest)) {
-            address = *key_id;
-        } else if(auto script_id = boost::get<CKeyID>(&dest)) {
-            address = *script_id;
-        } else {
+        if(!GetUint160(dest, address)) {
             std::stringstream e;
             e << "The whitelist element \"" << address_str << "\" is not a valid address";
             throw JSONRPCError(RPC_TYPE_ERROR, e.str());
@@ -1111,13 +1107,12 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() != 3) {
         throw std::runtime_error(
-                "renewvault vault_address master_sk master_pk\n"
+                "renewvault vault_address master_sk \n"
                 "\nCreate a simple vault with a specific amount.\n"
                 + HelpRequiringPassphrase(pwallet) +
                 "\nArguments:\n"
                 "1. \"vault_address\"      (string) Address of the vault.\n"
                 "2. \"master_sk\"          (string) The master secret key.\n"
-                "3. \"master_pk\"          (string) The master public key.\n"
                 "\nResult:\n"
                 "\"txid\"                  (string) The transaction id.\n"
                 "\"amount\"          (string) Address of the vault.\n"
@@ -1146,10 +1141,7 @@ UniValue renewvault(const JSONRPCRequest& request)
         auto master_sk_data = ParseHex(request.params[1].get_str());
         CPrivKey master_sk(master_sk_data.begin(), master_sk_data.end());
 
-        auto master_pk_data = ParseHex(request.params[2].get_str());
-        CPubKey master_pk(master_pk_data.begin(), master_pk_data.end());
-
-        if(!master_key.Load(master_sk, master_pk, false)) {
+        if(!master_key.Load(master_sk, true)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid renew key");
         }
     }
@@ -1270,7 +1262,7 @@ UniValue spendvault(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() != 2) {
+    if (request.fHelp || request.params.size() != 3) {
         throw std::runtime_error(
                 "spendvault vault_address amount destination_address\n"
                 "\nSpends the amount specified to the destination address.\n"
@@ -1290,20 +1282,27 @@ UniValue spendvault(const JSONRPCRequest& request)
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    std::string address = request.params[0].get_str();
+    std::string vault_address = request.params[0].get_str();
 
     CAmount amount = AmountFromValue(request.params[1]);
     if (amount <= 0)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
 
-    CTxDestination dest = DecodeDestination(address);
-    if (!IsValidDestination(dest)) {
-        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
+    std::string dest_address = request.params[2].get_str();
+
+    CTxDestination vault_dest = DecodeDestination(vault_address);
+    if (!IsValidDestination(vault_dest)) {
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid vault address");
     }
 
-    auto script_id = boost::get<CScriptID>(&dest);
+    CTxDestination dest = DecodeDestination(dest_address);
+    if (!IsValidDestination(dest)) {
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid destination address");
+    }
+
+    auto script_id = boost::get<CScriptID>(&vault_dest);
     if(!script_id) {
-        throw JSONRPCError(RPC_TYPE_ERROR, "Script Address Required");
+        throw JSONRPCError(RPC_TYPE_ERROR, "The vault address must be a script address");
     }
 
     auto unspent_coins = vault::FindUnspentVaultCoins(*script_id);
@@ -1355,9 +1354,7 @@ UniValue spendvault(const JSONRPCRequest& request)
     //the first is the spend key and the second is the vault where changes goes into.
     bool subtract_fee_from_amount = true;
 
-    //TODO: This will be param in rpc call since we will have a list.
-    auto spend_address = vaults[0].spend_pub_key.GetID();
-    auto scriptPubKey = GetScriptForDestination(spend_address);
+    auto scriptPubKey = GetScriptForDestination(dest);
 
     std::vector<CRecipient> recipients = {
         {scriptPubKey, amount, subtract_fee_from_amount},
@@ -1392,6 +1389,8 @@ UniValue spendvault(const JSONRPCRequest& request)
     assert(wtx.tx);
 
     CMutableTransaction mtx{*wtx.tx};
+
+    const auto spend_address = vaults[0].spend_pub_key.GetID();
 
     CKey spend_key;
     if (!pwallet->GetKey(spend_address, spend_key)) { 
@@ -4253,10 +4252,9 @@ UniValue getanv(const JSONRPCRequest& request)
         for(size_t i = 0; i < request.params.size(); i++) {
             auto key_hex_str = request.params[i].get_str();
             auto dest = DecodeDestination(key_hex_str);
-            if(auto key = boost::get<CKeyID>(&dest)) {
-                keys.push_back(*key);
-            } else if (auto script_id = boost::get<CScriptID>(&dest)){
-                keys.push_back(*script_id);
+            uint160 key;
+            if(GetUint160(dest, key)) {
+                keys.push_back(key);
             }
         }
     }
