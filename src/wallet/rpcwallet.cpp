@@ -1224,7 +1224,8 @@ UniValue renewvault(const JSONRPCRequest& request)
                 if(!new_master_key.Load(master_sk, master_pub_key, false)) {
                     throw JSONRPCError(
                             RPC_INVALID_PARAMS,
-                            "The new master public key provided isn't a valid public key.");
+                            "The new master private key provided isn't a valid"
+                            " private key given the public key provided.");
                 }
             }
 
