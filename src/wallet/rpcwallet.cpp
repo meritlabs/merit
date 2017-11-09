@@ -1202,6 +1202,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
             vault::Whitelist whitelist = vault.whitelist;
             if(options.exists("whitelist")) {
+                whitelist.clear();
                 ExtractWhitelist(options, whitelist);
             }
 
@@ -1229,8 +1230,8 @@ UniValue renewvault(const JSONRPCRequest& request)
 
             if(whitelist.size() != vault.whitelist.size()) {
                 std::stringstream e;
-                e << "New whitelist must be the same size as the old whitelist. Old size is " 
-                  << vault.whitelist.size() << " entries.";
+                e << "New whitelist must be the same size as the old whitelist. Expected " 
+                  << vault.whitelist.size() << " entries but got" << whitelist.size();
                     throw JSONRPCError(
                             RPC_INVALID_PARAMS,
                             e.str());
