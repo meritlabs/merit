@@ -329,6 +329,14 @@ bool EvalPushOnlyScript(
             if (!script.GetOp(pc, opcode, vchPushValue))
                 return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
 
+#ifdef DEBUG
+            debug("Executing Push Opcode: %s",OpcodeToStr(opcode, vchPushValue)); 
+
+            for(size_t c = 0; c < stack.size(); c++) {
+                 debug("\tstack %d: %s", c, HexStr(stack[stack.size() - 1 - c]));
+            }
+#endif
+
             if (vchPushValue.size() > MAX_SCRIPT_ELEMENT_SIZE)
                 return set_error(serror, SCRIPT_ERR_PUSH_SIZE);
 

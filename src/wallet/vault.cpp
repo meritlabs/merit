@@ -131,9 +131,14 @@ Vault ParseVaultCoin(const VaultCoin& coin)
         const int stack_size = stack.size();
 
         if(stack_size < 5) {
+            std::stringstream e;
+            e << "Simple vault requires 5 or more parameters. " 
+              << stack_size 
+              << " were provided"; 
+
             throw JSONRPCError(
                     RPC_TYPE_ERROR,
-                    "Simple vault requires 5 or more parameters.");
+                    e.str());
         }
 
         const auto& vault_tag = stack[stack_size - 2];

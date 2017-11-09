@@ -950,7 +950,7 @@ UniValue easyreceive(const JSONRPCRequest& request)
 
 void ExtractWhitelist(const UniValue& options, vault::Whitelist& whitelist)
 {
-    const auto& list = options["whitelist"];
+    const auto list = options["whitelist"].get_array();
     if(!list.isArray()) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Whitelist must be a list");
     }
@@ -1011,8 +1011,10 @@ UniValue createvault(const JSONRPCRequest& request)
 
     std::string type = "simple";
     UniValue options;
-    if(!request.params[1].isNull())
-        options = request.params[1];
+    if(!request.params[1].isNull()) {
+        RPCTypeCheck(request.params, {UniValue::VSTR, UniValue::VOBJ});
+        options = request.params[1].get_obj();
+    }
 
     vault::Whitelist whitelist;
 
@@ -1050,7 +1052,7 @@ UniValue createvault(const JSONRPCRequest& request)
 
         //If the whitelist is not specified, just whitelist the spend key address.
         if(whitelist.empty()) {
-            whitelist.push_back(ToByteVector(master_pub_key_id));
+            whitelist.push_back(ToByteVector(spend_pub_key_id));
         }
 
         CScriptID script_id = vault_script;
@@ -1104,17 +1106,25 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() != 2) {
         throw std::runtime_error(
-                "renewvault vault_address master_sk \n"
+                "renewvault vault_address master_sk (options)\n"
                 "\nCreate a simple vault with a specific amount.\n"
                 + HelpRequiringPassphrase(pwallet) +
                 "\nArguments:\n"
                 "1. \"vault_address\"      (string) Address of the vault.\n"
                 "2. \"master_sk\"          (string) The master secret key.\n"
+                "3. \"options\"            (json object) Options about which parts of the vault to change.\n"
+                "       {\n"
+                "           \"whitelist\": [\"addr1\", ...],\n"
+                "           \"master_sk\": \"master secret key in hex\",\n"
+                "           \"master_pk\": \"master public key in hex\",\n"
+                "           \"spend_pk\": \"master public key in hex\"\n"
+                "       }\n"
                 "\nResult:\n"
                 "\"txid\"                  (string) The transaction id.\n"
                 "\"amount\"          (string) Address of the vault.\n"
                 "\nExamples:\n"
-                + HelpExampleCli("renewvault", "2NFg1HWEUKd7ipSjnmMVUySXgQ18MeUChyz <master secrety key> <master public key>")
+                + HelpExampleCli("renewvault", "2NFg1HWEUKd7ipSjnmMVUySXgQ18MeUChyz <master secrety key>")
+                + HelpExampleCli("renewvault", "2NFg1HWEUKd7ipSjnmMVUySXgQ18MeUChyz <master secrety key> '{\"whitelist\":[\"mjFifGXWS9JptwS2D2UjQAjG4G6jQqwXc9\"]}'")
                 );
     }
 
@@ -1144,8 +1154,10 @@ UniValue renewvault(const JSONRPCRequest& request)
     }
 
     UniValue options;
-    if(!request.params[2].isNull())
-        options = request.params[2];
+    if(!request.params[2].isNull()) {
+        RPCTypeCheck(request.params, {UniValue::VSTR, UniValue::VSTR, UniValue::VOBJ});
+        options = request.params[2].get_obj();
+    }
 
     auto unspent_coins = vault::FindUnspentVaultCoins(*script_id);
 
@@ -4522,7 +4534,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "sendtoaddress",            &sendtoaddress,            {"address","amount","comment","comment_to","subtractfeefromamount","replaceable","conf_target","estimate_mode"} },
     { "wallet",             "easysend",                 &easysend,                 {"amount", "password"} },
     { "wallet",             "easyreceive",              &easyreceive,              {"secret", "senderpubkey", "password"} },
-    { "wallet",             "createvault",              &createvault,              {} },
+    { "wallet",             "createvault",              &createvault,              {"amount", "options"} },
     { "wallet",             "renewvault",               &renewvault,               {} },
     { "wallet",             "spendvault",               &spendvault,               {} },
     { "wallet",             "setaccount",               &setaccount,               {"address","account"} },

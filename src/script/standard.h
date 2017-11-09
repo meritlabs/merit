@@ -178,32 +178,23 @@ struct ExpandParamT {
     using Vec = std::vector<Elem>;
     Vec params;
 
-    explicit ExpandParamT() : params() {}
     explicit ExpandParamT(const Vec& v) : params(v) {}
-
-    template<class Iterator>
-    explicit ExpandParamT(Iterator begin, Iterator end) :
-        params(begin, end) {}
-
-    explicit ExpandParamT(std::initializer_list<Elem> lst) :
-        params(lst.begin(). lst.end()) {}
 };
 
 template<class Elem>
 ExpandParamT<Elem> ExpandParam(const std::vector<Elem>& v)
 {
-    return ExpandParam<Elem>(v);
+    return ExpandParamT<Elem>(v);
 }
 
 namespace details
 {
     void AppendParameterizedP2SHTrampoline(CScript&, size_t&);
 
-    template <class Param, class... Params>
+    template <class... Params>
     void AppendParameterizedP2SHTrampoline(
             CScript& script,
             size_t& size,
-            Param p,
             Params... ps);
 
     template <class Elem, class... Params>
@@ -224,7 +215,7 @@ namespace details
     void AppendParameterizedP2SH(
             CScript& script,
             size_t& size,
-            Param p,
+            const Param& p,
             Params... ps)
     {
         size++;
@@ -232,11 +223,10 @@ namespace details
         AppendParameterizedP2SHTrampoline(script, size, ps...);
     }
 
-    template <class Param, class... Params>
+    template <class... Params>
     void AppendParameterizedP2SHTrampoline(
             CScript& script,
             size_t& size,
-            Param p,
             Params... ps)
     {
         AppendParameterizedP2SH(script, size, ps...);
