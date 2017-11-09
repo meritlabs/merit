@@ -1104,7 +1104,7 @@ UniValue renewvault(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() != 2) {
+    if (request.fHelp || request.params.size() < 2) {
         throw std::runtime_error(
                 "renewvault vault_address master_sk (options)\n"
                 "\nCreate a simple vault with a specific amount.\n"
