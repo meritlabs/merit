@@ -300,9 +300,6 @@ bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactio
         if (fNeedSizeAccounting) {
             uint64_t nTxSize = ::GetSerializeSize(it->GetTx(), SER_NETWORK, PROTOCOL_VERSION);
 
-            printf("nTxSize: %llu\n", nTxSize);
-            printf("nPotentialBlockSize: %llu\n", nPotentialBlockSize);
-
             // share block size by transactions and referrals
             if (nPotentialBlockSize + nTxSize >= nBlockMaxSize) {
                 return false;
@@ -314,9 +311,6 @@ bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactio
     if (fNeedSizeAccounting) {
         for (const auto& ref: referrals) {
             uint64_t nRefSize = ::GetSerializeSize(*ref, SER_NETWORK, PROTOCOL_VERSION);
-
-            printf("nRefSize: %llu\n", nRefSize);
-            printf("nPotentialBlockSize: %llu\n", nPotentialBlockSize);
 
             // share block size by transactions and referrals
             if (nPotentialBlockSize + nRefSize >= nBlockMaxSize) {
@@ -524,13 +518,8 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
             packageSize = modit->nSizeWithAncestors + modit->nSizeReferrals;
             packageFees = modit->nModFeesWithAncestors;
             packageSigOpsCost = modit->nSigOpCostWithAncestors;
-            printf("packageSize: %llu, nSizeWithAncestors: %llu, nSizeReferrals: %llu\n", packageSize, modit->nSizeWithAncestors, modit->nSizeReferrals);
-
-        } else {
-            printf("packageSize: %llu, nSizeWithAncestors: %llu, nSizeReferrals: %llu\n", packageSize, iter->GetSizeWithAncestors(), iter->GetSizeReferrals());
 
         }
-
 
         if (packageFees < blockMinFeeRate.GetFee(packageSize)) {
             // Everything else we might consider has a lower fee rate
@@ -566,7 +555,6 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         ancestors.insert(iter);
 
         std::set<referral::ReferralRef> referrals;
-        printf("package referrals size: %lu\n", referrals.size());
         mempool.CalculateMemPoolAncestorsReferrals(ancestors, referrals);
 
         // Test if all tx's are Final

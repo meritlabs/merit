@@ -131,8 +131,6 @@ public:
     CAmount GetModFeesWithAncestors() const { return nModFeesWithAncestors; }
     int64_t GetSigOpCostWithAncestors() const { return nSigOpCostWithAncestors; }
 
-    void GetMempoolReferrals(std::set<referral::ReferralRef>& txReferrals);
-
     mutable size_t vTxHashesIdx; //!< Index in mempool's vTxHashes
 };
 

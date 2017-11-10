@@ -22,6 +22,49 @@
 
 #include <algorithm>
 
+void getMempoolReferralsOf(const CTransactionRef& tx, std::set<referral::ReferralRef>& txReferrals)
+{
+    const auto mempoolRefs = mempoolReferral.GetReferrals();
+
+    // check addresses used for vouts are beaconed
+    for (const auto& txout : tx->vout) {
+        CTxDestination dest;
+        if (!ExtractDestination(txout.scriptPubKey, dest) || !IsValidDestination(dest)) {
+            return;
+        }
+
+        if (boost::get<CNoDestination>(&dest)) {
+            return;
+        };
+
+        const auto key = boost::get<CKeyID>(&dest);
+        const auto script = boost::get<CScriptID>(&dest);
+
+        const referral::Address* addr = key ?
+                                            static_cast<referral::Address*>(key) :
+                                            static_cast<referral::Address*>(script);
+
+        assert(addr);
+
+        bool addressBeaconed = prefviewcache->WalletIdExists(*addr);
+
+        // check cache for beaconed address
+        if (addressBeaconed) {
+            continue;
+        }
+
+        // check mempoolReferral for beaconed address
+        const auto it = std::find_if(
+            mempoolRefs.begin(), mempoolRefs.end(),
+            [addr](const referral::ReferralRef& ref) {
+                return ref->m_pubKeyId == *addr;
+            });
+
+        if (it != mempoolRefs.end()) {
+            txReferrals.insert(*it);
+        }
+    }
+}
 
 namespace referral
 {
@@ -117,55 +160,17 @@ CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFe
 
     std::set<referral::ReferralRef> txReferrals;
 
-    GetMempoolReferrals(txReferrals);
+    getMempoolReferralsOf(GetSharedTx(), txReferrals);
 
     nCountWithAncestors = 1;
     nSizeWithAncestors = GetTxSize();
     nSizeReferrals = std::accumulate(txReferrals.begin(), txReferrals.end(), 0,
         [](uint64_t acc, const referral::ReferralRef& ref) {
             auto s = GetReferralWeight(*ref) / WITNESS_SCALE_FACTOR;
-            printf("ref weight: %llu, ref size: %llu\n", GetReferralWeight(*ref), s);
             return acc + GetReferralWeight(*ref) / WITNESS_SCALE_FACTOR;
         });
     nModFeesWithAncestors = nFee;
     nSigOpCostWithAncestors = sigOpCost;
-}
-
-void CTxMemPoolEntry::GetMempoolReferrals(std::set<referral::ReferralRef>& txReferrals)
-{
-    const auto mempoolRefs = mempoolReferral.GetReferrals();
-
-    // check addresses used for vouts are beaconed
-    for (const auto& txout : tx->vout) {
-        CTxDestination dest;
-        if (!ExtractDestination(txout.scriptPubKey, dest) || !IsValidDestination(dest)) {
-            return;
-        }
-
-        if(boost::get<CNoDestination>(&dest)) {
-            return;
-        };
-
-        const auto key = boost::get<CKeyID>(&dest);
-        const auto script = boost::get<CScriptID>(&dest);
-
-        const referral::Address* addr = key ?
-            static_cast<referral::Address*>(key) :
-            static_cast<referral::Address*>(script);
-
-        assert(addr);
-
-        // check mempoolReferral for beaconed address
-        const auto it = std::find_if(
-            mempoolRefs.begin(), mempoolRefs.end(),
-            [addr](const referral::ReferralRef& ref) {
-                return ref->m_pubKeyId == *addr;
-            });
-
-        if (it != mempoolRefs.end()) {
-            txReferrals.insert(*it);
-        }
-    }
 }
 
 void CTxMemPoolEntry::UpdateFeeDelta(int64_t newFeeDelta)
@@ -342,57 +347,11 @@ bool CTxMemPool::CalculateMemPoolAncestors(const CTxMemPoolEntry &entry, setEntr
     return true;
 }
 
-void getMempoolReferralsOf(const CTransactionRef& tx, std::set<referral::ReferralRef>& txReferrals)
-{
-    const auto mempoolRefs = mempoolReferral.GetReferrals();
-
-    printf("getMempoolReferralsOf. refs mempool size: %lu\n", mempoolRefs.size());
-
-    // check addresses used for vouts are beaconed
-    for (const auto& txout : tx->vout) {
-        CTxDestination dest;
-        if (!ExtractDestination(txout.scriptPubKey, dest) || !IsValidDestination(dest)) {
-            return;
-        }
-
-        if (boost::get<CNoDestination>(&dest)) {
-            return;
-        };
-
-        const auto key = boost::get<CKeyID>(&dest);
-        const auto script = boost::get<CScriptID>(&dest);
-
-        const referral::Address* addr = key ?
-                                            static_cast<referral::Address*>(key) :
-                                            static_cast<referral::Address*>(script);
-
-        assert(addr);
-
-        printf("addr: %s\n", addr->ToString().c_str());
-
-        // check mempoolReferral for beaconed address
-        const auto it = std::find_if(
-            mempoolRefs.begin(), mempoolRefs.end(),
-            [addr](const referral::ReferralRef& ref) {
-                return ref->m_pubKeyId == *addr;
-            });
-
-        if (it != mempoolRefs.end()) {
-            printf("found referral for vout addr: %s\n", addr->ToString().c_str());
-            txReferrals.insert(*it);
-        }
-    }
-
-    printf("txReferrals size: %lu\n", txReferrals.size());
-}
-
 bool CTxMemPool::CalculateMemPoolAncestorsReferrals(const setEntries& setAncestors, std::set<referral::ReferralRef>& ancestorsReferrals) const
 {
     for (const auto& tx: setAncestors) {
         getMempoolReferralsOf(tx->GetSharedTx(), ancestorsReferrals);
     }
-
-    printf("ancestorsReferrals size: %lu\n", ancestorsReferrals.size());
 }
 
 void CTxMemPool::UpdateAncestorsOf(bool add, txiter it, setEntries &setAncestors)
