@@ -403,44 +403,13 @@ bool CWallet::AddParamScript(const CScript& redeemScript)
     return CWalletDB(*dbw).WriteCScript(Hash160(redeemScript), redeemScript);
 }
 
-void LogRedeemScriptLengthError(const std::string& addr, size_t size) {
-        LogPrintf(
-            "%s: Warning: This wallet contains a redeemScript of size %i "
-            "which exceeds maximum size %i thus can never be redeemed. Do "
-            "not use address %s.\n",
-            __func__,
-            size,
-            MAX_SCRIPT_ELEMENT_SIZE,
-            addr);
-}
-
 bool CWallet::LoadCScript(const CScript& redeemScript)
 {
-    /* A sanity check was added in pull #3843 to avoid adding redeemScripts
-     * that never can be redeemed. However, old wallets may still contain
-     * these. Do not add them to the wallet and warn. */
-    if (redeemScript.size() > MAX_SCRIPT_ELEMENT_SIZE)
-    {
-        auto addr = EncodeDestination(CScriptID(redeemScript));
-        LogRedeemScriptLengthError(addr, redeemScript.size());
-        return true;
-    }
-
     return CCryptoKeyStore::AddCScript(redeemScript);
 }
 
 bool CWallet::LoadParamScript(const CScript& redeemScript)
 {
-    /* A sanity check was added in pull #3843 to avoid adding redeemScripts
-     * that never can be redeemed. However, old wallets may still contain
-     * these. Do not add them to the wallet and warn. */
-    if (redeemScript.size() > MAX_SCRIPT_ELEMENT_SIZE)
-    {
-        auto addr = EncodeDestination(CParamScriptID(redeemScript));
-        LogRedeemScriptLengthError(addr, redeemScript.size());
-        return true;
-    }
-
     return CCryptoKeyStore::AddParamScript(redeemScript);
 }
 

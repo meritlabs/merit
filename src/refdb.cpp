@@ -15,7 +15,6 @@ const char DB_REFERRALS = 'r';
 const char DB_REFERRALS_BY_KEY_ID = 'k';
 const char DB_PARENT_KEY = 'p';
 const char DB_ANV = 'a';
-const char DB_REWARD_ANV = 'w';
 const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
 }
 

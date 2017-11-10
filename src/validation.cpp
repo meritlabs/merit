@@ -1475,20 +1475,6 @@ void SortRewards(pog::Rewards& rewards)
     std::sort(std::begin(rewards), std::end(rewards), RewardComp());
 }
 
-const referral::Address* KeyOrScript(const CTxDestination& dest)
-{
-    if(boost::get<CNoDestination>(&dest)) return nullptr;
-
-    const auto* key = boost::get<CKeyID>(&dest);
-    const auto* script = boost::get<CScriptID>(&dest);
-
-    assert(key || script);
-
-    return key ?
-        static_cast<const referral::Address*>(key) :
-        static_cast<const referral::Address*>(script);
-}
-
 bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const CTransaction& coinbase) {
     assert(coinbase.IsCoinBase());
 

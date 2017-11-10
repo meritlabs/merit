@@ -776,132 +776,70 @@ UniValue ProcessImport(CWallet * const pwallet, const UniValue& data, const int6
             }
 
             if(script.IsPayToScriptHash()) {
-
                 if (!pwallet->HaveCScript(redeemScript) && !pwallet->AddCScript(redeemScript)) {
                     throw JSONRPCError(RPC_WALLET_ERROR, "Error adding p2sh redeemScript to wallet");
                 }
-
-                CTxDestination redeem_dest = CScriptID(redeemScript);
-                CScript redeemDestination = GetScriptForDestination(redeem_dest);
-
-                if (::IsMine(*pwallet, redeemDestination) == ISMINE_SPENDABLE) {
-                    throw JSONRPCError(RPC_WALLET_ERROR, "The wallet already contains the private key for this address or script");
-                }
-
-                pwallet->MarkDirty();
-
-                if (!pwallet->AddWatchOnly(redeemDestination, timestamp)) {
-                    throw JSONRPCError(RPC_WALLET_ERROR, "Error adding address to wallet");
-                }
-
-                // add to address book or update label
-                if (IsValidDestination(dest)) {
-                    pwallet->SetAddressBook(dest, label, "receive");
-                }
-
-                // Import private keys.
-                if (keys.size()) {
-                    for (size_t i = 0; i < keys.size(); i++) {
-                        const std::string& privkey = keys[i].get_str();
-
-                        CMeritSecret vchSecret;
-                        bool fGood = vchSecret.SetString(privkey);
-
-                        if (!fGood) {
-                            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key encoding");
-                        }
-
-                        CKey key = vchSecret.GetKey();
-
-                        if (!key.IsValid()) {
-                            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Private key outside allowed range");
-                        }
-
-                        CPubKey pubkey = key.GetPubKey();
-                        assert(key.VerifyPubKey(pubkey));
-
-                        CKeyID vchAddress = pubkey.GetID();
-                        pwallet->MarkDirty();
-                        pwallet->SetAddressBook(vchAddress, label, "receive");
-
-                        if (pwallet->HaveKey(vchAddress)) {
-                            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Already have this key");
-                        }
-
-                        pwallet->mapKeyMetadata[vchAddress].nCreateTime = timestamp;
-
-                        if (!pwallet->AddKeyPubKey(key, pubkey)) {
-                            throw JSONRPCError(RPC_WALLET_ERROR, "Error adding key to wallet");
-                        }
-
-                        pwallet->UpdateTimeFirstKey(timestamp);
-                    }
-                }
-            } else if(script.IsParameterizedPayToScriptHash()) {
-
-
+            } else if (script.IsParameterizedPayToScriptHash()){
                 if (!pwallet->HaveParamScript(redeemScript) && !pwallet->AddParamScript(redeemScript)) {
                     throw JSONRPCError(RPC_WALLET_ERROR, "Error adding pp2sh redeemScript to wallet");
                 }
+            }
 
-                CTxDestination redeem_dest = CParamScriptID(redeemScript);
-                CScript redeemDestination = GetScriptForDestination(redeem_dest);
+            CTxDestination redeem_dest = CScriptID(redeemScript);
+            CScript redeemDestination = GetScriptForDestination(redeem_dest);
 
-                if (::IsMine(*pwallet, redeemDestination) == ISMINE_SPENDABLE) {
-                    throw JSONRPCError(RPC_WALLET_ERROR, "The wallet already contains the private key for this address or script");
-                }
+            if (::IsMine(*pwallet, redeemDestination) == ISMINE_SPENDABLE) {
+                throw JSONRPCError(RPC_WALLET_ERROR, "The wallet already contains the private key for this address or script");
+            }
 
-                pwallet->MarkDirty();
+            pwallet->MarkDirty();
 
-                if (!pwallet->AddWatchOnly(redeemDestination, timestamp)) {
-                    throw JSONRPCError(RPC_WALLET_ERROR, "Error adding address to wallet");
-                }
+            if (!pwallet->AddWatchOnly(redeemDestination, timestamp)) {
+                throw JSONRPCError(RPC_WALLET_ERROR, "Error adding address to wallet");
+            }
 
-                // add to address book or update label
-                if (IsValidDestination(dest)) {
-                    pwallet->SetAddressBook(dest, label, "receive");
-                }
+            // add to address book or update label
+            if (IsValidDestination(dest)) {
+                pwallet->SetAddressBook(dest, label, "receive");
+            }
 
-                // Import private keys.
-                if (keys.size()) {
-                    for (size_t i = 0; i < keys.size(); i++) {
-                        const std::string& privkey = keys[i].get_str();
+            // Import private keys.
+            if (keys.size()) {
+                for (size_t i = 0; i < keys.size(); i++) {
+                    const std::string& privkey = keys[i].get_str();
 
-                        CMeritSecret vchSecret;
-                        bool fGood = vchSecret.SetString(privkey);
+                    CMeritSecret vchSecret;
+                    bool fGood = vchSecret.SetString(privkey);
 
-                        if (!fGood) {
-                            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key encoding");
-                        }
-
-                        CKey key = vchSecret.GetKey();
-
-                        if (!key.IsValid()) {
-                            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Private key outside allowed range");
-                        }
-
-                        CPubKey pubkey = key.GetPubKey();
-                        assert(key.VerifyPubKey(pubkey));
-
-                        CKeyID vchAddress = pubkey.GetID();
-                        pwallet->MarkDirty();
-                        pwallet->SetAddressBook(vchAddress, label, "receive");
-
-                        if (pwallet->HaveKey(vchAddress)) {
-                            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Already have this key");
-                        }
-
-                        pwallet->mapKeyMetadata[vchAddress].nCreateTime = timestamp;
-
-                        if (!pwallet->AddKeyPubKey(key, pubkey)) {
-                            throw JSONRPCError(RPC_WALLET_ERROR, "Error adding key to wallet");
-                        }
-
-                        pwallet->UpdateTimeFirstKey(timestamp);
+                    if (!fGood) {
+                        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key encoding");
                     }
+
+                    CKey key = vchSecret.GetKey();
+
+                    if (!key.IsValid()) {
+                        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Private key outside allowed range");
+                    }
+
+                    CPubKey pubkey = key.GetPubKey();
+                    assert(key.VerifyPubKey(pubkey));
+
+                    CKeyID vchAddress = pubkey.GetID();
+                    pwallet->MarkDirty();
+                    pwallet->SetAddressBook(vchAddress, label, "receive");
+
+                    if (pwallet->HaveKey(vchAddress)) {
+                        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Already have this key");
+                    }
+
+                    pwallet->mapKeyMetadata[vchAddress].nCreateTime = timestamp;
+
+                    if (!pwallet->AddKeyPubKey(key, pubkey)) {
+                        throw JSONRPCError(RPC_WALLET_ERROR, "Error adding key to wallet");
+                    }
+
+                    pwallet->UpdateTimeFirstKey(timestamp);
                 }
-            } else {
-                    throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid redeem script");
             }
 
             success = true;

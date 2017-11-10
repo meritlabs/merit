@@ -3842,20 +3842,17 @@ UniValue listunspent(const JSONRPCRequest& request)
                         Pair("account", pwallet->mapAddressBook[address].name));
             }
 
+            CScript redeemScript;
             if (scriptPubKey.IsPayToScriptHash()) {
                 const CScriptID& hash = boost::get<CScriptID>(address);
-                CScript redeemScript;
-                if (pwallet->GetCScript(hash, redeemScript)) {
-                    entry.push_back(Pair("redeemScript", HexStr(redeemScript.begin(), redeemScript.end())));
-                }
+                pwallet->GetCScript(hash, redeemScript);
+            } else if (scriptPubKey.IsParameterizedPayToScriptHash()) {
+                const CParamScriptID& hash = boost::get<CParamScriptID>(address);
+                pwallet->GetParamScript(hash, redeemScript);
             }
 
-            if (scriptPubKey.IsParameterizedPayToScriptHash()) {
-                const CParamScriptID& hash = boost::get<CParamScriptID>(address);
-                CScript redeemScript;
-                if (pwallet->GetParamScript(hash, redeemScript)) {
-                    entry.push_back(Pair("redeemScript", HexStr(redeemScript.begin(), redeemScript.end())));
-                }
+            if (!redeemScript.empty()) {
+                entry.push_back(Pair("redeemScript", HexStr(redeemScript.begin(), redeemScript.end())));
             }
         }
 
