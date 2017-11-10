@@ -68,6 +68,7 @@ BlockAssembler::Options::Options() {
     blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
     nBlockMaxWeight = DEFAULT_BLOCK_MAX_WEIGHT;
     nBlockMaxSize = DEFAULT_BLOCK_MAX_SIZE;
+    nTransactionsMaxSize = (DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE * nBlockMaxSize) / 100;
 }
 
 BlockAssembler::BlockAssembler(const CChainParams& params, const Options& options) : chainparams(params)
@@ -77,6 +78,8 @@ BlockAssembler::BlockAssembler(const CChainParams& params, const Options& option
     nBlockMaxWeight = std::max<size_t>(4000, std::min<size_t>(MAX_BLOCK_WEIGHT - 4000, options.nBlockMaxWeight));
     // Limit size to between 1K and MAX_BLOCK_SERIALIZED_SIZE-1K for sanity:
     nBlockMaxSize = std::max<size_t>(1000, std::min<size_t>(MAX_BLOCK_SERIALIZED_SIZE - 1000, options.nBlockMaxSize));
+    // Limit size to between 1K and MAX_BLOCK_SERIALIZED_SIZE-1K for sanity:
+    nTransactionsMaxSize = std::max<size_t>(1000, std::min<size_t>((nBlockMaxSize * MAX_TRANSACTIONS_SERIALIZED_SIZE_SHARE) / 100, options.nTransactionsMaxSize));
     // Whether we need to account for byte usage (in addition to weight usage)
     fNeedSizeAccounting = (nBlockMaxSize < MAX_BLOCK_SERIALIZED_SIZE - 1000);
 }
@@ -90,14 +93,21 @@ static BlockAssembler::Options DefaultOptions(const CChainParams& params)
     BlockAssembler::Options options;
     options.nBlockMaxWeight = DEFAULT_BLOCK_MAX_WEIGHT;
     options.nBlockMaxSize = DEFAULT_BLOCK_MAX_SIZE;
+    options.nTransactionsMaxSize = (DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE * options.nBlockMaxSize) / 100;
     bool fWeightSet = false;
     if (gArgs.IsArgSet("-blockmaxweight")) {
         options.nBlockMaxWeight = gArgs.GetArg("-blockmaxweight", DEFAULT_BLOCK_MAX_WEIGHT);
         options.nBlockMaxSize = MAX_BLOCK_SERIALIZED_SIZE;
         fWeightSet = true;
     }
+    if (gArgs.IsArgSet("-blocktxsmaxsizeshare")) {
+        options.nTransactionsMaxSize = (gArgs.GetArg("-blocktxsmaxsizeshare", DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE) * options.nBlockMaxSize) / 100;
+
+    }
     if (gArgs.IsArgSet("-blockmaxsize")) {
         options.nBlockMaxSize = gArgs.GetArg("-blockmaxsize", DEFAULT_BLOCK_MAX_SIZE);
+        options.nTransactionsMaxSize = (DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE * options.nBlockMaxSize) / 100;
+
         if (!fWeightSet) {
             options.nBlockMaxWeight = options.nBlockMaxSize * WITNESS_SCALE_FACTOR;
         }
@@ -109,6 +119,9 @@ static BlockAssembler::Options DefaultOptions(const CChainParams& params)
     } else {
         options.blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
     }
+
+    assert(options.nBlockMaxSize >= options.nTransactionsMaxSize);
+
     return options;
 }
 
@@ -301,7 +314,7 @@ bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactio
             uint64_t nTxSize = ::GetSerializeSize(it->GetTx(), SER_NETWORK, PROTOCOL_VERSION);
 
             // share block size by transactions and referrals
-            if (nPotentialBlockSize + nTxSize >= nBlockMaxSize) {
+            if (nPotentialBlockSize + nTxSize >= nTransactionsMaxSize) {
                 return false;
             }
             nPotentialBlockSize += nTxSize;
@@ -328,8 +341,9 @@ void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
     pblock->vtx.emplace_back(iter->GetSharedTx());
     pblocktemplate->vTxFees.push_back(iter->GetFee());
     pblocktemplate->vTxSigOpsCost.push_back(iter->GetSigOpCost());
+    auto txSize = ::GetSerializeSize(iter->GetTx(), SER_NETWORK, PROTOCOL_VERSION);
     if (fNeedSizeAccounting) {
-        nBlockSize += ::GetSerializeSize(iter->GetTx(), SER_NETWORK, PROTOCOL_VERSION);
+        nBlockSize += txSize;
     }
     nBlockWeight += iter->GetTxWeight();
     ++nBlockTx;
@@ -348,8 +362,9 @@ void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 void BlockAssembler::AddReferralToBlock(const referral::ReferralRef& ref)
 {
     pblock->m_vRef.push_back(ref);
+    auto refSize = ::GetSerializeSize(*ref, SER_NETWORK, PROTOCOL_VERSION);
     if (fNeedSizeAccounting) {
-        nBlockSize += ::GetSerializeSize(*ref, SER_NETWORK, PROTOCOL_VERSION);
+        nBlockSize += refSize;
     }
 
     nBlockWeight += GetReferralWeight(*ref);

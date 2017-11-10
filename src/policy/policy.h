@@ -19,6 +19,11 @@ class CTxOut;
 
 /** Default for -blockmaxsize, which controls the maximum size of block the mining code will create **/
 static const unsigned int DEFAULT_BLOCK_MAX_SIZE = 750000;
+/**
+ * Default for -blocktxsmaxsizeshare, which controls the maximum share of transacitons size in block the mining code will create
+ * Left space is used for referrals
+ */
+static const unsigned int DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE = 90;
 /** Default for -blockmaxweight, which controls the range of block weights the mining code will create **/
 static const unsigned int DEFAULT_BLOCK_MAX_WEIGHT = 3000000;
 /** Default for -blockmintxfee, which sets the minimum feerate for a transaction in blocks created by mining code **/
