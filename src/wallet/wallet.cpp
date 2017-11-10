@@ -1685,7 +1685,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const uint256& referred_by)
 {
     // generate referral for given public key
-    auto referral = 
+    auto referral =
         referral::MakeReferralRef(
                 referral::MutableReferral(
                     addressType, address, referred_by));
@@ -4492,7 +4492,7 @@ int CMerkleTx::GetBlocksToMaturity() const
 {
     if (!IsCoinBase())
         return 0;
-    return std::max(0, (COINBASE_MATURITY+1) - GetDepthInMainChain());
+    return std::max(0, (static_cast<int>(Params().GetConsensus().nBlocksToMaturity) + 1) - GetDepthInMainChain());
 }
 
 

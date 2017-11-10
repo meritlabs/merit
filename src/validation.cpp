@@ -708,7 +708,7 @@ static bool AcceptToMemoryPoolWorker(
         pool.ApplyDelta(hash, nModifiedFees);
 
         // Keep track of transactions that spend a coinbase, which we re-scan
-        // during reorgs to ensure COINBASE_MATURITY is still met.
+        // during reorgs to ensure nBlocksToMaturity is still met.
         bool fSpendsCoinbase = false;
         for (const CTxIn &txin : tx.vin) {
             const Coin &coin = view.AccessCoin(txin.prevout);
@@ -2237,7 +2237,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
     if(!memory_only) {
         // The order here is important. The ANV values must be updated
         // before the tree is manipulated to properly debit and credit the
-        // correct addresses because RemoveReferrals will change referral 
+        // correct addresses because RemoveReferrals will change referral
         // tree.
         if(!UpdateANV(debits_and_credits)) {
             error("DisconnectBlock(): unable to undo referrals");
@@ -2408,7 +2408,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             view.SetBestBlock(pindex->GetBlockHash());
 
             //The order is important here. We must insert the referrals so that
-            //the referral tree is updated to be correct before we debit/credit 
+            //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
             if(!IndexReferrals(block)) {
                 return AbortNode(state, "Failed to write referral index");
@@ -2782,7 +2782,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     view.SetBestBlock(pindex->GetBlockHash());
 
     //The order is important here. We must insert the referrals so that
-    //the referral tree is updated to be correct before we debit/credit 
+    //the referral tree is updated to be correct before we debit/credit
     //the ANV to the appropriate addresses.
     if(!IndexReferrals(block)) {
         return AbortNode(state, "Failed to write referral index");
@@ -4926,7 +4926,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
 
         if (!prefviewdb->ReferralCodeExists(block.m_vRef[0]->codeHash)) {
             //The order is important here. We must insert the referrals so that
-            //the referral tree is updated to be correct before we debit/credit 
+            //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
             if(!IndexReferrals(block)) {
                 return error("%s: IndexReferrals failed", __func__);
