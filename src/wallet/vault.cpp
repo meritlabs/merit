@@ -59,7 +59,7 @@ VaultCoins FilterVaultCoins(const VaultCoins& coins, const uint160& address)
                 if(!ExtractDestination(coin.second.out.scriptPubKey, dest)) {
                     return false;
                 }
-                auto script_id = boost::get<CScriptID>(&dest);
+                auto script_id = boost::get<CParamScriptID>(&dest);
                 if(!script_id) {
                     return false;
                 }
@@ -73,8 +73,8 @@ VaultCoins FindUnspentVaultCoins(const uint160& address)
     VaultOutputs outputs;
 
     //Get outputs from mempool
-    const int SCRIPT_TYPE = 2;
-    std::vector<std::pair<uint160, int> > addresses = {{address, SCRIPT_TYPE}};
+    const int PARAM_SCRIPT_TYPE = 3;
+    std::vector<std::pair<uint160, int> > addresses = {{address, PARAM_SCRIPT_TYPE}};
     using MempoolOutputs = std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>>;
     MempoolOutputs mempool_outputs;
     mempool.getAddressIndex(addresses, mempool_outputs);
@@ -83,7 +83,7 @@ VaultCoins FindUnspentVaultCoins(const uint160& address)
     //Get outputs from chain
     using ChainOutputs = std::vector<std::pair<CAddressIndexKey, CAmount>>;
     ChainOutputs chain_outputs;
-    GetAddressIndex(address, SCRIPT_TYPE, chain_outputs);
+    GetAddressIndex(address, PARAM_SCRIPT_TYPE, chain_outputs);
     ConvertToVaultOutputs(chain_outputs, outputs);
 
     //Filter outputs and return only unspent coins
@@ -109,7 +109,6 @@ Vault ParseVaultCoin(const VaultCoin& coin)
     const auto& scriptPubKey = output.scriptPubKey;
 
     CScript script_params;
-    std::cerr << "SCRIPT: " << ScriptToAsmStr(scriptPubKey) << std::endl;
     if(!scriptPubKey.ExtractParameterizedPayToScriptHashParams(script_params)) {
         throw JSONRPCError(
                 RPC_INVALID_ADDRESS_OR_KEY,

@@ -1079,9 +1079,8 @@ UniValue createvault(const JSONRPCRequest& request)
 
         const auto txid = wtx.GetHash().GetHex();
 
-        pwallet->AddCScript(vault_script);
-        pwallet->AddCScript(script_pub_key);
-        pwallet->SetAddressBook(script_id, "", "vault");
+        pwallet->AddParamScript(vault_script);
+        pwallet->AddParamScript(script_pub_key);
 
         UniValue ret(UniValue::VOBJ);
         ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
@@ -1189,7 +1188,6 @@ UniValue renewvault(const JSONRPCRequest& request)
     //Make sure to add keys and CScript before we create the transaction
     //because CreateTransaction assumes things are in your wallet.
     pwallet->AddCScript(vaults[0].script);
-    pwallet->SetAddressBook(*script_id, "", "vault");
 
     bool subtract_fee_from_amount = true;
 
@@ -1370,7 +1368,7 @@ UniValue spendvault(const JSONRPCRequest& request)
     std::string dest_address = request.params[2].get_str();
 
     CTxDestination vault_dest = DecodeDestination(vault_address);
-    if (!IsValidDestination(vault_dest)) {
+    if (boost::get<CParamScriptID>(&vault_dest) == nullptr) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid vault address");
     }
 
@@ -1429,7 +1427,6 @@ UniValue spendvault(const JSONRPCRequest& request)
     //Make sure to add keys and CScript before we create the transaction
     //because CreateTransaction assumes things are in your wallet.
     pwallet->AddCScript(vaults[0].script);
-    pwallet->SetAddressBook(*script_id, "", "vault");
 
     //The two recipients are the spend key and the vault.
     //If there is change the change will go into the same vault. 
