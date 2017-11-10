@@ -1049,7 +1049,7 @@ UniValue createvault(const JSONRPCRequest& request)
 
         auto master_pub_key_id = master_pub_key.GetID();
         auto vault_tag = Hash160(master_pub_key_id.begin(), master_pub_key_id.end());
-        auto vault_script = GetScriptForSimpleVault(vault_tag, 1);
+        auto vault_script = GetScriptForSimpleVault(vault_tag);
 
         //If the whitelist is not specified, just whitelist the spend key address.
         if(whitelist.empty()) {
@@ -1070,7 +1070,7 @@ UniValue createvault(const JSONRPCRequest& request)
         if(!pwallet->GenerateNewReferral(script_id, pwallet->ReferralCodeHash())) {
             throw JSONRPCError(
                     RPC_WALLET_ERROR,
-                    "Unable to generate referral for easy send script");
+                    "Unable to generate referral for the vault script");
         }
 
         CWalletTx wtx;
@@ -1091,6 +1091,15 @@ UniValue createvault(const JSONRPCRequest& request)
         ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_pub_key_id)));
         ret.push_back(Pair("master_sk", HexStr(master_key.GetPrivKey())));
         ret.push_back(Pair("master_pk", HexStr(master_key.GetPubKey())));
+
+        UniValue whitelist_ret(UniValue::VARR);
+        if(options.exists("whitelist")) {
+            whitelist_ret = options["whitelist"].get_array();
+        } else {
+            whitelist_ret.push_back(EncodeDestination(spend_pub_key_id));
+        }
+        ret.push_back(Pair("whitelist", whitelist_ret));
+
         return ret;
     } else {
         throw JSONRPCError(RPC_TYPE_ERROR, "The type \"" + type + "\" is not valid");
@@ -1187,7 +1196,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     //Make sure to add keys and CScript before we create the transaction
     //because CreateTransaction assumes things are in your wallet.
-    pwallet->AddCScript(vaults[0].script);
+    pwallet->AddParamScript(vaults[0].script);
 
     bool subtract_fee_from_amount = true;
 
@@ -1228,13 +1237,11 @@ UniValue renewvault(const JSONRPCRequest& request)
                 }
             }
 
-            if(whitelist.size() != vault.whitelist.size()) {
+            if(whitelist.empty()) {
                 std::stringstream e;
-                e << "New whitelist must be the same size as the old whitelist. Expected " 
-                  << vault.whitelist.size() << " entries but got" << whitelist.size();
                     throw JSONRPCError(
                             RPC_INVALID_PARAMS,
-                            e.str());
+                            "New whitelist must have at least one address");
             }
 
             script_pub_key =
@@ -1292,7 +1299,6 @@ UniValue renewvault(const JSONRPCRequest& request)
         auto& in = mtx.vin[i];
         const auto& vault = vaults[i];
 
-        //TODO: Sign transaction and insert params
         uint256 hash = SignatureHash(
                 vault.script,
                 *wtx.tx,
@@ -1426,7 +1432,7 @@ UniValue spendvault(const JSONRPCRequest& request)
 
     //Make sure to add keys and CScript before we create the transaction
     //because CreateTransaction assumes things are in your wallet.
-    pwallet->AddCScript(vaults[0].script);
+    pwallet->AddParamScript(vaults[0].script);
 
     //The two recipients are the spend key and the vault.
     //If there is change the change will go into the same vault. 
@@ -1440,8 +1446,8 @@ UniValue spendvault(const JSONRPCRequest& request)
         {scriptPubKey, amount, subtract_fee_from_amount},
     };
 
-    //TODO: Currently vault scipt requires there is change. It needs to be changed
-    //to figure out if change is required.
+    //TODO: Currently vault scipt requires that there is change. The script
+    //will need to be updated to have a new mode to drain vault of all funds.
     if(change > 0) {
         recipients.push_back({vaults[0].coin.out.scriptPubKey, change, false});
     }
@@ -4566,8 +4572,8 @@ static const CRPCCommand commands[] =
     { "wallet",             "easysend",                 &easysend,                 {"amount", "password"} },
     { "wallet",             "easyreceive",              &easyreceive,              {"secret", "senderpubkey", "password"} },
     { "wallet",             "createvault",              &createvault,              {"amount", "options"} },
-    { "wallet",             "renewvault",               &renewvault,               {} },
-    { "wallet",             "spendvault",               &spendvault,               {} },
+    { "wallet",             "renewvault",               &renewvault,               {"vaultaddress", "masterkey", "options"} },
+    { "wallet",             "spendvault",               &spendvault,               {"vaultaddress", "amount", "destination"} },
     { "wallet",             "setaccount",               &setaccount,               {"address","account"} },
     { "wallet",             "settxfee",                 &settxfee,                 {"amount"} },
     { "wallet",             "signmessage",              &signmessage,              {"address","message"} },

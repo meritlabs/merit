@@ -147,8 +147,8 @@ Vault ParseVaultCoin(const VaultCoin& coin)
         vault.tag = uint160{vault_tag};
 
         const auto num_address_idx = stack_size - 3;
-        CScriptNum script_num_addresses(stack[num_address_idx], false);
-        auto num_addresses = script_num_addresses.getint();
+        const CScriptNum script_num_addresses(stack[num_address_idx], false);
+        const auto num_addresses = script_num_addresses.getint();
 
         if(stack_size < 3 + num_addresses) {
             throw JSONRPCError(
@@ -160,8 +160,7 @@ Vault ParseVaultCoin(const VaultCoin& coin)
             vault.whitelist.push_back(stack[i]);
         }
 
-        auto vault_script = 
-            GetScriptForSimpleVault(uint160{vault_tag}, num_addresses);
+        const auto vault_script = GetScriptForSimpleVault(uint160{vault_tag});
 
         vault.script = vault_script;
         vault.address = vault_script;

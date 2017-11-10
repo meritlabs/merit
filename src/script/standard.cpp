@@ -352,12 +352,8 @@ CScript GetScriptForEasySend(
         << OP_EASYSEND;
 }
 
-CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
+CScript GetScriptForSimpleVault(const uint160& tag)
 {
-    assert(num_addresses > 0);
-
-    const auto sizeof_addresses = num_addresses + 1;
-
     // params <spend key> <renew key> [addresses: <addr1> <addr2> <...> <num addresses>] <tag> <vault type>
     // stack on start0:  <sig> <mode> <spend key> <renew key> [addresses] <tag> |
     CScript script;
@@ -383,9 +379,13 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
         <<      OP_NTOALTSTACK          // <spend key> <renew key> <0 args> <out index> [addresses] | [addresses]
         <<      OP_CHECKOUTPUTSIGVERIFY // <spend key> <renew key> | [addresses]
         <<      OP_NFROMALTSTACK        // <spend key> <renew key> [addresses] |
+        <<      OP_DUP                  // <spend key> <renew key> [addresses] <num addresss> |
+        <<      5                       // <spend key> <renew key> [addresses] <num addresss> 4 |
+        <<      OP_ADD                  // <spend key> <renew key> [addresses] <total args> |
+        <<      OP_TOALTSTACK           // <spend key> <renew key> [addresses] | <total args>
         <<      ToByteVector(tag)       // <spend key> <renew key> [addresses] <tag> | 
         <<      0                       // <spend key> <renew key> [addresses] <tag> <vault type> |
-        <<      4 + sizeof_addresses    // <spend key> <renew key> [addresses] <tag> <vault type> <total args> | 
+        <<      OP_FROMALTSTACK         // <spend key> <renew key> [addresses] <tag> <vault type> <total args> | 
         <<      1                       // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> |
         <<      's'                     // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> |
         <<      1                       // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
@@ -397,24 +397,15 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
         <<      OP_FROMALTSTACK         // <sig> <spend key> | [addresses] <renew key>
         <<      OP_DROP                 // <sig> | [addresses] <renew key>
         <<      OP_FROMALTSTACK         // <sig> <renew key> | [addresses]  
-        <<      OP_DUP                  // <sig> <renew key> <renew key> | [addresses]  
-        <<      OP_TOALTSTACK           // <sig> <renew key> | <renew key> | [addresses]
-        <<      OP_CHECKSIGVERIFY       // | <renew key> | [addresses]
-        <<      OP_ANYVALUE             // <any> | [addresses] <renew key>
-        <<      OP_ANYVALUE             // <any spend key> <any renew key> | [addresses]
-        <<      num_addresses           // <any spend key> <any renew key> <num addresses>
-        <<      OP_NREPEAT              
-        <<      num_addresses           //<any spend key> <any renew key> [any addresses]
-        <<      ToByteVector(tag)       // <any spend key> <any renew key> [any addresses] <tag> |
-        <<      0                       // <any spend key> <any renew key> [any addresses] <tag> <vault type> |
-        <<      4 + sizeof_addresses    // <any spend key> <any renew key> [any addresses] <tag> <vault type> <total args> | 
-        <<      0                       // <any spend key> <any renew key> [any addresses] <tag> <vault type> <total args> <out index> |
-        <<      's'                     // <any spend key> <any renew key> [any addresses] <tag> <vault type> <total args> <out index> <self> |
-        <<      1                       // <any spend key> <any renew key> [any addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
-        <<      OP_CHECKOUTPUTSIGVERIFY //  |
-        <<      1                       // 1 |
-        <<      OP_OUTPUTCOUNT          // <count>
-        <<      OP_EQUAL                // <bool>
+        <<      OP_CHECKSIGVERIFY       // | [addresses]
+        <<      0                       // <total args> | [addresses]
+        <<      0                       // <total args> <out index> | [addresses]
+        <<      's'                     // <total args> <out index> <self> | [addresses]
+        <<      1                       // <total args> <out index> <self> <num addresses>| [addresses]
+        <<      OP_CHECKOUTPUTSIGVERIFY //  | [addresses]
+        <<      1                       // 1 | [addresses]
+        <<      OP_OUTPUTCOUNT          // 1 <count> | [addresses]
+        <<      OP_EQUAL                // <bool> | [addresses]
         << OP_ENDIF;
 
     return script;
