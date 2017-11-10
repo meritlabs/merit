@@ -117,17 +117,26 @@ public:
 public:
     bool Set(const CKeyID &id);
     bool Set(const CScriptID &id);
+    bool Set(const CParamScriptID &id);
     bool Set(const CTxDestination &dest);
+    bool Set(char addressType, const uint160& addr);
     bool IsValid() const;
     bool IsValid(const CChainParams &params) const;
 
     CMeritAddress() {}
+
+    CMeritAddress(char addressType, const uint160& addr) { 
+        Set(addressType, addr);
+    }
+
     CMeritAddress(const CTxDestination &dest) { Set(dest); }
     CMeritAddress(const std::string& strAddress) { SetString(strAddress); }
     CMeritAddress(const char* pszAddress) { SetString(pszAddress); }
 
     CTxDestination Get() const;
     MaybeUint160 GetUint160() const;
+    char GetType() const;
+
     bool GetKeyID(CKeyID &keyID) const;
     bool GetIndexKey(uint160& hashBytes, int& type) const;
     bool IsScript() const;

@@ -211,7 +211,9 @@ unsigned int CScript::GetSigOpCount(const CScript& scriptSig) const
 bool CScript::IsPayToPublicKey() const
 {
     // Extra-fast test for pay-to-pubkey CScripts:
-    return (this->size() == 67 && (*this)[66] == OP_CHECKSIG);
+    return 
+        (this->size() == 67 && (*this)[66] == OP_CHECKSIG) || 
+        (this->size() == 35 && (*this)[34] == OP_CHECKSIG );
 }
 
 bool CScript::IsPayToPublicKeyHash() const

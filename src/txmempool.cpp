@@ -66,7 +66,7 @@ ReferralRef ReferralTxMemPool::GetWithCodeHash(const uint256& codeHash) const
 {
     LOCK(cs);
     for (const auto& it: mapRTx) {
-        if (it.second->m_codeHash == codeHash) {
+        if (it.second->codeHash == codeHash) {
             return it.second;
         }
     }

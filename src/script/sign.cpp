@@ -129,8 +129,13 @@ static bool SignStep(
         }
         return true;
     case TX_PARAMETERIZED_SCRIPTHASH:
+        if (creator.KeyStore().GetParamScript(CParamScriptID{uint160(vSolutions[0])}, scriptRet)) {
+            ret.push_back(std::vector<unsigned char>(scriptRet.begin(), scriptRet.end()));
+            return true;
+        }
+        return false;
     case TX_SCRIPTHASH:
-        if (creator.KeyStore().GetCScript(uint160(vSolutions[0]), scriptRet)) {
+        if (creator.KeyStore().GetCScript(CScriptID(uint160(vSolutions[0])), scriptRet)) {
             ret.push_back(std::vector<unsigned char>(scriptRet.begin(), scriptRet.end()));
             return true;
         }
@@ -158,7 +163,7 @@ static bool SignStep(
 
     case TX_WITNESS_V0_SCRIPTHASH:
         CRIPEMD160().Write(&vSolutions[0][0], vSolutions[0].size()).Finalize(h160.begin());
-        if (creator.KeyStore().GetCScript(h160, scriptRet)) {
+        if (creator.KeyStore().GetCScript(CScriptID{h160}, scriptRet)) {
             ret.push_back(std::vector<unsigned char>(scriptRet.begin(), scriptRet.end()));
             return true;
         }

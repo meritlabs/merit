@@ -648,10 +648,12 @@ UniValue echo(const JSONRPCRequest& request)
 
 bool getAddressFromIndex(const int &type, const uint160 &hash, std::string &address)
 {
-    if (type == 2) {
-        address = EncodeDestination(CScriptID(hash));
-    } else if (type == 1) {
+    if (type == 1) {
         address = EncodeDestination(CKeyID(hash));
+    } else if (type == 2) {
+        address = EncodeDestination(CScriptID(hash));
+    } else if (type == 3) {
+        address = EncodeDestination(CParamScriptID(hash));
     } else {
         return false;
     }

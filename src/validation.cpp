@@ -517,8 +517,8 @@ bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationSt
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
 
-        if (!(prefviewcache->ReferralCodeExists(referral->m_previousReferral) ||
-             pool.ExistsWithCodeHash(referral->m_previousReferral))) {
+        if (!(prefviewcache->ReferralCodeExists(referral->previousReferral) ||
+             pool.ExistsWithCodeHash(referral->previousReferral))) {
                 missingReferrer = true;
                 return false;
         }
@@ -1409,7 +1409,7 @@ pog::AmbassadorLottery RewardAmbassadors(const uint256& previousBlockHash, CAmou
     assert(prefviewdb != nullptr);
 
     // Wallet selector will create a distribution from all the keys
-    pog::WalletSelector selector{pog::GetAllANVs(*prefviewdb)};
+    pog::WalletSelector selector{pog::GetAllRewardableANVs(*prefviewdb)};
 
     // We may have fewer keys in the distribution than the expected winners,
     // so just pick smallest of the two.
@@ -1434,6 +1434,13 @@ pog::AmbassadorLottery RewardAmbassadors(const uint256& previousBlockHash, CAmou
     return rewards;
 }
 
+bool IsValidAmbassadorDestination(const CTxDestination& dest)
+{
+    const auto which = dest.which();
+    //KeyID or ScriptID
+    return which == 1 || which == 2;
+}
+
 void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx)
 {
     // Pay them by adding a txout to the coinbase transaction;
@@ -1443,11 +1450,13 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
             std::back_inserter(tx.vout),
 
             [](const pog::AmbassadorReward& winner) {
-                if (!IsValidDestination(winner.address)) {
+                CMeritAddress addr{winner.addressType, winner.address};
+                const auto dest = addr.Get();
+                if (!addr.IsValid() || !IsValidAmbassadorDestination(dest)) {
                     throw std::runtime_error{"invalid ambassador"};
                 }
 
-                auto script = GetScriptForDestination(winner.address);
+                const auto script = GetScriptForDestination(dest);
                 return CTxOut{winner.amount, script};
             });
 }
@@ -1492,12 +1501,21 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
     std::transform(std::begin(coinbase.vout), std::end(coinbase.vout), std::begin(sorted_outs),
             [](const CTxOut& out) -> pog::AmbassadorReward {
                 CTxDestination dest;
-                if(!ExtractDestination(out.scriptPubKey, dest)) return {{}, out.nValue};
+                if(!ExtractDestination(out.scriptPubKey, dest)) {
+                    return {0, {}, out.nValue};
+                }
 
-                const auto* address = KeyOrScript(dest);
-                if(!address) return {{}, out.nValue};
+                uint160 address;
+                if(!GetUint160(dest, address)) {
+                    return {0, {}, out.nValue};
+                }
 
-                return {*address, out.nValue};
+                auto addressType = AddressTypeFromDestination(dest);
+                if(addressType == 0) {
+                    return {0, {}, out.nValue};
+                }
+
+                return {addressType, address, out.nValue};
             });
     SortRewards(sorted_outs);
 
@@ -2017,12 +2035,15 @@ AddressPair ExtractAddress(const CTxOut& tout)
     uint160 hashBytes;
     int addressType = 0;
 
-    if (tout.scriptPubKey.IsPayToPublicKey()) {
-        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin(), tout.scriptPubKey.begin()+20));
+    if (tout.scriptPubKey.IsParameterizedPayToScriptHash()) {
+        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
         addressType = 3;
-    } else if (tout.scriptPubKey.IsPayToScriptHash() || tout.scriptPubKey.IsParameterizedPayToScriptHash()) {
+    } else if (tout.scriptPubKey.IsPayToScriptHash()) {
         hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
         addressType = 2;
+    } else if (tout.scriptPubKey.IsPayToPublicKey()) {
+        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin(), tout.scriptPubKey.begin()+20));
+        addressType = 1;
     } else if (tout.scriptPubKey.IsPayToPublicKeyHash()) {
         hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin()+3, tout.scriptPubKey.begin()+23));
         addressType = 1;
@@ -2038,9 +2059,10 @@ bool UpdateANV(const DebitsAndCredits& debits_and_credits)
 {
     //apply the debit and credits to the addresses in the block transactions.
     for (const auto& t : debits_and_credits) {
-        const auto& address = t.first;
-        const auto amount = t.second;
-        if(!prefviewdb->UpdateANV(address, amount)) {
+        const auto addressType = std::get<0>(t);
+        const auto& address = std::get<1>(t);
+        const auto amount = std::get<2>(t);
+        if(!prefviewdb->UpdateANV(addressType, address, amount)) {
             return false;
         }
     }
@@ -2063,17 +2085,17 @@ void GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
             if(address.second == 0) continue;
 
             const CAmount amount = in_out.nValue * debitDir;
-            debits_and_credits.push_back({address.first, amount});
+            debits_and_credits.push_back({address.second, address.first, amount});
         }
     }
 
     //credit recipients
     for (const auto& out : tx.vout) {
-        const auto address = ExtractAddress(out);
+        auto address = ExtractAddress(out);
         if(address.second == 0) continue;
 
         const CAmount amount = out.nValue * creditDir;
-        debits_and_credits.push_back({address.first, amount});
+        debits_and_credits.push_back({address.second, address.first, amount});
     }
 }
 
@@ -3761,7 +3783,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
     for (const auto& ref : block.m_vRef) {
         if (!CheckReferral(*ref, state)) {
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
-                strprintf("Referral check failed (ref hash %s) %s", ref->m_codeHash.GetHex(), state.GetDebugMessage()));
+                strprintf("Referral check failed (ref hash %s) %s", ref->codeHash.GetHex(), state.GetDebugMessage()));
         }
     }
 
@@ -3782,10 +3804,12 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 // Check if an address is valid (beaconed)
 bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
 {
-    const auto* addr = KeyOrScript(dest);
-    if(!addr) return false;
+    uint160 addr;
+    if(!GetUint160(dest, addr)) {
+        return false;
+    }
 
-    bool beaconed = prefviewcache->WalletIdExists(*addr);
+    bool beaconed = prefviewcache->WalletIdExists(addr);
 
     if (!beaconed && checkMempool) {
         // check mempool referrals for beaconed address
@@ -3793,9 +3817,9 @@ bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
 
         const auto it =
             std::find_if(refsInMempool.begin(), refsInMempool.end(),
-                [addr](const referral::ReferralRef& ref) {
+                [&addr](const referral::ReferralRef& ref) {
                     assert(ref);
-                    return ref->m_pubKeyId == *addr;
+                    return ref->pubKeyId == addr;
                 });
 
         beaconed = it != refsInMempool.end();
@@ -4900,7 +4924,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
     try {
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
 
-        if (!prefviewdb->ReferralCodeExists(block.m_vRef[0]->m_codeHash)) {
+        if (!prefviewdb->ReferralCodeExists(block.m_vRef[0]->codeHash)) {
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit 
             //the ANV to the appropriate addresses.

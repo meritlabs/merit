@@ -14,11 +14,11 @@ namespace referral
 bool CheckReferral(const Referral& referral, CValidationState &state)
 {
     // Basic checks that don't depend on any context
-    if (referral.m_pubKeyId.IsNull()) {
+    if (referral.pubKeyId.IsNull()) {
         return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-pubkey");
     }
 
-    if (referral.m_codeHash.IsNull()) {
+    if (referral.codeHash.IsNull()) {
         return state.DoS(100, false, REJECT_INVALID, "bad-ref-code-empty");
     }
 

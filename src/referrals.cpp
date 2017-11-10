@@ -40,7 +40,7 @@ void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
     //insert into referral cache
-    m_referral_cache.insert(std::make_pair(ref.m_codeHash, ref));
+    m_referral_cache.insert(std::make_pair(ref.codeHash, ref));
 }
 
 bool ReferralsViewCache::ReferralCodeExists(const uint256& code) const
@@ -110,7 +110,7 @@ bool ReferralsViewCache::WalletIdExists(const Address& address) const
 
 void ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
-    m_referral_cache.erase(ref.m_codeHash);
+    m_referral_cache.erase(ref.codeHash);
     m_db->RemoveReferral(ref);
 }
 }

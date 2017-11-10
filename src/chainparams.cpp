@@ -44,9 +44,10 @@ static CBlock CreateGenesisBlock(
     CPubKey rawPubKey {rawKeyStr};
     CKeyID address = rawPubKey.GetID();
     referral::MutableReferral refNew;
-    refNew.m_codeHash.SetHex("73a50383c1e58f5f215cdb40508b584bfd9f8d0e46cc3d0f17c79c6774a5dafd");
-    refNew.m_pubKeyId = address;
-    refNew.m_previousReferral.SetNull();
+    refNew.codeHash.SetHex("73a50383c1e58f5f215cdb40508b584bfd9f8d0e46cc3d0f17c79c6774a5dafd");
+    refNew.addressType = 1;
+    refNew.pubKeyId = address;
+    refNew.previousReferral.SetNull();
 
     CBlock genesis;
     genesis.nTime = nTime;
@@ -64,6 +65,7 @@ static CBlock CreateGenesisBlock(
         std::set<uint32_t> pow;
 
         uint32_t nMaxTries = 10000000;
+        genesis.nNonce = 0;
 
         while (nMaxTries > 0 && !cuckoo::FindProofOfWork(genesis.GetHash(), genesis.nBits, genesis.nNodesBits, genesis.nEdgesRatio, pow, params)) {
             ++genesis.nNonce;
@@ -75,7 +77,11 @@ static CBlock CreateGenesisBlock(
         } else {
             printf("Genesis block generated!!!\n");
             printf("==========================\n");
-            printf("hash: %s\nnonce: %d\nedges ratio: %d\nnodes:\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce, genesis.nEdgesRatio);
+            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges ratio: %d\nnodes:\n", 
+                   genesis.GetHash().GetHex().c_str(),
+                   genesis.hashMerkleRoot.GetHex().c_str(),
+                   genesis.nNonce,
+                   genesis.nEdgesRatio);
             for (const auto& node : pow) {
                 printf("0x%x ", node);
             }
@@ -190,8 +196,9 @@ public:
         vSeeds.emplace_back("seed.merit.jonasschnelli.ch", true); // Jonas Schnelli, only supports x1, x5, x9, and xd
         vSeeds.emplace_back("seed.MRT.petertodd.org", true); // Peter Todd, only supports x1, x5, x9, and xd*/
 
-        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,0);
-        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,5);
+        base58Prefixes[PUBKEY_ADDRESS]       = std::vector<unsigned char>(1,0);
+        base58Prefixes[SCRIPT_ADDRESS]       = std::vector<unsigned char>(1,5);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1,8);
         base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,128);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};
@@ -253,16 +260,19 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 365, 0x207fffff, 20, 60, 1, 50 * COIN, consensus, false);
+        genesis = CreateGenesisBlock(1503444726, 3, 0x207fffff, 20, 60, 1, 50 * COIN, consensus, false);
 
-        genesis.sCycle = {0x553, 0x2569, 0x3eb5, 0x4d78, 0x6101, 0x6a0f, 0x6e22, 0x6f77, 0x960c, 0xc912, 0x137e6,
-            0x16a9b, 0x1b08c, 0x1b6b1, 0x1eb9b, 0x1f10d, 0x206ae, 0x20bbe, 0x21330, 0x24e60, 0x259e8, 0x27d95, 0x27e18,
-            0x29cbb, 0x2c2bf, 0x2cf17, 0x2ddf6, 0x2e2b6, 0x2eba6, 0x2f1ba, 0x31045, 0x31c65, 0x31cfd, 0x31eb6, 0x33be5,
-            0x3519d, 0x3d46f, 0x3e252, 0x404bd, 0x40be5, 0x447e6, 0x4a59b};
+        genesis.sCycle = { 
+            0xe,0x394a,0x49c8,0x6b31,0x6ee9,0x7c9a,0xb55b,0xcace,0xe0a1,
+            0x104b5,0x16096,0x17a64,0x19129,0x1944b,0x1e484,0x1fead,0x213a1,
+            0x239d4,0x291c4,0x299a6,0x2a433,0x2a4a1,0x2bcc8,0x2cd26,0x2dbc1,
+            0x2e9a7,0x323f9,0x32d99,0x33574,0x352b7,0x370d5,0x382ca,0x383f2,
+            0x3d89c,0x3d9f0,0x3ef6f,0x3f094,0x3f3fe,0x4311a,0x44d69,0x45694,0x460d5
+        };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("f6b791c2c2b87f4a90042c26188fdd76591afe7d7cabb64c91effcd1737e6070"));
-        assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
+        assert(consensus.hashGenesisBlock == uint256S("7b54e379256530673e9600de55de146688185936f8218a431bf0d92f4ef11942"));
+        assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -272,9 +282,10 @@ public:
         vSeeds.emplace_back("testnet-seed.bluematt.me", false);
         vSeeds.emplace_back("testnet-seed.merit.schildbach.de", false);*/
 
-        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,111);
-        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,196);
-        base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,239);
+        base58Prefixes[PUBKEY_ADDRESS]       = std::vector<unsigned char>(1,111);
+        base58Prefixes[SCRIPT_ADDRESS]       = std::vector<unsigned char>(1,196);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1,150);
+        base58Prefixes[SECRET_KEY]           =     std::vector<unsigned char>(1,239);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
 
@@ -368,6 +379,7 @@ public:
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,196);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1,150);
         base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,239);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};

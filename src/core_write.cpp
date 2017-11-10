@@ -241,10 +241,10 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry,
 void RefToUniv(const referral::Referral& ref, const uint256& hashBlock, UniValue& entry, bool include_hex, int serialize_flags)
 {
     entry.pushKV("refd", ref.GetHash().GetHex());
-    entry.pushKV("version", ref.m_nVersion);
-    entry.pushKV("codeHash", ref.m_codeHash.GetHex());
-    entry.pushKV("parent", ref.m_previousReferral.GetHex());
-    entry.pushKV("key", EncodeDestination(ref.m_pubKeyId));
+    entry.pushKV("version", ref.version);
+    entry.pushKV("codeHash", ref.codeHash.GetHex());
+    entry.pushKV("parent", ref.previousReferral.GetHex());
+    entry.pushKV("key", EncodeDestination(CMeritAddress{ref.addressType, ref.pubKeyId}.Get()));
     entry.pushKV("size", (int)::GetSerializeSize(ref, SER_NETWORK, PROTOCOL_VERSION));
 
     if (!hashBlock.IsNull())

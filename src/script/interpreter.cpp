@@ -1407,12 +1407,12 @@ bool EvalScript(
                             BREAK_OR_STOP(OP_CHECKOUTPUTSIGVERIFY);
                         }
 
-                        if(output_type == TX_PARAMETERIZED_SCRIPTHASH) {
-                            
-                            size_t param_size = 0;
-                            if(!Pop(stack, param_size, serror)) {
-                                return false;
-                            }
+                        size_t param_size = 0;
+                        if(!Pop(stack, param_size, serror)) {
+                            return false;
+                        }
+
+                        if(output_type == TX_PARAMETERIZED_SCRIPTHASH && param_size > 0) {
 
                             if(stack.size() < param_size) {
                                 return set_error(

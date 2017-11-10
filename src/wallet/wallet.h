@@ -953,7 +953,9 @@ public:
     //! Adds an encrypted key to the store, without saving it to disk (used by LoadWallet)
     bool LoadCryptedKey(const CPubKey &vchPubKey, const std::vector<unsigned char> &vchCryptedSecret);
     bool AddCScript(const CScript& redeemScript) override;
+    bool AddParamScript(const CScript& redeemScript) override;
     bool LoadCScript(const CScript& redeemScript);
+    bool LoadParamScript(const CScript& redeemScript);
 
     //! Adds a destination data tuple to the store, and saves it to disk
     bool AddDestData(const CTxDestination &dest, const std::string &key, const std::string &value);
@@ -1212,9 +1214,21 @@ public:
     bool SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool = false);
 
     referral::ReferralRef GenerateNewReferral(
-            const referral::Address& addr, const uint256& referredBy);
+            char addressType,
+            const referral::Address& addr,
+            const uint256& referredBy);
+
     referral::ReferralRef GenerateNewReferral(
-            const CPubKey& pubkey, const uint256& referredBy);
+            const CScriptID& id,
+            const uint256& referredBy);
+
+    referral::ReferralRef GenerateNewReferral(
+            const CParamScriptID& id,
+            const uint256& referredBy);
+
+    referral::ReferralRef GenerateNewReferral(
+            const CPubKey& pubkey,
+            const uint256& referredBy);
 
     bool IsReferred() const;
     uint256 ReferralCodeHash() const;

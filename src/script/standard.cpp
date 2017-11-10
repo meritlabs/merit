@@ -20,6 +20,8 @@ unsigned nMaxDatacarrierBytes = MAX_OP_RETURN_RELAY;
 
 CScriptID::CScriptID(const CScript& in) : uint160(Hash160(in.begin(), in.end())) {}
 
+CParamScriptID::CParamScriptID(const CScript& in) : uint160(Hash160(in.begin(), in.end())) {}
+
 const char* GetTxnOutputType(txnouttype t)
 {
     switch (t)
@@ -192,6 +194,21 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, Solutions& vSoluti
     return false;
 }
 
+char AddressTypeFromDestination(const CTxDestination& dest)
+{
+    char addressType = 0;
+    if(auto id = boost::get<CKeyID>(&dest)) {
+        addressType = 1;
+    } else if(auto id = boost::get<CScriptID>(&dest)) {
+        addressType = 2;
+    } else if(auto id = boost::get<CParamScriptID>(&dest)) {
+        addressType = 3;
+    }
+
+    return addressType;
+}
+
+
 bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
 {
     std::vector<valtype> vSolutions;
@@ -213,11 +230,14 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
         addressRet = CKeyID(uint160(vSolutions[0]));
         return true;
     }
-    else if (
-            whichType == TX_SCRIPTHASH || 
-            whichType == TX_PARAMETERIZED_SCRIPTHASH)
+    else if (whichType == TX_SCRIPTHASH)
     {
         addressRet = CScriptID(uint160(vSolutions[0]));
+        return true;
+    }
+    else if (whichType == TX_PARAMETERIZED_SCRIPTHASH)
+    {
+        addressRet = CParamScriptID(uint160(vSolutions[0]));
         return true;
     }
     // Multisig txns have more than one address...
@@ -300,6 +320,13 @@ public:
         *script << OP_HASH160 << ToByteVector(scriptID) << OP_EQUAL;
         return true;
     }
+
+    bool operator()(const CParamScriptID &scriptID) const {
+        //TODO: Must do lookup for params on blockchain/mempool based on script ID.
+        //The assumption is that all unspent coins with same id have same params.
+        throw std::invalid_argument("Parameterized script ids are not supported yet");
+        return false;
+    }
 };
 } // namespace
 
@@ -349,10 +376,11 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses)
         <<      OP_CHECKSIGVERIFY       // | [addresses] <renew key> <spend key>
         <<      OP_FROMALTSTACK         // <spend key> | [addresses] <renew key>
         <<      OP_FROMALTSTACK         // <spend key> <renew key> | [addresses]
-        <<      0                       // <spend key> <renew key> <out index>| [addresses]
-        <<      OP_NFROMALTSTACK        // <spend key> <renew key> <out index> [addresses] |
-        <<      OP_NDUP                 // <spend key> <renew key> <out index> [addresses] [addresses] |
-        <<      OP_NTOALTSTACK          // <spend key> <renew key> <out index> [addresses] | [addresses]
+        <<      0                       // <spend key> <renew key> <0 args> | [addresses]
+        <<      0                       // <spend key> <renew key> <0 args> <out index>| [addresses]
+        <<      OP_NFROMALTSTACK        // <spend key> <renew key> <0 args> <out index> [addresses] |
+        <<      OP_NDUP                 // <spend key> <renew key> <0 args> <out index> [addresses] [addresses] |
+        <<      OP_NTOALTSTACK          // <spend key> <renew key> <0 args> <out index> [addresses] | [addresses]
         <<      OP_CHECKOUTPUTSIGVERIFY // <spend key> <renew key> | [addresses]
         <<      OP_NFROMALTSTACK        // <spend key> <renew key> [addresses] |
         <<      ToByteVector(tag)       // <spend key> <renew key> [addresses] <tag> | 
@@ -400,7 +428,7 @@ namespace details
     }
 }
 
-CScript GetParameterizedP2SH(const CScriptID& dest)
+CScript GetParameterizedP2SH(const CParamScriptID& dest)
 {
     CScript script;
     script << OP_HASH160 << ToByteVector(dest) << OP_EQUALVERIFY;
@@ -460,6 +488,8 @@ bool GetUint160(const CTxDestination& dest, uint160& addr)
     if(auto key_id = boost::get<CKeyID>(&dest)) {
         addr = *key_id;
     } else if (auto script_id = boost::get<CScriptID>(&dest)) { 
+        addr = *script_id;
+    } else if (auto script_id = boost::get<CParamScriptID>(&dest)) { 
         addr = *script_id;
     } else { 
         assert(false && "forgot to implement a case");

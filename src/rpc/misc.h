@@ -35,7 +35,30 @@ public:
         UniValue obj(UniValue::VOBJ);
         CScript subscript;
         obj.push_back(Pair("isscript", true));
+        obj.push_back(Pair("parameterized", false));
         if (pwallet && pwallet->GetCScript(scriptID, subscript)) {
+            std::vector<CTxDestination> addresses;
+            txnouttype whichType;
+            int nRequired;
+            ExtractDestinations(subscript, whichType, addresses, nRequired);
+            obj.push_back(Pair("script", GetTxnOutputType(whichType)));
+            obj.push_back(Pair("hex", HexStr(subscript.begin(), subscript.end())));
+            UniValue a(UniValue::VARR);
+            for (const CTxDestination& addr : addresses)
+                a.push_back(CMeritAddress(addr).ToString());
+            obj.push_back(Pair("addresses", a));
+            if (whichType == TX_MULTISIG)
+                obj.push_back(Pair("sigsrequired", nRequired));
+        }
+        return obj;
+    }
+
+    UniValue operator()(const CParamScriptID &scriptID) const {
+        UniValue obj(UniValue::VOBJ);
+        CScript subscript;
+        obj.push_back(Pair("isscript", true));
+        obj.push_back(Pair("parameterized", true));
+        if (pwallet && pwallet->GetParamScript(scriptID, subscript)) {
             std::vector<CTxDestination> addresses;
             txnouttype whichType;
             int nRequired;

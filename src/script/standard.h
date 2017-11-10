@@ -26,7 +26,16 @@ class CScriptID : public uint160
 public:
     CScriptID() : uint160() {}
     CScriptID(const CScript& in);
-    CScriptID(const uint160& in) : uint160(in) {}
+    explicit CScriptID(const uint160& in) : uint160(in) {}
+};
+
+/** A reference to a Parameterized CScript: the Hash160 of its serialization (see script.h) */
+class CParamScriptID : public uint160
+{
+public:
+    CParamScriptID() : uint160() {}
+    CParamScriptID(const CScript& in);
+    explicit CParamScriptID(const uint160& in) : uint160(in) {}
 };
 
 /**
@@ -80,15 +89,19 @@ public:
  * A txout script template with a specific destination. It is either:
  *  * CNoDestination: no destination set
  *  * CKeyID: TX_PUBKEYHASH destination
- *  * CScriptID: TX_SCRIPTHASH or TX_PARAMETERIZED_SCRIPTHASH destination
+ *  * CScriptID: TX_SCRIPTHASH destination
+ *  * CParamScriptID: TX_PARAMETERIZED_SCRIPTHASH destination
  *  A CTxDestination is the internal data type encoded in a merit address
  */
-typedef boost::variant<CNoDestination, CKeyID, CScriptID> CTxDestination;
+typedef boost::variant<CNoDestination, CKeyID, CScriptID, CParamScriptID> CTxDestination;
+
+/** returns a numberical type based on destination */
+char AddressTypeFromDestination(const CTxDestination&);
 
 /** Check whether a CTxDestination is a CNoDestination. */
 bool IsValidDestination(const CTxDestination& dest);
 
-/** returns the uin160 from the CKeyID or CScriptID if it is a valid destination */
+/** returns the uin160 from the CKeyID, CScriptID, or CParamScriptID if it is a valid destination */
 bool GetUint160(const CTxDestination& dest, uint160& addr);
 
 /** Get the name of a txnouttype as a C string, or nullptr if unknown. */
@@ -134,7 +147,7 @@ bool ExtractDestinations(const CScript& scriptPubKey, txnouttype& typeRet, std::
 /**
  * Generate a Merit scriptPubKey for the given CTxDestination. Returns a P2PKH
  * script for a CKeyID destination, a P2SH script for a CScriptID, and an empty
- * script for CNoDestination.
+ * script for CNoDestination. CParamScriptID's are currently not supported
  */
 CScript GetScriptForDestination(const CTxDestination& dest);
 
@@ -158,7 +171,7 @@ CScript GetScriptForSimpleVault(const uint160& tag, size_t num_addresses);
  * Constructs a Parameterized P2SH. You can push params onto script after calling
  * this. 
  */
-CScript GetParameterizedP2SH(const CScriptID& dest);
+CScript GetParameterizedP2SH(const CParamScriptID& dest);
 
 /**
  * This can be used to expand a vector of elements in the GetParameterizedP2SH
@@ -233,10 +246,10 @@ namespace details
     }
 }
 
-CScript GetParameterizedP2SH(const CScriptID& dest);
+CScript GetParameterizedP2SH(const CParamScriptID& dest);
 
 template <class... Params>
-CScript GetParameterizedP2SH(const CScriptID& dest, Params... ps)
+CScript GetParameterizedP2SH(const CParamScriptID& dest, Params... ps)
 {
     auto script = GetParameterizedP2SH(dest);
     size_t size = 0;

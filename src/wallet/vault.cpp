@@ -6,6 +6,8 @@
 #include "validation.h"
 #include "sync.h"
 #include <algorithm>
+#include "core_io.h"
+
 
 namespace vault
 {
@@ -107,6 +109,7 @@ Vault ParseVaultCoin(const VaultCoin& coin)
     const auto& scriptPubKey = output.scriptPubKey;
 
     CScript script_params;
+    std::cerr << "SCRIPT: " << ScriptToAsmStr(scriptPubKey) << std::endl;
     if(!scriptPubKey.ExtractParameterizedPayToScriptHashParams(script_params)) {
         throw JSONRPCError(
                 RPC_INVALID_ADDRESS_OR_KEY,
@@ -166,7 +169,6 @@ Vault ParseVaultCoin(const VaultCoin& coin)
         vault.spend_pub_key.Set(stack[0]);
         vault.master_pub_key.Set(stack[1]);
     }
-
 
     return vault;
 }

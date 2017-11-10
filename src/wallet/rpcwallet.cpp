@@ -396,25 +396,6 @@ UniValue getaddressesbyaccount(const JSONRPCRequest& request)
 
 static void SendMoney(
         CWallet * const pwallet,
-        const CTxDestination &address,
-        CAmount nValue,
-        bool fSubtractFeeFromAmount,
-        CWalletTx& wtxNew,
-        const CCoinControl& coin_control)
-{
-    // Parse Merit address
-    CScript scriptPubKey = GetScriptForDestination(address);
-    SendMoney(
-            pwallet,
-            scriptPubKey,
-            nValue,
-            fSubtractFeeFromAmount,
-            wtxNew,
-            coin_control);
-}
-
-static void SendMoney(
-        CWallet * const pwallet,
         const CScript &scriptPubKey,
         CAmount nValue,
         bool fSubtractFeeFromAmount,
@@ -453,6 +434,26 @@ static void SendMoney(
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
 }
+
+static void SendMoneyToDest(
+        CWallet * const pwallet,
+        const CTxDestination &address,
+        CAmount nValue,
+        bool fSubtractFeeFromAmount,
+        CWalletTx& wtxNew,
+        const CCoinControl& coin_control)
+{
+    // Parse Merit address
+    CScript scriptPubKey = GetScriptForDestination(address);
+    SendMoney(
+            pwallet,
+            scriptPubKey,
+            nValue,
+            fSubtractFeeFromAmount,
+            wtxNew,
+            coin_control);
+}
+
 static UniValue EasySend(
         CWallet&  pwallet,
         CAmount value,
@@ -804,7 +805,7 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
 
     EnsureWalletIsUnlocked(pwallet);
 
-    SendMoney(pwallet, dest, nAmount, fSubtractFeeFromAmount, wtx, coin_control);
+    SendMoneyToDest(pwallet, dest, nAmount, fSubtractFeeFromAmount, wtx, coin_control);
 
     return wtx.GetHash().GetHex();
 }
@@ -1055,7 +1056,7 @@ UniValue createvault(const JSONRPCRequest& request)
             whitelist.push_back(ToByteVector(spend_pub_key_id));
         }
 
-        CScriptID script_id = vault_script;
+        CParamScriptID script_id = vault_script;
         auto script_pub_key =
             GetParameterizedP2SH(
                     script_id,
@@ -1087,7 +1088,7 @@ UniValue createvault(const JSONRPCRequest& request)
         ret.push_back(Pair("txid", txid));
         ret.push_back(Pair("amount", ValueFromAmount(amount)));
         ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
-        ret.push_back(Pair("tag", EncodeDestination(vault_tag)));
+        ret.push_back(Pair("tag", vault_tag.GetHex()));
         ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_pub_key_id)));
         ret.push_back(Pair("master_sk", HexStr(master_key.GetPrivKey())));
         ret.push_back(Pair("master_pk", HexStr(master_key.GetPubKey())));
@@ -1138,9 +1139,9 @@ UniValue renewvault(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
     }
 
-    auto script_id = boost::get<CScriptID>(&dest);
+    auto script_id = boost::get<CParamScriptID>(&dest);
     if(!script_id) {
-        throw JSONRPCError(RPC_TYPE_ERROR, "Script Address Required");
+        throw JSONRPCError(RPC_TYPE_ERROR, "Parameterized Script Address Required");
     }
 
     CKey master_key;
@@ -1378,9 +1379,9 @@ UniValue spendvault(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid destination address");
     }
 
-    auto script_id = boost::get<CScriptID>(&vault_dest);
+    auto script_id = boost::get<CParamScriptID>(&vault_dest);
     if(!script_id) {
-        throw JSONRPCError(RPC_TYPE_ERROR, "The vault address must be a script address");
+        throw JSONRPCError(RPC_TYPE_ERROR, "The vault address must be a parameterized script address");
     }
 
     auto unspent_coins = vault::FindUnspentVaultCoins(*script_id);
@@ -1969,7 +1970,7 @@ UniValue sendfrom(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Account has insufficient funds");
 
     CCoinControl no_coin_control; // This is a deprecated API
-    SendMoney(pwallet, dest, nAmount, false, wtx, no_coin_control);
+    SendMoneyToDest(pwallet, dest, nAmount, false, wtx, no_coin_control);
 
     return wtx.GetHash().GetHex();
 }
@@ -2208,6 +2209,31 @@ public:
             if (subscript.IsWitnessProgram(witnessversion, witprog)) {
                 result = scriptID;
                 return true;
+            }
+            CScript witscript = GetScriptForWitness(subscript);
+            SignatureData sigs;
+            // This check is to make sure that the script we created can actually be solved for and signed by us
+            // if we were to have the private keys. This is just to make sure that the script is valid and that,
+            // if found in a transaction, we would still accept and relay that transaction.
+            if (!ProduceSignature(DummySignatureCreator(pwallet), witscript, sigs) ||
+                !VerifyScript(sigs.scriptSig, witscript, &sigs.scriptWitness, MANDATORY_SCRIPT_VERIFY_FLAGS | SCRIPT_VERIFY_WITNESS_PUBKEYTYPE, DummySignatureCreator(pwallet).Checker())) {
+                return false;
+            }
+            pwallet->AddCScript(witscript);
+            result = CScriptID(witscript);
+            return true;
+        }
+        return false;
+    }
+
+    bool operator()(const CParamScriptID &scriptID) {
+        CScript subscript;
+        if (pwallet && pwallet->GetParamScript(scriptID, subscript)) {
+            int witnessversion;
+            std::vector<unsigned char> witprog;
+            //Parameterized scripts cannot be witness programs
+            if (subscript.IsWitnessProgram(witnessversion, witprog)) {
+                return false;
             }
             CScript witscript = GetScriptForWitness(subscript);
             SignatureData sigs;
@@ -3819,10 +3845,18 @@ UniValue listunspent(const JSONRPCRequest& request)
                         Pair("account", pwallet->mapAddressBook[address].name));
             }
 
-            if (scriptPubKey.IsPayToScriptHash() || scriptPubKey.IsPayToScriptHash()) {
+            if (scriptPubKey.IsPayToScriptHash()) {
                 const CScriptID& hash = boost::get<CScriptID>(address);
                 CScript redeemScript;
                 if (pwallet->GetCScript(hash, redeemScript)) {
+                    entry.push_back(Pair("redeemScript", HexStr(redeemScript.begin(), redeemScript.end())));
+                }
+            }
+
+            if (scriptPubKey.IsParameterizedPayToScriptHash()) {
+                const CParamScriptID& hash = boost::get<CParamScriptID>(address);
+                CScript redeemScript;
+                if (pwallet->GetParamScript(hash, redeemScript)) {
                     entry.push_back(Pair("redeemScript", HexStr(redeemScript.begin(), redeemScript.end())));
                 }
             }
@@ -4291,8 +4325,8 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     if (!masterKeyID.IsNull())
         obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
 
-    obj.push_back(Pair("referralcode", referral->m_code));
-    obj.push_back(Pair("codehash", referral->m_codeHash.GetHex()));
+    obj.push_back(Pair("referralcode", referral->code));
+    obj.push_back(Pair("codehash", referral->codeHash.GetHex()));
 
     return obj;
 }
@@ -4412,7 +4446,8 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
 
     referral::ReferralRef referral =
         referral::MakeReferralRef(
-                referral::MutableReferral(*addressUint160, codeHash));
+                referral::MutableReferral(
+                    address.GetType(), *addressUint160, codeHash));
 
     // check that new referral is not in the cache or in mempool
     if (prefviewcache->ReferralCodeExists(referral->GetHash()) || mempoolReferral.ExistsWithCodeHash(referral->GetHash())) {
@@ -4436,8 +4471,8 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
 
     ret.push_back(Pair("isvalid", isValid));
     ret.push_back(Pair("address", currentAddress));
-    ret.push_back(Pair("referralcode", referral->m_code)); // referral->m_code
-    ret.push_back(Pair("codehash", referral->m_codeHash.GetHex()));
+    ret.push_back(Pair("referralcode", referral->code)); // referral->code
+    ret.push_back(Pair("codehash", referral->codeHash.GetHex()));
 
     return ret;
 }

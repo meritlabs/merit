@@ -37,7 +37,7 @@ struct Vault
     COutPoint out_point;
     Coin coin;
     CScript script;
-    CScriptID address;
+    CParamScriptID address;
     CPubKey spend_pub_key;
     CPubKey master_pub_key;
     Whitelist whitelist;
