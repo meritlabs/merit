@@ -38,12 +38,14 @@ struct CTxMemPoolModifiedEntry {
     {
         iter = entry;
         nSizeWithAncestors = entry->GetSizeWithAncestors();
+        nSizeReferrals = entry->GetSizeReferrals();
         nModFeesWithAncestors = entry->GetModFeesWithAncestors();
         nSigOpCostWithAncestors = entry->GetSigOpCostWithAncestors();
     }
 
     CTxMemPool::txiter iter;
     uint64_t nSizeWithAncestors;
+    uint64_t nSizeReferrals;
     CAmount nModFeesWithAncestors;
     int64_t nSigOpCostWithAncestors;
 };
@@ -151,7 +153,8 @@ private:
     uint64_t nBlockRef;
     uint64_t nBlockSigOpsCost;
     CAmount nFees;
-    CTxMemPool::setEntries inBlock;
+    CTxMemPool::setEntries txsInBlock;
+    std::set<referral::ReferralRef> refsInBlock;
 
     // Chain context for the block
     int nHeight;
@@ -177,7 +180,8 @@ private:
     /** Clear the block's state and prepare for assembling a new block */
     void resetBlock();
     /** Add a tx to the block */
-    void AddToBlock(CTxMemPool::txiter iter);
+    void AddTransactionToBlock(CTxMemPool::txiter iter);
+    void AddReferralToBlock(const referral::ReferralRef& ref);
 
     // Methods for how to add transactions to a block.
     /** Add transactions based on feerate including unconfirmed ancestors
@@ -189,7 +193,7 @@ private:
     void AddReferrals();
 
     // helper functions for addPackageTxs()
-    /** Remove confirmed (inBlock) entries from given set */
+    /** Remove confirmed (txsInBlock) entries from given set */
     void onlyUnconfirmed(CTxMemPool::setEntries& testSet);
     /** Remove transactions that use not beaconed addresses in outs */
     void onlyWithReferrals(CTxMemPool::setEntries& testSet);
@@ -199,14 +203,14 @@ private:
       * locktime, premature-witness, serialized size (if necessary)
       * These checks should always succeed, and they're here
       * only as an extra check in case of suboptimal node configuration */
-    bool TestPackageTransactions(const CTxMemPool::setEntries& package);
+    bool TestPackageContent(const CTxMemPool::setEntries& transactions, const std::set<referral::ReferralRef>& referrals);
     /** Return true if given transaction from mapTx has already been evaluated,
       * or if the transaction's cached data in mapTx is incorrect. */
     bool SkipMapTxEntry(CTxMemPool::txiter it, indexed_modified_transaction_set &mapModifiedTx, CTxMemPool::setEntries &failedTx);
     /** Sort the package in an order that is valid to appear in a block */
     void SortForBlock(const CTxMemPool::setEntries& package, CTxMemPool::txiter entry, std::vector<CTxMemPool::txiter>& sortedEntries);
     /** Add descendants of given transactions to mapModifiedTx with ancestor
-      * state updated assuming given transactions are inBlock. Returns number
+      * state updated assuming given transactions are txsInBlock. Returns number
       * of updated descendants. */
     int UpdatePackagesForAdded(const CTxMemPool::setEntries& alreadyAdded, indexed_modified_transaction_set &mapModifiedTx);
 };

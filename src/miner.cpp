@@ -116,7 +116,8 @@ BlockAssembler::BlockAssembler(const CChainParams& params) : BlockAssembler(para
 
 void BlockAssembler::resetBlock()
 {
-    inBlock.clear();
+    txsInBlock.clear();
+    refsInBlock.clear();
 
     // Reserve space for coinbase tx
     nBlockSize = 1000;
@@ -170,11 +171,11 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
 
-    // add referrals to the block before transactions to check if not beaconed transactions
-    // are used in txouts
-    AddReferrals();
 
     addPackageTxs(nPackagesSelected, nDescendantsUpdated);
+
+    // add left referrals to the block after dependant transactions and referrals already added
+    AddReferrals();
 
     int64_t nTime1 = GetTimeMicros();
 
@@ -254,7 +255,7 @@ void BlockAssembler::onlyUnconfirmed(CTxMemPool::setEntries& testSet)
 {
     for (CTxMemPool::setEntries::iterator iit = testSet.begin(); iit != testSet.end(); ) {
         // Only test txs not already in the block
-        if (inBlock.count(*iit)) {
+        if (txsInBlock.count(*iit)) {
             testSet.erase(iit++);
         }
         else {
@@ -288,10 +289,10 @@ bool BlockAssembler::TestPackage(uint64_t packageSize, int64_t packageSigOpsCost
 // - premature witness (in case segwit transactions are added to mempool before
 //   segwit activation)
 // - serialized size (in case -blockmaxsize is in use)
-bool BlockAssembler::TestPackageTransactions(const CTxMemPool::setEntries& package)
+bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactions, const std::set<referral::ReferralRef>& referrals)
 {
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
-    for (const CTxMemPool::txiter it : package) {
+    for (const CTxMemPool::txiter it : transactions) {
         if (!IsFinalTx(it->GetTx(), nHeight, nLockTimeCutoff))
             return false;
         if (!fIncludeWitness && it->GetTx().HasWitness())
@@ -299,26 +300,36 @@ bool BlockAssembler::TestPackageTransactions(const CTxMemPool::setEntries& packa
         if (fNeedSizeAccounting) {
             uint64_t nTxSize = ::GetSerializeSize(it->GetTx(), SER_NETWORK, PROTOCOL_VERSION);
 
-            printf("\n");
-            printf("\n");
-            printf("\n");
             printf("nTxSize: %llu\n", nTxSize);
             printf("nPotentialBlockSize: %llu\n", nPotentialBlockSize);
-            printf("\n");
-            printf("\n");
-            printf("\n");
 
             // share block size by transactions and referrals
-            if (nPotentialBlockSize + nTxSize >= nBlockMaxSize / 2) {
+            if (nPotentialBlockSize + nTxSize >= nBlockMaxSize) {
                 return false;
             }
             nPotentialBlockSize += nTxSize;
         }
     }
+
+    if (fNeedSizeAccounting) {
+        for (const auto& ref: referrals) {
+            uint64_t nRefSize = ::GetSerializeSize(*ref, SER_NETWORK, PROTOCOL_VERSION);
+
+            printf("nRefSize: %llu\n", nRefSize);
+            printf("nPotentialBlockSize: %llu\n", nPotentialBlockSize);
+
+            // share block size by transactions and referrals
+            if (nPotentialBlockSize + nRefSize >= nBlockMaxSize) {
+                return false;
+            }
+            nPotentialBlockSize += nRefSize;
+        }
+    }
+
     return true;
 }
 
-void BlockAssembler::AddToBlock(CTxMemPool::txiter iter)
+void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 {
     pblock->vtx.emplace_back(iter->GetSharedTx());
     pblocktemplate->vTxFees.push_back(iter->GetFee());
@@ -330,7 +341,7 @@ void BlockAssembler::AddToBlock(CTxMemPool::txiter iter)
     ++nBlockTx;
     nBlockSigOpsCost += iter->GetSigOpCost();
     nFees += iter->GetFee();
-    inBlock.insert(iter);
+    txsInBlock.insert(iter);
 
     bool fPrintPriority = gArgs.GetBoolArg("-printpriority", DEFAULT_PRINTPRIORITY);
     if (fPrintPriority) {
@@ -338,6 +349,19 @@ void BlockAssembler::AddToBlock(CTxMemPool::txiter iter)
                   CFeeRate(iter->GetModifiedFee(), iter->GetTxSize()).ToString(),
                   iter->GetTx().GetHash().ToString());
     }
+}
+
+void BlockAssembler::AddReferralToBlock(const referral::ReferralRef& ref)
+{
+    pblock->m_vRef.push_back(ref);
+    if (fNeedSizeAccounting) {
+        nBlockSize += ::GetSerializeSize(*ref, SER_NETWORK, PROTOCOL_VERSION);
+    }
+
+    nBlockWeight += GetReferralWeight(*ref);
+    refsInBlock.insert(ref);
+
+    ++nBlockRef;
 }
 
 int BlockAssembler::UpdatePackagesForAdded(const CTxMemPool::setEntries& alreadyAdded,
@@ -379,7 +403,7 @@ int BlockAssembler::UpdatePackagesForAdded(const CTxMemPool::setEntries& already
 bool BlockAssembler::SkipMapTxEntry(CTxMemPool::txiter it, indexed_modified_transaction_set &mapModifiedTx, CTxMemPool::setEntries &failedTx)
 {
     assert (it != mempool.mapTx.end());
-    return mapModifiedTx.count(it) || inBlock.count(it) || failedTx.count(it);
+    return mapModifiedTx.count(it) || txsInBlock.count(it) || failedTx.count(it);
 }
 
 void BlockAssembler::SortForBlock(const CTxMemPool::setEntries& package, CTxMemPool::txiter entry, std::vector<CTxMemPool::txiter>& sortedEntries)
@@ -398,20 +422,15 @@ void BlockAssembler::AddReferrals()
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
 
     for (auto const& ref : mempoolReferral.mapRTx) {
-        uint64_t nRefSize = ::GetSerializeSize(*ref.second, SER_NETWORK, PROTOCOL_VERSION);
+        if (refsInBlock.count(ref.second)) {
+            continue;
+        }
 
-        printf("\n");
-        printf("\n");
-        printf("\n");
-        printf("nRefSize: %llu\n", nRefSize);
-        printf("nPotentialBlockSize: %llu\n", nPotentialBlockSize);
-        printf("\n");
-        printf("\n");
-        printf("\n");
+        uint64_t nRefSize = ::GetSerializeSize(*ref.second, SER_NETWORK, PROTOCOL_VERSION);
 
         if (fNeedSizeAccounting) {
             // share block size by transactions and referrals
-            if (nPotentialBlockSize + nRefSize >= nBlockMaxSize / 2) {
+            if (nPotentialBlockSize + nRefSize >= nBlockMaxSize) {
                 break;
             }
             nPotentialBlockSize += nRefSize;
@@ -448,7 +467,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
 
     // Start by adding all descendants of previously added txs to mapModifiedTx
     // and modifying them for their already included ancestors
-    UpdatePackagesForAdded(inBlock, mapModifiedTx);
+    UpdatePackagesForAdded(txsInBlock, mapModifiedTx);
 
     CTxMemPool::indexed_transaction_set::index<ancestor_score>::type::iterator mi = mempool.mapTx.get<ancestor_score>().begin();
     CTxMemPool::txiter iter;
@@ -494,18 +513,24 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
             }
         }
 
-        // We skip mapTx entries that are inBlock, and mapModifiedTx shouldn't
-        // contain anything that is inBlock.
-        assert(!inBlock.count(iter));
+        // We skip mapTx entries that are txsInBlock, and mapModifiedTx shouldn't
+        // contain anything that is txsInBlock.
+        assert(!txsInBlock.count(iter));
 
-        uint64_t packageSize = iter->GetSizeWithAncestors();
+        uint64_t packageSize = iter->GetSizeWithAncestors() + iter->GetSizeReferrals();
         CAmount packageFees = iter->GetModFeesWithAncestors();
         int64_t packageSigOpsCost = iter->GetSigOpCostWithAncestors();
         if (fUsingModified) {
-            packageSize = modit->nSizeWithAncestors;
+            packageSize = modit->nSizeWithAncestors + modit->nSizeReferrals;
             packageFees = modit->nModFeesWithAncestors;
             packageSigOpsCost = modit->nSigOpCostWithAncestors;
+            printf("packageSize: %llu, nSizeWithAncestors: %llu, nSizeReferrals: %llu\n", packageSize, modit->nSizeWithAncestors, modit->nSizeReferrals);
+
+        } else {
+            printf("packageSize: %llu, nSizeWithAncestors: %llu, nSizeReferrals: %llu\n", packageSize, iter->GetSizeWithAncestors(), iter->GetSizeReferrals());
+
         }
+
 
         if (packageFees < blockMinFeeRate.GetFee(packageSize)) {
             // Everything else we might consider has a lower fee rate
@@ -540,8 +565,12 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         onlyWithReferrals(ancestors);
         ancestors.insert(iter);
 
+        std::set<referral::ReferralRef> referrals;
+        printf("package referrals size: %lu\n", referrals.size());
+        mempool.CalculateMemPoolAncestorsReferrals(ancestors, referrals);
+
         // Test if all tx's are Final
-        if (!TestPackageTransactions(ancestors)) {
+        if (!TestPackageContent(ancestors, referrals)) {
             if (fUsingModified) {
                 mapModifiedTx.get<ancestor_score>().erase(modit);
                 failedTx.insert(iter);
@@ -556,10 +585,14 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         std::vector<CTxMemPool::txiter> sortedEntries;
         SortForBlock(ancestors, iter, sortedEntries);
 
-        for (size_t i=0; i<sortedEntries.size(); ++i) {
-            AddToBlock(sortedEntries[i]);
-            // Erase from the modified set, if present
-            mapModifiedTx.erase(sortedEntries[i]);
+        for (const auto& it: sortedEntries) {
+            AddTransactionToBlock(it);
+
+            mapModifiedTx.erase(it);
+        }
+
+        for (const auto& it: referrals) {
+            AddReferralToBlock(it);
         }
 
         ++nPackagesSelected;

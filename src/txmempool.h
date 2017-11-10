@@ -86,6 +86,7 @@ private:
     // Analogous statistics for ancestor transactions
     uint64_t nCountWithAncestors;
     uint64_t nSizeWithAncestors;
+    uint64_t nSizeReferrals;
     CAmount nModFeesWithAncestors;
     int64_t nSigOpCostWithAncestors;
 
@@ -110,6 +111,7 @@ public:
     // Adjusts the descendant state.
     void UpdateDescendantState(int64_t modifySize, CAmount modifyFee, int64_t modifyCount);
     // Adjusts the ancestor state
+
     void UpdateAncestorState(int64_t modifySize, CAmount modifyFee, int64_t modifyCount, int modifySigOps);
     // Updates the fee delta used for mining priority score, and the
     // modified fees with descendants.
@@ -125,8 +127,11 @@ public:
 
     uint64_t GetCountWithAncestors() const { return nCountWithAncestors; }
     uint64_t GetSizeWithAncestors() const { return nSizeWithAncestors; }
+    uint64_t GetSizeReferrals() const { return nSizeReferrals; }
     CAmount GetModFeesWithAncestors() const { return nModFeesWithAncestors; }
     int64_t GetSigOpCostWithAncestors() const { return nSigOpCostWithAncestors; }
+
+    void GetMempoolReferrals(std::set<referral::ReferralRef>& txReferrals);
 
     mutable size_t vTxHashesIdx; //!< Index in mempool's vTxHashes
 };
@@ -634,6 +639,8 @@ public:
      *    look up parents from mapLinks. Must be true for entries not in the mempool
      */
     bool CalculateMemPoolAncestors(const CTxMemPoolEntry &entry, setEntries &setAncestors, uint64_t limitAncestorCount, uint64_t limitAncestorSize, uint64_t limitDescendantCount, uint64_t limitDescendantSize, std::string &errString, bool fSearchForParents = true) const;
+
+    bool CalculateMemPoolAncestorsReferrals(const setEntries& setAncestors, std::set<referral::ReferralRef>& ancestorsReferrals) const;
 
     /** Populate setDescendants with all in-mempool descendants of hash.
      *  Assumes that setDescendants includes all in-mempool descendants of anything
