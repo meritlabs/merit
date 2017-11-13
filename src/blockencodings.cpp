@@ -131,7 +131,7 @@ ReadStatus PartiallyDownloadedBlock::InitData(
         std::unordered_map<uint64_t, uint16_t>::iterator idit = m_short_tx_ids.find(shortid);
         if (idit != m_short_tx_ids.end()) {
             if (!have_txn[idit->second]) {
-                m_txn_available[idit->second] = vTxHashes[i].second->GetSharedTx();
+                m_txn_available[idit->second] = vTxHashes[i].second->GetSharedEntryValue();
                 have_txn[idit->second]  = true;
                 m_mempool_txn_count++;
             } else {

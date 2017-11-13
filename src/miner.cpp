@@ -281,7 +281,7 @@ void BlockAssembler::onlyWithReferrals(CTxMemPool::setEntries& testSet)
 {
     for (const CTxMemPool::txiter it: testSet) {
         CValidationState dummy;
-        if (!Consensus::CheckTxOutputs(it->GetTx(), dummy, *prefviewcache, pblock->m_vRef)) {
+        if (!Consensus::CheckTxOutputs(it->GetEntryValue(), dummy, *prefviewcache, pblock->m_vRef)) {
             testSet.erase(it);
         }
     }
@@ -306,12 +306,12 @@ bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactio
 {
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
     for (const CTxMemPool::txiter it : transactions) {
-        if (!IsFinalTx(it->GetTx(), nHeight, nLockTimeCutoff))
+        if (!IsFinalTx(it->GetEntryValue(), nHeight, nLockTimeCutoff))
             return false;
-        if (!fIncludeWitness && it->GetTx().HasWitness())
+        if (!fIncludeWitness && it->GetEntryValue().HasWitness())
             return false;
         if (fNeedSizeAccounting) {
-            uint64_t nTxSize = ::GetSerializeSize(it->GetTx(), SER_NETWORK, PROTOCOL_VERSION);
+            uint64_t nTxSize = ::GetSerializeSize(it->GetEntryValue(), SER_NETWORK, PROTOCOL_VERSION);
 
             // share block size by transactions and referrals
             if (nPotentialBlockSize + nTxSize >= nTransactionsMaxSize) {
@@ -338,14 +338,14 @@ bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactio
 
 void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 {
-    pblock->vtx.emplace_back(iter->GetSharedTx());
+    pblock->vtx.emplace_back(iter->GetSharedEntryValue());
     pblocktemplate->vTxFees.push_back(iter->GetFee());
     pblocktemplate->vTxSigOpsCost.push_back(iter->GetSigOpCost());
-    auto txSize = ::GetSerializeSize(iter->GetTx(), SER_NETWORK, PROTOCOL_VERSION);
+    auto txSize = ::GetSerializeSize(iter->GetEntryValue(), SER_NETWORK, PROTOCOL_VERSION);
     if (fNeedSizeAccounting) {
         nBlockSize += txSize;
     }
-    nBlockWeight += iter->GetTxWeight();
+    nBlockWeight += iter->GetWeight();
     ++nBlockTx;
     nBlockSigOpsCost += iter->GetSigOpCost();
     nFees += iter->GetFee();
@@ -354,8 +354,8 @@ void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
     bool fPrintPriority = gArgs.GetBoolArg("-printpriority", DEFAULT_PRINTPRIORITY);
     if (fPrintPriority) {
         LogPrintf("fee %s txid %s\n",
-                  CFeeRate(iter->GetModifiedFee(), iter->GetTxSize()).ToString(),
-                  iter->GetTx().GetHash().ToString());
+                  CFeeRate(iter->GetModifiedFee(), iter->GetSize()).ToString(),
+                  iter->GetEntryValue().GetHash().ToString());
     }
 }
 
@@ -388,7 +388,7 @@ int BlockAssembler::UpdatePackagesForAdded(const CTxMemPool::setEntries& already
             modtxiter mit = mapModifiedTx.find(desc);
             if (mit == mapModifiedTx.end()) {
                 CTxMemPoolModifiedEntry modEntry(desc);
-                modEntry.nSizeWithAncestors -= it->GetTxSize();
+                modEntry.nSizeWithAncestors -= it->GetSize();
                 modEntry.nModFeesWithAncestors -= it->GetModifiedFee();
                 modEntry.nSigOpCostWithAncestors -= it->GetSigOpCost();
                 mapModifiedTx.insert(modEntry);
@@ -431,7 +431,7 @@ void BlockAssembler::AddReferrals()
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
 
     for (auto const& it : mempoolReferral.mapRTx) {
-        const auto ref = it.second.GetSharedValue();
+        const auto ref = it.second.GetSharedEntryValue();
 
         if (refsInBlock.count(ref)) {
             continue;

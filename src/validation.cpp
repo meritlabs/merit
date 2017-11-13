@@ -731,9 +731,9 @@ static bool AcceptToMemoryPoolWorker(
             }
         }
 
-        CTxMemPoolEntry entry(ptx, nFees, nAcceptTime, chainActive.Height(),
+        CTxMemPoolEntry entry(*ptx, nFees, nAcceptTime, chainActive.Height(),
                               fSpendsCoinbase, nSigOpsCost, lp);
-        unsigned int nSize = entry.GetTxSize();
+        unsigned int nSize = entry.GetSize();
 
         // Check that the transaction doesn't have an excessive number of
         // sigops, making it impossible to mine. Since the coinbase transaction
@@ -808,7 +808,7 @@ static bool AcceptToMemoryPoolWorker(
         // intersect.
         for (CTxMemPool::txiter ancestorIt : setAncestors)
         {
-            const uint256 &hashAncestor = ancestorIt->GetTx().GetHash();
+            const uint256 &hashAncestor = ancestorIt->GetEntryValue().GetHash();
             if (setConflicts.count(hashAncestor))
             {
                 return state.DoS(
@@ -866,7 +866,7 @@ static bool AcceptToMemoryPoolWorker(
                 // ignored when deciding whether or not to replace, we do
                 // require the replacement to pay more overall fees too,
                 // mitigating most cases.
-                CFeeRate oldFeeRate(mi->GetModifiedFee(), mi->GetTxSize());
+                CFeeRate oldFeeRate(mi->GetModifiedFee(), mi->GetSize());
                 if (newFeeRate <= oldFeeRate)
                 {
                     return state.DoS(
@@ -881,7 +881,7 @@ static bool AcceptToMemoryPoolWorker(
                                 oldFeeRate.ToString()));
                 }
 
-                for (const CTxIn &txin : mi->GetTx().vin)
+                for (const CTxIn &txin : mi->GetEntryValue().vin)
                 {
                     setConflictsParents.insert(txin.prevout.hash);
                 }
@@ -899,7 +899,7 @@ static bool AcceptToMemoryPoolWorker(
                 }
                 for (CTxMemPool::txiter it : allConflicting) {
                     nConflictingFees += it->GetModifiedFee();
-                    nConflictingSize += it->GetTxSize();
+                    nConflictingSize += it->GetSize();
                 }
             } else {
                 return state.DoS(
@@ -1092,12 +1092,12 @@ static bool AcceptToMemoryPoolWorker(
             LogPrint(
                     BCLog::MEMPOOL,
                     "replacing tx %s with %s for %s MRT ""additional fees, %d delta bytes\n",
-                    it->GetTx().GetHash().ToString(),
+                    it->GetEntryValue().GetHash().ToString(),
                     hash.ToString(),
                     FormatMoney(nModifiedFees - nConflictingFees),
                     (int)nSize - (int)nConflictingSize);
             if (plTxnReplaced)
-                plTxnReplaced->push_back(it->GetSharedTx());
+                plTxnReplaced->push_back(it->GetSharedEntryValue());
         }
         pool.RemoveStaged(allConflicting, false, MemPoolRemovalReason::REPLACED);
 
@@ -5493,7 +5493,7 @@ void DumpReferralMempool()
 
         file << (uint64_t)vEntries.size();
         for (const auto& i : vEntries) {
-            file << i.GetValue();
+            file << i.GetEntryValue();
             file << (int64_t)i.GetTime();
         }
 

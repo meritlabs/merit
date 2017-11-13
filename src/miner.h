@@ -124,7 +124,7 @@ struct update_for_parent_inclusion
     void operator() (CTxMemPoolModifiedEntry &e)
     {
         e.nModFeesWithAncestors -= iter->GetFee();
-        e.nSizeWithAncestors -= iter->GetTxSize();
+        e.nSizeWithAncestors -= iter->GetSize();
         e.nSigOpCostWithAncestors -= iter->GetSigOpCost();
     }
 

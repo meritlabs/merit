@@ -64,8 +64,8 @@ public:
                                                                                nTime(_nTime),
                                                                                entryHeight(_entryHeight) { }
 
-    const T& GetValue() const { return *this->entry; }
-    const std::shared_ptr<const T> GetSharedValue() const { return this->entry; }
+    const T& GetEntryValue() const { return *this->entry; }
+    const std::shared_ptr<const T> GetSharedEntryValue() const { return this->entry; }
 
     virtual size_t GetSize() const = 0;
 
@@ -80,7 +80,7 @@ namespace referral
 class RefMemPoolEntry : public MemPoolEntry<Referral>
 {
 public:
-    RefMemPoolEntry(const Referral& _entry, int64_t _nTime, unsigned int _entryHeight);
+    RefMemPoolEntry(const Referral& _ref, int64_t _nTime, unsigned int _entryHeight);
 
     using MemPoolEntry::MemPoolEntry;
     size_t GetSize() const;
@@ -154,15 +154,11 @@ struct LockPoints
  * all ancestors of the newly added transaction.
  *
  */
-class CTxMemPoolEntry
+class CTxMemPoolEntry : public MemPoolEntry<CTransaction>
 {
 private:
     CTransactionRef tx;
     CAmount nFee;              //!< Cached to avoid expensive parent-transaction lookups
-    size_t nTxWeight;          //!< ... and avoid recomputing tx weight (also used for GetTxSize())
-    size_t nUsageSize;         //!< ... and total memory usage
-    int64_t nTime;             //!< Local time when entering the mempool
-    unsigned int entryHeight;  //!< Chain height when entering the mempool
     bool spendsCoinbase;       //!< keep track of transactions that spend a coinbase
     int64_t sigOpCost;         //!< Total sigop cost
     int64_t feeDelta;          //!< Used for determining the priority of the transaction for mining in a block
@@ -183,18 +179,13 @@ private:
     int64_t nSigOpCostWithAncestors;
 
 public:
-    CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
+    CTxMemPoolEntry(const CTransaction& _tx, const CAmount& _nFee,
                     int64_t _nTime, unsigned int _entryHeight,
                     bool spendsCoinbase,
                     int64_t nSigOpsCost, LockPoints lp);
 
-    const CTransaction& GetTx() const { return *this->tx; }
-    CTransactionRef GetSharedTx() const { return this->tx; }
+    size_t GetSize() const override;
     const CAmount& GetFee() const { return nFee; }
-    size_t GetTxSize() const;
-    size_t GetTxWeight() const { return nTxWeight; }
-    int64_t GetTime() const { return nTime; }
-    unsigned int GetHeight() const { return entryHeight; }
     int64_t GetSigOpCost() const { return sigOpCost; }
     int64_t GetModifiedFee() const { return nFee + feeDelta; }
     size_t DynamicMemoryUsage() const { return nUsageSize; }
@@ -279,17 +270,18 @@ private:
 };
 
 // extracts a transaction hash from CTxMempoolEntry or CTransactionRef
-struct mempoolentry_txid
+template<typename T>
+struct mempoolentry_id
 {
     typedef uint256 result_type;
-    result_type operator() (const CTxMemPoolEntry &entry) const
+    result_type operator() (const MemPoolEntry<T>& entry) const
     {
-        return entry.GetTx().GetHash();
+        return entry.GetEntryValue().GetHash();
     }
 
-    result_type operator() (const CTransactionRef& tx) const
+    result_type operator() (const std::shared_ptr<const T>& entry) const
     {
-        return tx->GetHash();
+        return entry->GetHash();
     }
 };
 
@@ -306,10 +298,10 @@ public:
         bool fUseBDescendants = UseDescendantScore(b);
 
         double aModFee = fUseADescendants ? a.GetModFeesWithDescendants() : a.GetModifiedFee();
-        double aSize = fUseADescendants ? a.GetSizeWithDescendants() : a.GetTxSize();
+        double aSize = fUseADescendants ? a.GetSizeWithDescendants() : a.GetSize();
 
         double bModFee = fUseBDescendants ? b.GetModFeesWithDescendants() : b.GetModifiedFee();
-        double bSize = fUseBDescendants ? b.GetSizeWithDescendants() : b.GetTxSize();
+        double bSize = fUseBDescendants ? b.GetSizeWithDescendants() : b.GetSize();
 
         // Avoid division by rewriting (a/b > c/d) as (a*d > c*b).
         double f1 = aModFee * bSize;
@@ -325,7 +317,7 @@ public:
     bool UseDescendantScore(const CTxMemPoolEntry &a)
     {
         double f1 = (double)a.GetModifiedFee() * a.GetSizeWithDescendants();
-        double f2 = (double)a.GetModFeesWithDescendants() * a.GetTxSize();
+        double f2 = (double)a.GetModFeesWithDescendants() * a.GetSize();
         return f2 > f1;
     }
 };
@@ -339,10 +331,10 @@ class CompareTxMemPoolEntryByScore
 public:
     bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b)
     {
-        double f1 = (double)a.GetModifiedFee() * b.GetTxSize();
-        double f2 = (double)b.GetModifiedFee() * a.GetTxSize();
+        double f1 = (double)a.GetModifiedFee() * b.GetSize();
+        double f2 = (double)b.GetModifiedFee() * a.GetSize();
         if (f1 == f2) {
-            return b.GetTx().GetHash() < a.GetTx().GetHash();
+            return b.GetEntryValue().GetHash() < a.GetEntryValue().GetHash();
         }
         return f1 > f2;
     }
@@ -373,7 +365,7 @@ public:
         double f2 = aSize * bFees;
 
         if (f1 == f2) {
-            return a.GetTx().GetHash() < b.GetTx().GetHash();
+            return a.GetEntryValue().GetHash() < b.GetEntryValue().GetHash();
         }
 
         return f1 > f2;
@@ -516,7 +508,7 @@ public:
         CTxMemPoolEntry,
         boost::multi_index::indexed_by<
             // sorted by txid
-            boost::multi_index::hashed_unique<mempoolentry_txid, SaltedTxidHasher>,
+            boost::multi_index::hashed_unique<mempoolentry_id<CTransaction>, SaltedTxidHasher>,
             // sorted by fee rate
             boost::multi_index::ordered_non_unique<
                 boost::multi_index::tag<descendant_score>,
@@ -552,7 +544,7 @@ public:
 
     struct CompareIteratorByHash {
         bool operator()(const txiter &a, const txiter &b) const {
-            return a->GetTx().GetHash() < b->GetTx().GetHash();
+            return a->GetEntryValue().GetHash() < b->GetEntryValue().GetHash();
         }
     };
     typedef std::set<txiter, CompareIteratorByHash> setEntries;
@@ -809,14 +801,14 @@ public:
 struct id_index {};
 struct insertion_order {};
 
-template <typename T, typename entry_id>
+template <typename T>
 using indexed_disconnected_entries = boost::multi_index_container<
-    T,
+    std::shared_ptr<const T>,
     boost::multi_index::indexed_by<
         // sorted by txid
         boost::multi_index::hashed_unique<
             boost::multi_index::tag<id_index>,
-            entry_id,
+            mempoolentry_id<T>,
             SaltedTxidHasher
         >,
         // sorted by order in the blockchain
@@ -828,24 +820,9 @@ using indexed_disconnected_entries = boost::multi_index_container<
 
 namespace referral {
 
-// extracts a transaction hash from CTxMempoolEntry or CTransactionRef
-struct mempoolreferralentry_refid
-{
-    typedef uint256 result_type;
-    result_type operator() (const RefMemPoolEntry &entry) const
-    {
-        return entry.GetValue().GetHash();
-    }
-
-    result_type operator() (const ReferralRef& ref) const
-    {
-        return ref->GetHash();
-    }
-};
-
 struct DisconnectedBlockReferrals {
 
-    using indexed_disconnected_referrals = indexed_disconnected_entries<ReferralRef, mempoolreferralentry_refid>;
+    using indexed_disconnected_referrals = indexed_disconnected_entries<Referral>;
 
     // It's almost certainly a logic bug if we don't clear out queuedRefs before
     // destruction, as we add to it while disconnecting blocks, and then we
@@ -900,7 +877,7 @@ struct DisconnectedBlockReferrals {
 }
 
 struct DisconnectedBlockTransactions {
-    using indexed_disconnected_transactions = indexed_disconnected_entries<CTransactionRef, mempoolentry_txid>;
+    using indexed_disconnected_transactions = indexed_disconnected_entries<CTransaction>;
 
     // It's almost certainly a logic bug if we don't clear out queuedTx before
     // destruction, as we add to it while disconnecting blocks, and then we
