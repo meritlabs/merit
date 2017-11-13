@@ -511,7 +511,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
         return false;
     }
 
-    referral::RefMemPoolEntry entry(referral, nAcceptTime, chainActive.Height());
+    referral::RefMemPoolEntry entry(*referral, nAcceptTime, chainActive.Height());
 
     const uint256 hash = referral->GetHash();
 
@@ -5493,7 +5493,7 @@ void DumpReferralMempool()
 
         file << (uint64_t)vEntries.size();
         for (const auto& i : vEntries) {
-            file << i.GetReferral();
+            file << i.GetValue();
             file << (int64_t)i.GetTime();
         }
 

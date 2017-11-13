@@ -13,8 +13,6 @@
 #include "primitives/transaction.h"
 #include "primitives/block.h"
 
-#include <numeric>
-
 /** "reject" message codes */
 static const unsigned char REJECT_MALFORMED = 0x01;
 static const unsigned char REJECT_INVALID = 0x10;

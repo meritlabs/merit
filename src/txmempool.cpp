@@ -21,6 +21,7 @@
 #include "utiltime.h"
 
 #include <algorithm>
+#include <numeric>
 
 void getMempoolReferralsOf(const CTransactionRef& tx, std::set<referral::ReferralRef>& txReferrals)
 {
@@ -68,17 +69,15 @@ void getMempoolReferralsOf(const CTransactionRef& tx, std::set<referral::Referra
 
 namespace referral
 {
-
-RefMemPoolEntry::RefMemPoolEntry(const ReferralRef& _ref, int64_t _nTime, unsigned int _entryHeight):
-    ref(_ref), nTime(_nTime), entryHeight(_entryHeight)
+RefMemPoolEntry::RefMemPoolEntry(const Referral& _entry, int64_t _nTime, unsigned int _entryHeight) : MemPoolEntry(_entry, _nTime, _entryHeight)
 {
-    nRefWeight = GetReferralWeight(*ref);
+    nWeight = GetReferralWeight(_entry);
     nUsageSize = sizeof(RefMemPoolEntry);
 }
 
-size_t RefMemPoolEntry::GetRefSize() const
+size_t RefMemPoolEntry::GetSize() const
 {
-    return GetVirtualReferralSize(nRefWeight);
+    return GetVirtualReferralSize(nWeight);
 }
 
 bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry& entry)
@@ -105,7 +104,7 @@ void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
         auto it = mapRTx.find(ref->GetHash());
         if(it == mapRTx.end()) continue;
 
-        NotifyEntryRemoved(it->second.GetSharedReferral(), MemPoolRemovalReason::BLOCK);
+        NotifyEntryRemoved(it->second.GetSharedValue(), MemPoolRemovalReason::BLOCK);
 
         mapRTx.erase(it);
         m_nReferralsUpdated++;
@@ -116,14 +115,14 @@ ReferralRef ReferralTxMemPool::get(const uint256& hash) const
 {
     LOCK(cs);
     auto it = mapRTx.find(hash);
-    return it != mapRTx.end() ? it->second.GetSharedReferral() : nullptr;
+    return it != mapRTx.end() ? it->second.GetSharedValue() : nullptr;
 }
 
 ReferralRef ReferralTxMemPool::GetWithCodeHash(const uint256& codeHash) const
 {
     LOCK(cs);
     for (const auto& it: mapRTx) {
-        const auto ref = it.second.GetSharedReferral();
+        const auto ref = it.second.GetSharedValue();
         if (ref->codeHash == codeHash) {
             return ref;
         }
@@ -149,7 +148,7 @@ std::vector<ReferralRef> ReferralTxMemPool::GetReferrals() const
 
     std::transform(mapRTx.begin(), mapRTx.end(), refs.begin(),
             [](const RefMemPoolEntyMap::value_type& p) {
-                return p.second.GetSharedReferral();
+                return p.second.GetSharedValue();
             });
 
     return refs;

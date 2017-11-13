@@ -49,30 +49,42 @@ enum class MemPoolRemovalReason {
     REPLACED     //! Removed for replacement
 };
 
-namespace referral
+template <typename T>
+class MemPoolEntry
 {
-
-class RefMemPoolEntry
-{
-private:
-    ReferralRef ref;
-    size_t nRefWeight;         //!< ... and avoid recomputing referral weight (also used for GetRefSize())
-    size_t nUsageSize;         //!< ... and total memory usage
-    int64_t nTime;             //!< Local time when entering the mempool
-    unsigned int entryHeight;  //!< Chain height when entering the mempool
+protected:
+    std::shared_ptr<const T> entry;
+    size_t nWeight;           //!< ... and avoid recomputing referral weight (also used for GetSize())
+    size_t nUsageSize;        //!< ... and total memory usage
+    int64_t nTime;            //!< Local time when entering the mempool
+    unsigned int entryHeight; //!< Chain height when entering the mempool
 
 public:
-    RefMemPoolEntry(const ReferralRef& _ref, int64_t _nTime, unsigned int _entryHeight);
+    MemPoolEntry(const T& _entry, int64_t _nTime, unsigned int _entryHeight) : entry(std::make_shared<const T>(_entry)),
+                                                                               nTime(_nTime),
+                                                                               entryHeight(_entryHeight) { }
 
-    const Referral& GetReferral() const { return *this->ref; }
-    ReferralRef GetSharedReferral() const { return this->ref; }
-    size_t GetRefSize() const;
-    size_t GetRefWeight() const { return nRefWeight; }
+    const T& GetValue() const { return *this->entry; }
+    const std::shared_ptr<const T> GetSharedValue() const { return this->entry; }
+
+    virtual size_t GetSize() const = 0;
+
+    size_t GetWeight() const { return nWeight; }
     int64_t GetTime() const { return nTime; }
     unsigned int GetHeight() const { return entryHeight; }
     size_t DynamicMemoryUsage() const { return nUsageSize; }
 };
 
+namespace referral
+{
+class RefMemPoolEntry : public MemPoolEntry<Referral>
+{
+public:
+    RefMemPoolEntry(const Referral& _entry, int64_t _nTime, unsigned int _entryHeight);
+
+    using MemPoolEntry::MemPoolEntry;
+    size_t GetSize() const;
+};
 
 using RefMemPoolEntyMap = std::map<uint256, RefMemPoolEntry>;
 
@@ -794,25 +806,101 @@ public:
  */
 
 // multi_index tag names
-struct txid_index {};
+struct id_index {};
 struct insertion_order {};
 
-struct DisconnectedBlockTransactions {
-    typedef boost::multi_index_container<
-        CTransactionRef,
-        boost::multi_index::indexed_by<
-            // sorted by txid
-            boost::multi_index::hashed_unique<
-                boost::multi_index::tag<txid_index>,
-                mempoolentry_txid,
-                SaltedTxidHasher
-            >,
-            // sorted by order in the blockchain
-            boost::multi_index::sequenced<
-                boost::multi_index::tag<insertion_order>
-            >
+template <typename T, typename entry_id>
+using indexed_disconnected_entries = boost::multi_index_container<
+    T,
+    boost::multi_index::indexed_by<
+        // sorted by txid
+        boost::multi_index::hashed_unique<
+            boost::multi_index::tag<id_index>,
+            entry_id,
+            SaltedTxidHasher
+        >,
+        // sorted by order in the blockchain
+        boost::multi_index::sequenced<
+            boost::multi_index::tag<insertion_order>
         >
-    > indexed_disconnected_transactions;
+    >
+>;
+
+namespace referral {
+
+// extracts a transaction hash from CTxMempoolEntry or CTransactionRef
+struct mempoolreferralentry_refid
+{
+    typedef uint256 result_type;
+    result_type operator() (const RefMemPoolEntry &entry) const
+    {
+        return entry.GetValue().GetHash();
+    }
+
+    result_type operator() (const ReferralRef& ref) const
+    {
+        return ref->GetHash();
+    }
+};
+
+struct DisconnectedBlockReferrals {
+
+    using indexed_disconnected_referrals = indexed_disconnected_entries<ReferralRef, mempoolreferralentry_refid>;
+
+    // It's almost certainly a logic bug if we don't clear out queuedRefs before
+    // destruction, as we add to it while disconnecting blocks, and then we
+    // need to re-process remaining transactions to ensure mempool consistency.
+    // For now, assert() that we've emptied out this object on destruction.
+    // This assert() can always be removed if the reorg-processing code were
+    // to be refactored such that this assumption is no longer true (for
+    // instance if there was some other way we cleaned up the mempool after a
+    // reorg, besides draining this object).
+    ~DisconnectedBlockReferrals() { assert(queuedRefs.empty()); }
+
+    indexed_disconnected_referrals queuedRefs;
+
+    // Estimate the overhead of queuedRefs to be 6 pointers + an allocation, as
+    // no exact formula for boost::multi_index_contained is implemented.
+    size_t DynamicMemoryUsage() const {
+        return memusage::MallocUsage(sizeof(ReferralRef) + 6 * sizeof(void*)) * queuedRefs.size();
+    }
+
+    void addTransaction(const ReferralRef& ref)
+    {
+        queuedRefs.insert(ref);
+    }
+
+    // Remove entries based on id_index, and update memory usage.
+    void removeForBlock(const std::vector<CTransactionRef>& vtx)
+    {
+        // Short-circuit in the common case of a block being added to the tip
+        if (queuedRefs.empty()) {
+            return;
+        }
+        for (auto const &tx : vtx) {
+            auto it = queuedRefs.find(tx->GetHash());
+            if (it != queuedRefs.end()) {
+                queuedRefs.erase(it);
+            }
+        }
+    }
+
+    // Remove an entry by insertion_order index, and update memory usage.
+    void removeEntry(indexed_disconnected_referrals::index<insertion_order>::type::iterator entry)
+    {
+        queuedRefs.get<insertion_order>().erase(entry);
+    }
+
+    void clear()
+    {
+        queuedRefs.clear();
+    }
+};
+
+}
+
+struct DisconnectedBlockTransactions {
+    using indexed_disconnected_transactions = indexed_disconnected_entries<CTransactionRef, mempoolentry_txid>;
 
     // It's almost certainly a logic bug if we don't clear out queuedTx before
     // destruction, as we add to it while disconnecting blocks, and then we
@@ -839,7 +927,7 @@ struct DisconnectedBlockTransactions {
         cachedInnerUsage += RecursiveDynamicUsage(tx);
     }
 
-    // Remove entries based on txid_index, and update memory usage.
+    // Remove entries based on id_index, and update memory usage.
     void removeForBlock(const std::vector<CTransactionRef>& vtx)
     {
         // Short-circuit in the common case of a block being added to the tip

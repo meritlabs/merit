@@ -431,7 +431,7 @@ void BlockAssembler::AddReferrals()
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
 
     for (auto const& it : mempoolReferral.mapRTx) {
-        const auto ref = it.second.GetSharedReferral();
+        const auto ref = it.second.GetSharedValue();
 
         if (refsInBlock.count(ref)) {
             continue;
