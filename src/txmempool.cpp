@@ -68,12 +68,25 @@ void getMempoolReferralsOf(const CTransactionRef& tx, std::set<referral::Referra
 
 namespace referral
 {
-bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const ReferralRef referral)
+
+RefMemPoolEntry::RefMemPoolEntry(const ReferralRef& _ref, int64_t _nTime, unsigned int _entryHeight):
+    ref(_ref), nTime(_nTime), entryHeight(_entryHeight)
+{
+    nRefWeight = GetReferralWeight(*ref);
+    nUsageSize = sizeof(RefMemPoolEntry);
+}
+
+size_t RefMemPoolEntry::GetRefSize() const
+{
+    return GetVirtualReferralSize(nRefWeight);
+}
+
+bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry& entry)
 {
     LOCK(cs);
 
     if (mapRTx.count(hash) == 0) {
-        mapRTx.insert(std::make_pair(hash, referral));
+        mapRTx.insert(std::make_pair(hash, entry));
     }
 
     m_nReferralsUpdated++;
@@ -92,7 +105,7 @@ void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
         auto it = mapRTx.find(ref->GetHash());
         if(it == mapRTx.end()) continue;
 
-        NotifyEntryRemoved(it->second, MemPoolRemovalReason::BLOCK);
+        NotifyEntryRemoved(it->second.GetSharedReferral(), MemPoolRemovalReason::BLOCK);
 
         mapRTx.erase(it);
         m_nReferralsUpdated++;
@@ -103,15 +116,16 @@ ReferralRef ReferralTxMemPool::get(const uint256& hash) const
 {
     LOCK(cs);
     auto it = mapRTx.find(hash);
-    return it != mapRTx.end() ? it->second : nullptr;
+    return it != mapRTx.end() ? it->second.GetSharedReferral() : nullptr;
 }
 
 ReferralRef ReferralTxMemPool::GetWithCodeHash(const uint256& codeHash) const
 {
     LOCK(cs);
     for (const auto& it: mapRTx) {
-        if (it.second->codeHash == codeHash) {
-            return it.second;
+        const auto ref = it.second.GetSharedReferral();
+        if (ref->codeHash == codeHash) {
+            return ref;
         }
     }
 
@@ -134,11 +148,16 @@ std::vector<ReferralRef> ReferralTxMemPool::GetReferrals() const
     std::vector<ReferralRef> refs(mapRTx.size());
 
     std::transform(mapRTx.begin(), mapRTx.end(), refs.begin(),
-            [](const ReferralRefMap::value_type& p) {
-                return p.second;
+            [](const RefMemPoolEntyMap::value_type& p) {
+                return p.second.GetSharedReferral();
             });
 
     return refs;
+}
+
+size_t ReferralTxMemPool::DynamicMemoryUsage() const {
+    LOCK(cs);
+    return memusage::DynamicUsage(mapRTx);
 }
 
 }
@@ -166,7 +185,7 @@ CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFe
     nSizeWithAncestors = GetTxSize();
     nSizeReferrals = std::accumulate(txReferrals.begin(), txReferrals.end(), 0,
         [](uint64_t acc, const referral::ReferralRef& ref) {
-            auto s = GetReferralWeight(*ref) / WITNESS_SCALE_FACTOR;
+            // todo use cached weight from RefMemPoolEntry
             return acc + GetReferralWeight(*ref) / WITNESS_SCALE_FACTOR;
         });
     nModFeesWithAncestors = nFee;

@@ -497,7 +497,11 @@ static bool CheckInputsFromMempoolAndCache(
             txdata);
 }
 
-bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationState& state, const referral::ReferralRef& referral, bool& missingReferrer)
+bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
+    CValidationState& state,
+    const referral::ReferralRef& referral,
+    int64_t nAcceptTime,
+    bool& missingReferrer)
 {
     assert(referral);
 
@@ -506,6 +510,8 @@ bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationSt
     if (!CheckReferral(*referral, state)) {
         return false;
     }
+
+    referral::RefMemPoolEntry entry(referral, nAcceptTime, chainActive.Height());
 
     const uint256 hash = referral->GetHash();
 
@@ -518,21 +524,28 @@ bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationSt
         }
 
         if (!(prefviewcache->ReferralCodeExists(referral->previousReferral) ||
-             pool.ExistsWithCodeHash(referral->previousReferral))) {
-                missingReferrer = true;
-                return false;
+            pool.ExistsWithCodeHash(referral->previousReferral))) {
+            missingReferrer = true;
+            return false;
         }
 
-        // TODO: check mempool(and maybe not only pool) for referral consistency
-        pool.AddUnchecked(referral->GetHash(), referral);
+        pool.AddUnchecked(referral->GetHash(), entry);
     }
-
 
     GetMainSignals().ReferralAddedToMempool(referral);
 
     return true;
 }
 
+bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool,
+    CValidationState& state,
+    const referral::ReferralRef& referral,
+    bool& missingReferrer)
+{
+    assert(referral);
+
+    return AcceptReferralToMemoryPoolWithTime(pool, state, referral, GetTime(), missingReferrer);
+}
 
 static bool AcceptToMemoryPoolWorker(
         const CChainParams& chainparams,
@@ -2798,6 +2811,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
  */
 bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &state, FlushStateMode mode, int nManualPruneHeight) {
     int64_t nMempoolUsage = mempool.DynamicMemoryUsage();
+    int64_t nReferralsMempoolUsage = mempoolReferral.DynamicMemoryUsage();
+
     LOCK(cs_main);
     static int64_t nLastWrite = 0;
     static int64_t nLastFlush = 0;
@@ -2835,9 +2850,13 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
         if (nLastSetChain == 0) {
             nLastSetChain = nNow;
         }
+
+
         int64_t nMempoolSizeMax = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
+        int64_t nReferralsMempoolSizeMax = gArgs.GetArg("-maxreferralsmempool", DEFAULT_MAX_REFERRALS_MEMPOOL_SIZE) * 1000000;
         int64_t cacheSize = pcoinsTip->DynamicMemoryUsage();
-        int64_t nTotalSpace = nCoinCacheUsage + std::max<int64_t>(nMempoolSizeMax - nMempoolUsage, 0);
+        int64_t nTotalSpace = nCoinCacheUsage + std::max<int64_t>(nMempoolSizeMax - nMempoolUsage, 0) + std::max<int64_t>(nReferralsMempoolSizeMax - nReferralsMempoolUsage, 0);
+
         // The cache is large and we're within 10% and 10 MiB of the limit, but we have time now (not in the middle of a block processing).
         bool fCacheLarge = mode == FLUSH_STATE_PERIODIC && cacheSize > std::max((9 * nTotalSpace) / 10, nTotalSpace - MAX_BLOCK_COINSDB_USAGE * 1024 * 1024);
         // The cache is over the limit, we have to write now.
@@ -5396,6 +5415,8 @@ bool DumpMempool(void)
 
 bool LoadReferralMempool()
 {
+    // use the same variable as for mempool expiry
+    int64_t nExpiryTimeout = gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60;
     FILE* filestr = fsbridge::fopen(GetDataDir() / "mempool_referral.dat", "rb");
     CAutoFile file(filestr, SER_DISK, CLIENT_VERSION);
     if (file.IsNull()) {
@@ -5416,12 +5437,14 @@ bool LoadReferralMempool()
         file >> num;
         while (num--) {
             referral::ReferralRef ref;
+            int64_t nTime;
             file >> ref;
+            file >> nTime;
             CValidationState state;
 
             LOCK(cs_main);
             bool dummy;
-            AcceptReferralToMemoryPool(mempoolReferral, state, ref, dummy);
+            AcceptReferralToMemoryPoolWithTime(mempoolReferral, state, ref, nTime, dummy);
 
             if (state.IsValid()) {
                 ++count;
@@ -5445,14 +5468,14 @@ void DumpReferralMempool()
 {
     int64_t start = GetTimeMicros();
 
-    std::vector<referral::ReferralRef> vReferral;
+    std::vector<referral::RefMemPoolEntry> vEntries;
 
     {
         LOCK(mempoolReferral.cs);
         auto map = &mempoolReferral.mapRTx;
 
         for(const auto& it: *map)
-            vReferral.push_back(it.second);
+            vEntries.push_back(it.second);
     }
 
     int64_t mid = GetTimeMicros();
@@ -5468,16 +5491,17 @@ void DumpReferralMempool()
         uint64_t version = MEMPOOL_DUMP_VERSION;
         file << version;
 
-        file << (uint64_t)vReferral.size();
-        for (const auto& i : vReferral) {
-            file << i;
+        file << (uint64_t)vEntries.size();
+        for (const auto& i : vEntries) {
+            file << i.GetReferral();
+            file << (int64_t)i.GetTime();
         }
 
         FileCommit(file.Get());
         file.fclose();
         RenameOver(GetDataDir() / "mempool_referral.dat.new", GetDataDir() / "mempool_referral.dat");
         int64_t last = GetTimeMicros();
-        LogPrintf("Dumped referral mempool: %lu records, %gs to copy, %gs to dump\n", vReferral.size(), (mid-start)*0.000001, (last-mid)*0.000001);
+        LogPrintf("Dumped referral mempool: %lu records, %gs to copy, %gs to dump\n", vEntries.size(), (mid-start)*0.000001, (last-mid)*0.000001);
     } catch (const std::exception& e) {
         LogPrintf("Failed to dump referral mempool: %s. Continuing anyway.\n", e.what());
     }

@@ -36,6 +36,86 @@ class CBlockIndex;
 /** Fake height value used in Coin to signify they are only in the memory pool (since 0.8) */
 static const uint32_t MEMPOOL_HEIGHT = 0x7FFFFFFF;
 
+/** Reason why a transaction was removed from the mempool,
+ * this is passed to the notification signal.
+ */
+enum class MemPoolRemovalReason {
+    UNKNOWN = 0, //! Manually removed or unknown reason
+    EXPIRY,      //! Expired from mempool
+    SIZELIMIT,   //! Removed in size limiting
+    REORG,       //! Removed for reorganization
+    BLOCK,       //! Removed for block
+    CONFLICT,    //! Removed for conflict with in-block transaction
+    REPLACED     //! Removed for replacement
+};
+
+namespace referral
+{
+
+class RefMemPoolEntry
+{
+private:
+    ReferralRef ref;
+    size_t nRefWeight;         //!< ... and avoid recomputing referral weight (also used for GetRefSize())
+    size_t nUsageSize;         //!< ... and total memory usage
+    int64_t nTime;             //!< Local time when entering the mempool
+    unsigned int entryHeight;  //!< Chain height when entering the mempool
+
+public:
+    RefMemPoolEntry(const ReferralRef& _ref, int64_t _nTime, unsigned int _entryHeight);
+
+    const Referral& GetReferral() const { return *this->ref; }
+    ReferralRef GetSharedReferral() const { return this->ref; }
+    size_t GetRefSize() const;
+    size_t GetRefWeight() const { return nRefWeight; }
+    int64_t GetTime() const { return nTime; }
+    unsigned int GetHeight() const { return entryHeight; }
+    size_t DynamicMemoryUsage() const { return nUsageSize; }
+};
+
+
+using RefMemPoolEntyMap = std::map<uint256, RefMemPoolEntry>;
+
+class ReferralTxMemPool
+{
+public:
+    unsigned int m_nReferralsUpdated;
+
+    RefMemPoolEntyMap mapRTx;
+    mutable CCriticalSection cs;
+
+    ReferralTxMemPool() : m_nReferralsUpdated(0) {};
+
+    bool AddUnchecked(const uint256& hash, const RefMemPoolEntry& entry);
+    void RemoveForBlock(const std::vector<ReferralRef>& vRefs);
+
+    bool exists(const uint256& hash) const
+    {
+        LOCK(cs);
+        return (mapRTx.count(hash) != 0);
+    }
+
+    bool ExistsWithCodeHash(const uint256& hash) const;
+    ReferralRef GetWithCodeHash(const uint256& codeHash) const;
+
+    ReferralRef get(const uint256& hash) const;
+
+    unsigned long size()
+    {
+        LOCK(cs);
+        return mapRTx.size();
+    }
+
+    std::vector<ReferralRef> GetReferrals() const;
+
+    size_t DynamicMemoryUsage() const;
+
+    boost::signals2::signal<void (ReferralRef)> NotifyEntryAdded;
+    boost::signals2::signal<void (ReferralRef, MemPoolRemovalReason)> NotifyEntryRemoved;
+};
+}
+
+
 struct LockPoints
 {
     // Will be set to the blockchain height and median time past
@@ -314,19 +394,6 @@ struct TxMempoolInfo
     int64_t nFeeDelta;
 };
 
-/** Reason why a transaction was removed from the mempool,
- * this is passed to the notification signal.
- */
-enum class MemPoolRemovalReason {
-    UNKNOWN = 0, //! Manually removed or unknown reason
-    EXPIRY,      //! Expired from mempool
-    SIZELIMIT,   //! Removed in size limiting
-    REORG,       //! Removed for reorganization
-    BLOCK,       //! Removed for block
-    CONFLICT,    //! Removed for conflict with in-block transaction
-    REPLACED     //! Removed for replacement
-};
-
 class SaltedTxidHasher
 {
 private:
@@ -340,47 +407,6 @@ public:
         return SipHashUint256(k0, k1, txid);
     }
 };
-
-namespace referral
-{
-using ReferralRefMap =std::map<uint256, ReferralRef>;
-
-class ReferralTxMemPool
-{
-public:
-    unsigned int m_nReferralsUpdated;
-
-    ReferralRefMap mapRTx;
-    mutable CCriticalSection cs;
-
-    ReferralTxMemPool() : m_nReferralsUpdated(0) {};
-
-    bool AddUnchecked(const uint256& hash, const ReferralRef entry);
-    void RemoveForBlock(const std::vector<ReferralRef>& vRefs);
-
-    bool exists(const uint256& hash) const
-    {
-        LOCK(cs);
-        return (mapRTx.count(hash) != 0);
-    }
-
-    bool ExistsWithCodeHash(const uint256& hash) const;
-    ReferralRef GetWithCodeHash(const uint256& codeHash) const;
-
-    ReferralRef get(const uint256& hash) const;
-
-    unsigned long size()
-    {
-        LOCK(cs);
-        return mapRTx.size();
-    }
-
-    std::vector<ReferralRef> GetReferrals() const;
-
-    boost::signals2::signal<void (ReferralRef)> NotifyEntryAdded;
-    boost::signals2::signal<void (ReferralRef, MemPoolRemovalReason)> NotifyEntryRemoved;
-};
-}
 
 /**
  * CTxMemPool stores valid-according-to-the-current-best-chain transactions

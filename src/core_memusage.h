@@ -8,6 +8,7 @@
 
 #include "primitives/transaction.h"
 #include "primitives/block.h"
+#include "primitives/referral.h"
 #include "memusage.h"
 
 static inline size_t RecursiveDynamicUsage(const CScript& script) {

@@ -1244,7 +1244,7 @@ void static ProcessGetData(CNode* pfrom, const Consensus::Params& consensusParam
                 int nSendFlags = 0;
 
                 if (it != mempoolReferral.mapRTx.end()) {
-                    connman.PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::REF, *it->second));
+                    connman.PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::REF, *it->second.GetSharedReferral()));
                 }
             }
 

@@ -430,12 +430,14 @@ void BlockAssembler::AddReferrals()
 {
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
 
-    for (auto const& ref : mempoolReferral.mapRTx) {
-        if (refsInBlock.count(ref.second)) {
+    for (auto const& it : mempoolReferral.mapRTx) {
+        const auto ref = it.second.GetSharedReferral();
+
+        if (refsInBlock.count(ref)) {
             continue;
         }
 
-        uint64_t nRefSize = ::GetSerializeSize(*ref.second, SER_NETWORK, PROTOCOL_VERSION);
+        uint64_t nRefSize = ::GetSerializeSize(*ref, SER_NETWORK, PROTOCOL_VERSION);
 
         if (fNeedSizeAccounting) {
             // share block size by transactions and referrals
@@ -445,12 +447,12 @@ void BlockAssembler::AddReferrals()
             nPotentialBlockSize += nRefSize;
         }
 
-        pblock->m_vRef.push_back(ref.second);
+        pblock->m_vRef.push_back(ref);
         if (fNeedSizeAccounting) {
             nBlockSize = nPotentialBlockSize;
         }
 
-        nBlockWeight += GetReferralWeight(*ref.second);
+        nBlockWeight += GetReferralWeight(*ref);
 
         ++nBlockRef;
     }
