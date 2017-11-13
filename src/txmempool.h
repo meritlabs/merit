@@ -783,7 +783,7 @@ public:
 };
 
 /**
- * DisconnectedBlockTransactions
+ * DisconnectedBlockEntries
 
  * During the reorg, it's desirable to re-add previously confirmed transactions
  * to the mempool, so that anything not re-confirmed in the new chain is
@@ -818,13 +818,12 @@ using indexed_disconnected_entries = boost::multi_index_container<
     >
 >;
 
-namespace referral {
+template <typename Entry>
+struct DisconnectedBlockEntries {
+    using EntryRef = std::shared_ptr<const Entry>;
+    using indexed_disconnected = indexed_disconnected_entries<Entry>;
 
-struct DisconnectedBlockReferrals {
-
-    using indexed_disconnected_referrals = indexed_disconnected_entries<Referral>;
-
-    // It's almost certainly a logic bug if we don't clear out queuedRefs before
+    // It's almost certainly a logic bug if we don't clear out queued before
     // destruction, as we add to it while disconnecting blocks, and then we
     // need to re-process remaining transactions to ensure mempool consistency.
     // For now, assert() that we've emptied out this object on destruction.
@@ -832,105 +831,50 @@ struct DisconnectedBlockReferrals {
     // to be refactored such that this assumption is no longer true (for
     // instance if there was some other way we cleaned up the mempool after a
     // reorg, besides draining this object).
-    ~DisconnectedBlockReferrals() { assert(queuedRefs.empty()); }
+    ~DisconnectedBlockEntries() { assert(queued.empty()); }
 
-    indexed_disconnected_referrals queuedRefs;
-
-    // Estimate the overhead of queuedRefs to be 6 pointers + an allocation, as
-    // no exact formula for boost::multi_index_contained is implemented.
-    size_t DynamicMemoryUsage() const {
-        return memusage::MallocUsage(sizeof(ReferralRef) + 6 * sizeof(void*)) * queuedRefs.size();
-    }
-
-    void addTransaction(const ReferralRef& ref)
-    {
-        queuedRefs.insert(ref);
-    }
-
-    // Remove entries based on id_index, and update memory usage.
-    void removeForBlock(const std::vector<CTransactionRef>& vtx)
-    {
-        // Short-circuit in the common case of a block being added to the tip
-        if (queuedRefs.empty()) {
-            return;
-        }
-        for (auto const &tx : vtx) {
-            auto it = queuedRefs.find(tx->GetHash());
-            if (it != queuedRefs.end()) {
-                queuedRefs.erase(it);
-            }
-        }
-    }
-
-    // Remove an entry by insertion_order index, and update memory usage.
-    void removeEntry(indexed_disconnected_referrals::index<insertion_order>::type::iterator entry)
-    {
-        queuedRefs.get<insertion_order>().erase(entry);
-    }
-
-    void clear()
-    {
-        queuedRefs.clear();
-    }
-};
-
-}
-
-struct DisconnectedBlockTransactions {
-    using indexed_disconnected_transactions = indexed_disconnected_entries<CTransaction>;
-
-    // It's almost certainly a logic bug if we don't clear out queuedTx before
-    // destruction, as we add to it while disconnecting blocks, and then we
-    // need to re-process remaining transactions to ensure mempool consistency.
-    // For now, assert() that we've emptied out this object on destruction.
-    // This assert() can always be removed if the reorg-processing code were
-    // to be refactored such that this assumption is no longer true (for
-    // instance if there was some other way we cleaned up the mempool after a
-    // reorg, besides draining this object).
-    ~DisconnectedBlockTransactions() { assert(queuedTx.empty()); }
-
-    indexed_disconnected_transactions queuedTx;
+    indexed_disconnected queued;
     uint64_t cachedInnerUsage = 0;
 
-    // Estimate the overhead of queuedTx to be 6 pointers + an allocation, as
+    // Estimate the overhead of queued to be 6 pointers + an allocation, as
     // no exact formula for boost::multi_index_contained is implemented.
     size_t DynamicMemoryUsage() const {
-        return memusage::MallocUsage(sizeof(CTransactionRef) + 6 * sizeof(void*)) * queuedTx.size() + cachedInnerUsage;
+        return memusage::MallocUsage(sizeof(EntryRef) + 6 * sizeof(void*)) * queued.size() + cachedInnerUsage;
     }
 
-    void addTransaction(const CTransactionRef& tx)
+    void addTransaction(const EntryRef& tx)
     {
-        queuedTx.insert(tx);
+        queued.insert(tx);
         cachedInnerUsage += RecursiveDynamicUsage(tx);
     }
 
     // Remove entries based on id_index, and update memory usage.
-    void removeForBlock(const std::vector<CTransactionRef>& vtx)
+    void removeForBlock(const std::vector<EntryRef>& vtx)
     {
         // Short-circuit in the common case of a block being added to the tip
-        if (queuedTx.empty()) {
+        if (queued.empty()) {
             return;
         }
         for (auto const &tx : vtx) {
-            auto it = queuedTx.find(tx->GetHash());
-            if (it != queuedTx.end()) {
+            auto it = queued.find(tx->GetHash());
+            if (it != queued.end()) {
                 cachedInnerUsage -= RecursiveDynamicUsage(*it);
-                queuedTx.erase(it);
+                queued.erase(it);
             }
         }
     }
 
     // Remove an entry by insertion_order index, and update memory usage.
-    void removeEntry(indexed_disconnected_transactions::index<insertion_order>::type::iterator entry)
+    void removeEntry(typename indexed_disconnected::template index<insertion_order>::type::iterator entry)
     {
         cachedInnerUsage -= RecursiveDynamicUsage(*entry);
-        queuedTx.get<insertion_order>().erase(entry);
+        queued.template get<insertion_order>().erase(entry);
     }
 
     void clear()
     {
         cachedInnerUsage = 0;
-        queuedTx.clear();
+        queued.clear();
     }
 };
 
