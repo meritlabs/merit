@@ -516,6 +516,12 @@ template<typename Stream, typename K, typename T> void Serialize(Stream& os, con
 template<typename Stream, typename K, typename T> void Unserialize(Stream& is, std::pair<K, T>& item);
 
 /**
+ * tuple
+ */
+template<typename Stream, typename... Ts> void Serialize(Stream& os, const std::tuple<Ts...>& item);
+template<typename Stream, typename... Ts> void Unserialize(Stream& is, std::tuple<Ts...>& item);
+
+/**
  * map
  */
 template<typename Stream, typename K, typename T, typename Pred, typename A> void Serialize(Stream& os, const std::map<K, T, Pred, A>& m);
@@ -735,7 +741,50 @@ void Unserialize(Stream& is, std::pair<K, T>& item)
     Unserialize(is, item.second);
 }
 
+/**
+ * tuple
+ */
+template<typename Stream, std::size_t Idx = 0, typename... Ts>
+typename std::enable_if<Idx == sizeof...(Ts), void>::type
+SerializeTuple(Stream&, const std::tuple<Ts...>& t)
+{
+    // base case
+}
 
+template<typename Stream, std::size_t Idx = 0, typename... Ts>
+typename std::enable_if<Idx < sizeof...(Ts), void>::type
+SerializeTuple(Stream& os, const std::tuple<Ts...>& t)
+{
+    Serialize(os, std::get<Idx>(t));
+    SerializeTuple<Stream, Idx + 1, Ts...>(os, t);
+}
+
+template<typename Stream, typename... Ts>
+void Serialize(Stream& os, const std::tuple<Ts...>& t)
+{
+    SerializeTuple<Stream, 0, Ts...>(os, t);
+}
+
+template<typename Stream, std::size_t Idx = 0, typename... Ts>
+typename std::enable_if<Idx == sizeof...(Ts), void>::type
+UnserializeTuple(Stream&, std::tuple<Ts...>& t)
+{
+    // base case
+}
+
+template<typename Stream, std::size_t Idx = 0, typename... Ts>
+typename std::enable_if<Idx < sizeof...(Ts), void>::type
+UnserializeTuple(Stream& os, std::tuple<Ts...>& t)
+{
+    Unserialize(os, std::get<Idx>(t));
+    UnserializeTuple<Stream, Idx + 1, Ts...>(os, t);
+}
+
+template<typename Stream, typename... Ts>
+void Unserialize(Stream& os, std::tuple<Ts...>& t)
+{
+    UnserializeTuple<Stream, 0, Ts...>(os, t);
+}
 
 /**
  * map

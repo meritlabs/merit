@@ -81,6 +81,12 @@ public:
             Invalidate();
     }
 
+    template <typename T>
+    void Set(const T& data)
+    {
+        Set(std::begin(data), std::end(data));
+    }
+
     //! Construct a public key using begin/end iterators to byte data.
     template <typename T>
     CPubKey(const T pbegin, const T pend)

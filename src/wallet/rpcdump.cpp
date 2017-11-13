@@ -714,7 +714,7 @@ UniValue ProcessImport(CWallet * const pwallet, const UniValue& data, const int6
         const std::string& label = data.exists("label") && !internal ? data["label"].get_str() : "";
 
         bool isScript = scriptPubKey.getType() == UniValue::VSTR;
-        bool isP2SH = strRedeemScript.length() > 0;
+        bool hasRedeem = strRedeemScript.length() > 0;
         const std::string& output = isScript ? scriptPubKey.get_str() : scriptPubKey["address"].get_str();
 
         // Parse the output.
@@ -752,27 +752,22 @@ UniValue ProcessImport(CWallet * const pwallet, const UniValue& data, const int6
         }
 
         // Keys / PubKeys size check.
-        if (!isP2SH && (keys.size() > 1 || pubKeys.size() > 1)) { // Address / scriptPubKey
+        if (!hasRedeem && (keys.size() > 1 || pubKeys.size() > 1)) { // Address / scriptPubKey
             throw JSONRPCError(RPC_INVALID_PARAMETER, "More than private key given for one address");
         }
 
         // Invalid P2SH redeemScript
-        if (isP2SH && !IsHex(strRedeemScript)) {
+        if (hasRedeem && !IsHex(strRedeemScript)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid redeem script");
         }
 
         // Process. //
 
         // P2SH
-        if (isP2SH) {
+        if (hasRedeem) {
             // Import redeem script.
             std::vector<unsigned char> vData(ParseHex(strRedeemScript));
             CScript redeemScript = CScript(vData.begin(), vData.end());
-
-            // Invalid P2SH address
-            if (!script.IsPayToScriptHash()) {
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid P2SH address / script");
-            }
 
             pwallet->MarkDirty();
 
@@ -780,8 +775,14 @@ UniValue ProcessImport(CWallet * const pwallet, const UniValue& data, const int6
                 throw JSONRPCError(RPC_WALLET_ERROR, "Error adding address to wallet");
             }
 
-            if (!pwallet->HaveCScript(redeemScript) && !pwallet->AddCScript(redeemScript)) {
-                throw JSONRPCError(RPC_WALLET_ERROR, "Error adding p2sh redeemScript to wallet");
+            if(script.IsPayToScriptHash()) {
+                if (!pwallet->HaveCScript(redeemScript) && !pwallet->AddCScript(redeemScript)) {
+                    throw JSONRPCError(RPC_WALLET_ERROR, "Error adding p2sh redeemScript to wallet");
+                }
+            } else if (script.IsParameterizedPayToScriptHash()){
+                if (!pwallet->HaveParamScript(redeemScript) && !pwallet->AddParamScript(redeemScript)) {
+                    throw JSONRPCError(RPC_WALLET_ERROR, "Error adding pp2sh redeemScript to wallet");
+                }
             }
 
             CTxDestination redeem_dest = CScriptID(redeemScript);

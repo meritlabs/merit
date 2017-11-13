@@ -121,7 +121,7 @@ unsigned int GetP2SHSigOpCount(const CTransaction& tx, const CCoinsViewCache& in
         const Coin& coin = inputs.AccessCoin(tx.vin[i].prevout);
         assert(!coin.IsSpent());
         const CTxOut &prevout = coin.out;
-        if (prevout.scriptPubKey.IsPayToScriptHash())
+        if (prevout.scriptPubKey.IsPayToScriptHash() || prevout.scriptPubKey.IsParameterizedPayToScriptHash())
             nSigOps += prevout.scriptPubKey.GetSigOpCount(tx.vin[i].scriptSig);
     }
     return nSigOps;
@@ -212,24 +212,20 @@ bool Consensus::CheckTxOutputs(
 
         if(boost::get<CNoDestination>(&dest)) continue;
 
-        const auto key = boost::get<CKeyID>(&dest);
-        const auto script = boost::get<CScriptID>(&dest);
-        const referral::Address* addr = key ?
-            static_cast<referral::Address*>(key) :
-            static_cast<referral::Address*>(script);
+        uint160 addr;
+        bool got_uint160 = GetUint160(dest, addr);
+        assert(got_uint160);
 
-        assert(addr);
-
-        bool addressBeaconed = referralsCache.WalletIdExists(*addr);
+        bool addressBeaconed = referralsCache.WalletIdExists(addr);
 
         // check cache for beaconed address
         if (!addressBeaconed) {
             // check vExtraReferrals vector for beaconed address
             const auto it = std::find_if(
                     vExtraReferrals.begin(), vExtraReferrals.end(),
-                    [addr](const referral::ReferralRef& ref) {
+                    [&addr](const referral::ReferralRef& ref) {
                         assert(ref);
-                        return ref->m_pubKeyId == *addr;
+                        return ref->pubKeyId == addr;
                     });
 
             addressBeaconed = it != vExtraReferrals.end();

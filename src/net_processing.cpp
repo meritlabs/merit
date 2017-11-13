@@ -623,7 +623,7 @@ bool AddOrphanReferral(const referral::ReferralRef& ref, NodeId peer) EXCLUSIVE_
     auto ret = mapOrphanReferrals.emplace(hash, OrphanReferral{ref, peer, GetTime() + ORPHAN_TX_EXPIRE_TIME});
     assert(ret.second);
 
-    mapOrphanReferralsByPrev[ref->m_previousReferral].insert(ret.first);
+    mapOrphanReferralsByPrev[ref->previousReferral].insert(ret.first);
 
     LogPrint(BCLog::REFMEMPOOL, "stored orphan referral %s (mapsz %u prevsz)\n", hash.ToString(), mapOrphanReferrals.size());
 
@@ -672,7 +672,7 @@ int static EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 
     mapOrphanReferrals.erase(it);
 
-    auto itPrev = mapOrphanReferralsByPrev.find(it->second.ref->m_previousReferral);
+    auto itPrev = mapOrphanReferralsByPrev.find(it->second.ref->previousReferral);
 
     if (itPrev != mapOrphanReferralsByPrev.end()) {
         itPrev->second.erase(it);

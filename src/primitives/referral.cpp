@@ -22,19 +22,23 @@ static inline std::string GenerateReferralCode()
 }
 
 MutableReferral::MutableReferral(
-        const Address& addressIn, const uint256& referralIn) :
-    m_nVersion{Referral::CURRENT_VERSION},
-    m_previousReferral{referralIn},
-    m_pubKeyId{addressIn},
-    m_code{GenerateReferralCode()},
-    m_codeHash{Hash(m_code.begin(), m_code.end())} {}
+        char addressTypeIn,
+        const Address& addressIn,
+        const uint256& referralIn) :
+    version{Referral::CURRENT_VERSION},
+    previousReferral{referralIn},
+    addressType{addressTypeIn},
+    pubKeyId{addressIn},
+    code{GenerateReferralCode()},
+    codeHash{Hash(code.begin(), code.end())} {}
 
 MutableReferral::MutableReferral(const Referral& ref) :
-    m_nVersion{ref.m_nVersion},
-    m_previousReferral{ref.m_previousReferral},
-    m_pubKeyId{ref.m_pubKeyId},
-    m_code{ref.m_code},
-    m_codeHash{ref.m_codeHash} {}
+    version{ref.version},
+    previousReferral{ref.previousReferral},
+    addressType{ref.addressType},
+    pubKeyId{ref.pubKeyId},
+    code{ref.code},
+    codeHash{ref.codeHash} {}
 
 uint256 MutableReferral::GetHash() const
 {
@@ -47,28 +51,34 @@ uint256 Referral::ComputeHash() const
 }
 
 /* For backward compatibility, the hash is initialized to 0. TODO: remove the need for this default constructor entirely. */
-Referral::Referral(const Address& addressIn, const uint256& referralIn) :
-    m_nVersion{Referral::CURRENT_VERSION},
-    m_previousReferral{referralIn},
-    m_pubKeyId{addressIn},
-    m_code{GenerateReferralCode()},
-    m_codeHash{Hash(m_code.begin(), m_code.end())},
+Referral::Referral(
+        char addressTypeIn,
+        const Address& addressIn,
+        const uint256& referralIn) :
+    version{Referral::CURRENT_VERSION},
+    previousReferral{referralIn},
+    addressType{addressTypeIn},
+    pubKeyId{addressIn},
+    code{GenerateReferralCode()},
+    codeHash{Hash(code.begin(), code.end())},
     m_hash{} {}
 
 Referral::Referral(const MutableReferral &ref) :
-    m_nVersion{ref.m_nVersion},
-    m_previousReferral{ref.m_previousReferral},
-    m_pubKeyId{ref.m_pubKeyId},
-    m_code{ref.m_code},
-    m_codeHash{ref.m_codeHash},
+    version{ref.version},
+    previousReferral{ref.previousReferral},
+    addressType{ref.addressType},
+    pubKeyId{ref.pubKeyId},
+    code{ref.code},
+    codeHash{ref.codeHash},
     m_hash{ComputeHash()} {}
 
 Referral::Referral(MutableReferral &&ref) :
-    m_nVersion{ref.m_nVersion},
-    m_previousReferral{std::move(ref.m_previousReferral)},
-    m_pubKeyId{std::move(ref.m_pubKeyId)},
-    m_code{ref.m_code},
-    m_codeHash{ref.m_codeHash},
+    version{ref.version},
+    previousReferral{std::move(ref.previousReferral)},
+    addressType{ref.addressType},
+    pubKeyId{std::move(ref.pubKeyId)},
+    code{ref.code},
+    codeHash{ref.codeHash},
     m_hash{ComputeHash()} {}
 
 unsigned int Referral::GetTotalSize() const
@@ -79,12 +89,13 @@ unsigned int Referral::GetTotalSize() const
 std::string Referral::ToString() const
 {
     std::string str;
-    str += strprintf("Referral(hash=%s, ver=%d, codeHash=%s, m_previousReferral=%s, m_pubKeyId=%s)\n",
+    str += strprintf("Referral(hash=%s, ver=%d, codeHash=%s, previousReferral=%s, addressType%d, pubKeyId=%s)\n",
         GetHash().GetHex().substr(0,10),
-        m_nVersion,
-        m_codeHash.GetHex(),
-        m_previousReferral.GetHex(),
-        m_pubKeyId.GetHex());
+        version,
+        codeHash.GetHex(),
+        previousReferral.GetHex(),
+        static_cast<int>(addressType),
+        pubKeyId.GetHex());
     return str;
 }
 

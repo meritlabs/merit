@@ -63,6 +63,7 @@ const char* GetOpName(opcodetype opcode)
     case OP_DEPTH                  : return "OP_DEPTH";
     case OP_DROP                   : return "OP_DROP";
     case OP_DUP                    : return "OP_DUP";
+    case OP_NDUP                   : return "OP_NDUP";
     case OP_NIP                    : return "OP_NIP";
     case OP_OVER                   : return "OP_OVER";
     case OP_PICK                   : return "OP_PICK";
@@ -70,17 +71,14 @@ const char* GetOpName(opcodetype opcode)
     case OP_ROT                    : return "OP_ROT";
     case OP_SWAP                   : return "OP_SWAP";
     case OP_TUCK                   : return "OP_TUCK";
+    case OP_NTOALTSTACK            : return "OP_NTOALTSTACK";
+    case OP_NFROMALTSTACK          : return "OP_NFROMALTSTACK";
+    case OP_NREPEAT                : return "OP_NREPEAT";
 
     // splice ops
-    case OP_CAT                    : return "OP_CAT";
-    case OP_SUBSTR                 : return "OP_SUBSTR";
-    case OP_LEFT                   : return "OP_LEFT";
-    case OP_RIGHT                  : return "OP_RIGHT";
     case OP_SIZE                   : return "OP_SIZE";
 
     // bit logic
-    case OP_INVERT                 : return "OP_INVERT";
-    case OP_AND                    : return "OP_AND";
     case OP_OR                     : return "OP_OR";
     case OP_XOR                    : return "OP_XOR";
     case OP_EQUAL                  : return "OP_EQUAL";
@@ -130,13 +128,18 @@ const char* GetOpName(opcodetype opcode)
     case OP_CHECKMULTISIGVERIFY    : return "OP_CHECKMULTISIGVERIFY";
     case OP_EASYSEND               : return "OP_EASYSEND";
 
-    // expansion
-    case OP_NOP1                   : return "OP_NOP1";
+    // locking and timing transactions
     case OP_CHECKLOCKTIMEVERIFY    : return "OP_CHECKLOCKTIMEVERIFY";
     case OP_CHECKSEQUENCEVERIFY    : return "OP_CHECKSEQUENCEVERIFY";
-    case OP_NOP5                   : return "OP_NOP5";
-    case OP_NOP6                   : return "OP_NOP6";
-    case OP_NOP7                   : return "OP_NOP7";
+
+    // output verification
+    case OP_OUTPUTAMOUNT           : return "OP_OUTPUTAMOUNT";
+    case OP_CHECKOUTPUTSIG         : return "OP_CHECKOUTPUTSIG";
+    case OP_CHECKOUTPUTSIGVERIFY   : return "OP_CHECKOUTPUTSIGVERIFY";
+    case OP_ANYVALUE               : return "OP_ANYVALUE";
+    case OP_OUTPUTCOUNT            : return "OP_OUTPUTCOUNT";
+
+    case OP_NOP1                   : return "OP_NOP1";
     case OP_NOP8                   : return "OP_NOP8";
     case OP_NOP9                   : return "OP_NOP9";
     case OP_NOP10                  : return "OP_NOP10";
@@ -183,7 +186,7 @@ unsigned int CScript::GetSigOpCount(bool fAccurate) const
 
 unsigned int CScript::GetSigOpCount(const CScript& scriptSig) const
 {
-    if (!IsPayToScriptHash())
+    if (!(IsPayToScriptHash() || IsParameterizedPayToScriptHash()))
         return GetSigOpCount(true);
 
     // This is a pay-to-script-hash scriptPubKey;
@@ -208,27 +211,51 @@ unsigned int CScript::GetSigOpCount(const CScript& scriptSig) const
 bool CScript::IsPayToPublicKey() const
 {
     // Extra-fast test for pay-to-pubkey CScripts:
-    return (this->size() == 67 && (*this)[66] == OP_CHECKSIG);
+    return 
+        (this->size() == 67 && (*this)[66] == OP_CHECKSIG) || 
+        (this->size() == 35 && (*this)[34] == OP_CHECKSIG );
 }
 
 bool CScript::IsPayToPublicKeyHash() const
 {
     // Extra-fast test for pay-to-pubkey-hash CScripts:
-    return (this->size() == 25 &&
-	    (*this)[0] == OP_DUP &&
-	    (*this)[1] == OP_HASH160 &&
-	    (*this)[2] == 0x14 &&
-	    (*this)[23] == OP_EQUALVERIFY &&
-	    (*this)[24] == OP_CHECKSIG);
+    return 
+        size() == 25 &&
+        (*this)[0] == OP_DUP &&
+        (*this)[1] == OP_HASH160 &&
+        (*this)[2] == 0x14 &&
+        (*this)[23] == OP_EQUALVERIFY &&
+        (*this)[24] == OP_CHECKSIG;
 }
 
 bool CScript::IsPayToScriptHash() const
 {
     // Extra-fast test for pay-to-script-hash CScripts:
-    return (this->size() == 23 &&
-            (*this)[0] == OP_HASH160 &&
-            (*this)[1] == 0x14 &&
-            (*this)[22] == OP_EQUAL);
+    return 
+        size() == 23 &&
+        (*this)[0] == OP_HASH160 &&
+        (*this)[1] == 0x14 &&
+        (*this)[22] == OP_EQUAL;
+}
+
+bool CScript::IsParameterizedPayToScriptHash() const
+{
+    return 
+        size() > 23 &&
+        (*this)[0] == OP_HASH160 &&
+        (*this)[1] == 0x14 &&
+        (*this)[22] == OP_EQUALVERIFY &&
+        (*this)[size() - 3] == OP_DEPTH &&
+        (*this)[size() - 1] == OP_GREATERTHANOREQUAL;
+}
+
+bool CScript::ExtractParameterizedPayToScriptHashParams(CScript& params) const 
+{
+    if(!IsParameterizedPayToScriptHash()) return false;
+
+    auto en = begin() + (size() - 3);
+    params = CScript(begin() + 23, en);
+    return true;
 }
 
 bool CScript::IsPayToWitnessScriptHash() const
@@ -237,6 +264,15 @@ bool CScript::IsPayToWitnessScriptHash() const
     return (this->size() == 34 &&
             (*this)[0] == OP_0 &&
             (*this)[1] == 0x20);
+}
+
+bool CScript::IsStandardPayToHash() const
+{
+    return 
+        IsPayToPublicKeyHash() ||
+        IsPayToScriptHash() ||
+        IsParameterizedPayToScriptHash() ||
+        IsPayToWitnessScriptHash();
 }
 
 // A witness program is any valid CScript that consists of a 1-byte push opcode

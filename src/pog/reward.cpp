@@ -28,7 +28,7 @@ namespace pog
                     auto percent = (v.anv*100) / total_anv;
                     CAmount reward = (total_reward * percent) / 100;
                     assert(reward <= total_reward);
-                    return AmbassadorReward{v.address, reward};
+                    return AmbassadorReward{v.addressType, v.address, reward};
                 });
 
         CAmount total_rewarded = 

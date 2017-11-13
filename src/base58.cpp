@@ -223,6 +223,7 @@ public:
 
     bool operator()(const CKeyID& id) const { return addr->Set(id); }
     bool operator()(const CScriptID& id) const { return addr->Set(id); }
+    bool operator()(const CParamScriptID& id) const { return addr->Set(id); }
     bool operator()(const CNoDestination& no) const { return false; }
 };
 
@@ -239,9 +240,26 @@ bool CMeritAddress::Set(const CScriptID& id)
     return true;
 }
 
+bool CMeritAddress::Set(const CParamScriptID& id)
+{
+    SetData(Params().Base58Prefix(CChainParams::PARAM_SCRIPT_ADDRESS), &id, 20);
+    return true;
+}
+
 bool CMeritAddress::Set(const CTxDestination& dest)
 {
     return boost::apply_visitor(CMeritAddressVisitor(this), dest);
+}
+
+bool CMeritAddress::Set(char type, const uint160& id)
+{
+    switch(type) {
+        case 1: SetData(Params().Base58Prefix(CChainParams::PUBKEY_ADDRESS), &id, 20); break;
+        case 2: SetData(Params().Base58Prefix(CChainParams::SCRIPT_ADDRESS), &id, 20); break;
+        case 3: SetData(Params().Base58Prefix(CChainParams::PARAM_SCRIPT_ADDRESS), &id, 20); break;
+        default: return false;
+    }
+    return true;
 }
 
 bool CMeritAddress::IsValid() const
@@ -253,7 +271,8 @@ bool CMeritAddress::IsValid(const CChainParams& params) const
 {
     bool fCorrectSize = vchData.size() == 20;
     bool fKnownVersion = vchVersion == params.Base58Prefix(CChainParams::PUBKEY_ADDRESS) ||
-                         vchVersion == params.Base58Prefix(CChainParams::SCRIPT_ADDRESS);
+                         vchVersion == params.Base58Prefix(CChainParams::SCRIPT_ADDRESS) ||
+                         vchVersion == params.Base58Prefix(CChainParams::PARAM_SCRIPT_ADDRESS);
     return fCorrectSize && fKnownVersion;
 }
 
@@ -267,6 +286,8 @@ CTxDestination CMeritAddress::Get() const
         return CKeyID(id);
     else if (vchVersion == Params().Base58Prefix(CChainParams::SCRIPT_ADDRESS))
         return CScriptID(id);
+    else if (vchVersion == Params().Base58Prefix(CChainParams::PARAM_SCRIPT_ADDRESS))
+        return CParamScriptID(id);
     else
         return CNoDestination();
 }
@@ -275,30 +296,42 @@ MaybeUint160 CMeritAddress::GetUint160() const
 {
     auto dest = Get();
 
-    if(auto key = boost::get<CKeyID>(&dest)) {
-        return *key;
-    } else if (auto script = boost::get<CScriptID>(&dest)) {
-        return *script;
+    if(auto hash = boost::get<CKeyID>(&dest)) {
+        return *hash;
+    } else if (auto hash = boost::get<CScriptID>(&dest)) {
+        return *hash;
+    } else if (auto hash = boost::get<CParamScriptID>(&dest)) {
+        return *hash;
     }
 
     return {};
 }
 
-bool CMeritAddress::GetIndexKey(uint160& hashBytes, int& type) const
-{
-    if (!IsValid()) {
-        return false;
-    } else if (vchVersion == Params().Base58Prefix(CChainParams::PUBKEY_ADDRESS)) {
-        memcpy(&hashBytes, &vchData[0], 20);
+char CMeritAddress::GetType() const {
+    char type = 0;
+
+    if (vchVersion == Params().Base58Prefix(CChainParams::PUBKEY_ADDRESS)) {
         type = 1;
-        return true;
     } else if (vchVersion == Params().Base58Prefix(CChainParams::SCRIPT_ADDRESS)) {
-        memcpy(&hashBytes, &vchData[0], 20);
         type = 2;
-        return true;
+    } else if (vchVersion == Params().Base58Prefix(CChainParams::PARAM_SCRIPT_ADDRESS)) {
+        type = 3;
     }
 
-    return false;
+    return type;
+}
+
+bool CMeritAddress::GetIndexKey(uint160& hashBytes, int& type) const
+{
+    if(!IsValid()) {
+        return false;
+    }
+
+    type = GetType();
+    assert(type != 0);
+    memcpy(&hashBytes, &vchData[0], 20);
+
+    return true;
 }
 
 bool CMeritAddress::GetKeyID(CKeyID& keyID) const

@@ -17,17 +17,18 @@ namespace referral
 using Address = uint160;
 using MaybeReferral = boost::optional<Referral>;
 using MaybeAddress = boost::optional<Address>;
-using MaybeANV = boost::optional<CAmount>;
 using ChildAddresses = std::vector<Address>;
 using Addresses = std::vector<Address>;
 
 struct AddressANV
 {
+    char addressType;
     Address address;
     CAmount anv;
 };
 
 using AddressANVs = std::vector<AddressANV>;
+using MaybeAddressANV = boost::optional<AddressANV>;
 
 class ReferralsViewDB
 {
@@ -40,9 +41,10 @@ public:
     MaybeAddress GetReferrer(const Address&) const;
     ChildAddresses GetChildren(const Address&) const;
 
-    bool UpdateANV(const Address&, CAmount);
-    MaybeANV GetANV(const Address&) const;
+    bool UpdateANV(char addressType, const Address&, CAmount);
+    MaybeAddressANV GetANV(const Address&) const;
     AddressANVs GetAllANVs() const;
+    AddressANVs GetAllRewardableANVs() const;
 
     bool InsertReferral(const Referral&);
     bool RemoveReferral(const Referral&);

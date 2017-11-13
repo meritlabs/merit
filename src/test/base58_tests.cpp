@@ -88,6 +88,10 @@ public:
     {
         return (exp_addrType == "script");
     }
+    bool operator()(const CParamScriptID &id) const
+    {
+        return (exp_addrType == "parameterized_script");
+    }
     bool operator()(const CNoDestination &no) const
     {
         return (exp_addrType == "none");
@@ -107,6 +111,11 @@ public:
         return exp_key == id;
     }
     bool operator()(const CScriptID &id) const
+    {
+        uint160 exp_key(exp_payload);
+        return exp_key == id;
+    }
+    bool operator()(const CParamScriptID &id) const
     {
         uint160 exp_key(exp_payload);
         return exp_key == id;
@@ -213,6 +222,10 @@ BOOST_AUTO_TEST_CASE(base58_keys_valid_gen)
                 dest = CKeyID(uint160(exp_payload));
             }
             else if(exp_addrType == "script")
+            {
+                dest = CScriptID(uint160(exp_payload));
+            }
+            else if(exp_addrType == "parameterized_script")
             {
                 dest = CScriptID(uint160(exp_payload));
             }

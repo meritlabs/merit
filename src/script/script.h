@@ -49,7 +49,7 @@ std::vector<unsigned char> ToByteVector(const T& in)
 }
 
 /** Script opcodes */
-enum opcodetype
+enum opcodetype : short
 {
     // push value
     OP_0 = 0x00,
@@ -109,17 +109,15 @@ enum opcodetype
     OP_ROT = 0x7b,
     OP_SWAP = 0x7c,
     OP_TUCK = 0x7d,
+    OP_NDUP = 0x7e,
+    OP_NTOALTSTACK = 0x7f,
+    OP_NFROMALTSTACK = 0x80,
+    OP_NREPEAT = 0x84,
 
     // splice ops
-    OP_CAT = 0x7e,
-    OP_SUBSTR = 0x7f,
-    OP_LEFT = 0x80,
-    OP_RIGHT = 0x81,
     OP_SIZE = 0x82,
 
     // bit logic
-    OP_INVERT = 0x83,
-    OP_AND = 0x84,
     OP_OR = 0x85,
     OP_XOR = 0x86,
     OP_EQUAL = 0x87,
@@ -171,21 +169,22 @@ enum opcodetype
     OP_CHECKMULTISIG = 0xae,
     OP_CHECKMULTISIGVERIFY = 0xaf,
 
+    //output opcodes
+    OP_OUTPUTAMOUNT = 0xb4,
+    OP_CHECKOUTPUTSIG = 0xb5,
+    OP_CHECKOUTPUTSIGVERIFY = 0xb6,
+    OP_OUTPUTCOUNT = 0x81,
+    OP_ANYVALUE = 0xb7,
+
     // expansion
     OP_NOP1 = 0xb0,
     OP_CHECKLOCKTIMEVERIFY = 0xb1,
     OP_NOP2 = OP_CHECKLOCKTIMEVERIFY,
     OP_CHECKSEQUENCEVERIFY = 0xb2,
-    OP_NOP3 = OP_CHECKSEQUENCEVERIFY,
     OP_EASYSEND = 0xb3,
-    OP_NOP4 = OP_EASYSEND,
-    OP_NOP5 = 0xb4,
-    OP_NOP6 = 0xb5,
-    OP_NOP7 = 0xb6,
-    OP_NOP8 = 0xb7,
+    OP_NOP8 = 0x83,
     OP_NOP9 = 0xb8,
     OP_NOP10 = 0xb9,
-
 
     // template matching params
     OP_SMALLINTEGER = 0xfa,
@@ -198,7 +197,7 @@ enum opcodetype
 };
 
 // Maximum value that an opcode can be
-static const unsigned int MAX_OPCODE = OP_NOP10;
+static const short MAX_OPCODE = OP_NOP10;
 
 const char* GetOpName(opcodetype opcode);
 
@@ -252,6 +251,11 @@ public:
             }
         }
         m_value = set_vch(vch);
+    }
+
+    operator std::vector<unsigned char>() const
+    {
+        return getvch();
     }
 
     inline bool operator==(const int64_t& rhs) const    { return m_value == rhs; }
@@ -442,7 +446,6 @@ public:
     explicit CScript(opcodetype b)     { operator<<(b); }
     explicit CScript(const CScriptNum& b) { operator<<(b); }
     explicit CScript(const std::vector<unsigned char>& b) { operator<<(b); }
-
 
     CScript& operator<<(int64_t b) { return push_int64(b); }
 
@@ -649,7 +652,22 @@ public:
     bool IsPayToPublicKeyHash() const;
 
     bool IsPayToScriptHash() const;
+    bool IsParameterizedPayToScriptHash() const;
     bool IsPayToWitnessScriptHash() const;
+
+    bool ExtractParameterizedPayToScriptHashParams(CScript& params) const;
+
+    /**
+     * Returns tre if the script pays to one of the standard pay to hash types
+     * listed here.
+     * 
+     * - Pay To Public Key Hash
+     * - Pay To Script Hash
+     * - Parameterized Pay To Script Hash
+     * - Pay To Witness Script Hash
+     */
+    bool IsStandardPayToHash() const;
+
     bool IsWitnessProgram(int& version, std::vector<unsigned char>& program) const;
 
     /** Called by IsStandardTx and P2SH/BIP62 VerifyScript (which makes it consensus-critical). */

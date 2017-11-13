@@ -24,6 +24,10 @@ const char* ScriptErrorString(const ScriptError serror)
             return "Script failed an OP_CHECKSIGVERIFY operation";
         case SCRIPT_ERR_NUMEQUALVERIFY:
             return "Script failed an OP_NUMEQUALVERIFY operation";
+        case SCRIPT_ERR_CHECKEASYSENDVERIFY:
+            return "Script failed on OP_CHECKEASYSENDVERIFY operation";
+        case SCRIPT_ERR_CHECKOUTPUTCOUNTVERIFY:
+            return "Script failed on OP_CHECKOUTPUTCOUNTVERIFY operation";
         case SCRIPT_ERR_SCRIPT_SIZE:
             return "Script is too big";
         case SCRIPT_ERR_PUSH_SIZE:
@@ -52,6 +56,20 @@ const char* ScriptErrorString(const ScriptError serror)
             return "Negative locktime";
         case SCRIPT_ERR_UNSATISFIED_LOCKTIME:
             return "Locktime requirement not satisfied";
+        case SCRIPT_ERR_SIG_PARAMS_PUSHONLY:
+            return "Pay-to-script-hash params must only be data";
+        case SCRIPT_ERR_EXTRACT_PARAMS:
+            return "Unable to extract params from pay-to-script-hash";
+        case SCRIPT_ERR_BAD_ADDRESS_COUNT:
+            return "Bad address count";
+        case SCRIPT_ERR_OUTPUT_INDEX_OUT_OF_BOUNDS:
+            return "Output index is out of bounds";
+        case SCRIPT_ERR_OUTPUT_UNSUPPORTED:
+            return "Output type is unsupported";
+        case SCRIPT_ERR_OUTPUT_NO_ADDRESS_MATCH:
+            return "Output address does not match";
+        case SCRIPT_ERR_OUTPUT_NOT_ENOUGH_PARAMS:
+            return "Not enough params in output";
         case SCRIPT_ERR_SIG_HASHTYPE:
             return "Signature hash type missing or not understood";
         case SCRIPT_ERR_SIG_DER:

@@ -11,7 +11,7 @@ namespace pog
      * This version simply pulls the ANV from the DB. ReferralsViewDB::UpdateANV
      * incrementally updates an ANV for a address and all parents.
      */
-    referral::MaybeANV ComputeANV(
+    referral::MaybeAddressANV ComputeANV(
             const referral::Address& address_id,
             const referral::ReferralsViewDB& db)
     {
@@ -23,6 +23,11 @@ namespace pog
         return db.GetAllANVs();
     }
 
+    referral::AddressANVs GetAllRewardableANVs(const referral::ReferralsViewDB& db)
+    {
+        return db.GetAllRewardableANVs();
+    }
+
     referral::AddressANVs GetANVs(
             const referral::Addresses& addresses,
             const referral::ReferralsViewDB& db)
@@ -32,7 +37,7 @@ namespace pog
 
         for(const auto& a : addresses) {
             if(auto maybe_anv = ComputeANV(a, db)) {
-                r.push_back({a, *maybe_anv});
+                r.push_back(*maybe_anv);
             }
         }
 

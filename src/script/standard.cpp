@@ -20,6 +20,8 @@ unsigned nMaxDatacarrierBytes = MAX_OP_RETURN_RELAY;
 
 CScriptID::CScriptID(const CScript& in) : uint160(Hash160(in.begin(), in.end())) {}
 
+CParamScriptID::CParamScriptID(const CScript& in) : uint160(Hash160(in.begin(), in.end())) {}
+
 const char* GetTxnOutputType(txnouttype t)
 {
     switch (t)
@@ -28,6 +30,7 @@ const char* GetTxnOutputType(txnouttype t)
     case TX_PUBKEY: return "pubkey";
     case TX_PUBKEYHASH: return "pubkeyhash";
     case TX_SCRIPTHASH: return "scripthash";
+    case TX_PARAMETERIZED_SCRIPTHASH: return "parameterized_scripthash";
     case TX_MULTISIG: return "multisig";
     case TX_EASYSEND: return "easysend";
     case TX_NULL_DATA: return "nulldata";
@@ -37,7 +40,7 @@ const char* GetTxnOutputType(txnouttype t)
     return nullptr;
 }
 
-bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::vector<unsigned char> >& vSolutionsRet)
+bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, Solutions& vSolutionsRet)
 {
     // Templates
     static std::multimap<txnouttype, CScript> mTemplates;
@@ -58,11 +61,14 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
 
     vSolutionsRet.clear();
 
-    // Shortcut for pay-to-script-hash, which are more constrained than the other types:
+    // Shortcut for pay-to-script-hash or paramed-pay-to-script-hash, which are more constrained than the other types:
     // it is always OP_HASH160 20 [20 byte hash] OP_EQUAL
-    if (scriptPubKey.IsPayToScriptHash())
+    // or OP_HASH160 20 [20 byte hash] OP_EQUALVERIFY [param1] [param2] ...
+    const bool is_pay_to_script_hash =  scriptPubKey.IsPayToScriptHash();
+    const bool is_parameterized_pay_to_script_hash = scriptPubKey.IsParameterizedPayToScriptHash();
+    if (is_pay_to_script_hash || is_parameterized_pay_to_script_hash)
     {
-        typeRet = TX_SCRIPTHASH;
+        typeRet = is_pay_to_script_hash ? TX_SCRIPTHASH : TX_PARAMETERIZED_SCRIPTHASH;
         std::vector<unsigned char> hashBytes(scriptPubKey.begin()+2, scriptPubKey.begin()+22);
         vSolutionsRet.push_back(hashBytes);
         return true;
@@ -188,6 +194,21 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
     return false;
 }
 
+char AddressTypeFromDestination(const CTxDestination& dest)
+{
+    char addressType = 0;
+    if(auto id = boost::get<CKeyID>(&dest)) {
+        addressType = 1;
+    } else if(auto id = boost::get<CScriptID>(&dest)) {
+        addressType = 2;
+    } else if(auto id = boost::get<CParamScriptID>(&dest)) {
+        addressType = 3;
+    }
+
+    return addressType;
+}
+
+
 bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
 {
     std::vector<valtype> vSolutions;
@@ -212,6 +233,11 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
     else if (whichType == TX_SCRIPTHASH)
     {
         addressRet = CScriptID(uint160(vSolutions[0]));
+        return true;
+    }
+    else if (whichType == TX_PARAMETERIZED_SCRIPTHASH)
+    {
+        addressRet = CParamScriptID(uint160(vSolutions[0]));
         return true;
     }
     // Multisig txns have more than one address...
@@ -294,6 +320,13 @@ public:
         *script << OP_HASH160 << ToByteVector(scriptID) << OP_EQUAL;
         return true;
     }
+
+    bool operator()(const CParamScriptID &scriptID) const {
+        //TODO: Must do lookup for params on blockchain/mempool based on script ID.
+        //The assumption is that all unspent coins with same id have same params.
+        throw std::invalid_argument("Parameterized script ids are not supported yet");
+        return false;
+    }
 };
 } // namespace
 
@@ -317,6 +350,80 @@ CScript GetScriptForEasySend(
                                  //max_block_height is met
         << CScript::EncodeOP_N(2) 
         << OP_EASYSEND;
+}
+
+CScript GetScriptForSimpleVault(const uint160& tag)
+{
+    // params <spend key> <renew key> [addresses: <addr1> <addr2> <...> <num addresses>] <tag> <vault type>
+    // stack on start0:  <sig> <mode> <spend key> <renew key> [addresses] <tag> |
+    CScript script;
+    script
+        << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] <tag>| 
+        << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] | 
+        << OP_NTOALTSTACK               // <out index> <sig> <mode> | [addresses]
+        << OP_TOALTSTACK                // <sig> <mode> <spend key> | [addresses] <renew key>
+        << OP_TOALTSTACK                // <sig> <mode> | [addresses] <renew key> <spend key>
+        << 0                            // <sig> <mode> 0 | [addresses] <renew key> <spend key>
+        << OP_EQUAL                     // <sig> <bool> | [addresses] <renew key> <spend key>
+        << OP_IF                        // <sig> | [addresses] <renew key> <spend key>
+        <<      OP_FROMALTSTACK         // <sig> <spend key> | [addresses] <renew key>
+        <<      OP_DUP                  // <sig> <spend key> <spend key> | [addresses] <renew key>
+        <<      OP_TOALTSTACK           // <sig> <spend key> | [addresses] <renew key> <spend key>
+        <<      OP_CHECKSIGVERIFY       // | [addresses] <renew key> <spend key>
+        <<      OP_FROMALTSTACK         // <spend key> | [addresses] <renew key>
+        <<      OP_FROMALTSTACK         // <spend key> <renew key> | [addresses]
+        <<      0                       // <spend key> <renew key> <0 args> | [addresses]
+        <<      0                       // <spend key> <renew key> <0 args> <out index>| [addresses]
+        <<      OP_NFROMALTSTACK        // <spend key> <renew key> <0 args> <out index> [addresses] |
+        <<      OP_NDUP                 // <spend key> <renew key> <0 args> <out index> [addresses] [addresses] |
+        <<      OP_NTOALTSTACK          // <spend key> <renew key> <0 args> <out index> [addresses] | [addresses]
+        <<      OP_CHECKOUTPUTSIGVERIFY // <spend key> <renew key> | [addresses]
+        <<      OP_NFROMALTSTACK        // <spend key> <renew key> [addresses] |
+        <<      OP_DUP                  // <spend key> <renew key> [addresses] <num addresss> |
+        <<      5                       // <spend key> <renew key> [addresses] <num addresss> 4 |
+        <<      OP_ADD                  // <spend key> <renew key> [addresses] <total args> |
+        <<      OP_TOALTSTACK           // <spend key> <renew key> [addresses] | <total args>
+        <<      ToByteVector(tag)       // <spend key> <renew key> [addresses] <tag> | 
+        <<      0                       // <spend key> <renew key> [addresses] <tag> <vault type> |
+        <<      OP_FROMALTSTACK         // <spend key> <renew key> [addresses] <tag> <vault type> <total args> | 
+        <<      1                       // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> |
+        <<      's'                     // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> |
+        <<      1                       // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
+        <<      OP_CHECKOUTPUTSIGVERIFY // |
+        <<      2                       // 2 |
+        <<      OP_OUTPUTCOUNT          // <count>
+        <<      OP_EQUAL                // <bool>
+        << OP_ELSE
+        <<      OP_FROMALTSTACK         // <sig> <spend key> | [addresses] <renew key>
+        <<      OP_DROP                 // <sig> | [addresses] <renew key>
+        <<      OP_FROMALTSTACK         // <sig> <renew key> | [addresses]  
+        <<      OP_CHECKSIGVERIFY       // | [addresses]
+        <<      0                       // <total args> | [addresses]
+        <<      0                       // <total args> <out index> | [addresses]
+        <<      's'                     // <total args> <out index> <self> | [addresses]
+        <<      1                       // <total args> <out index> <self> <num addresses>| [addresses]
+        <<      OP_CHECKOUTPUTSIGVERIFY //  | [addresses]
+        <<      1                       // 1 | [addresses]
+        <<      OP_OUTPUTCOUNT          // 1 <count> | [addresses]
+        <<      OP_EQUAL                // <bool> | [addresses]
+        << OP_ENDIF;
+
+    return script;
+}
+
+namespace details
+{
+    void AppendParameterizedP2SHTrampoline(CScript&, size_t&)
+    {
+        // nothing to append
+    }
+}
+
+CScript GetParameterizedP2SH(const CParamScriptID& dest)
+{
+    CScript script;
+    script << OP_HASH160 << ToByteVector(dest) << OP_EQUALVERIFY;
+    return script;
 }
 
 CScript GetScriptForRawPubKey(const CPubKey& pubKey)
@@ -358,6 +465,26 @@ CScript GetScriptForWitness(const CScript& redeemscript)
     return ret;
 }
 
-bool IsValidDestination(const CTxDestination& dest) {
+bool IsValidDestination(const CTxDestination& dest)
+{
     return dest.which() != 0;
+}
+
+bool GetUint160(const CTxDestination& dest, uint160& addr)
+{
+    if(!IsValidDestination(dest)) {
+        return false;
+    }
+
+    if(auto key_id = boost::get<CKeyID>(&dest)) {
+        addr = *key_id;
+    } else if (auto script_id = boost::get<CScriptID>(&dest)) { 
+        addr = *script_id;
+    } else if (auto script_id = boost::get<CParamScriptID>(&dest)) { 
+        addr = *script_id;
+    } else { 
+        assert(false && "forgot to implement a case");
+    }
+
+    return true;
 }

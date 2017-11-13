@@ -26,16 +26,18 @@ static const int SERIALIZE_REFERRAL = 0x40000000;
  */
 template<typename Stream, typename TxType>
 inline void UnserializeReferral(TxType& ref, Stream& s) {
-    s >> ref.m_previousReferral;
-    s >> ref.m_pubKeyId;
-    s >> ref.m_codeHash;
+    s >> ref.previousReferral;
+    s >> ref.addressType;
+    s >> ref.pubKeyId;
+    s >> ref.codeHash;
 }
 
 template<typename Stream, typename TxType>
 inline void SerializeReferral(const TxType& ref, Stream& s) {
-    s << ref.m_previousReferral;
-    s << ref.m_pubKeyId;
-    s << ref.m_codeHash;
+    s << ref.previousReferral;
+    s << ref.addressType;
+    s << ref.pubKeyId;
+    s << ref.codeHash;
 }
 
 /** The basic referral that is broadcast on the network and contained in
@@ -54,19 +56,22 @@ public:
     // MAX_STANDARD_VERSION will be equal.
     static const int32_t MAX_STANDARD_VERSION=0;
 
-    const int32_t m_nVersion;
+    const int32_t version;
 
     // hash code of revious referral
-    uint256 m_previousReferral;
+    uint256 previousReferral;
+
+    // Type of address. 0 == Key ID, 1 = Script ID, 2 = Parameterized Script ID
+    const char addressType;
 
     // address that this referral is related to
-    Address m_pubKeyId;
+    Address pubKeyId;
 
     // Referral code that is used as a referrence to a wallet
-    const std::string m_code;
+    const std::string code;
 
-    // hash of m_code
-    const uint256 m_codeHash;
+    // hash of code
+    const uint256 codeHash;
 
 private:
     /** Memory only. */
@@ -75,7 +80,11 @@ private:
     uint256 ComputeHash() const;
 
 public:
-    Referral(const Address& addressIn, const uint256& referralIn);
+
+    Referral(
+            char addressTypeIn,
+            const Address& addressIn,
+            const uint256& referralIn);
 
     /** Convert a MutableReferral into a Referral. */
     Referral(const MutableReferral &ref);
@@ -118,14 +127,15 @@ public:
 /** A mutable version of Referral. */
 struct MutableReferral
 {
-    int32_t m_nVersion;
-    uint256 m_previousReferral;
-    Address m_pubKeyId;
-    std::string m_code;
-    uint256 m_codeHash;
+    int32_t version;
+    uint256 previousReferral;
+    char addressType;
+    Address pubKeyId;
+    std::string code;
+    uint256 codeHash;
 
-    MutableReferral() : m_nVersion(Referral::CURRENT_VERSION) { }
-    MutableReferral(const Address& addressIn, const uint256& referralIn);
+    MutableReferral() : version(Referral::CURRENT_VERSION), addressType{0} { }
+    MutableReferral(char addressType, const Address& addressIn, const uint256& referralIn);
     MutableReferral(const Referral& ref);
 
     template <typename Stream>
@@ -161,9 +171,15 @@ struct MutableReferral
 
 typedef std::shared_ptr<const Referral> ReferralRef;
 
-static inline ReferralRef MakeReferralRef(Address& addressIn, uint256 referralCodeHashIn)
+static inline ReferralRef MakeReferralRef(
+        char addressTypeIn,
+        Address& addressIn,
+        uint256 referralCodeHashIn)
 {
-    return std::make_shared<const Referral>(addressIn, referralCodeHashIn);
+    return std::make_shared<const Referral>(
+            addressTypeIn,
+            addressIn,
+            referralCodeHashIn);
 }
 
 template <typename Ref> static inline ReferralRef MakeReferralRef(Ref&& referralIn)
