@@ -399,7 +399,7 @@ static bool IsCurrentForFeeEstimation()
  * other transactions from the mempool that are no longer valid given the new
  * tip/height.
  *
- * Note: we assume that disconnectpool only contains transactions that are NOT
+ * Note: we assume that disconnectTransactions only contains transactions that are NOT
  * confirmed in the current chain nor already in the mempool (otherwise,
  * in-mempool descendants of such transactions would be removed).
  *
@@ -407,18 +407,20 @@ static bool IsCurrentForFeeEstimation()
  * and instead just erase from the mempool as needed.
  */
 
-void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction> &disconnectpool, bool fAddToMempool)
+void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTransactions,
+    DisconnectedBlockEntries<referral::Referral>& disconnectReferrals,
+    bool fAddToMempool)
 {
     AssertLockHeld(cs_main);
     std::vector<uint256> vHashUpdate;
-    // disconnectpool's insertion_order index sorts the entries from
+    // disconnectTransactions's insertion_order index sorts the entries from
     // oldest to newest, but the oldest entry will be the last tx from the
     // latest mined block that was disconnected.
-    // Iterate disconnectpool in reverse, so that we add transactions
+    // Iterate disconnectTransactions in reverse, so that we add transactions
     // back to the mempool starting with the earliest transaction that had
     // been previously seen in a block.
-    auto it = disconnectpool.queued.get<insertion_order>().rbegin();
-    while (it != disconnectpool.queued.get<insertion_order>().rend()) {
+    auto it = disconnectTransactions.queued.get<insertion_order>().rbegin();
+    while (it != disconnectTransactions.queued.get<insertion_order>().rend()) {
         // ignore validation errors in resurrected transactions
         CValidationState stateDummy;
         if (!fAddToMempool || (*it)->IsCoinBase() || !AcceptToMemoryPool(mempool, stateDummy, *it, false, nullptr, nullptr, true)) {
@@ -430,18 +432,35 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction> &disconnectpoo
         }
         ++it;
     }
-    disconnectpool.queued.clear();
+    disconnectTransactions.queued.clear();
     // AcceptToMemoryPool/addUnchecked all assume that new mempool entries have
     // no in-mempool children, which is generally not true when adding
     // previously-confirmed transactions back to the mempool.
     // UpdateTransactionsFromBlock finds descendants of any transactions in
-    // the disconnectpool that were added back and cleans up the mempool state.
+    // the disconnectTransactions that were added back and cleans up the mempool state.
     mempool.UpdateTransactionsFromBlock(vHashUpdate);
 
     // We also need to remove any now-immature transactions
     mempool.removeForReorg(pcoinsTip, chainActive.Tip()->nHeight + 1, STANDARD_LOCKTIME_VERIFY_FLAGS);
     // Re-limit mempool size, in case we added any transactions
     LimitMempoolSize(mempool, gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000, gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60);
+
+    // the same with referrals mempool
+    auto rit = disconnectReferrals.queued.get<insertion_order>().rbegin();
+    while (rit != disconnectReferrals.queued.get<insertion_order>().rend()) {
+        // ignore validation errors in resurrected transactions
+        CValidationState stateDummy;
+        bool missingDummy;
+        if (!fAddToMempool || !AcceptReferralToMemoryPool(mempoolReferral, stateDummy, *rit, missingDummy)) {
+            // If the transaction doesn't make it in to the mempool, remove any
+            // transactions that depend on it (which would now be orphans).
+            mempoolReferral.RemoveStaged(**rit, MemPoolRemovalReason::REORG);
+        }
+        ++rit;
+    }
+    disconnectReferrals.queued.clear();
+
+    // TODO: add UpdateReferralsFromBlock and LimitMempoolSize
 }
 
 // Used to avoid mempool polluting consensus critical paths if CCoinsViewMempool
@@ -3002,15 +3021,18 @@ void static UpdateTip(CBlockIndex *pindexNew, const CChainParams& chainParams) {
 
 /** Disconnect chainActive's tip.
   * After calling, the mempool will be in an inconsistent state, with
-  * transactions from disconnected blocks being added to disconnectpool.  You
+  * transactions from disconnected blocks being added to disconnectTransactions.  You
   * should make the mempool consistent again by calling UpdateMempoolForReorg.
   * with cs_main held.
   *
-  * If disconnectpool is nullptr, then no disconnected transactions are added to
-  * disconnectpool (note that the caller is responsible for mempool consistency
+  * If disconnectTransactions is nullptr, then no disconnected transactions are added to
+  * disconnectTransactions (note that the caller is responsible for mempool consistency
   * in any case).
   */
-bool static DisconnectTip(CValidationState& state, const CChainParams& chainparams, DisconnectedBlockEntries<CTransaction> *disconnectpool)
+bool static DisconnectTip(CValidationState& state,
+    const CChainParams& chainparams,
+    DisconnectedBlockEntries<CTransaction>* disconnectTransactions,
+    DisconnectedBlockEntries<referral::Referral>* disconnectReferrals)
 {
     CBlockIndex *pindexDelete = chainActive.Tip();
     assert(pindexDelete);
@@ -3035,16 +3057,28 @@ bool static DisconnectTip(CValidationState& state, const CChainParams& chainpara
     if (!FlushStateToDisk(chainparams, state, FLUSH_STATE_IF_NEEDED))
         return false;
 
-    if (disconnectpool) {
+    if (disconnectTransactions) {
         // Save transactions to re-add to mempool at end of reorg
         for (auto it = block.vtx.rbegin(); it != block.vtx.rend(); ++it) {
-            disconnectpool->addTransaction(*it);
+            disconnectTransactions->addEntry(*it);
         }
-        while (disconnectpool->DynamicMemoryUsage() > MAX_DISCONNECTED_TX_POOL_SIZE * 1000) {
+        while (disconnectTransactions->DynamicMemoryUsage() > MAX_DISCONNECTED_TX_POOL_SIZE * 1000) {
             // Drop the earliest entry, and remove its children from the mempool.
-            auto it = disconnectpool->queued.get<insertion_order>().begin();
+            auto it = disconnectTransactions->queued.get<insertion_order>().begin();
             mempool.removeRecursive(**it, MemPoolRemovalReason::REORG);
-            disconnectpool->removeEntry(it);
+            disconnectTransactions->removeEntry(it);
+        }
+    }
+    if (disconnectReferrals) {
+        // Save transactions to re-add to mempool at end of reorg
+        for (auto it = block.m_vRef.rbegin(); it != block.m_vRef.rend(); ++it) {
+            disconnectReferrals->addEntry(*it);
+        }
+        while (disconnectReferrals->DynamicMemoryUsage() > MAX_DISCONNECTED_TX_POOL_SIZE * 1000) {
+            // Drop the earliest entry, and remove its children from the mempool.
+            auto it = disconnectReferrals->queued.get<insertion_order>().begin();
+            mempoolReferral.RemoveStaged(**it, MemPoolRemovalReason::REORG);
+            disconnectReferrals->removeEntry(it);
         }
     }
 
@@ -3138,7 +3172,8 @@ bool static ConnectTip(CValidationState& state,
     CBlockIndex* pindexNew,
     const std::shared_ptr<const CBlock>& pblock,
     ConnectTrace& connectTrace,
-    DisconnectedBlockEntries<CTransaction>& disconnectpool)
+    DisconnectedBlockEntries<CTransaction>& disconnectTransactions,
+    DisconnectedBlockEntries<referral::Referral>& disconnectReferrals)
 {
     assert(pindexNew->pprev == chainActive.Tip());
     // Read block from disk.
@@ -3182,8 +3217,9 @@ bool static ConnectTip(CValidationState& state,
     LogPrint(BCLog::BENCH, "  - Writing chainstate: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime5 - nTime4) * MILLI, nTimeChainState * MICRO, nTimeChainState * MILLI / nBlocksTotal);
     // Remove conflicting transactions from the mempool.;
     mempool.removeForBlock(blockConnecting.vtx, pindexNew->nHeight);
-    disconnectpool.removeForBlock(blockConnecting.vtx);
     mempoolReferral.RemoveForBlock(blockConnecting.m_vRef);
+    disconnectTransactions.removeForBlock(blockConnecting.vtx);
+    disconnectReferrals.removeForBlock(blockConnecting.m_vRef);
 
     // Update chainActive & related variables.
     UpdateTip(pindexNew, chainparams);
@@ -3281,12 +3317,13 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
 
     // Disconnect active blocks which are no longer in the best chain.
     bool fBlocksDisconnected = false;
-    DisconnectedBlockEntries<CTransaction> disconnectpool;
+    DisconnectedBlockEntries<CTransaction> disconnectTransactions;
+    DisconnectedBlockEntries<referral::Referral> disconnectReferrals;
     while (chainActive.Tip() && chainActive.Tip() != pindexFork) {
-        if (!DisconnectTip(state, chainparams, &disconnectpool)) {
+        if (!DisconnectTip(state, chainparams, &disconnectTransactions, &disconnectReferrals)) {
             // This is likely a fatal error, but keep the mempool consistent,
             // just in case. Only remove from the mempool in this case.
-            UpdateMempoolForReorg(disconnectpool, false);
+            UpdateMempoolForReorg(disconnectTransactions, disconnectReferrals, false);
             return false;
         }
         fBlocksDisconnected = true;
@@ -3315,7 +3352,7 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
             if(pblock) debug("TestValidity: %s", pblock->GetHash().GetHex());
             else debug("%s...", __func__);
 
-            if (!ConnectTip(state, chainparams, pindexConnect, pindexConnect == pindexMostWork ? pblock : std::shared_ptr<const CBlock>(), connectTrace, disconnectpool)) {
+            if (!ConnectTip(state, chainparams, pindexConnect, pindexConnect == pindexMostWork ? pblock : std::shared_ptr<const CBlock>(), connectTrace, disconnectTransactions, disconnectReferrals)) {
                 if (state.IsInvalid()) {
                     // The block violates a consensus rule.
                     if (!state.CorruptionPossible())
@@ -3328,7 +3365,7 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
                     // A system error occurred (disk space, database error, ...).
                     // Make the mempool consistent with the current tip, just in case
                     // any observers try to use it before shutdown.
-                    UpdateMempoolForReorg(disconnectpool, false);
+                    UpdateMempoolForReorg(disconnectTransactions, disconnectReferrals, false);
                     return false;
                 }
             } else {
@@ -3343,9 +3380,9 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
     }
 
     if (fBlocksDisconnected) {
-        // If any blocks were disconnected, disconnectpool may be non empty.  Add
+        // If any blocks were disconnected, disconnectTransactions may be non empty.  Add
         // any disconnected transactions back to the mempool.
-        UpdateMempoolForReorg(disconnectpool, true);
+        UpdateMempoolForReorg(disconnectTransactions, disconnectReferrals, true);
     }
     mempool.check(pcoinsTip, *prefviewcache);
 
@@ -3496,7 +3533,8 @@ bool InvalidateBlock(CValidationState& state, const CChainParams& chainparams, C
     setDirtyBlockIndex.insert(pindex);
     setBlockIndexCandidates.erase(pindex);
 
-    DisconnectedBlockEntries<CTransaction> disconnectpool;
+    DisconnectedBlockEntries<CTransaction> disconnectTransactions;
+    DisconnectedBlockEntries<referral::Referral> disconnectReferrals;
     while (chainActive.Contains(pindex)) {
         CBlockIndex *pindexWalk = chainActive.Tip();
         pindexWalk->nStatus |= BLOCK_FAILED_CHILD;
@@ -3504,17 +3542,17 @@ bool InvalidateBlock(CValidationState& state, const CChainParams& chainparams, C
         setBlockIndexCandidates.erase(pindexWalk);
         // ActivateBestChain considers blocks already in chainActive
         // unconditionally valid already, so force disconnect away from it.
-        if (!DisconnectTip(state, chainparams, &disconnectpool)) {
+        if (!DisconnectTip(state, chainparams, &disconnectTransactions, &disconnectReferrals)) {
             // It's probably hopeless to try to make the mempool consistent
             // here if DisconnectTip failed, but we can try.
-            UpdateMempoolForReorg(disconnectpool, false);
+            UpdateMempoolForReorg(disconnectTransactions, disconnectReferrals, false);
             return false;
         }
     }
 
-    // DisconnectTip will add transactions to disconnectpool; try to add these
+    // DisconnectTip will add transactions to disconnectTransactions; try to add these
     // back to the mempool.
-    UpdateMempoolForReorg(disconnectpool, true);
+    UpdateMempoolForReorg(disconnectTransactions, disconnectReferrals, true);
 
     // The resulting new best tip may not be in setBlockIndexCandidates anymore, so
     // add it again.
@@ -4795,7 +4833,7 @@ bool RewindBlockIndex(const CChainParams& params)
             // of the blockchain).
             break;
         }
-        if (!DisconnectTip(state, params, nullptr)) {
+        if (!DisconnectTip(state, params, nullptr, nullptr)) {
             return error("RewindBlockIndex: unable to disconnect block at height %i", pindex->nHeight);
         }
         // Occasionally flush state to disk.

@@ -88,7 +88,7 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry&
         mapRTx.insert(std::make_pair(hash, entry));
     }
 
-    m_nReferralsUpdated++;
+    nReferralsUpdated++;
 
     return true;
 }
@@ -102,12 +102,25 @@ void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
 
     for (const auto& ref : vRefs) {
         auto it = mapRTx.find(ref->GetHash());
-        if(it == mapRTx.end()) continue;
 
-        NotifyEntryRemoved(it->second.GetSharedEntryValue(), MemPoolRemovalReason::BLOCK);
+        if(it != mapRTx.end()) {
+            NotifyEntryRemoved(it->second.GetSharedEntryValue(), MemPoolRemovalReason::BLOCK);
+
+            mapRTx.erase(it);
+            nReferralsUpdated++;
+        }
+    }
+}
+
+void ReferralTxMemPool::RemoveStaged(const Referral& ref, MemPoolRemovalReason reason)
+{
+    auto it = mapRTx.find(ref.GetHash());
+
+    if (it != mapRTx.end()) {
+        NotifyEntryRemoved(it->second.GetSharedEntryValue(), reason);
 
         mapRTx.erase(it);
-        m_nReferralsUpdated++;
+        nReferralsUpdated++;
     }
 }
 

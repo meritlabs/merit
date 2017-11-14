@@ -91,15 +91,16 @@ using RefMemPoolEntyMap = std::map<uint256, RefMemPoolEntry>;
 class ReferralTxMemPool
 {
 public:
-    unsigned int m_nReferralsUpdated;
+    unsigned int nReferralsUpdated;
 
     RefMemPoolEntyMap mapRTx;
     mutable CCriticalSection cs;
 
-    ReferralTxMemPool() : m_nReferralsUpdated(0) {};
+    ReferralTxMemPool() : nReferralsUpdated(0) {};
 
     bool AddUnchecked(const uint256& hash, const RefMemPoolEntry& entry);
     void RemoveForBlock(const std::vector<ReferralRef>& vRefs);
+    void RemoveStaged(const Referral& ref, MemPoolRemovalReason reason = MemPoolRemovalReason::UNKNOWN);
 
     bool exists(const uint256& hash) const
     {
@@ -818,10 +819,10 @@ using indexed_disconnected_entries = boost::multi_index_container<
     >
 >;
 
-template <typename Entry>
+template <typename T>
 struct DisconnectedBlockEntries {
-    using EntryRef = std::shared_ptr<const Entry>;
-    using indexed_disconnected = indexed_disconnected_entries<Entry>;
+    using EntryRef = std::shared_ptr<const T>;
+    using indexed_disconnected = indexed_disconnected_entries<T>;
 
     // It's almost certainly a logic bug if we don't clear out queued before
     // destruction, as we add to it while disconnecting blocks, and then we
@@ -842,21 +843,21 @@ struct DisconnectedBlockEntries {
         return memusage::MallocUsage(sizeof(EntryRef) + 6 * sizeof(void*)) * queued.size() + cachedInnerUsage;
     }
 
-    void addTransaction(const EntryRef& tx)
+    void addEntry(const EntryRef& entry)
     {
-        queued.insert(tx);
-        cachedInnerUsage += RecursiveDynamicUsage(tx);
+        queued.insert(entry);
+        cachedInnerUsage += RecursiveDynamicUsage(entry);
     }
 
     // Remove entries based on id_index, and update memory usage.
-    void removeForBlock(const std::vector<EntryRef>& vtx)
+    void removeForBlock(const std::vector<EntryRef>& entries)
     {
         // Short-circuit in the common case of a block being added to the tip
         if (queued.empty()) {
             return;
         }
-        for (auto const &tx : vtx) {
-            auto it = queued.find(tx->GetHash());
+        for (auto const &entry : entries) {
+            auto it = queued.find(entry->GetHash());
             if (it != queued.end()) {
                 cachedInnerUsage -= RecursiveDynamicUsage(*it);
                 queued.erase(it);
