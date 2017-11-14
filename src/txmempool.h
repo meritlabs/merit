@@ -75,146 +75,6 @@ public:
     size_t DynamicMemoryUsage() const { return nUsageSize; }
 };
 
-
-
-// Multi_index tag names
-struct entry_time {};
-
-// multi_index comparators
-
-template <typename iter>
-struct CompareIteratorByHash {
-    bool operator()(const iter& a, const iter& b) const
-    {
-        return a->GetEntryValue().GetHash() < b->GetEntryValue().GetHash();
-    }
-};
-
-template <typename T>
-class CompareMemPoolEntryByEntryTime
-{
-public:
-    bool operator()(const MemPoolEntry<T>& a, const MemPoolEntry<T>& b)
-    {
-        return a.GetTime() < b.GetTime();
-    }
-};
-
-class SaltedTxidHasher
-{
-private:
-    /** Salt */
-    const uint64_t k0, k1;
-
-public:
-    SaltedTxidHasher();
-
-    size_t operator()(const uint256& txid) const
-    {
-        return SipHashUint256(k0, k1, txid);
-    }
-};
-
-
-// extracts a transaction hash from CTxMempoolEntry or CTransactionRef
-template <typename T>
-struct mempoolentry_id {
-    typedef uint256 result_type;
-    result_type operator()(const MemPoolEntry<T>& entry) const
-    {
-        return entry.GetEntryValue().GetHash();
-    }
-
-    result_type operator()(const std::shared_ptr<const T>& entry) const
-    {
-        return entry->GetHash();
-    }
-};
-
-namespace referral
-{
-class RefMemPoolEntry : public MemPoolEntry<Referral>
-{
-public:
-    RefMemPoolEntry(const Referral& _ref, int64_t _nTime, unsigned int _entryHeight);
-
-    using MemPoolEntry::MemPoolEntry;
-    size_t GetSize() const;
-};
-
-class ReferralTxMemPool
-{
-public:
-    using indexed_referrals_set = boost::multi_index_container<
-        RefMemPoolEntry,
-        boost::multi_index::indexed_by<
-            // sorted by hash
-            boost::multi_index::hashed_unique<
-                mempoolentry_id<Referral>,
-                SaltedTxidHasher>,
-            // sorted by entry time
-            boost::multi_index::ordered_non_unique<
-                boost::multi_index::tag<entry_time>,
-                boost::multi_index::identity<RefMemPoolEntry>,
-                CompareMemPoolEntryByEntryTime<Referral>>>>;
-
-    using refiter = indexed_referrals_set::nth_index<0>::type::iterator;
-
-    using setEntries = std::set<refiter, CompareIteratorByHash<refiter>>;
-
-    mutable CCriticalSection cs;
-
-    indexed_referrals_set mapRTx;
-
-    unsigned int nReferralsUpdated;
-
-    ReferralTxMemPool() : nReferralsUpdated(0) {};
-
-    bool AddUnchecked(const uint256& hash, const RefMemPoolEntry& entry);
-
-    void RemoveRecursive(const Referral &origRef, MemPoolRemovalReason reason = MemPoolRemovalReason::UNKNOWN);
-    // void removeForReorg(const CCoinsViewCache *pcoins, unsigned int nMemPoolHeight, int flags);
-    void RemoveForBlock(const std::vector<ReferralRef>& vRefs);
-    void RemoveStaged(const Referral& ref, MemPoolRemovalReason reason = MemPoolRemovalReason::UNKNOWN);
-
-    void CalculateDescendants(refiter entryit, setEntries& setDescendants);
-
-    bool exists(const uint256& hash) const
-    {
-        LOCK(cs);
-        return (mapRTx.count(hash) != 0);
-    }
-
-    bool ExistsWithCodeHash(const uint256& hash) const;
-    ReferralRef GetWithCodeHash(const uint256& codeHash) const;
-
-    ReferralRef get(const uint256& hash) const;
-
-    unsigned long size()
-    {
-        LOCK(cs);
-        return mapRTx.size();
-    }
-
-    std::vector<ReferralRef> GetReferrals() const;
-
-    size_t DynamicMemoryUsage() const;
-
-    boost::signals2::signal<void (ReferralRef)> NotifyEntryAdded;
-    boost::signals2::signal<void (ReferralRef, MemPoolRemovalReason)> NotifyEntryRemoved;
-
-private:
-    struct RefLinks {
-        setEntries parents;
-        setEntries children;
-    };
-
-    using reflinksMap = std::map<refiter, RefLinks, CompareIteratorByHash<refiter>>;
-    reflinksMap mapLinks;
-};
-}
-
-
 struct LockPoints
 {
     // Will be set to the blockchain height and median time past
@@ -304,6 +164,21 @@ public:
     mutable size_t vTxHashesIdx; //!< Index in mempool's vTxHashes
 };
 
+class SaltedTxidHasher
+{
+private:
+    /** Salt */
+    const uint64_t k0, k1;
+
+public:
+    SaltedTxidHasher();
+
+    size_t operator()(const uint256& txid) const
+    {
+        return SipHashUint256(k0, k1, txid);
+    }
+};
+
 // Helpers for modifying CTxMemPool::mapTx, which is a boost multi_index.
 struct update_descendant_state
 {
@@ -356,6 +231,30 @@ private:
     const LockPoints& lp;
 };
 
+// extracts a transaction hash from CTxMempoolEntry or CTransactionRef
+template <typename T>
+struct mempoolentry_id {
+    typedef uint256 result_type;
+    result_type operator()(const MemPoolEntry<T>& entry) const
+    {
+        return entry.GetEntryValue().GetHash();
+    }
+
+    result_type operator()(const std::shared_ptr<const T>& entry) const
+    {
+        return entry->GetHash();
+    }
+};
+
+// multi_index comparators
+template <typename iter>
+struct CompareIteratorByHash {
+    bool operator()(const iter& a, const iter& b) const
+    {
+        return a->GetEntryValue().GetHash() < b->GetEntryValue().GetHash();
+    }
+};
+
 /** \class CompareTxMemPoolEntryByDescendantScore
  *
  *  Sort an entry by max(score/size of entry's tx, score/size with all descendants).
@@ -393,8 +292,6 @@ public:
     }
 };
 
-// CTxMemPool comparators
-
 /** \class CompareTxMemPoolEntryByScore
  *
  *  Sort by score of entry ((fee+delta)/size) in descending order
@@ -410,6 +307,16 @@ public:
             return b.GetEntryValue().GetHash() < a.GetEntryValue().GetHash();
         }
         return f1 > f2;
+    }
+};
+
+template <typename T>
+class CompareMemPoolEntryByEntryTime
+{
+public:
+    bool operator()(const MemPoolEntry<T>& a, const MemPoolEntry<T>& b)
+    {
+        return a.GetTime() < b.GetTime();
     }
 };
 
@@ -436,10 +343,13 @@ public:
     }
 };
 
-// CTxMemPool multi_index tag names
+// Multi_index tag names
+struct entry_time {};
 struct descendant_score {};
 struct mining_score {};
 struct ancestor_score {};
+
+// CTxMemPool multi_index tag names
 
 class CBlockPolicyEstimator;
 

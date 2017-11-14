@@ -25,6 +25,7 @@
 #include "timestampindex.h"
 #include "pog/reward.h"
 #include "script/standard.h"
+#include "refmempool.h"
 
 #include <algorithm>
 #include <exception>

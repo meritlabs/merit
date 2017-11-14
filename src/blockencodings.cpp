@@ -11,6 +11,7 @@
 #include "random.h"
 #include "streams.h"
 #include "txmempool.h"
+#include "refmempool.h"
 #include "validation.h"
 #include "util.h"
 

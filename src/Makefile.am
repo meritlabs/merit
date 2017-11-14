@@ -138,6 +138,7 @@ MERIT_CORE_H = \
   rpc/blockchain.h \
   spentindex.h \
   timestampindex.h \
+  refmempool.h \
   rpc/client.h \
   rpc/mining.h \
   rpc/protocol.h \
@@ -224,6 +225,7 @@ libmerit_server_a_SOURCES = \
   policy/rbf.cpp \
   pow.cpp \
   refdb.cpp \
+  refmempool.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
   rpc/mining.cpp \
