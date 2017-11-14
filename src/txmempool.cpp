@@ -85,12 +85,70 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry&
     LOCK(cs);
 
     if (mapRTx.count(hash) == 0) {
-        mapRTx.insert(std::make_pair(hash, entry));
+        refiter newit = mapRTx.insert(entry).first;
+        mapLinks.insert(std::make_pair(newit, RefLinks()));
     }
 
     nReferralsUpdated++;
 
     return true;
+}
+
+// Calculates descendants of entry that are not already in setDescendants, and adds to
+// setDescendants. Assumes entryit is already a tx in the mempool and setMemPoolChildren
+// is correct for tx and all descendants.
+// Also assumes that if an entry is in setDescendants already, then all
+// in-mempool descendants of it are already in setDescendants as well, so that we
+// can save time by not iterating over those entries.
+void ReferralTxMemPool::CalculateDescendants(refiter entryit, setEntries& setDescendants)
+{
+    setEntries stage;
+    if (setDescendants.count(entryit) == 0) {
+        stage.insert(entryit);
+    }
+    // Traverse down the children of entry, only adding children that are not
+    // accounted for in setDescendants already (because those children have either
+    // already been walked, or will be walked in this iteration).
+    while (!stage.empty()) {
+        refiter it = *stage.begin();
+        setDescendants.insert(it);
+        stage.erase(it);
+
+        const setEntries setChildren;
+
+        // while (mempoolReferral.exists()) {
+
+        // }
+
+
+        for (const refiter &childiter : setChildren) {
+            if (!setDescendants.count(childiter)) {
+                stage.insert(childiter);
+            }
+        }
+    }
+}
+
+void ReferralTxMemPool::RemoveRecursive(const Referral &origRef, MemPoolRemovalReason reason)
+{
+    // Remove referrals from memory pool
+    {
+        LOCK(cs);
+        setEntries toRemove;
+        refiter origit = mapRTx.find(origRef.GetHash());
+        if (origit != mapRTx.end()) {
+            toRemove.insert(origit);
+        }
+
+        setEntries setAllRemoves;
+        for (refiter it : toRemove) {
+            CalculateDescendants(it, setAllRemoves);
+        }
+
+        for (const auto& it : setAllRemoves) {
+            RemoveStaged(it->GetEntryValue(), reason);
+        }
+    }
 }
 
 /**
@@ -104,7 +162,7 @@ void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
         auto it = mapRTx.find(ref->GetHash());
 
         if(it != mapRTx.end()) {
-            NotifyEntryRemoved(it->second.GetSharedEntryValue(), MemPoolRemovalReason::BLOCK);
+            NotifyEntryRemoved(it->GetSharedEntryValue(), MemPoolRemovalReason::BLOCK);
 
             mapRTx.erase(it);
             nReferralsUpdated++;
@@ -117,7 +175,7 @@ void ReferralTxMemPool::RemoveStaged(const Referral& ref, MemPoolRemovalReason r
     auto it = mapRTx.find(ref.GetHash());
 
     if (it != mapRTx.end()) {
-        NotifyEntryRemoved(it->second.GetSharedEntryValue(), reason);
+        NotifyEntryRemoved(it->GetSharedEntryValue(), reason);
 
         mapRTx.erase(it);
         nReferralsUpdated++;
@@ -128,14 +186,14 @@ ReferralRef ReferralTxMemPool::get(const uint256& hash) const
 {
     LOCK(cs);
     auto it = mapRTx.find(hash);
-    return it != mapRTx.end() ? it->second.GetSharedEntryValue() : nullptr;
+    return it != mapRTx.end() ? it->GetSharedEntryValue() : nullptr;
 }
 
 ReferralRef ReferralTxMemPool::GetWithCodeHash(const uint256& codeHash) const
 {
     LOCK(cs);
     for (const auto& it: mapRTx) {
-        const auto ref = it.second.GetSharedEntryValue();
+        const auto ref = it.GetSharedEntryValue();
         if (ref->codeHash == codeHash) {
             return ref;
         }
@@ -159,17 +217,22 @@ std::vector<ReferralRef> ReferralTxMemPool::GetReferrals() const
 
     std::vector<ReferralRef> refs(mapRTx.size());
 
-    std::transform(mapRTx.begin(), mapRTx.end(), refs.begin(),
-            [](const RefMemPoolEntyMap::value_type& p) {
-                return p.second.GetSharedEntryValue();
-            });
+
+    // for (indexed_transaction_set::const_iterator it = mapTx.begin(); it != mapTx.end(); it++) {
+    for (const auto it : mapRTx) {
+        refs.push_back(it.GetSharedEntryValue());
+    }
+    // std::transform(mapRTx.begin(), mapRTx.end(), refs.begin(),
+    //         [](indexed_referrals_set::const_iterator it) {
+    //             return it->GetSharedEntryValue();
+    //         });
 
     return refs;
 }
 
 size_t ReferralTxMemPool::DynamicMemoryUsage() const {
     LOCK(cs);
-    return memusage::DynamicUsage(mapRTx);
+    return memusage::MallocUsage(sizeof(RefMemPoolEntry) + 15 * sizeof(void*)) * mapRTx.size() + memusage::DynamicUsage(mapLinks);
 }
 
 }

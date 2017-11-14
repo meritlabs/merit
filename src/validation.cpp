@@ -412,7 +412,7 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTra
     bool fAddToMempool)
 {
     AssertLockHeld(cs_main);
-    std::vector<uint256> vHashUpdate;
+    std::vector<uint256> vTxHashUpdate;
     // disconnectTransactions's insertion_order index sorts the entries from
     // oldest to newest, but the oldest entry will be the last tx from the
     // latest mined block that was disconnected.
@@ -428,7 +428,7 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTra
             // transactions that depend on it (which would now be orphans).
             mempool.removeRecursive(**it, MemPoolRemovalReason::REORG);
         } else if (mempool.exists((*it)->GetHash())) {
-            vHashUpdate.push_back((*it)->GetHash());
+            vTxHashUpdate.push_back((*it)->GetHash());
         }
         ++it;
     }
@@ -438,7 +438,7 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTra
     // previously-confirmed transactions back to the mempool.
     // UpdateTransactionsFromBlock finds descendants of any transactions in
     // the disconnectTransactions that were added back and cleans up the mempool state.
-    mempool.UpdateTransactionsFromBlock(vHashUpdate);
+    mempool.UpdateTransactionsFromBlock(vTxHashUpdate);
 
     // We also need to remove any now-immature transactions
     mempool.removeForReorg(pcoinsTip, chainActive.Tip()->nHeight + 1, STANDARD_LOCKTIME_VERIFY_FLAGS);
@@ -446,6 +446,7 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTra
     LimitMempoolSize(mempool, gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000, gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60);
 
     // the same with referrals mempool
+    std::vector<uint256> vRefHashUpdate;
     auto rit = disconnectReferrals.queued.get<insertion_order>().rbegin();
     while (rit != disconnectReferrals.queued.get<insertion_order>().rend()) {
         // ignore validation errors in resurrected transactions
@@ -454,7 +455,9 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTra
         if (!fAddToMempool || !AcceptReferralToMemoryPool(mempoolReferral, stateDummy, *rit, missingDummy)) {
             // If the transaction doesn't make it in to the mempool, remove any
             // transactions that depend on it (which would now be orphans).
-            mempoolReferral.RemoveStaged(**rit, MemPoolRemovalReason::REORG);
+            mempoolReferral.RemoveRecursive(**rit, MemPoolRemovalReason::REORG);
+        } else if (mempoolReferral.exists((*it)->GetHash())) {
+            vRefHashUpdate.push_back((*it)->GetHash());
         }
         ++rit;
     }
@@ -5524,7 +5527,7 @@ void DumpReferralMempool()
         auto map = &mempoolReferral.mapRTx;
 
         for(const auto& it: *map)
-            vEntries.push_back(it.second);
+            vEntries.push_back(it);
     }
 
     int64_t mid = GetTimeMicros();

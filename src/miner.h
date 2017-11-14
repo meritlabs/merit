@@ -79,7 +79,7 @@ struct CompareModifiedEntry {
         double f1 = (double)a.nModFeesWithAncestors * b.nSizeWithAncestors;
         double f2 = (double)b.nModFeesWithAncestors * a.nSizeWithAncestors;
         if (f1 == f2) {
-            return CTxMemPool::CompareIteratorByHash()(a.iter, b.iter);
+            return CompareIteratorByHash<CTxMemPool::txiter>()(a.iter, b.iter);
         }
         return f1 > f2;
     }
@@ -93,7 +93,7 @@ struct CompareTxIterByAncestorCount {
     {
         if (a->GetCountWithAncestors() != b->GetCountWithAncestors())
             return a->GetCountWithAncestors() < b->GetCountWithAncestors();
-        return CTxMemPool::CompareIteratorByHash()(a, b);
+        return CompareIteratorByHash<CTxMemPool::txiter>()(a, b);
     }
 };
 
