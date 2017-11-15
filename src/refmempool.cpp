@@ -45,17 +45,8 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry&
                 return parent.GetSharedEntryValue()->codeHash == entry.GetEntryValue().previousReferral;
             });
 
-    printf("mapRTx.size = %lu; newit.hash = %s; parent code hash = %s\n",
-        mapRTx.size(),
-        entry.GetEntryValue().GetHash().GetHex().c_str(),
-        entry.GetEntryValue().previousReferral.GetHex().c_str());
-
     if (parentit != mapRTx.end()) {
         mapLinks[parentit].children.insert(newit);
-        printf("PARENT FOUND!!! ");
-        printf("ref %s children count: %lu\n", hash.GetHex().c_str(), mapLinks[parentit].children.size());
-    } else {
-        printf("parent not found\n");
     }
 
     nReferralsUpdated++;
@@ -109,7 +100,6 @@ void ReferralTxMemPool::RemoveRecursive(const Referral& origRef, MemPoolRemovalR
     for (refiter it : toRemove) {
         CalculateDescendants(it, setAllRemoves);
     }
-    printf("%s: found %lu entries to recursively remove from block\n", __func__, setAllRemoves.size());
 
     RemoveStaged(setAllRemoves, reason);
 }

@@ -51,10 +51,10 @@ CTxMemPoolEntry::CTxMemPoolEntry(const CTransaction& _tx,
 
     nCountWithAncestors = 1;
     nSizeWithAncestors = GetSize();
-    // nSizeReferrals = std::accumulate(txReferrals.begin(), txReferrals.end(), 0,
-    //     [](uint64_t acc, const referral::RefMemPoolEntry& ref) {
-    //         return acc + ref.GetSize();
-    //     });
+    nSizeReferrals = std::accumulate(txReferrals.begin(), txReferrals.end(), 0,
+        [](uint64_t acc, referral::ReferralTxMemPool::indexed_referrals_set::const_iterator ref) {
+            return acc + ref->GetSize();
+        });
     nModFeesWithAncestors = nFee;
     nSigOpCostWithAncestors = sigOpCost;
 }
