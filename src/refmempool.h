@@ -8,7 +8,10 @@
 #define MERIT_REFMEMPOOL_H
 
 #include "primitives/referral.h"
-#include "txmempool.h"
+#include "primitives/transaction.h"
+#include "mempool.h"
+#include "referrals.h"
+#include "sync.h"
 
 #include <set>
 #include <vector>
@@ -141,7 +144,7 @@ public:
     /**
      * Get set of referrals that given transaction depends on
      */
-    void GetReferralsForTransaction(const CTransactionRef& tx, std::set<ReferralRef>& txReferrals);
+    void GetReferralsForTransaction(const CTransactionRef& tx, referral::ReferralTxMemPool::setEntries& txReferrals);
 
     size_t DynamicMemoryUsage() const;
 

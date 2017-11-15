@@ -24,6 +24,7 @@
 #include "script/standard.h"
 #include "timedata.h"
 #include "txmempool.h"
+#include "refmempool.h"
 #include "util.h"
 #include "utilmoneystr.h"
 #include "validation.h"
@@ -302,7 +303,7 @@ bool BlockAssembler::TestPackage(uint64_t packageSize, int64_t packageSigOpsCost
 // - premature witness (in case segwit transactions are added to mempool before
 //   segwit activation)
 // - serialized size (in case -blockmaxsize is in use)
-bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactions, const std::set<referral::ReferralRef>& referrals)
+bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactions, const referral::ReferralTxMemPool::setEntries& referrals)
 {
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
     for (const CTxMemPool::txiter it : transactions) {
@@ -322,8 +323,8 @@ bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactio
     }
 
     if (fNeedSizeAccounting) {
-        for (const auto& ref: referrals) {
-            uint64_t nRefSize = ::GetSerializeSize(*ref, SER_NETWORK, PROTOCOL_VERSION);
+        for (const auto& it: referrals) {
+            uint64_t nRefSize = ::GetSerializeSize(it->GetEntryValue(), SER_NETWORK, PROTOCOL_VERSION);
 
             // share block size by transactions and referrals
             if (nPotentialBlockSize + nRefSize >= nBlockMaxSize) {
@@ -571,7 +572,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         onlyWithReferrals(ancestors);
         ancestors.insert(iter);
 
-        std::set<referral::ReferralRef> referrals;
+        referral::ReferralTxMemPool::setEntries referrals;
         mempool.CalculateMemPoolAncestorsReferrals(ancestors, referrals);
 
         // Test if all tx's are Final
@@ -597,7 +598,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         }
 
         for (const auto& it: referrals) {
-            AddReferralToBlock(it);
+            AddReferralToBlock(it->GetSharedEntryValue());
         }
 
         ++nPackagesSelected;

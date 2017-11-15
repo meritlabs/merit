@@ -115,6 +115,7 @@ MERIT_CORE_H = \
   miner.h \
   cuckoo/cuckoo.h \
   cuckoo/miner.h \
+  mempool.h \
   net.h \
   net_processing.h \
   netaddress.h \

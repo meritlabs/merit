@@ -192,7 +192,7 @@ bool ReferralTxMemPool::ExistsWithCodeHash(const uint256& codeHash) const
     return false;
 }
 
-void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, std::set<ReferralRef>& txReferrals)
+void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, referral::ReferralTxMemPool::setEntries& txReferrals)
 {
     // check addresses used for vouts are beaconed
     for (const auto& txout : tx->vout) {
@@ -218,7 +218,7 @@ void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, st
             });
 
         if (it != mapRTx.end()) {
-            txReferrals.insert((*it).GetSharedEntryValue());
+            txReferrals.insert(it);
         }
     }
 }

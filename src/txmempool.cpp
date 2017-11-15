@@ -45,17 +45,16 @@ CTxMemPoolEntry::CTxMemPoolEntry(const CTransaction& _tx,
 
     feeDelta = 0;
 
-    std::set<referral::ReferralRef> txReferrals;
+    referral::ReferralTxMemPool::setEntries txReferrals;
 
     mempoolReferral.GetReferralsForTransaction(GetSharedEntryValue(), txReferrals);
 
     nCountWithAncestors = 1;
     nSizeWithAncestors = GetSize();
-    nSizeReferrals = std::accumulate(txReferrals.begin(), txReferrals.end(), 0,
-        [](uint64_t acc, const referral::ReferralRef& ref) {
-            // todo use cached weight from RefMemPoolEntry
-            return acc + GetReferralWeight(*ref) / WITNESS_SCALE_FACTOR;
-        });
+    // nSizeReferrals = std::accumulate(txReferrals.begin(), txReferrals.end(), 0,
+    //     [](uint64_t acc, const referral::RefMemPoolEntry& ref) {
+    //         return acc + ref.GetSize();
+    //     });
     nModFeesWithAncestors = nFee;
     nSigOpCostWithAncestors = sigOpCost;
 }
@@ -234,7 +233,7 @@ bool CTxMemPool::CalculateMemPoolAncestors(const CTxMemPoolEntry &entry, setEntr
     return true;
 }
 
-bool CTxMemPool::CalculateMemPoolAncestorsReferrals(const setEntries& setAncestors, std::set<referral::ReferralRef>& ancestorsReferrals) const
+bool CTxMemPool::CalculateMemPoolAncestorsReferrals(const setEntries& setAncestors, referral::ReferralTxMemPool::setEntries& ancestorsReferrals) const
 {
     for (const auto& entry: setAncestors) {
         mempoolReferral.GetReferralsForTransaction(entry->GetSharedEntryValue(), ancestorsReferrals);

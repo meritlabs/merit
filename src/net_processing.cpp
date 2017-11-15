@@ -26,6 +26,7 @@
 #include "reverse_iterator.h"
 #include "tinyformat.h"
 #include "txmempool.h"
+#include "refmempool.h"
 #include "ui_interface.h"
 #include "util.h"
 #include "utilmoneystr.h"

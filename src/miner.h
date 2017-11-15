@@ -9,6 +9,7 @@
 
 #include "primitives/block.h"
 #include "txmempool.h"
+#include "refmempool.h"
 
 #include <stdint.h>
 #include <memory>
@@ -204,7 +205,7 @@ private:
       * locktime, premature-witness, serialized size (if necessary)
       * These checks should always succeed, and they're here
       * only as an extra check in case of suboptimal node configuration */
-    bool TestPackageContent(const CTxMemPool::setEntries& transactions, const std::set<referral::ReferralRef>& referrals);
+    bool TestPackageContent(const CTxMemPool::setEntries& transactions, const referral::ReferralTxMemPool::setEntries& referrals);
     /** Return true if given transaction from mapTx has already been evaluated,
       * or if the transaction's cached data in mapTx is incorrect. */
     bool SkipMapTxEntry(CTxMemPool::txiter it, indexed_modified_transaction_set &mapModifiedTx, CTxMemPool::setEntries &failedTx);
