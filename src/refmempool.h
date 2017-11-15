@@ -40,7 +40,7 @@ public:
         boost::multi_index::indexed_by<
             // sorted by hash
             boost::multi_index::hashed_unique<
-                mempoolentry_id<Referral>,
+                MemPoolEntryHash<Referral>,
                 SaltedTxidHasher>,
             // sorted by entry time
             boost::multi_index::ordered_non_unique<

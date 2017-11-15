@@ -78,7 +78,7 @@ public:
 
 // extracts a entry hash
 template <typename T>
-struct mempoolentry_id {
+struct MemPoolEntryHash {
     typedef uint256 result_type;
     result_type operator()(const MemPoolEntry<T>& entry) const
     {
@@ -139,7 +139,7 @@ using indexed_disconnected_entries = boost::multi_index_container<
         // sorted by txid
         boost::multi_index::hashed_unique<
             boost::multi_index::tag<id_index>,
-            mempoolentry_id<T>,
+            MemPoolEntryHash<T>,
             SaltedTxidHasher
         >,
         // sorted by order in the blockchain

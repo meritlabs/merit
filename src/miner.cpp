@@ -79,8 +79,9 @@ BlockAssembler::BlockAssembler(const CChainParams& params, const Options& option
     nBlockMaxWeight = std::max<size_t>(4000, std::min<size_t>(MAX_BLOCK_WEIGHT - 4000, options.nBlockMaxWeight));
     // Limit size to between 1K and MAX_BLOCK_SERIALIZED_SIZE-1K for sanity:
     nBlockMaxSize = std::max<size_t>(1000, std::min<size_t>(MAX_BLOCK_SERIALIZED_SIZE - 1000, options.nBlockMaxSize));
-    // Limit size to between 1K and MAX_BLOCK_SERIALIZED_SIZE-1K for sanity:
+    // Limit size to between 1K < blockMaxSize * SHARE (in percents) < blockMaxSize * MAX_TRANSACTIONS_SERIALIZED_SIZE_SHARE (90%):
     nTransactionsMaxSize = std::max<size_t>(1000, std::min<size_t>((nBlockMaxSize * MAX_TRANSACTIONS_SERIALIZED_SIZE_SHARE) / 100, options.nTransactionsMaxSize));
+
     // Whether we need to account for byte usage (in addition to weight usage)
     fNeedSizeAccounting = (nBlockMaxSize < MAX_BLOCK_SERIALIZED_SIZE - 1000);
 }
@@ -92,9 +93,9 @@ static BlockAssembler::Options DefaultOptions(const CChainParams& params)
     // If only one is given, only restrict the specified resource.
     // If both are given, restrict both.
     BlockAssembler::Options options;
+    auto nTransactionsMaxShare = DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE;
     options.nBlockMaxWeight = DEFAULT_BLOCK_MAX_WEIGHT;
     options.nBlockMaxSize = DEFAULT_BLOCK_MAX_SIZE;
-    options.nTransactionsMaxSize = (DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE * options.nBlockMaxSize) / 100;
     bool fWeightSet = false;
     if (gArgs.IsArgSet("-blockmaxweight")) {
         options.nBlockMaxWeight = gArgs.GetArg("-blockmaxweight", DEFAULT_BLOCK_MAX_WEIGHT);
@@ -102,13 +103,10 @@ static BlockAssembler::Options DefaultOptions(const CChainParams& params)
         fWeightSet = true;
     }
     if (gArgs.IsArgSet("-blocktxsmaxsizeshare")) {
-        options.nTransactionsMaxSize = (gArgs.GetArg("-blocktxsmaxsizeshare", DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE) * options.nBlockMaxSize) / 100;
-
+        nTransactionsMaxShare = gArgs.GetArg("-blocktxsmaxsizeshare", DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE);
     }
     if (gArgs.IsArgSet("-blockmaxsize")) {
         options.nBlockMaxSize = gArgs.GetArg("-blockmaxsize", DEFAULT_BLOCK_MAX_SIZE);
-        options.nTransactionsMaxSize = (DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE * options.nBlockMaxSize) / 100;
-
         if (!fWeightSet) {
             options.nBlockMaxWeight = options.nBlockMaxSize * WITNESS_SCALE_FACTOR;
         }
@@ -120,6 +118,8 @@ static BlockAssembler::Options DefaultOptions(const CChainParams& params)
     } else {
         options.blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
     }
+
+    options.nTransactionsMaxSize = (nTransactionsMaxShare * options.nBlockMaxSize) / 100;
 
     assert(options.nBlockMaxSize >= options.nTransactionsMaxSize);
 

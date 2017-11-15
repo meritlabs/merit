@@ -381,7 +381,7 @@ public:
         CTxMemPoolEntry,
         boost::multi_index::indexed_by<
             // sorted by txid
-            boost::multi_index::hashed_unique<mempoolentry_id<CTransaction>, SaltedTxidHasher>,
+            boost::multi_index::hashed_unique<MemPoolEntryHash<CTransaction>, SaltedTxidHasher>,
             // sorted by fee rate
             boost::multi_index::ordered_non_unique<
                 boost::multi_index::tag<descendant_score>,
