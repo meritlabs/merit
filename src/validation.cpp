@@ -373,6 +373,15 @@ static void LimitMempoolSize(CTxMemPool& pool, size_t limit, unsigned long age) 
         pcoinsTip->Uncache(removed);
 }
 
+// TODO: add support for trimming by mempory usage with TrimToSize
+static void LimitMempoolSize(referral::ReferralTxMemPool& pool, unsigned long age) {
+    int expired = pool.Expire(GetTime() - age);
+
+    if (expired != 0) {
+        LogPrint(BCLog::MEMPOOL, "Expired %i referrals from the memory pool\n", expired);
+    }
+}
+
 /** Convert CValidationState to a human-readable message for logging */
 std::string FormatStateMessage(const CValidationState &state)
 {
@@ -445,16 +454,14 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTra
     // Re-limit mempool size, in case we added any transactions
     LimitMempoolSize(mempool, gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000, gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60);
 
-    // the same with referrals mempool
+    // same flow for referrals mempool, but w/o UpdateReferralsFromBlock
+    // TODO: add UpdateReferralsFromBlock to account dynamic referral sizes
     std::vector<uint256> vRefHashUpdate;
     auto rit = disconnectReferrals.queued.get<insertion_order>().rbegin();
     while (rit != disconnectReferrals.queued.get<insertion_order>().rend()) {
-        // ignore validation errors in resurrected transactions
         CValidationState stateDummy;
         bool missingDummy;
-        if (!fAddToMempool || !AcceptReferralToMemoryPool(mempoolReferral, stateDummy, *rit, missingDummy)) {
-            // If the transaction doesn't make it in to the mempool, remove any
-            // transactions that depend on it (which would now be orphans).
+        if (!fAddToMempool || !AcceptReferralToMemoryPool(mempoolReferral, stateDummy, *rit, missingDummy, true)) {
             mempoolReferral.RemoveRecursive(**rit, MemPoolRemovalReason::REORG);
         } else if (mempoolReferral.exists((*it)->GetHash())) {
             vRefHashUpdate.push_back((*it)->GetHash());
@@ -463,7 +470,9 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTra
     }
     disconnectReferrals.queued.clear();
 
-    // TODO: add UpdateReferralsFromBlock and LimitMempoolSize
+    // TODO: add keeping track of referrals mempool dynamic size
+    LimitMempoolSize(mempoolReferral, gArgs.GetArg("-refmempoolexpiry", DEFAULT_REFERRALS_MEMPOOL_EXPIRY) * 60 * 60);
+
 }
 
 // Used to avoid mempool polluting consensus critical paths if CCoinsViewMempool
@@ -523,7 +532,8 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
     CValidationState& state,
     const referral::ReferralRef& referral,
     int64_t nAcceptTime,
-    bool& missingReferrer)
+    bool& missingReferrer,
+    bool fOverrideMempoolLimit)
 {
     assert(referral);
 
@@ -554,6 +564,14 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
         pool.AddUnchecked(referral->GetHash(), entry);
     }
 
+    // trim mempool and check if tx was trimmed
+    if (!fOverrideMempoolLimit) {
+        LimitMempoolSize(pool, gArgs.GetArg("-refmempoolexpiry", DEFAULT_REFERRALS_MEMPOOL_EXPIRY) * 60 * 60);
+        if (!pool.exists(hash)) {
+            return state.DoS(0, false, REJECT_MEMPOOL_FULL, "referrals mempool full");
+        }
+    }
+
     GetMainSignals().ReferralAddedToMempool(referral);
 
     return true;
@@ -562,11 +580,12 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
 bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool,
     CValidationState& state,
     const referral::ReferralRef& referral,
-    bool& missingReferrer)
+    bool& missingReferrer,
+    bool fOverrideMempoolLimit)
 {
     assert(referral);
 
-    return AcceptReferralToMemoryPoolWithTime(pool, state, referral, GetTime(), missingReferrer);
+    return AcceptReferralToMemoryPoolWithTime(pool, state, referral, GetTime(), missingReferrer, fOverrideMempoolLimit);
 }
 
 static bool AcceptToMemoryPoolWorker(
@@ -2875,7 +2894,7 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
 
 
         int64_t nMempoolSizeMax = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
-        int64_t nReferralsMempoolSizeMax = gArgs.GetArg("-maxreferralsmempool", DEFAULT_MAX_REFERRALS_MEMPOOL_SIZE) * 1000000;
+        int64_t nReferralsMempoolSizeMax = gArgs.GetArg("-maxrefmempool", DEFAULT_MAX_REFERRALS_MEMPOOL_SIZE) * 1000000;
         int64_t cacheSize = pcoinsTip->DynamicMemoryUsage();
         int64_t nTotalSpace = nCoinCacheUsage + std::max<int64_t>(nMempoolSizeMax - nMempoolUsage, 0) + std::max<int64_t>(nReferralsMempoolSizeMax - nReferralsMempoolUsage, 0);
 
@@ -3022,16 +3041,17 @@ void static UpdateTip(CBlockIndex *pindexNew, const CChainParams& chainParams) {
 
 }
 
-/** Disconnect chainActive's tip.
-  * After calling, the mempool will be in an inconsistent state, with
-  * transactions from disconnected blocks being added to disconnectTransactions.  You
-  * should make the mempool consistent again by calling UpdateMempoolForReorg.
-  * with cs_main held.
-  *
-  * If disconnectTransactions is nullptr, then no disconnected transactions are added to
-  * disconnectTransactions (note that the caller is responsible for mempool consistency
-  * in any case).
-  */
+/**
+ * Disconnect chainActive's tip.
+ * After calling, the tx and refs mempools will be in an inconsistent state, with
+ * transactions from disconnected blocks being added to
+ * disconnectTransactions and disconnectReferrals. You should make the mempools
+ * consistent again by calling UpdateMempoolForReorg with cs_main held.
+ *
+ * If disconnectTransactions or disconnectReferralsis nullptr,
+ * then no disconnected transactions/referrals are added there
+ * (note that the caller is responsible for mempool consistency in any case).
+ */
 bool static DisconnectTip(CValidationState& state,
     const CChainParams& chainparams,
     DisconnectedBlockEntries<CTransaction>* disconnectTransactions,
@@ -5460,7 +5480,7 @@ bool DumpMempool(void)
 bool LoadReferralMempool()
 {
     // use the same variable as for mempool expiry
-    int64_t nExpiryTimeout = gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60;
+    int64_t nExpiryTimeout = gArgs.GetArg("-refmempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60;
     FILE* filestr = fsbridge::fopen(GetDataDir() / "mempool_referral.dat", "rb");
     CAutoFile file(filestr, SER_DISK, CLIENT_VERSION);
     if (file.IsNull()) {
@@ -5491,7 +5511,7 @@ bool LoadReferralMempool()
             bool dummy;
             if (nTime + nExpiryTimeout > nNow) {
                 LOCK(cs_main);
-                AcceptReferralToMemoryPoolWithTime(mempoolReferral, state, ref, nTime, dummy);
+                AcceptReferralToMemoryPoolWithTime(mempoolReferral, state, ref, nTime, dummy, false);
                 if (state.IsValid()) {
                     ++count;
                 } else {

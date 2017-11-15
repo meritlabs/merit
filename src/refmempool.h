@@ -57,24 +57,76 @@ public:
 
     ReferralTxMemPool() : nReferralsUpdated(0) {};
 
+    /**
+     * Add RefMemPoolEntry to mempool
+     * Adds an entry to the map and updates state of children
+     */
     bool AddUnchecked(const uint256& hash, const RefMemPoolEntry& entry);
 
+    /**
+     * Called when a block is disconnected.
+     * Removes set of referrals with all it's descendants from mempool.
+     */
     void RemoveRecursive(const Referral &origRef, MemPoolRemovalReason reason = MemPoolRemovalReason::UNKNOWN);
     // void removeForReorg(const CCoinsViewCache *pcoins, unsigned int nMemPoolHeight, int flags);
+
+    /**
+     * Called when a block is connected.
+     * Removes referrals from mempool.
+     */
     void RemoveForBlock(const std::vector<ReferralRef>& vRefs);
+
+    /**
+     *  Remove referral from the mempool
+     */
     void RemoveUnchecked(refiter it, MemPoolRemovalReason reason);
+
+    /**
+     *  Remove a set of referrals from the mempool.
+     *  If a referral is in this set, then all in-mempool descendants must
+     *  also be in the set, unless this referral is being removed for being in a block.
+     */
     void RemoveStaged(setEntries &stage, MemPoolRemovalReason reason);
 
-    void CalculateDescendants(refiter entryit, setEntries& setDescendants);
+    /**
+     * Expire all transaction (and their dependencies) in the mempool older than time.
+     * Return the number of removed transactions.
+     */
+    int Expire(int64_t time);
 
+    /**
+     *  Populate setDescendants with all in-mempool descendants of referral.
+     *  Assumes that setDescendants includes all in-mempool descendants of anything
+     *  already in it.
+     */
+    void CalculateDescendants(refiter entryit, setEntries& setDescendants) const;
+
+    /**
+     * Get children of a given referral
+     */
+    const setEntries& GetMemPoolChildren(refiter entry) const;
+
+
+    /**
+     *  Check if referral with a given code hash (hash of unlock code) exists in mempool
+     */
+    bool ExistsWithCodeHash(const uint256& hash) const;
+
+    /**
+     *  Get referral with a given code hash (hash of unlock code) from mempool
+     */
+    ReferralRef GetWithCodeHash(const uint256& codeHash) const;
+
+    /**
+     * Check if referral with a given hash exists in mempoll
+     *
+     * TODO: update referral model to use one hash for referral id and unlock code
+     */
     bool exists(const uint256& hash) const
     {
         LOCK(cs);
         return (mapRTx.count(hash) != 0);
     }
-
-    bool ExistsWithCodeHash(const uint256& hash) const;
-    ReferralRef GetWithCodeHash(const uint256& codeHash) const;
 
     ReferralRef get(const uint256& hash) const;
 
