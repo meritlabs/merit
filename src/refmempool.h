@@ -62,7 +62,8 @@ public:
     void RemoveRecursive(const Referral &origRef, MemPoolRemovalReason reason = MemPoolRemovalReason::UNKNOWN);
     // void removeForReorg(const CCoinsViewCache *pcoins, unsigned int nMemPoolHeight, int flags);
     void RemoveForBlock(const std::vector<ReferralRef>& vRefs);
-    void RemoveStaged(const Referral& ref, MemPoolRemovalReason reason = MemPoolRemovalReason::UNKNOWN);
+    void RemoveUnchecked(refiter it, MemPoolRemovalReason reason);
+    void RemoveStaged(setEntries &stage, MemPoolRemovalReason reason);
 
     void CalculateDescendants(refiter entryit, setEntries& setDescendants);
 
@@ -86,6 +87,8 @@ public:
     std::vector<ReferralRef> GetReferrals() const;
 
     size_t DynamicMemoryUsage() const;
+
+    void Clear();
 
     boost::signals2::signal<void (ReferralRef)> NotifyEntryAdded;
     boost::signals2::signal<void (ReferralRef, MemPoolRemovalReason)> NotifyEntryRemoved;

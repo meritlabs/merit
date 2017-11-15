@@ -31,11 +31,31 @@ size_t RefMemPoolEntry::GetSize() const
 
 bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry& entry)
 {
+    NotifyEntryAdded(entry.GetSharedEntryValue());
+
     LOCK(cs);
 
-    if (mapRTx.count(hash) == 0) {
-        refiter newit = mapRTx.insert(entry).first;
-        mapLinks.insert(std::make_pair(newit, RefLinks()));
+    refiter newit = mapRTx.insert(entry).first;
+    mapLinks.insert(std::make_pair(newit, RefLinks()));
+
+    // check mempool referrals for beaconed address
+    auto parentit =
+        std::find_if(mapRTx.begin(), mapRTx.end(),
+            [entry](const referral::RefMemPoolEntry& parent) {
+                return parent.GetSharedEntryValue()->m_codeHash == entry.GetEntryValue().m_previousReferral;
+            });
+
+    printf("mapRTx.size = %lu; newit.hash = %s; parent code hash = %s\n",
+    mapRTx.size(),
+    entry.GetEntryValue().GetHash().GetHex().c_str(),
+    entry.GetEntryValue().m_previousReferral.GetHex().c_str());
+
+    if (parentit != mapRTx.end()) {
+        mapLinks[parentit].children.insert(newit);
+        printf("PARENT FOUND!!! ");
+        printf("ref %s children count: %lu\n", hash.GetHex().c_str(), mapLinks[parentit].children.size());
+    } else {
+        printf("parent not found\n");
     }
 
     nReferralsUpdated++;
@@ -81,23 +101,19 @@ void ReferralTxMemPool::CalculateDescendants(refiter entryit, setEntries& setDes
 void ReferralTxMemPool::RemoveRecursive(const Referral &origRef, MemPoolRemovalReason reason)
 {
     // Remove referrals from memory pool
-    {
-        LOCK(cs);
-        setEntries toRemove;
-        refiter origit = mapRTx.find(origRef.GetHash());
-        if (origit != mapRTx.end()) {
-            toRemove.insert(origit);
-        }
-
-        setEntries setAllRemoves;
-        for (refiter it : toRemove) {
-            CalculateDescendants(it, setAllRemoves);
-        }
-
-        for (const auto& it : setAllRemoves) {
-            RemoveStaged(it->GetEntryValue(), reason);
-        }
+    LOCK(cs);
+    setEntries toRemove;
+    refiter origit = mapRTx.find(origRef.GetHash());
+    if (origit != mapRTx.end()) {
+        toRemove.insert(origit);
     }
+
+    setEntries setAllRemoves;
+    for (refiter it : toRemove) {
+        CalculateDescendants(it, setAllRemoves);
+    }
+
+    RemoveStaged(setAllRemoves, reason);
 }
 
 /**
@@ -111,23 +127,26 @@ void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
         auto it = mapRTx.find(ref->GetHash());
 
         if(it != mapRTx.end()) {
-            NotifyEntryRemoved(it->GetSharedEntryValue(), MemPoolRemovalReason::BLOCK);
-
-            mapRTx.erase(it);
-            nReferralsUpdated++;
+            RemoveUnchecked(it, MemPoolRemovalReason::BLOCK);
         }
     }
 }
 
-void ReferralTxMemPool::RemoveStaged(const Referral& ref, MemPoolRemovalReason reason)
+void ReferralTxMemPool::RemoveUnchecked(refiter it, MemPoolRemovalReason reason)
 {
-    auto it = mapRTx.find(ref.GetHash());
+    NotifyEntryRemoved(it->GetSharedEntryValue(), reason);
 
-    if (it != mapRTx.end()) {
-        NotifyEntryRemoved(it->GetSharedEntryValue(), reason);
+    mapRTx.erase(it);
+    mapLinks.erase(it);
+    nReferralsUpdated++;
+}
 
-        mapRTx.erase(it);
-        nReferralsUpdated++;
+void ReferralTxMemPool::RemoveStaged(setEntries &stage, MemPoolRemovalReason reason)
+{
+    AssertLockHeld(cs);
+    // UpdateForRemoveFromMempool(stage, updateDescendants);
+    for (const refiter& it : stage) {
+        RemoveUnchecked(it, reason);
     }
 }
 
@@ -182,6 +201,15 @@ std::vector<ReferralRef> ReferralTxMemPool::GetReferrals() const
 size_t ReferralTxMemPool::DynamicMemoryUsage() const {
     LOCK(cs);
     return memusage::MallocUsage(sizeof(RefMemPoolEntry) + 15 * sizeof(void*)) * mapRTx.size() + memusage::DynamicUsage(mapLinks);
+}
+
+
+void ReferralTxMemPool::Clear()
+{
+    LOCK(cs);
+    mapLinks.clear();
+    mapRTx.clear();
+    ++nReferralsUpdated;
 }
 
 }

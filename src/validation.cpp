@@ -3080,7 +3080,7 @@ bool static DisconnectTip(CValidationState& state,
         while (disconnectReferrals->DynamicMemoryUsage() > MAX_DISCONNECTED_TX_POOL_SIZE * 1000) {
             // Drop the earliest entry, and remove its children from the mempool.
             auto it = disconnectReferrals->queued.get<insertion_order>().begin();
-            mempoolReferral.RemoveStaged(**it, MemPoolRemovalReason::REORG);
+            mempoolReferral.RemoveRecursive(**it, MemPoolRemovalReason::REORG);
             disconnectReferrals->removeEntry(it);
         }
     }
@@ -3865,16 +3865,13 @@ bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
 
     if (!beaconed && checkMempool) {
         // check mempool referrals for beaconed address
-        const auto refsInMempool = mempoolReferral.GetReferrals();
-
         const auto it =
-            std::find_if(refsInMempool.begin(), refsInMempool.end(),
-                [&addr](const referral::ReferralRef& ref) {
-                    assert(ref);
-                    return ref->pubKeyId == addr;
+            std::find_if(mempoolReferral.mapRTx.begin(), mempoolReferral.mapRTx.end(),
+                [&addr](const referral::RefMemPoolEntry& entry) {
+                    return entry.GetSharedEntryValue()->pubKeyId == addr;
                 });
 
-        beaconed = it != refsInMempool.end();
+        beaconed = it != mempoolReferral.mapRTx.end();
     }
 
     return beaconed;
