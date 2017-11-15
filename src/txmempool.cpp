@@ -23,49 +23,6 @@
 #include <algorithm>
 #include <numeric>
 
-void getMempoolReferralsOf(const CTransactionRef& tx, std::set<referral::ReferralRef>& txReferrals)
-{
-    const auto mempoolRefs = mempoolReferral.GetReferrals();
-
-    // check addresses used for vouts are beaconed
-    for (const auto& txout : tx->vout) {
-        CTxDestination dest;
-        if (!ExtractDestination(txout.scriptPubKey, dest) || !IsValidDestination(dest)) {
-            return;
-        }
-
-        if (boost::get<CNoDestination>(&dest)) {
-            return;
-        };
-
-        const auto key = boost::get<CKeyID>(&dest);
-        const auto script = boost::get<CScriptID>(&dest);
-
-        const referral::Address* addr = key ?
-                                            static_cast<referral::Address*>(key) :
-                                            static_cast<referral::Address*>(script);
-
-        assert(addr);
-
-        bool addressBeaconed = prefviewcache->WalletIdExists(*addr);
-
-        // check cache for beaconed address
-        if (addressBeaconed) {
-            continue;
-        }
-
-        // check mempoolReferral for beaconed address
-        const auto it = std::find_if(
-            mempoolRefs.begin(), mempoolRefs.end(),
-            [addr](const referral::ReferralRef& ref) {
-                return ref->m_pubKeyId == *addr;
-            });
-
-        if (it != mempoolRefs.end()) {
-            txReferrals.insert(*it);
-        }
-    }
-}
 
 CTxMemPoolEntry::CTxMemPoolEntry(const CTransaction& _tx,
     const CAmount& _nFee,
@@ -90,7 +47,7 @@ CTxMemPoolEntry::CTxMemPoolEntry(const CTransaction& _tx,
 
     std::set<referral::ReferralRef> txReferrals;
 
-    getMempoolReferralsOf(GetSharedEntryValue(), txReferrals);
+    mempoolReferral.GetReferralsForTransaction(GetSharedEntryValue(), txReferrals);
 
     nCountWithAncestors = 1;
     nSizeWithAncestors = GetSize();
@@ -279,8 +236,8 @@ bool CTxMemPool::CalculateMemPoolAncestors(const CTxMemPoolEntry &entry, setEntr
 
 bool CTxMemPool::CalculateMemPoolAncestorsReferrals(const setEntries& setAncestors, std::set<referral::ReferralRef>& ancestorsReferrals) const
 {
-    for (const auto& tx: setAncestors) {
-        getMempoolReferralsOf(tx->GetSharedEntryValue(), ancestorsReferrals);
+    for (const auto& entry: setAncestors) {
+        mempoolReferral.GetReferralsForTransaction(entry->GetSharedEntryValue(), ancestorsReferrals);
     }
 }
 

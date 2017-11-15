@@ -138,6 +138,11 @@ public:
 
     std::vector<ReferralRef> GetReferrals() const;
 
+    /**
+     * Get set of referrals that given transaction depends on
+     */
+    void GetReferralsForTransaction(const CTransactionRef& tx, std::set<ReferralRef>& txReferrals);
+
     size_t DynamicMemoryUsage() const;
 
     void Clear();

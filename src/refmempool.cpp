@@ -42,13 +42,13 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry&
     auto parentit =
         std::find_if(mapRTx.begin(), mapRTx.end(),
             [entry](const referral::RefMemPoolEntry& parent) {
-                return parent.GetSharedEntryValue()->m_codeHash == entry.GetEntryValue().m_previousReferral;
+                return parent.GetSharedEntryValue()->codeHash == entry.GetEntryValue().previousReferral;
             });
 
     printf("mapRTx.size = %lu; newit.hash = %s; parent code hash = %s\n",
         mapRTx.size(),
         entry.GetEntryValue().GetHash().GetHex().c_str(),
-        entry.GetEntryValue().m_previousReferral.GetHex().c_str());
+        entry.GetEntryValue().previousReferral.GetHex().c_str());
 
     if (parentit != mapRTx.end()) {
         mapLinks[parentit].children.insert(newit);
@@ -175,7 +175,7 @@ ReferralRef ReferralTxMemPool::GetWithCodeHash(const uint256& codeHash) const
     LOCK(cs);
     for (const auto& it : mapRTx) {
         const auto ref = it.GetSharedEntryValue();
-        if (ref->m_codeHash == codeHash) {
+        if (ref->codeHash == codeHash) {
             return ref;
         }
     }
@@ -190,6 +190,37 @@ bool ReferralTxMemPool::ExistsWithCodeHash(const uint256& codeHash) const
     }
 
     return false;
+}
+
+void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, std::set<ReferralRef>& txReferrals)
+{
+    // check addresses used for vouts are beaconed
+    for (const auto& txout : tx->vout) {
+        CTxDestination dest;
+        uint160 addr;
+        ExtractDestination(txout.scriptPubKey, dest);
+
+        bool got_uint160 = GetUint160(dest, addr);
+        assert(got_uint160);
+
+        bool addressBeaconed = prefviewcache->WalletIdExists(addr);
+
+        // check cache for beaconed address
+        if (addressBeaconed) {
+            continue;
+        }
+
+        // check mempoolReferral for beaconed address
+        const auto it = std::find_if(
+            mapRTx.begin(), mapRTx.end(),
+            [&addr](const referral::RefMemPoolEntry& entry) {
+                return entry.GetEntryValue().pubKeyId == addr;
+            });
+
+        if (it != mapRTx.end()) {
+            txReferrals.insert((*it).GetSharedEntryValue());
+        }
+    }
 }
 
 std::vector<ReferralRef> ReferralTxMemPool::GetReferrals() const
