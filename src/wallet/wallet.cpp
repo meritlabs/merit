@@ -1717,7 +1717,7 @@ bool CWallet::IsReferred() const
 
 uint256 CWallet::ReferralCodeHash() const
 {
-    return IsReferred() ? 
+    return IsReferred() ?
         m_unlockReferralTx.m_pReferral->codeHash : uint256{};
 }
 
@@ -2919,9 +2919,9 @@ bool CWallet::CreateTransaction(
         //check blockchain and mempool for beacon
         if (!CheckAddressBeaconed(dest, true)) {
             std::stringstream e;
-            e << _("Transaction recipient address \"") 
-              << EncodeDestination(dest) 
-              << _("\"is not beaconed");
+            e << _("Transaction recipient address \"")
+              << EncodeDestination(dest)
+              << _("\" is not beaconed");
             strFailReason = e.str();
 
             return false;

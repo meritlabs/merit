@@ -56,9 +56,7 @@ public:
 
     indexed_referrals_set mapRTx;
 
-    unsigned int nReferralsUpdated;
-
-    ReferralTxMemPool() : nReferralsUpdated(0) {};
+    ReferralTxMemPool() {};
 
     /**
      * Add RefMemPoolEntry to mempool

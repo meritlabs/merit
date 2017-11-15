@@ -278,13 +278,18 @@ void BlockAssembler::onlyUnconfirmed(CTxMemPool::setEntries& testSet)
     }
 }
 
-void BlockAssembler::onlyWithReferrals(CTxMemPool::setEntries& testSet)
+void BlockAssembler::checkReferrals(CTxMemPool::setEntries& testSet, referral::ReferralTxMemPool::setEntries& candidateReferrals)
 {
-    for (const CTxMemPool::txiter it: testSet) {
+    std::vector<referral::ReferralRef> vRefs(candidateReferrals.size());
+
+    std::transform(candidateReferrals.begin(), candidateReferrals.end(), vRefs.begin(),
+        [](const referral::ReferralTxMemPool::refiter& entryit) {
+            return entryit->GetSharedEntryValue();
+        });
+
+    for (const CTxMemPool::txiter it : testSet) {
         CValidationState dummy;
-        if (!Consensus::CheckTxOutputs(it->GetEntryValue(), dummy, *prefviewcache, pblock->m_vRef)) {
-            testSet.erase(it);
-        }
+        assert(Consensus::CheckTxOutputs(it->GetEntryValue(), dummy, *prefviewcache, vRefs));
     }
 }
 
@@ -569,11 +574,12 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         mempool.CalculateMemPoolAncestors(*iter, ancestors, nNoLimit, nNoLimit, nNoLimit, nNoLimit, dummy, false);
 
         onlyUnconfirmed(ancestors);
-        onlyWithReferrals(ancestors);
         ancestors.insert(iter);
 
         referral::ReferralTxMemPool::setEntries referrals;
         mempool.CalculateMemPoolAncestorsReferrals(ancestors, referrals);
+
+        checkReferrals(ancestors, referrals);
 
         // Test if all tx's are Final
         if (!TestPackageContent(ancestors, referrals)) {

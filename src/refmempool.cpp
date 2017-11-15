@@ -49,8 +49,6 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry&
         mapLinks[parentit].children.insert(newit);
     }
 
-    nReferralsUpdated++;
-
     return true;
 }
 
@@ -90,18 +88,15 @@ void ReferralTxMemPool::RemoveRecursive(const Referral& origRef, MemPoolRemovalR
 {
     // Remove referrals from memory pool
     LOCK(cs);
-    setEntries toRemove;
+
     refiter origit = mapRTx.find(origRef.GetHash());
+
     if (origit != mapRTx.end()) {
-        toRemove.insert(origit);
-    }
+        setEntries toRemove;
 
-    setEntries setAllRemoves;
-    for (refiter it : toRemove) {
-        CalculateDescendants(it, setAllRemoves);
+        CalculateDescendants(origit, toRemove);
+        RemoveStaged(toRemove, reason);
     }
-
-    RemoveStaged(setAllRemoves, reason);
 }
 
 void ReferralTxMemPool::RemoveForBlock(const std::vector<ReferralRef>& vRefs)
@@ -123,7 +118,6 @@ void ReferralTxMemPool::RemoveUnchecked(refiter it, MemPoolRemovalReason reason)
 
     mapRTx.erase(it);
     mapLinks.erase(it);
-    nReferralsUpdated++;
 }
 
 void ReferralTxMemPool::RemoveStaged(setEntries& stage, MemPoolRemovalReason reason)
@@ -175,11 +169,7 @@ ReferralRef ReferralTxMemPool::GetWithCodeHash(const uint256& codeHash) const
 
 bool ReferralTxMemPool::ExistsWithCodeHash(const uint256& codeHash) const
 {
-    if (GetWithCodeHash(codeHash) != nullptr) {
-        return true;
-    }
-
-    return false;
+    return GetWithCodeHash(codeHash) != nullptr;
 }
 
 void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, referral::ReferralTxMemPool::setEntries& txReferrals)
@@ -239,6 +229,5 @@ void ReferralTxMemPool::Clear()
     LOCK(cs);
     mapLinks.clear();
     mapRTx.clear();
-    ++nReferralsUpdated;
 }
 }

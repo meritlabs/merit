@@ -3097,12 +3097,8 @@ bool static DisconnectTip(CValidationState& state,
         for (auto it = block.m_vRef.rbegin(); it != block.m_vRef.rend(); ++it) {
             disconnectReferrals->addEntry(*it);
         }
-        while (disconnectReferrals->DynamicMemoryUsage() > MAX_DISCONNECTED_TX_POOL_SIZE * 1000) {
-            // Drop the earliest entry, and remove its children from the mempool.
-            auto it = disconnectReferrals->queued.get<insertion_order>().begin();
-            mempoolReferral.RemoveRecursive(**it, MemPoolRemovalReason::REORG);
-            disconnectReferrals->removeEntry(it);
-        }
+        // TODO: check size of disconnectReferrals and remove referrals from it and mempool
+        // in case it does not fit
     }
 
     // Update chainActive and related variables.
