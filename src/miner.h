@@ -155,7 +155,7 @@ private:
     uint64_t nBlockSigOpsCost;
     CAmount nFees;
     CTxMemPool::setEntries txsInBlock;
-    std::set<referral::ReferralRef> refsInBlock;
+    referral::ReferralTxMemPool::setEntries refsInBlock;
 
     // Chain context for the block
     int nHeight;
@@ -183,7 +183,7 @@ private:
     void resetBlock();
     /** Add a tx to the block */
     void AddTransactionToBlock(CTxMemPool::txiter iter);
-    void AddReferralToBlock(const referral::ReferralRef& ref);
+    void AddReferralToBlock(referral::ReferralTxMemPool::refiter iter);
 
     // Methods for how to add transactions to a block.
     /** Add transactions based on feerate including unconfirmed ancestors

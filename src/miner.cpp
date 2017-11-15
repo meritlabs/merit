@@ -360,16 +360,15 @@ void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
     }
 }
 
-void BlockAssembler::AddReferralToBlock(const referral::ReferralRef& ref)
+void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::refiter iter)
 {
-    pblock->m_vRef.push_back(ref);
-    auto refSize = ::GetSerializeSize(*ref, SER_NETWORK, PROTOCOL_VERSION);
+    pblock->m_vRef.push_back(iter->GetSharedEntryValue());
     if (fNeedSizeAccounting) {
-        nBlockSize += refSize;
+        nBlockSize += iter->GetSize();
     }
 
-    nBlockWeight += GetReferralWeight(*ref);
-    refsInBlock.insert(ref);
+    nBlockWeight += iter->GetWeight();
+    refsInBlock.insert(iter);
 
     ++nBlockRef;
 }
@@ -431,14 +430,15 @@ void BlockAssembler::AddReferrals()
 {
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
 
-    for (auto const& it : mempoolReferral.mapRTx) {
-        const auto ref = it.GetSharedEntryValue();
 
-        if (refsInBlock.count(ref)) {
+    for (auto it = mempoolReferral.mapRTx.begin(); it != mempoolReferral.mapRTx.end(); it++) {
+        const auto ref = it->GetSharedEntryValue();
+
+        if (refsInBlock.count(it)) {
             continue;
         }
 
-        uint64_t nRefSize = ::GetSerializeSize(*ref, SER_NETWORK, PROTOCOL_VERSION);
+        uint64_t nRefSize = it->GetSize();
 
         if (fNeedSizeAccounting) {
             // share block size by transactions and referrals
@@ -453,7 +453,7 @@ void BlockAssembler::AddReferrals()
             nBlockSize = nPotentialBlockSize;
         }
 
-        nBlockWeight += GetReferralWeight(*ref);
+        nBlockWeight += it->GetWeight();
 
         ++nBlockRef;
     }
@@ -598,7 +598,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         }
 
         for (const auto& it: referrals) {
-            AddReferralToBlock(it->GetSharedEntryValue());
+            AddReferralToBlock(it);
         }
 
         ++nPackagesSelected;
