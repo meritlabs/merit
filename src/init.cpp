@@ -351,6 +351,7 @@ std::string HelpMessage(HelpMessageMode mode)
         strUsage += HelpMessageOpt("-daemon", _("Run in the background as a daemon and accept commands"));
 #endif
     }
+    strUsage += HelpMessageOpt("-generategenesis", _("Generate genesis block"));
     strUsage += HelpMessageOpt("-datadir=<dir>", _("Specify data directory"));
     if (showDebug) {
         strUsage += HelpMessageOpt("-dbbatchsize", strprintf("Maximum database write batch size in bytes (default: %u)", nDefaultDbBatchSize));

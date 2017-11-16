@@ -77,7 +77,7 @@ static CBlock CreateGenesisBlock(
         } else {
             printf("Genesis block generated!!!\n");
             printf("==========================\n");
-            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges ratio: %d\nnodes:\n", 
+            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges ratio: %d\nnodes:\n",
                    genesis.GetHash().GetHex().c_str(),
                    genesis.hashMerkleRoot.GetHex().c_str(),
                    genesis.nNonce,
@@ -177,7 +177,8 @@ public:
         nDefaultPort = 8445;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1503515697, 131, 0x207fffff, 28, 50, 1, 50 * COIN, consensus, false);
+        bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
+        genesis = CreateGenesisBlock(1503515697, 131, 0x207fffff, 28, 50, 1, 50 * COIN, consensus, generateGenesis);
 
         genesis.sCycle = {0x2077a, 0x4cbf3b, 0x60b30c, 0x6ff5d8, 0x992011, 0xb805cd, 0xbc47eb, 0xbf5169, 0xc1918c,
             0xe87071, 0xfac34a, 0x1145fcb, 0x14c597e, 0x155646c, 0x174d8d0, 0x18b83c6, 0x19fd75a, 0x1a12b40, 0x1a7637e,
@@ -262,9 +263,10 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 3, 0x207fffff, 20, 60, 1, 50 * COIN, consensus, false);
+        bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
+        genesis = CreateGenesisBlock(1503444726, 3, 0x207fffff, 20, 60, 1, 50 * COIN, consensus, generateGenesis);
 
-        genesis.sCycle = { 
+        genesis.sCycle = {
             0xe,0x394a,0x49c8,0x6b31,0x6ee9,0x7c9a,0xb55b,0xcace,0xe0a1,
             0x104b5,0x16096,0x17a64,0x19129,0x1944b,0x1e484,0x1fead,0x213a1,
             0x239d4,0x291c4,0x299a6,0x2a433,0x2a4a1,0x2bcc8,0x2cd26,0x2dbc1,
@@ -350,16 +352,18 @@ public:
         nDefaultPort = 18556;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503670484, 55, 0x207fffff, 18, 60, 1, 50 * COIN, consensus, false);
+        bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
-        genesis.sCycle = {0x5dd, 0x10f3, 0x1725, 0x2336, 0x2f81, 0x336a, 0x3425, 0x3cc8, 0x4ec0, 0x57e7, 0x5ff5,
-            0x68c2, 0x7738, 0x7867, 0x7add, 0x8675, 0x8d59, 0x8e2a, 0x8edd, 0x917a, 0x953e, 0x9dea, 0x9fb4, 0xa0f4,
-            0xa27e, 0xabd5, 0xb1c8, 0xb3c1, 0xb574, 0xbdc3, 0xc326, 0xc39f, 0xc990, 0xc9d5, 0xd713, 0xd9bb, 0xdfcb,
-            0xe60b, 0xef13, 0xf392, 0xfba5, 0x104ae};
+        genesis = CreateGenesisBlock(1503670484, 2, 0x207fffff, 18, 60, 1, 50 * COIN, consensus, generateGenesis);
+
+        genesis.sCycle = {0xff, 0x3b5, 0x8e5, 0xa39, 0xf5b, 0xfd2, 0x15ad, 0x1a85, 0x2964, 0x2b43, 0x356f, 0x4f10,
+            0x5c0e, 0x5ef9, 0x686f, 0x6e9a, 0x749e, 0x7708, 0x7f2a, 0x8a6d, 0x8e09, 0x902c, 0x9278, 0x94c3, 0x9d99,
+            0xa1a8, 0xa2e0, 0xab0b, 0xafb4, 0xb440, 0xd302, 0xd604, 0xdc5e, 0xe6cd, 0xea2b, 0xefda, 0xf094, 0xf451,
+            0x10550, 0x106f6, 0x108c0, 0x113a3};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("a0f73c7161105ba136853e99d18a4483b6319620d53adc1d14128c00fdc2d272"));
-        assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
+        assert(consensus.hashGenesisBlock == uint256S("1b406b3f7eba08bc4dbe66b00eb8c96cff485c8074f67408923f952a2115c6a3"));
+        assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
