@@ -199,10 +199,11 @@ private:
     void onlyUnconfirmed(CTxMemPool::setEntries& testSet);
 
     /**
-     * We assume that testSet transactions should hav referrals for it's outputs
-     * in a chain or in candidateReferrals
+     * We assume that testSet transactions should have referrals for it's outputs
+     * in a chain or in candidateReferrals.
+     * If it's not, skip current package
      */
-    void checkReferrals(CTxMemPool::setEntries& testSet, referral::ReferralTxMemPool::setEntries& candidateReferrals);
+    bool CheckReferrals(CTxMemPool::setEntries& testSet, referral::ReferralTxMemPool::setEntries& candidateReferrals);
     /** Test if a new package would "fit" in the block */
     bool TestPackage(uint64_t packageSize, int64_t packageSigOpsCost) const;
     /** Perform checks on each transaction in a package:

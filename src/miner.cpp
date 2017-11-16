@@ -278,7 +278,7 @@ void BlockAssembler::onlyUnconfirmed(CTxMemPool::setEntries& testSet)
     }
 }
 
-void BlockAssembler::checkReferrals(CTxMemPool::setEntries& testSet, referral::ReferralTxMemPool::setEntries& candidateReferrals)
+bool BlockAssembler::CheckReferrals(CTxMemPool::setEntries& testSet, referral::ReferralTxMemPool::setEntries& candidateReferrals)
 {
     std::vector<referral::ReferralRef> vRefs(candidateReferrals.size());
 
@@ -289,8 +289,12 @@ void BlockAssembler::checkReferrals(CTxMemPool::setEntries& testSet, referral::R
 
     for (const CTxMemPool::txiter it : testSet) {
         CValidationState dummy;
-        assert(Consensus::CheckTxOutputs(it->GetEntryValue(), dummy, *prefviewcache, vRefs));
+        if (!Consensus::CheckTxOutputs(it->GetEntryValue(), dummy, *prefviewcache, vRefs)) {
+            return false;
+        }
     }
+
+    return true;
 }
 
 bool BlockAssembler::TestPackage(uint64_t packageSize, int64_t packageSigOpsCost) const
@@ -541,7 +545,6 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
             packageSize = modit->nSizeWithAncestors + modit->nSizeReferrals;
             packageFees = modit->nModFeesWithAncestors;
             packageSigOpsCost = modit->nSigOpCostWithAncestors;
-
         }
 
         if (packageFees < blockMinFeeRate.GetFee(packageSize)) {
@@ -579,10 +582,8 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         referral::ReferralTxMemPool::setEntries referrals;
         mempool.CalculateMemPoolAncestorsReferrals(ancestors, referrals);
 
-        checkReferrals(ancestors, referrals);
-
-        // Test if all tx's are Final
-        if (!TestPackageContent(ancestors, referrals)) {
+        // Test if all tx's have required referrals and all tx's are Final
+        if (!CheckReferrals(ancestors, referrals) || !TestPackageContent(ancestors, referrals)) {
             if (fUsingModified) {
                 mapModifiedTx.get<ancestor_score>().erase(modit);
                 failedTx.insert(iter);
