@@ -131,6 +131,9 @@ bool ReferralsViewDB::UpdateANV(char addressType, const Address& start_address, 
                 change);
 
         std::get<2>(anv) += change;
+
+        assert(std::get<2>(anv) >= 0);
+
         if(!m_db.Write(std::make_pair(DB_ANV, *address), anv)) {
             //TODO: Do we rollback anv computation for already processed address?
             // likely if we can't write then rollback will fail too.

@@ -1144,8 +1144,6 @@ bool CWallet::LoadToWallet(const referral::ReferralTx& rtxIn)
     referral::ReferralTx& rtx = mapWalletRTx[hash];
     rtx.BindWallet(this);
 
-    LogPrintf("≈≈≈≈≈≈≈≈≈≈≈≈ LoadToWallet RTx ≈≈≈≈≈≈≈≈≈≈≈≈≈\n");
-
     return true;
 }
 
@@ -1711,7 +1709,6 @@ bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKey
 
 bool CWallet::IsReferred() const
 {
-    LogPrintf("Wallet is %sreferred\n", !m_unlockReferralTx.IsNull() ? "": "NOT ");
     return !m_unlockReferralTx.IsNull();
 }
 
@@ -2922,6 +2919,7 @@ bool CWallet::CreateTransaction(
             e << _("Transaction recipient address \"")
               << EncodeDestination(dest)
               << _("\" is not beaconed");
+
             strFailReason = e.str();
 
             return false;

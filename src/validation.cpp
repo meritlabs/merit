@@ -5466,6 +5466,7 @@ bool DumpMempool(void)
         RenameOver(GetDataDir() / "mempool.dat.new", GetDataDir() / "mempool.dat");
         int64_t last = GetTimeMicros();
         LogPrintf("Dumped mempool: %lu records, %gs to copy, %gs to dump\n", vinfo.size(), (mid-start)*MICRO, (last-mid)*MICRO);
+
     } catch (const std::exception& e) {
         LogPrintf("Failed to dump mempool: %s. Continuing anyway.\n", e.what());
         return false;
@@ -5567,6 +5568,7 @@ void DumpReferralMempool()
         RenameOver(GetDataDir() / "mempool_referral.dat.new", GetDataDir() / "mempool_referral.dat");
         int64_t last = GetTimeMicros();
         LogPrintf("Dumped referral mempool: %lu records, %gs to copy, %gs to dump\n", vEntries.size(), (mid-start)*0.000001, (last-mid)*0.000001);
+
     } catch (const std::exception& e) {
         LogPrintf("Failed to dump referral mempool: %s. Continuing anyway.\n", e.what());
     }

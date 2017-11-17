@@ -351,6 +351,7 @@ std::string HelpMessage(HelpMessageMode mode)
         strUsage += HelpMessageOpt("-daemon", _("Run in the background as a daemon and accept commands"));
 #endif
     }
+    strUsage += HelpMessageOpt("-generategenesis", _("Generate genesis block"));
     strUsage += HelpMessageOpt("-datadir=<dir>", _("Specify data directory"));
     if (showDebug) {
         strUsage += HelpMessageOpt("-dbbatchsize", strprintf("Maximum database write batch size in bytes (default: %u)", nDefaultDbBatchSize));
@@ -643,7 +644,6 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
     const CChainParams& chainparams = Params();
     RenameThread("merit-loadblk");
 
-    {
     CImportingNow imp;
 
     // -reindex
@@ -703,10 +703,10 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
         LogPrintf("Stopping after block import\n");
         StartShutdown();
     }
-    } // End scope of CImportingNow
     if (gArgs.GetArg("-persistmempool", DEFAULT_PERSIST_MEMPOOL)) {
-        LoadMempool();
+        // load referrals mempool first to load referrals that mempool transactions depend on
         LoadReferralMempool();
+        LoadMempool();
         fDumpMempoolLater = !fRequestShutdown;
     }
 }
@@ -1771,6 +1771,8 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     uiInterface.InitMessage(_("Done loading"));
 
 #ifdef ENABLE_WALLET
+    // wait until mempools are loaded
+    while(fImporting) { }
     for (CWalletRef pwallet : vpwallets) {
         pwallet->postInitProcess(scheduler);
     }

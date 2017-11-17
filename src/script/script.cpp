@@ -241,7 +241,7 @@ bool CScript::IsPayToScriptHash() const
 bool CScript::IsParameterizedPayToScriptHash() const
 {
     return 
-        size() > 23 &&
+        size() > 25 &&
         (*this)[0] == OP_HASH160 &&
         (*this)[1] == 0x14 &&
         (*this)[22] == OP_EQUALVERIFY &&
