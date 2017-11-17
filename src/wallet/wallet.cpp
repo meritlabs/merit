@@ -1144,8 +1144,6 @@ bool CWallet::LoadToWallet(const referral::ReferralTx& rtxIn)
     referral::ReferralTx& rtx = mapWalletRTx[hash];
     rtx.BindWallet(this);
 
-    LogPrintf("≈≈≈≈≈≈≈≈≈≈≈≈ LoadToWallet RTx ≈≈≈≈≈≈≈≈≈≈≈≈≈\n");
-
     return true;
 }
 
@@ -1711,13 +1709,12 @@ bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKey
 
 bool CWallet::IsReferred() const
 {
-    LogPrintf("Wallet is %sreferred\n", !m_unlockReferralTx.IsNull() ? "": "NOT ");
     return !m_unlockReferralTx.IsNull();
 }
 
 uint256 CWallet::ReferralCodeHash() const
 {
-    return IsReferred() ? 
+    return IsReferred() ?
         m_unlockReferralTx.m_pReferral->codeHash : uint256{};
 }
 
@@ -2919,8 +2916,8 @@ bool CWallet::CreateTransaction(
         //check blockchain and mempool for beacon
         if (!CheckAddressBeaconed(dest, true)) {
             std::stringstream e;
-            e << _("Transaction recipient address \"") 
-              << EncodeDestination(dest) 
+            e << _("Transaction recipient address \"")
+              << EncodeDestination(dest)
               << _("\"is not beaconed");
             strFailReason = e.str();
 
