@@ -53,7 +53,6 @@ EXTRA_LIBRARIES += \
   $(LIBMERIT_CRYPTO) \
   $(LIBMERIT_UTIL) \
   $(LIBMERIT_COMMON) \
-  $(LIBMERIT_CONSENSUS) \
   $(LIBMERIT_SERVER) \
   $(LIBMERIT_CLI) \
   $(LIBMERIT_WALLET) \
@@ -307,6 +306,7 @@ endif
 libmerit_consensus_a_CPPFLAGS = $(AM_CPPFLAGS) $(MERIT_INCLUDES)
 libmerit_consensus_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libmerit_consensus_a_SOURCES = \
+  $(MERIT_CORE_H) \
   amount.h \
   arith_uint256.cpp \
   arith_uint256.h \
@@ -490,7 +490,7 @@ if GLIBC_BACK_COMPAT
 endif
 
 libmeritconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
-libmeritconsensus_la_LIBADD = $(LIBSECP256K1) $(LIBMERITCRYPTO) $(LIBMERITUTIL) $(BOOST_LIBS)
+libmeritconsensus_la_LIBADD = $(LIBSECP256K1) $(LIBMERIT_COMMON) $(LIBMERITCRYPTO) $(LIBMERITUTIL) $(BOOST_LIBS)
 libmeritconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_MERIT_INTERNAL
 libmeritconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
