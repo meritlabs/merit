@@ -14,6 +14,10 @@ class MempoolLimitTest(MeritTestFramework):
         self.extra_args = [["-maxmempool=5", "-spendzeroconfchange=0"]]
 
     def run_test(self):
+        keypoolsize = self.nodes[0].unlockwallet("58094f46fb")["keypoolsize"]
+        self.nodes[0].generate(1)
+        assert_equal(keypoolsize, 0)
+
         txouts = gen_return_txouts()
         relayfee = self.nodes[0].getnetworkinfo()['relayfee']
 

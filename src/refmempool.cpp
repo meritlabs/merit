@@ -178,10 +178,12 @@ void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, re
     for (const auto& txout : tx->vout) {
         CTxDestination dest;
         uint160 addr;
-        ExtractDestination(txout.scriptPubKey, dest);
+        // CNoDestination script
+        if (!ExtractDestination(txout.scriptPubKey, dest)) {
+            continue;
+        }
 
-        bool got_uint160 = GetUint160(dest, addr);
-        assert(got_uint160);
+        assert(GetUint160(dest, addr));
 
         bool addressBeaconed = prefviewcache->WalletIdExists(addr);
 

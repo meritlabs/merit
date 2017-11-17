@@ -3872,6 +3872,11 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 // Check if an address is valid (beaconed)
 bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
 {
+    // if target is CNoDestination skip is beaconed validation
+    if(boost::get<CNoDestination>(&dest)) {
+        return true;
+    }
+
     uint160 addr;
     if(!GetUint160(dest, addr)) {
         return false;

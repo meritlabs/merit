@@ -209,14 +209,14 @@ char AddressTypeFromDestination(const CTxDestination& dest)
 }
 
 
-bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
+bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet, txnouttype& whichTypeRet)
 {
     std::vector<valtype> vSolutions;
-    txnouttype whichType;
-    if (!Solver(scriptPubKey, whichType, vSolutions))
+
+    if (!Solver(scriptPubKey, whichTypeRet, vSolutions))
         return false;
 
-    if (whichType == TX_PUBKEY)
+    if (whichTypeRet == TX_PUBKEY)
     {
         CPubKey pubKey(vSolutions[0]);
         if (!pubKey.IsValid())
@@ -225,17 +225,17 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
         addressRet = pubKey.GetID();
         return true;
     }
-    else if (whichType == TX_PUBKEYHASH)
+    else if (whichTypeRet == TX_PUBKEYHASH)
     {
         addressRet = CKeyID(uint160(vSolutions[0]));
         return true;
     }
-    else if (whichType == TX_SCRIPTHASH)
+    else if (whichTypeRet == TX_SCRIPTHASH)
     {
         addressRet = CScriptID(uint160(vSolutions[0]));
         return true;
     }
-    else if (whichType == TX_PARAMETERIZED_SCRIPTHASH)
+    else if (whichTypeRet == TX_PARAMETERIZED_SCRIPTHASH)
     {
         addressRet = CParamScriptID(uint160(vSolutions[0]));
         return true;
@@ -243,6 +243,14 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
     // Multisig txns have more than one address...
     return false;
 }
+
+bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
+{
+    txnouttype whichType;
+
+    return ExtractDestination(scriptPubKey, addressRet, whichType);
+}
+
 
 void ExtractDestinationsFromSolutions(
         std::vector<valtype>::const_iterator first,

@@ -206,11 +206,16 @@ bool Consensus::CheckTxOutputs(
     // check addresses used for vouts are beaconed
     for (const auto& txout: tx.vout) {
         CTxDestination dest;
-        if (!ExtractDestination(txout.scriptPubKey, dest) || !IsValidDestination(dest)) {
-            return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-invalid-dest");
+        txnouttype whichType;
+
+        // skip beaconing check for null_data
+        if (!ExtractDestination(txout.scriptPubKey, dest, whichType) && whichType == TX_NULL_DATA) {
+            continue;
         }
 
-        if(boost::get<CNoDestination>(&dest)) continue;
+        if (!IsValidDestination(dest)) {
+            return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-invalid-dest");
+        }
 
         uint160 addr;
         bool got_uint160 = GetUint160(dest, addr);
