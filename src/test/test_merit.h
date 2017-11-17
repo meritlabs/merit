@@ -14,6 +14,7 @@
 #include "scheduler.h"
 #include "txdb.h"
 #include "txmempool.h"
+#include "refmempool.h"
 
 #include <boost/thread.hpp>
 
@@ -98,7 +99,7 @@ struct TestMemPoolEntryHelper
     TestMemPoolEntryHelper() :
         nFee(0), nTime(0), nHeight(1),
         spendsCoinbase(false), sigOpCost(4) { }
-    
+
     CTxMemPoolEntry FromTx(const CMutableTransaction &tx);
     CTxMemPoolEntry FromTx(const CTransaction &tx);
 

@@ -173,7 +173,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, Solutions& vSoluti
                     break;
             }
             else if (opcode2 == OP_INTEGER)
-            {   
+            {
                 if (opcode1 == OP_0 ||
                     (opcode1 >= 0 && opcode1 <= OP_PUSHDATA4)) {
                     vSolutionsRet.push_back(vch1);
@@ -343,12 +343,12 @@ CScript GetScriptForEasySend(
         const CPubKey& sender,
         const CPubKey& receiver)
 {
-    return CScript() 
+    return CScript()
         << max_block_height
-        << ToByteVector(receiver) 
+        << ToByteVector(receiver)
         << ToByteVector(sender)  //sender key is allowed to recieve funds after
                                  //max_block_height is met
-        << CScript::EncodeOP_N(2) 
+        << CScript::EncodeOP_N(2)
         << OP_EASYSEND;
 }
 
@@ -358,8 +358,8 @@ CScript GetScriptForSimpleVault(const uint160& tag)
     // stack on start0:  <sig> <mode> <spend key> <renew key> [addresses] <tag> |
     CScript script;
     script
-        << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] <tag>| 
-        << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] | 
+        << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] <tag>|
+        << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] |
         << OP_NTOALTSTACK               // <out index> <sig> <mode> | [addresses]
         << OP_TOALTSTACK                // <sig> <mode> <spend key> | [addresses] <renew key>
         << OP_TOALTSTACK                // <sig> <mode> | [addresses] <renew key> <spend key>
@@ -383,9 +383,9 @@ CScript GetScriptForSimpleVault(const uint160& tag)
         <<      5                       // <spend key> <renew key> [addresses] <num addresss> 4 |
         <<      OP_ADD                  // <spend key> <renew key> [addresses] <total args> |
         <<      OP_TOALTSTACK           // <spend key> <renew key> [addresses] | <total args>
-        <<      ToByteVector(tag)       // <spend key> <renew key> [addresses] <tag> | 
+        <<      ToByteVector(tag)       // <spend key> <renew key> [addresses] <tag> |
         <<      0                       // <spend key> <renew key> [addresses] <tag> <vault type> |
-        <<      OP_FROMALTSTACK         // <spend key> <renew key> [addresses] <tag> <vault type> <total args> | 
+        <<      OP_FROMALTSTACK         // <spend key> <renew key> [addresses] <tag> <vault type> <total args> |
         <<      1                       // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> |
         <<      's'                     // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> |
         <<      1                       // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
@@ -396,7 +396,7 @@ CScript GetScriptForSimpleVault(const uint160& tag)
         << OP_ELSE
         <<      OP_FROMALTSTACK         // <sig> <spend key> | [addresses] <renew key>
         <<      OP_DROP                 // <sig> | [addresses] <renew key>
-        <<      OP_FROMALTSTACK         // <sig> <renew key> | [addresses]  
+        <<      OP_FROMALTSTACK         // <sig> <renew key> | [addresses]
         <<      OP_CHECKSIGVERIFY       // | [addresses]
         <<      0                       // <total args> | [addresses]
         <<      0                       // <total args> <out index> | [addresses]
@@ -478,11 +478,11 @@ bool GetUint160(const CTxDestination& dest, uint160& addr)
 
     if(auto key_id = boost::get<CKeyID>(&dest)) {
         addr = *key_id;
-    } else if (auto script_id = boost::get<CScriptID>(&dest)) { 
+    } else if (auto script_id = boost::get<CScriptID>(&dest)) {
         addr = *script_id;
-    } else if (auto script_id = boost::get<CParamScriptID>(&dest)) { 
+    } else if (auto script_id = boost::get<CParamScriptID>(&dest)) {
         addr = *script_id;
-    } else { 
+    } else {
         assert(false && "forgot to implement a case");
     }
 

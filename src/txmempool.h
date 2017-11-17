@@ -15,15 +15,17 @@
 #include <string>
 
 #include "addressindex.h"
-#include "spentindex.h"
 #include "amount.h"
 #include "coins.h"
 #include "indirectmap.h"
 #include "policy/feerate.h"
 #include "primitives/transaction.h"
-#include "sync.h"
+#include "mempool.h"
 #include "random.h"
 #include "referrals.h"
+#include "refmempool.h"
+#include "spentindex.h"
+#include "sync.h"
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
@@ -62,15 +64,11 @@ struct LockPoints
  * all ancestors of the newly added transaction.
  *
  */
-class CTxMemPoolEntry
+class CTxMemPoolEntry : public MemPoolEntry<CTransaction>
 {
 private:
     CTransactionRef tx;
     CAmount nFee;              //!< Cached to avoid expensive parent-transaction lookups
-    size_t nTxWeight;          //!< ... and avoid recomputing tx weight (also used for GetTxSize())
-    size_t nUsageSize;         //!< ... and total memory usage
-    int64_t nTime;             //!< Local time when entering the mempool
-    unsigned int entryHeight;  //!< Chain height when entering the mempool
     bool spendsCoinbase;       //!< keep track of transactions that spend a coinbase
     int64_t sigOpCost;         //!< Total sigop cost
     int64_t feeDelta;          //!< Used for determining the priority of the transaction for mining in a block
@@ -86,22 +84,18 @@ private:
     // Analogous statistics for ancestor transactions
     uint64_t nCountWithAncestors;
     uint64_t nSizeWithAncestors;
+    uint64_t nSizeReferrals;
     CAmount nModFeesWithAncestors;
     int64_t nSigOpCostWithAncestors;
 
 public:
-    CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
+    CTxMemPoolEntry(const CTransaction& _tx, const CAmount& _nFee,
                     int64_t _nTime, unsigned int _entryHeight,
                     bool spendsCoinbase,
                     int64_t nSigOpsCost, LockPoints lp);
 
-    const CTransaction& GetTx() const { return *this->tx; }
-    CTransactionRef GetSharedTx() const { return this->tx; }
+    size_t GetSize() const override;
     const CAmount& GetFee() const { return nFee; }
-    size_t GetTxSize() const;
-    size_t GetTxWeight() const { return nTxWeight; }
-    int64_t GetTime() const { return nTime; }
-    unsigned int GetHeight() const { return entryHeight; }
     int64_t GetSigOpCost() const { return sigOpCost; }
     int64_t GetModifiedFee() const { return nFee + feeDelta; }
     size_t DynamicMemoryUsage() const { return nUsageSize; }
@@ -110,6 +104,7 @@ public:
     // Adjusts the descendant state.
     void UpdateDescendantState(int64_t modifySize, CAmount modifyFee, int64_t modifyCount);
     // Adjusts the ancestor state
+
     void UpdateAncestorState(int64_t modifySize, CAmount modifyFee, int64_t modifyCount, int modifySigOps);
     // Updates the fee delta used for mining priority score, and the
     // modified fees with descendants.
@@ -125,6 +120,7 @@ public:
 
     uint64_t GetCountWithAncestors() const { return nCountWithAncestors; }
     uint64_t GetSizeWithAncestors() const { return nSizeWithAncestors; }
+    uint64_t GetSizeReferrals() const { return nSizeReferrals; }
     CAmount GetModFeesWithAncestors() const { return nModFeesWithAncestors; }
     int64_t GetSigOpCostWithAncestors() const { return nSigOpCostWithAncestors; }
 
@@ -183,20 +179,6 @@ private:
     const LockPoints& lp;
 };
 
-// extracts a transaction hash from CTxMempoolEntry or CTransactionRef
-struct mempoolentry_txid
-{
-    typedef uint256 result_type;
-    result_type operator() (const CTxMemPoolEntry &entry) const
-    {
-        return entry.GetTx().GetHash();
-    }
-
-    result_type operator() (const CTransactionRef& tx) const
-    {
-        return tx->GetHash();
-    }
-};
 
 /** \class CompareTxMemPoolEntryByDescendantScore
  *
@@ -211,10 +193,10 @@ public:
         bool fUseBDescendants = UseDescendantScore(b);
 
         double aModFee = fUseADescendants ? a.GetModFeesWithDescendants() : a.GetModifiedFee();
-        double aSize = fUseADescendants ? a.GetSizeWithDescendants() : a.GetTxSize();
+        double aSize = fUseADescendants ? a.GetSizeWithDescendants() : a.GetSize();
 
         double bModFee = fUseBDescendants ? b.GetModFeesWithDescendants() : b.GetModifiedFee();
-        double bSize = fUseBDescendants ? b.GetSizeWithDescendants() : b.GetTxSize();
+        double bSize = fUseBDescendants ? b.GetSizeWithDescendants() : b.GetSize();
 
         // Avoid division by rewriting (a/b > c/d) as (a*d > c*b).
         double f1 = aModFee * bSize;
@@ -230,7 +212,7 @@ public:
     bool UseDescendantScore(const CTxMemPoolEntry &a)
     {
         double f1 = (double)a.GetModifiedFee() * a.GetSizeWithDescendants();
-        double f2 = (double)a.GetModFeesWithDescendants() * a.GetTxSize();
+        double f2 = (double)a.GetModFeesWithDescendants() * a.GetSize();
         return f2 > f1;
     }
 };
@@ -244,21 +226,12 @@ class CompareTxMemPoolEntryByScore
 public:
     bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b)
     {
-        double f1 = (double)a.GetModifiedFee() * b.GetTxSize();
-        double f2 = (double)b.GetModifiedFee() * a.GetTxSize();
+        double f1 = (double)a.GetModifiedFee() * b.GetSize();
+        double f2 = (double)b.GetModifiedFee() * a.GetSize();
         if (f1 == f2) {
-            return b.GetTx().GetHash() < a.GetTx().GetHash();
+            return b.GetEntryValue().GetHash() < a.GetEntryValue().GetHash();
         }
         return f1 > f2;
-    }
-};
-
-class CompareTxMemPoolEntryByEntryTime
-{
-public:
-    bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b)
-    {
-        return a.GetTime() < b.GetTime();
     }
 };
 
@@ -278,7 +251,7 @@ public:
         double f2 = aSize * bFees;
 
         if (f1 == f2) {
-            return a.GetTx().GetHash() < b.GetTx().GetHash();
+            return a.GetEntryValue().GetHash() < b.GetEntryValue().GetHash();
         }
 
         return f1 > f2;
@@ -287,9 +260,10 @@ public:
 
 // Multi_index tag names
 struct descendant_score {};
-struct entry_time {};
 struct mining_score {};
 struct ancestor_score {};
+
+// CTxMemPool multi_index tag names
 
 class CBlockPolicyEstimator;
 
@@ -310,74 +284,6 @@ struct TxMempoolInfo
     /** The fee delta. */
     int64_t nFeeDelta;
 };
-
-/** Reason why a transaction was removed from the mempool,
- * this is passed to the notification signal.
- */
-enum class MemPoolRemovalReason {
-    UNKNOWN = 0, //! Manually removed or unknown reason
-    EXPIRY,      //! Expired from mempool
-    SIZELIMIT,   //! Removed in size limiting
-    REORG,       //! Removed for reorganization
-    BLOCK,       //! Removed for block
-    CONFLICT,    //! Removed for conflict with in-block transaction
-    REPLACED     //! Removed for replacement
-};
-
-class SaltedTxidHasher
-{
-private:
-    /** Salt */
-    const uint64_t k0, k1;
-
-public:
-    SaltedTxidHasher();
-
-    size_t operator()(const uint256& txid) const {
-        return SipHashUint256(k0, k1, txid);
-    }
-};
-
-namespace referral
-{
-using ReferralRefMap =std::map<uint256, ReferralRef>;
-
-class ReferralTxMemPool
-{
-public:
-    unsigned int m_nReferralsUpdated;
-
-    ReferralRefMap mapRTx;
-    mutable CCriticalSection cs;
-
-    ReferralTxMemPool() : m_nReferralsUpdated(0) {};
-
-    bool AddUnchecked(const uint256& hash, const ReferralRef entry);
-    void RemoveForBlock(const std::vector<ReferralRef>& vRefs);
-
-    bool exists(const uint256& hash) const
-    {
-        LOCK(cs);
-        return (mapRTx.count(hash) != 0);
-    }
-
-    bool ExistsWithCodeHash(const uint256& hash) const;
-    ReferralRef GetWithCodeHash(const uint256& codeHash) const;
-
-    ReferralRef get(const uint256& hash) const;
-
-    unsigned long size()
-    {
-        LOCK(cs);
-        return mapRTx.size();
-    }
-
-    std::vector<ReferralRef> GetReferrals() const;
-
-    boost::signals2::signal<void (ReferralRef)> NotifyEntryAdded;
-    boost::signals2::signal<void (ReferralRef, MemPoolRemovalReason)> NotifyEntryRemoved;
-};
-}
 
 /**
  * CTxMemPool stores valid-according-to-the-current-best-chain transactions
@@ -475,7 +381,7 @@ public:
         CTxMemPoolEntry,
         boost::multi_index::indexed_by<
             // sorted by txid
-            boost::multi_index::hashed_unique<mempoolentry_txid, SaltedTxidHasher>,
+            boost::multi_index::hashed_unique<MemPoolEntryHash<CTransaction>, SaltedTxidHasher>,
             // sorted by fee rate
             boost::multi_index::ordered_non_unique<
                 boost::multi_index::tag<descendant_score>,
@@ -486,7 +392,7 @@ public:
             boost::multi_index::ordered_non_unique<
                 boost::multi_index::tag<entry_time>,
                 boost::multi_index::identity<CTxMemPoolEntry>,
-                CompareTxMemPoolEntryByEntryTime
+                CompareMemPoolEntryByEntryTime<CTransaction>
             >,
             // sorted by score (for mining prioritization)
             boost::multi_index::ordered_unique<
@@ -508,25 +414,19 @@ public:
 
     typedef indexed_transaction_set::nth_index<0>::type::iterator txiter;
     std::vector<std::pair<uint256, txiter> > vTxHashes; //!< All tx witness hashes/entries in mapTx, in random order
-
-    struct CompareIteratorByHash {
-        bool operator()(const txiter &a, const txiter &b) const {
-            return a->GetTx().GetHash() < b->GetTx().GetHash();
-        }
-    };
-    typedef std::set<txiter, CompareIteratorByHash> setEntries;
+    typedef std::set<txiter, CompareIteratorByHash<txiter>> setEntries;
 
     const setEntries & GetMemPoolParents(txiter entry) const;
     const setEntries & GetMemPoolChildren(txiter entry) const;
 private:
-    typedef std::map<txiter, setEntries, CompareIteratorByHash> cacheMap;
+    typedef std::map<txiter, setEntries, CompareIteratorByHash<txiter>> cacheMap;
 
     struct TxLinks {
         setEntries parents;
         setEntries children;
     };
 
-    typedef std::map<txiter, TxLinks, CompareIteratorByHash> txlinksMap;
+    typedef std::map<txiter, TxLinks, CompareIteratorByHash<txiter>> txlinksMap;
     txlinksMap mapLinks;
 
     typedef std::map<CMempoolAddressDeltaKey, CMempoolAddressDelta, CMempoolAddressDeltaKeyCompare> addressDeltaMap;
@@ -634,6 +534,8 @@ public:
      *    look up parents from mapLinks. Must be true for entries not in the mempool
      */
     bool CalculateMemPoolAncestors(const CTxMemPoolEntry &entry, setEntries &setAncestors, uint64_t limitAncestorCount, uint64_t limitAncestorSize, uint64_t limitDescendantCount, uint64_t limitDescendantSize, std::string &errString, bool fSearchForParents = true) const;
+
+    bool CalculateMemPoolAncestorsReferrals(const setEntries& setAncestors, referral::ReferralTxMemPool::setEntries& ancestorsReferrals) const;
 
     /** Populate setDescendants with all in-mempool descendants of hash.
      *  Assumes that setDescendants includes all in-mempool descendants of anything
@@ -745,97 +647,6 @@ protected:
 public:
     CCoinsViewMemPool(CCoinsView* baseIn, const CTxMemPool& mempoolIn);
     bool GetCoin(const COutPoint &outpoint, Coin &coin) const override;
-};
-
-/**
- * DisconnectedBlockTransactions
-
- * During the reorg, it's desirable to re-add previously confirmed transactions
- * to the mempool, so that anything not re-confirmed in the new chain is
- * available to be mined. However, it's more efficient to wait until the reorg
- * is complete and process all still-unconfirmed transactions at that time,
- * since we expect most confirmed transactions to (typically) still be
- * confirmed in the new chain, and re-accepting to the memory pool is expensive
- * (and therefore better to not do in the middle of reorg-processing).
- * Instead, store the disconnected transactions (in order!) as we go, remove any
- * that are included in blocks in the new chain, and then process the remaining
- * still-unconfirmed transactions at the end.
- */
-
-// multi_index tag names
-struct txid_index {};
-struct insertion_order {};
-
-struct DisconnectedBlockTransactions {
-    typedef boost::multi_index_container<
-        CTransactionRef,
-        boost::multi_index::indexed_by<
-            // sorted by txid
-            boost::multi_index::hashed_unique<
-                boost::multi_index::tag<txid_index>,
-                mempoolentry_txid,
-                SaltedTxidHasher
-            >,
-            // sorted by order in the blockchain
-            boost::multi_index::sequenced<
-                boost::multi_index::tag<insertion_order>
-            >
-        >
-    > indexed_disconnected_transactions;
-
-    // It's almost certainly a logic bug if we don't clear out queuedTx before
-    // destruction, as we add to it while disconnecting blocks, and then we
-    // need to re-process remaining transactions to ensure mempool consistency.
-    // For now, assert() that we've emptied out this object on destruction.
-    // This assert() can always be removed if the reorg-processing code were
-    // to be refactored such that this assumption is no longer true (for
-    // instance if there was some other way we cleaned up the mempool after a
-    // reorg, besides draining this object).
-    ~DisconnectedBlockTransactions() { assert(queuedTx.empty()); }
-
-    indexed_disconnected_transactions queuedTx;
-    uint64_t cachedInnerUsage = 0;
-
-    // Estimate the overhead of queuedTx to be 6 pointers + an allocation, as
-    // no exact formula for boost::multi_index_contained is implemented.
-    size_t DynamicMemoryUsage() const {
-        return memusage::MallocUsage(sizeof(CTransactionRef) + 6 * sizeof(void*)) * queuedTx.size() + cachedInnerUsage;
-    }
-
-    void addTransaction(const CTransactionRef& tx)
-    {
-        queuedTx.insert(tx);
-        cachedInnerUsage += RecursiveDynamicUsage(tx);
-    }
-
-    // Remove entries based on txid_index, and update memory usage.
-    void removeForBlock(const std::vector<CTransactionRef>& vtx)
-    {
-        // Short-circuit in the common case of a block being added to the tip
-        if (queuedTx.empty()) {
-            return;
-        }
-        for (auto const &tx : vtx) {
-            auto it = queuedTx.find(tx->GetHash());
-            if (it != queuedTx.end()) {
-                cachedInnerUsage -= RecursiveDynamicUsage(*it);
-                queuedTx.erase(it);
-            }
-        }
-    }
-
-    // Remove an entry by insertion_order index, and update memory usage.
-    void removeEntry(indexed_disconnected_transactions::index<insertion_order>::type::iterator entry)
-    {
-        cachedInnerUsage -= RecursiveDynamicUsage(*entry);
-        queuedTx.get<insertion_order>().erase(entry);
-    }
-
-    void clear()
-    {
-        cachedInnerUsage = 0;
-        queuedTx.clear();
-    }
 };
 
 #endif // MERIT_TXMEMPOOL_H

@@ -40,7 +40,7 @@ RBFTransactionState IsRBFOptIn(const CTransaction &tx, CTxMemPool &pool)
     pool.CalculateMemPoolAncestors(entry, setAncestors, noLimit, noLimit, noLimit, noLimit, dummy, false);
 
     for (CTxMemPool::txiter it : setAncestors) {
-        if (SignalsOptInRBF(it->GetTx())) {
+        if (SignalsOptInRBF(it->GetEntryValue())) {
             return RBF_TRANSACTIONSTATE_REPLACEABLE_BIP125;
         }
     }

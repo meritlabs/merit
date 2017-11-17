@@ -123,14 +123,14 @@ public:
 
     BlockTransactions() {}
     explicit BlockTransactions(const BlockTransactionsRequest& req) :
-        blockhash{req.blockhash}, 
+        blockhash{req.blockhash},
         txn(req.m_transaction_indices.size()),
         refs(req.m_referral_indices.size()) {}
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) 
+    inline void SerializationOp(Stream& s, Operation ser_action)
     {
         READWRITE(blockhash);
 
@@ -293,22 +293,22 @@ protected:
 
 public:
     CBlockHeader header;
-    explicit PartiallyDownloadedBlock(CTxMemPool* txn_pool_in, referral::ReferralTxMemPool* ref_pool_in) : 
-        m_txn_pool{txn_pool_in}, m_ref_pool{ref_pool_in} 
+    explicit PartiallyDownloadedBlock(CTxMemPool* txn_pool_in, referral::ReferralTxMemPool* ref_pool_in) :
+        m_txn_pool{txn_pool_in}, m_ref_pool{ref_pool_in}
     {
         assert(m_txn_pool);
         assert(m_ref_pool);
     }
 
     // extra_txn is a list of extra transactions to look at, in <witness hash, reference> form
-    ReadStatus InitData(const BlockHeaderAndShortIDs& cmpctblock, 
+    ReadStatus InitData(const BlockHeaderAndShortIDs& cmpctblock,
             const ExtraTransactions& extra_txn,
             const ExtraReferrals& extra_ref);
 
     bool IsTxAvailable(size_t index) const;
     bool IsRefAvailable(size_t index) const;
-    ReadStatus FillBlock(CBlock& block, 
-            const MissingTransactions& vtx_missing, 
+    ReadStatus FillBlock(CBlock& block,
+            const MissingTransactions& vtx_missing,
             const MissingReferrals& ref_missing);
 };
 

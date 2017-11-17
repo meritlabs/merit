@@ -258,3 +258,13 @@ int64_t GetVirtualTransactionSize(const CTransaction& tx, int64_t nSigOpCost)
 {
     return GetVirtualTransactionSize(GetTransactionWeight(tx), nSigOpCost);
 }
+
+int64_t GetVirtualReferralSize(int64_t nWeight)
+{
+    return nWeight / WITNESS_SCALE_FACTOR;
+}
+
+int64_t GetVirtualReferralSize(const referral::Referral& ref)
+{
+    return GetVirtualReferralSize(GetReferralWeight(ref));
+}

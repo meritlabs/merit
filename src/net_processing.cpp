@@ -26,6 +26,7 @@
 #include "reverse_iterator.h"
 #include "tinyformat.h"
 #include "txmempool.h"
+#include "refmempool.h"
 #include "ui_interface.h"
 #include "util.h"
 #include "utilmoneystr.h"
@@ -1244,7 +1245,7 @@ void static ProcessGetData(CNode* pfrom, const Consensus::Params& consensusParam
                 int nSendFlags = 0;
 
                 if (it != mempoolReferral.mapRTx.end()) {
-                    connman.PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::REF, *it->second));
+                    connman.PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::REF, it->GetSharedEntryValue()));
                 }
             }
 

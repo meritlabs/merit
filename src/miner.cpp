@@ -24,6 +24,7 @@
 #include "script/standard.h"
 #include "timedata.h"
 #include "txmempool.h"
+#include "refmempool.h"
 #include "util.h"
 #include "utilmoneystr.h"
 #include "validation.h"
@@ -68,6 +69,7 @@ BlockAssembler::Options::Options() {
     blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
     nBlockMaxWeight = DEFAULT_BLOCK_MAX_WEIGHT;
     nBlockMaxSize = DEFAULT_BLOCK_MAX_SIZE;
+    nTransactionsMaxSize = (DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE * nBlockMaxSize) / 100;
 }
 
 BlockAssembler::BlockAssembler(const CChainParams& params, const Options& options) : chainparams(params)
@@ -77,6 +79,9 @@ BlockAssembler::BlockAssembler(const CChainParams& params, const Options& option
     nBlockMaxWeight = std::max<size_t>(4000, std::min<size_t>(MAX_BLOCK_WEIGHT - 4000, options.nBlockMaxWeight));
     // Limit size to between 1K and MAX_BLOCK_SERIALIZED_SIZE-1K for sanity:
     nBlockMaxSize = std::max<size_t>(1000, std::min<size_t>(MAX_BLOCK_SERIALIZED_SIZE - 1000, options.nBlockMaxSize));
+    // Limit size to between 1K < blockMaxSize * SHARE (in percents) < blockMaxSize * MAX_TRANSACTIONS_SERIALIZED_SIZE_SHARE (90%):
+    nTransactionsMaxSize = std::max<size_t>(1000, std::min<size_t>((nBlockMaxSize * MAX_TRANSACTIONS_SERIALIZED_SIZE_SHARE) / 100, options.nTransactionsMaxSize));
+
     // Whether we need to account for byte usage (in addition to weight usage)
     fNeedSizeAccounting = (nBlockMaxSize < MAX_BLOCK_SERIALIZED_SIZE - 1000);
 }
@@ -88,6 +93,7 @@ static BlockAssembler::Options DefaultOptions(const CChainParams& params)
     // If only one is given, only restrict the specified resource.
     // If both are given, restrict both.
     BlockAssembler::Options options;
+    auto nTransactionsMaxShare = DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE;
     options.nBlockMaxWeight = DEFAULT_BLOCK_MAX_WEIGHT;
     options.nBlockMaxSize = DEFAULT_BLOCK_MAX_SIZE;
     bool fWeightSet = false;
@@ -95,6 +101,9 @@ static BlockAssembler::Options DefaultOptions(const CChainParams& params)
         options.nBlockMaxWeight = gArgs.GetArg("-blockmaxweight", DEFAULT_BLOCK_MAX_WEIGHT);
         options.nBlockMaxSize = MAX_BLOCK_SERIALIZED_SIZE;
         fWeightSet = true;
+    }
+    if (gArgs.IsArgSet("-blocktxsmaxsizeshare")) {
+        nTransactionsMaxShare = gArgs.GetArg("-blocktxsmaxsizeshare", DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE);
     }
     if (gArgs.IsArgSet("-blockmaxsize")) {
         options.nBlockMaxSize = gArgs.GetArg("-blockmaxsize", DEFAULT_BLOCK_MAX_SIZE);
@@ -109,6 +118,11 @@ static BlockAssembler::Options DefaultOptions(const CChainParams& params)
     } else {
         options.blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
     }
+
+    options.nTransactionsMaxSize = (nTransactionsMaxShare * options.nBlockMaxSize) / 100;
+
+    assert(options.nBlockMaxSize >= options.nTransactionsMaxSize);
+
     return options;
 }
 
@@ -116,7 +130,8 @@ BlockAssembler::BlockAssembler(const CChainParams& params) : BlockAssembler(para
 
 void BlockAssembler::resetBlock()
 {
-    inBlock.clear();
+    txsInBlock.clear();
+    refsInBlock.clear();
 
     // Reserve space for coinbase tx
     nBlockSize = 1000;
@@ -170,11 +185,11 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
 
-    // add referrals to the block before transactions to check if not beaconed transactions
-    // are used in txouts
-    AddReferrals();
 
     addPackageTxs(nPackagesSelected, nDescendantsUpdated);
+
+    // add left referrals to the block after dependant transactions and referrals already added
+    AddReferrals();
 
     int64_t nTime1 = GetTimeMicros();
 
@@ -254,7 +269,7 @@ void BlockAssembler::onlyUnconfirmed(CTxMemPool::setEntries& testSet)
 {
     for (CTxMemPool::setEntries::iterator iit = testSet.begin(); iit != testSet.end(); ) {
         // Only test txs not already in the block
-        if (inBlock.count(*iit)) {
+        if (txsInBlock.count(*iit)) {
             testSet.erase(iit++);
         }
         else {
@@ -263,14 +278,23 @@ void BlockAssembler::onlyUnconfirmed(CTxMemPool::setEntries& testSet)
     }
 }
 
-void BlockAssembler::onlyWithReferrals(CTxMemPool::setEntries& testSet)
+bool BlockAssembler::CheckReferrals(CTxMemPool::setEntries& testSet, referral::ReferralTxMemPool::setEntries& candidateReferrals)
 {
-    for (const CTxMemPool::txiter it: testSet) {
+    std::vector<referral::ReferralRef> vRefs(candidateReferrals.size());
+
+    std::transform(candidateReferrals.begin(), candidateReferrals.end(), vRefs.begin(),
+        [](const referral::ReferralTxMemPool::refiter& entryit) {
+            return entryit->GetSharedEntryValue();
+        });
+
+    for (const CTxMemPool::txiter it : testSet) {
         CValidationState dummy;
-        if (!Consensus::CheckTxOutputs(it->GetTx(), dummy, *prefviewcache, pblock->m_vRef)) {
-            testSet.erase(it);
+        if (!Consensus::CheckTxOutputs(it->GetEntryValue(), dummy, *prefviewcache, vRefs)) {
+            return false;
         }
     }
+
+    return true;
 }
 
 bool BlockAssembler::TestPackage(uint64_t packageSize, int64_t packageSigOpsCost) const
@@ -288,45 +312,74 @@ bool BlockAssembler::TestPackage(uint64_t packageSize, int64_t packageSigOpsCost
 // - premature witness (in case segwit transactions are added to mempool before
 //   segwit activation)
 // - serialized size (in case -blockmaxsize is in use)
-bool BlockAssembler::TestPackageTransactions(const CTxMemPool::setEntries& package)
+bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactions, const referral::ReferralTxMemPool::setEntries& referrals)
 {
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
-    for (const CTxMemPool::txiter it : package) {
-        if (!IsFinalTx(it->GetTx(), nHeight, nLockTimeCutoff))
+    for (const CTxMemPool::txiter it : transactions) {
+        if (!IsFinalTx(it->GetEntryValue(), nHeight, nLockTimeCutoff))
             return false;
-        if (!fIncludeWitness && it->GetTx().HasWitness())
+        if (!fIncludeWitness && it->GetEntryValue().HasWitness())
             return false;
         if (fNeedSizeAccounting) {
-            uint64_t nTxSize = ::GetSerializeSize(it->GetTx(), SER_NETWORK, PROTOCOL_VERSION);
-            if (nPotentialBlockSize + nTxSize >= nBlockMaxSize) {
+            uint64_t nTxSize = ::GetSerializeSize(it->GetEntryValue(), SER_NETWORK, PROTOCOL_VERSION);
+
+            // share block size by transactions and referrals
+            if (nPotentialBlockSize + nTxSize >= nTransactionsMaxSize) {
                 return false;
             }
             nPotentialBlockSize += nTxSize;
         }
     }
+
+    if (fNeedSizeAccounting) {
+        for (const auto& it: referrals) {
+            uint64_t nRefSize = ::GetSerializeSize(it->GetEntryValue(), SER_NETWORK, PROTOCOL_VERSION);
+
+            // share block size by transactions and referrals
+            if (nPotentialBlockSize + nRefSize >= nBlockMaxSize) {
+                return false;
+            }
+            nPotentialBlockSize += nRefSize;
+        }
+    }
+
     return true;
 }
 
-void BlockAssembler::AddToBlock(CTxMemPool::txiter iter)
+void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 {
-    pblock->vtx.emplace_back(iter->GetSharedTx());
+    pblock->vtx.emplace_back(iter->GetSharedEntryValue());
     pblocktemplate->vTxFees.push_back(iter->GetFee());
     pblocktemplate->vTxSigOpsCost.push_back(iter->GetSigOpCost());
+    auto txSize = ::GetSerializeSize(iter->GetEntryValue(), SER_NETWORK, PROTOCOL_VERSION);
     if (fNeedSizeAccounting) {
-        nBlockSize += ::GetSerializeSize(iter->GetTx(), SER_NETWORK, PROTOCOL_VERSION);
+        nBlockSize += txSize;
     }
-    nBlockWeight += iter->GetTxWeight();
+    nBlockWeight += iter->GetWeight();
     ++nBlockTx;
     nBlockSigOpsCost += iter->GetSigOpCost();
     nFees += iter->GetFee();
-    inBlock.insert(iter);
+    txsInBlock.insert(iter);
 
     bool fPrintPriority = gArgs.GetBoolArg("-printpriority", DEFAULT_PRINTPRIORITY);
     if (fPrintPriority) {
         LogPrintf("fee %s txid %s\n",
-                  CFeeRate(iter->GetModifiedFee(), iter->GetTxSize()).ToString(),
-                  iter->GetTx().GetHash().ToString());
+                  CFeeRate(iter->GetModifiedFee(), iter->GetSize()).ToString(),
+                  iter->GetEntryValue().GetHash().ToString());
     }
+}
+
+void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::refiter iter)
+{
+    pblock->m_vRef.push_back(iter->GetSharedEntryValue());
+    if (fNeedSizeAccounting) {
+        nBlockSize += iter->GetSize();
+    }
+
+    nBlockWeight += iter->GetWeight();
+    refsInBlock.insert(iter);
+
+    ++nBlockRef;
 }
 
 int BlockAssembler::UpdatePackagesForAdded(const CTxMemPool::setEntries& alreadyAdded,
@@ -344,7 +397,7 @@ int BlockAssembler::UpdatePackagesForAdded(const CTxMemPool::setEntries& already
             modtxiter mit = mapModifiedTx.find(desc);
             if (mit == mapModifiedTx.end()) {
                 CTxMemPoolModifiedEntry modEntry(desc);
-                modEntry.nSizeWithAncestors -= it->GetTxSize();
+                modEntry.nSizeWithAncestors -= it->GetSize();
                 modEntry.nModFeesWithAncestors -= it->GetModifiedFee();
                 modEntry.nSigOpCostWithAncestors -= it->GetSigOpCost();
                 mapModifiedTx.insert(modEntry);
@@ -368,7 +421,7 @@ int BlockAssembler::UpdatePackagesForAdded(const CTxMemPool::setEntries& already
 bool BlockAssembler::SkipMapTxEntry(CTxMemPool::txiter it, indexed_modified_transaction_set &mapModifiedTx, CTxMemPool::setEntries &failedTx)
 {
     assert (it != mempool.mapTx.end());
-    return mapModifiedTx.count(it) || inBlock.count(it) || failedTx.count(it);
+    return mapModifiedTx.count(it) || txsInBlock.count(it) || failedTx.count(it);
 }
 
 void BlockAssembler::SortForBlock(const CTxMemPool::setEntries& package, CTxMemPool::txiter entry, std::vector<CTxMemPool::txiter>& sortedEntries)
@@ -384,8 +437,33 @@ void BlockAssembler::SortForBlock(const CTxMemPool::setEntries& package, CTxMemP
 
 void BlockAssembler::AddReferrals()
 {
-    for(auto const &ref: mempoolReferral.mapRTx) {
-        pblock->m_vRef.push_back(ref.second);
+    uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
+
+
+    for (auto it = mempoolReferral.mapRTx.begin(); it != mempoolReferral.mapRTx.end(); it++) {
+        const auto ref = it->GetSharedEntryValue();
+
+        if (refsInBlock.count(it)) {
+            continue;
+        }
+
+        uint64_t nRefSize = it->GetSize();
+
+        if (fNeedSizeAccounting) {
+            // share block size by transactions and referrals
+            if (nPotentialBlockSize + nRefSize >= nBlockMaxSize) {
+                break;
+            }
+            nPotentialBlockSize += nRefSize;
+        }
+
+        pblock->m_vRef.push_back(ref);
+        if (fNeedSizeAccounting) {
+            nBlockSize = nPotentialBlockSize;
+        }
+
+        nBlockWeight += it->GetWeight();
+
         ++nBlockRef;
     }
 }
@@ -410,7 +488,7 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
 
     // Start by adding all descendants of previously added txs to mapModifiedTx
     // and modifying them for their already included ancestors
-    UpdatePackagesForAdded(inBlock, mapModifiedTx);
+    UpdatePackagesForAdded(txsInBlock, mapModifiedTx);
 
     CTxMemPool::indexed_transaction_set::index<ancestor_score>::type::iterator mi = mempool.mapTx.get<ancestor_score>().begin();
     CTxMemPool::txiter iter;
@@ -456,15 +534,15 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
             }
         }
 
-        // We skip mapTx entries that are inBlock, and mapModifiedTx shouldn't
-        // contain anything that is inBlock.
-        assert(!inBlock.count(iter));
+        // We skip mapTx entries that are txsInBlock, and mapModifiedTx shouldn't
+        // contain anything that is txsInBlock.
+        assert(!txsInBlock.count(iter));
 
-        uint64_t packageSize = iter->GetSizeWithAncestors();
+        uint64_t packageSize = iter->GetSizeWithAncestors() + iter->GetSizeReferrals();
         CAmount packageFees = iter->GetModFeesWithAncestors();
         int64_t packageSigOpsCost = iter->GetSigOpCostWithAncestors();
         if (fUsingModified) {
-            packageSize = modit->nSizeWithAncestors;
+            packageSize = modit->nSizeWithAncestors + modit->nSizeReferrals;
             packageFees = modit->nModFeesWithAncestors;
             packageSigOpsCost = modit->nSigOpCostWithAncestors;
         }
@@ -499,11 +577,13 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         mempool.CalculateMemPoolAncestors(*iter, ancestors, nNoLimit, nNoLimit, nNoLimit, nNoLimit, dummy, false);
 
         onlyUnconfirmed(ancestors);
-        onlyWithReferrals(ancestors);
         ancestors.insert(iter);
 
-        // Test if all tx's are Final
-        if (!TestPackageTransactions(ancestors)) {
+        referral::ReferralTxMemPool::setEntries referrals;
+        mempool.CalculateMemPoolAncestorsReferrals(ancestors, referrals);
+
+        // Test if all tx's have required referrals and all tx's are Final
+        if (!CheckReferrals(ancestors, referrals) || !TestPackageContent(ancestors, referrals)) {
             if (fUsingModified) {
                 mapModifiedTx.get<ancestor_score>().erase(modit);
                 failedTx.insert(iter);
@@ -518,10 +598,14 @@ void BlockAssembler::addPackageTxs(int &nPackagesSelected, int &nDescendantsUpda
         std::vector<CTxMemPool::txiter> sortedEntries;
         SortForBlock(ancestors, iter, sortedEntries);
 
-        for (size_t i=0; i<sortedEntries.size(); ++i) {
-            AddToBlock(sortedEntries[i]);
-            // Erase from the modified set, if present
-            mapModifiedTx.erase(sortedEntries[i]);
+        for (const auto& it: sortedEntries) {
+            AddTransactionToBlock(it);
+
+            mapModifiedTx.erase(it);
+        }
+
+        for (const auto& it: referrals) {
+            AddReferralToBlock(it);
         }
 
         ++nPackagesSelected;

@@ -22,6 +22,7 @@ static const unsigned char REJECT_NONSTANDARD = 0x40;
 // static const unsigned char REJECT_DUST = 0x41; // part of BIP 61
 static const unsigned char REJECT_INSUFFICIENTFEE = 0x42;
 static const unsigned char REJECT_CHECKPOINT = 0x43;
+static const unsigned char REJECT_MEMPOOL_FULL = 0x44;
 
 /** Capture information about block/transaction validation */
 class CValidationState {
@@ -93,6 +94,11 @@ public:
 static inline int64_t GetTransactionWeight(const CTransaction& tx)
 {
     return ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) * (WITNESS_SCALE_FACTOR -1) + ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
+}
+
+static inline int64_t GetReferralWeight(const referral::Referral& ref)
+{
+    return ::GetSerializeSize(ref, SER_NETWORK, PROTOCOL_VERSION) * WITNESS_SCALE_FACTOR;
 }
 
 static inline int64_t GetBlockWeight(const CBlock& block)
