@@ -12,6 +12,13 @@
 namespace vault
 {
 
+bool Vault::SameKind(const Vault& o) const 
+{
+    return 
+    type == o.type &&
+    coin.out.scriptPubKey == o.coin.out.scriptPubKey;
+}
+
 template <class Transactions>
 void ConvertToVaultOutputs(const Transactions& txns, VaultOutputs& outputs)
 {
