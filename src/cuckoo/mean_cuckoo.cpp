@@ -1320,12 +1320,12 @@ public:
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
-    // edgesRatio less than 40 makes no sense as the probobility to find a cycle gets too low
+    // edgesRatio less than 42 makes no sense as the probobility to find a cycle gets too low
     // edgesRatio more than 50 is not supported yet, as with 50 we tight to NYZ value and we occupy
     // all available BUCKETSIZE array.
     // TODO: modify checks in the algorith the way we would be able to generate more edges
     // should require changes of BUCKETSIZE values
-    assert(edgesRatio >= 40 && edgesRatio <= 50);
+    assert(edgesRatio >= 42 && edgesRatio <= 50);
     assert(edgeBits >= 15 && edgeBits <= 31);
 
     // static const uint8_t EDGEBITS = 27;
