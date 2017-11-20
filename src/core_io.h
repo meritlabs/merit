@@ -27,12 +27,6 @@ namespace referral
 // core_read.cpp
 CScript ParseScript(const std::string& s);
 
-std::string OpcodeToStr(
-        const opcodetype opcode,
-        const std::vector<unsigned char>& vch,
-        const bool attempt_sighash_decode = false,
-        const bool is_unspendable = false); 
-
 std::string ScriptToAsmStr(
         const CScript& script,
         const bool fAttemptSighashDecode = false);

@@ -62,51 +62,6 @@ std::string FormatScript(const CScript& script)
     return ret.substr(0, ret.size() - 1);
 }
 
-const std::map<unsigned char, std::string> mapSigHashTypes = {
-    {static_cast<unsigned char>(SIGHASH_ALL), std::string("ALL")},
-    {static_cast<unsigned char>(SIGHASH_ALL|SIGHASH_ANYONECANPAY), std::string("ALL|ANYONECANPAY")},
-    {static_cast<unsigned char>(SIGHASH_NONE), std::string("NONE")},
-    {static_cast<unsigned char>(SIGHASH_NONE|SIGHASH_ANYONECANPAY), std::string("NONE|ANYONECANPAY")},
-    {static_cast<unsigned char>(SIGHASH_SINGLE), std::string("SINGLE")},
-    {static_cast<unsigned char>(SIGHASH_SINGLE|SIGHASH_ANYONECANPAY), std::string("SINGLE|ANYONECANPAY")},
-};
-
-std::string OpcodeToStr(
-        const opcodetype opcode,
-        const std::vector<unsigned char>& vch,
-        const bool attempt_sighash_decode,
-        const bool is_unspendable) 
-{
-    if(opcode < 0 || opcode > OP_PUSHDATA4) {
-        return GetOpName(opcode);
-    }
-
-    if (vch.size() <= static_cast<std::vector<unsigned char>::size_type>(4)) {
-        return strprintf("%d", CScriptNum(vch, false).getint());
-    } 
-
-    if (!attempt_sighash_decode || is_unspendable) {
-        return HexStr(vch);
-    }
-
-    std::string sighash_decode;
-    auto vch_end = vch.begin() + vch.size();
-    // goal: only attempt to decode a defined sighash type from data that looks like a signature within a scriptSig.
-    // this won't decode correctly formatted public keys in Pubkey or Multisig scripts due to
-    // the restrictions on the pubkey formats (see IsCompressedOrUncompressedPubKey) being incongruous with the
-    // checks in CheckSignatureEncoding.
-    if (CheckSignatureEncoding(vch, SCRIPT_VERIFY_STRICTENC, nullptr)) {
-        const unsigned char chSigHashType = vch.back();
-        if (mapSigHashTypes.count(chSigHashType)) {
-            sighash_decode = "[" + mapSigHashTypes.find(chSigHashType)->second + "]";
-            assert(vch.size() > 1);
-            vch_end = vch.begin() + vch.size() - 1;
-        }
-    }
-
-    return HexStr(vch.begin(), vch_end) + sighash_decode;
-}
-
 /**
  * Create the assembly string representation of a CScript object.
  * @param[in] script    CScript object to convert into the asm string representation.
