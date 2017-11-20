@@ -1409,8 +1409,8 @@ UniValue spendvault(const JSONRPCRequest& request)
 
     if(amount > total_amount) {
         std::stringstream e;
-        e << "Insufficient funds, can only spend " 
-          << ValueFromAmount(total_amount).get_real() 
+        e << "Insufficient funds, can only spend "
+          << ValueFromAmount(total_amount).get_real()
           << " merit";
         throw JSONRPCError(RPC_TYPE_ERROR, e.str());
     }
@@ -1435,7 +1435,7 @@ UniValue spendvault(const JSONRPCRequest& request)
     pwallet->AddParamScript(vaults[0].script);
 
     //The two recipients are the spend key and the vault.
-    //If there is change the change will go into the same vault. 
+    //If there is change the change will go into the same vault.
     //The order of the recipients is important because the vault script requires
     //the first is the spend key and the second is the vault where changes goes into.
     bool subtract_fee_from_amount = true;
@@ -1479,7 +1479,7 @@ UniValue spendvault(const JSONRPCRequest& request)
     const auto spend_address = vaults[0].spend_pub_key.GetID();
 
     CKey spend_key;
-    if (!pwallet->GetKey(spend_address, spend_key)) { 
+    if (!pwallet->GetKey(spend_address, spend_key)) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR, "Unable to find the spendkey in the keystore");
     }
@@ -1579,7 +1579,7 @@ UniValue getvaultinfo(const JSONRPCRequest& request)
     UniValue coins(UniValue::VARR);
     UniValue whitelist(UniValue::VARR);
 
-    CAmount total_amount = 0; 
+    CAmount total_amount = 0;
     bool consistent = true;
 
     const auto& ref = vaults[0];
@@ -1591,7 +1591,7 @@ UniValue getvaultinfo(const JSONRPCRequest& request)
         c.push_back(Pair("txid", v.txid.GetHex()));
         c.push_back(Pair("index", static_cast<int>(v.out_point.n)));
         c.push_back(Pair("amount", ValueFromAmount(v.coin.out.nValue)));
-        c.push_back(Pair("confirmations", confirmations));
+        c.push_back(Pair("confirmations", static_cast<int>(confirmations)));
 
         coins.push_back(c);
 
