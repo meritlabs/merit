@@ -36,6 +36,7 @@
 
 #include <assert.h>
 #include <numeric>
+#include <sstream>
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/thread.hpp>
@@ -111,6 +112,12 @@ public:
     void operator()(const CScriptID &scriptId) {
         CScript script;
         if (keystore.GetCScript(scriptId, script))
+            Process(script);
+    }
+
+    void operator()(const CParamScriptID &scriptId) {
+        CScript script;
+        if (keystore.GetParamScript(scriptId, script))
             Process(script);
     }
 
@@ -207,7 +214,7 @@ referral::ReferralRef CWallet::Unlock(const uint256& referredByHash)
     // generate new referral associated with new pubkey
     auto referral = GenerateNewReferral(pubkey, referredByHash);
 
-    LogPrintf("Generated new unlock referral. Code: %s\n", referral->m_code);
+    LogPrintf("Generated new unlock referral. Code: %s\n", referral->code);
 
     return referral;
 }
@@ -389,20 +396,21 @@ bool CWallet::AddCScript(const CScript& redeemScript)
     return CWalletDB(*dbw).WriteCScript(Hash160(redeemScript), redeemScript);
 }
 
+bool CWallet::AddParamScript(const CScript& redeemScript)
+{
+    if (!CCryptoKeyStore::AddParamScript(redeemScript))
+        return false;
+    return CWalletDB(*dbw).WriteCScript(Hash160(redeemScript), redeemScript);
+}
+
 bool CWallet::LoadCScript(const CScript& redeemScript)
 {
-    /* A sanity check was added in pull #3843 to avoid adding redeemScripts
-     * that never can be redeemed. However, old wallets may still contain
-     * these. Do not add them to the wallet and warn. */
-    if (redeemScript.size() > MAX_SCRIPT_ELEMENT_SIZE)
-    {
-        std::string strAddr = EncodeDestination(CScriptID(redeemScript));
-        LogPrintf("%s: Warning: This wallet contains a redeemScript of size %i which exceeds maximum size %i thus can never be redeemed. Do not use address %s.\n",
-            __func__, redeemScript.size(), MAX_SCRIPT_ELEMENT_SIZE, strAddr);
-        return true;
-    }
-
     return CCryptoKeyStore::AddCScript(redeemScript);
+}
+
+bool CWallet::LoadParamScript(const CScript& redeemScript)
+{
+    return CCryptoKeyStore::AddParamScript(redeemScript);
 }
 
 bool CWallet::AddWatchOnly(const CScript& dest)
@@ -1136,8 +1144,6 @@ bool CWallet::LoadToWallet(const referral::ReferralTx& rtxIn)
     referral::ReferralTx& rtx = mapWalletRTx[hash];
     rtx.BindWallet(this);
 
-    LogPrintf("≈≈≈≈≈≈≈≈≈≈≈≈ LoadToWallet RTx ≈≈≈≈≈≈≈≈≈≈≈≈≈\n");
-
     return true;
 }
 
@@ -1641,13 +1647,15 @@ bool CWallet::IsHDEnabled() const
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
+        char addressType,
         const referral::Address& address,
         const uint256& referred_by)
 {
     // generate referral for given public key
-    auto referral = 
+    auto referral =
         referral::MakeReferralRef(
-                referral::MutableReferral(address, referred_by));
+                referral::MutableReferral(
+                    addressType, address, referred_by));
 
     referral::ReferralTx rtx{true};
 
@@ -1659,11 +1667,25 @@ referral::ReferralRef CWallet::GenerateNewReferral(
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
+        const CScriptID& id,
+        const uint256& referred_by)
+{
+    return GenerateNewReferral(2, id, referred_by);
+}
+
+referral::ReferralRef CWallet::GenerateNewReferral(
+        const CParamScriptID& id,
+        const uint256& referred_by)
+{
+    return GenerateNewReferral(3, id, referred_by);
+}
+
+referral::ReferralRef CWallet::GenerateNewReferral(
         const CPubKey& pubkey,
         const uint256& referred_by)
 {
     const referral::Address key_id = pubkey.GetID();
-    return GenerateNewReferral(key_id, referred_by);
+    return GenerateNewReferral(1, key_id, referred_by);
 }
 
 bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool)
@@ -1687,14 +1709,13 @@ bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKey
 
 bool CWallet::IsReferred() const
 {
-    LogPrintf("Wallet is %sreferred\n", !m_unlockReferralTx.IsNull() ? "": "NOT ");
     return !m_unlockReferralTx.IsNull();
 }
 
 uint256 CWallet::ReferralCodeHash() const
 {
-    return IsReferred() ? 
-        m_unlockReferralTx.m_pReferral->m_codeHash : uint256{};
+    return IsReferred() ?
+        m_unlockReferralTx.m_pReferral->codeHash : uint256{};
 }
 
 int64_t CWalletTx::GetTxTime() const
@@ -2894,7 +2915,12 @@ bool CWallet::CreateTransaction(
 
         //check blockchain and mempool for beacon
         if (!CheckAddressBeaconed(dest, true)) {
-            strFailReason = _("Transaction recipient address is not beaconed");
+            std::stringstream e;
+            e << _("Transaction recipient address \"")
+              << EncodeDestination(dest)
+              << _("\" is not beaconed");
+
+            strFailReason = e.str();
 
             return false;
         }
@@ -3094,7 +3120,7 @@ bool CWallet::CreateTransaction(
 
                 // Fill in dummy signatures for fee calculation.
                 if (!DummySignTx(txNew, setCoins)) {
-                    strFailReason = _("Signing transaction failed");
+                    strFailReason = _("Signing transaction failed D");
                     return false;
                 }
 
@@ -3217,7 +3243,7 @@ bool CWallet::CreateTransaction(
     if (gArgs.GetBoolArg("-walletrejectlongchains", DEFAULT_WALLET_REJECT_LONG_CHAINS)) {
         // Lastly, ensure this tx will pass the mempool's chain limits
         LockPoints lp;
-        CTxMemPoolEntry entry(wtxNew.tx, 0, 0, 0, false, 0, lp);
+        CTxMemPoolEntry entry(*wtxNew.tx, 0, 0, 0, false, 0, lp);
         CTxMemPool::setEntries setAncestors;
         size_t nLimitAncestors = gArgs.GetArg("-limitancestorcount", DEFAULT_ANCESTOR_LIMIT);
         size_t nLimitAncestorSize = gArgs.GetArg("-limitancestorsize", DEFAULT_ANCESTOR_SIZE_LIMIT)*1000;
@@ -3562,7 +3588,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
         } else if (IsReferred()) {
             LogPrintf("referredBy code hash not provided. Looking for unlock referral\n");
 
-            currentTopReferral = std::make_shared<uint256>(m_unlockReferralTx.GetReferral()->m_codeHash);
+            currentTopReferral = std::make_shared<uint256>(m_unlockReferralTx.GetReferral()->codeHash);
         } else {
             LogPrintf("referredBy code hash not found\n");
             return false;
@@ -3607,7 +3633,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
 
             auto referral = GenerateNewReferral(pubkey, *currentTopReferral);
 
-            LogPrintf("Generated new referral. Code: %s\n", referral->m_code);
+            LogPrintf("Generated new referral. Code: %s\n", referral->code);
 
             if (internal) {
                 setInternalKeyPool.insert(index);
@@ -4433,7 +4459,7 @@ int CMerkleTx::GetBlocksToMaturity() const
 {
     if (!IsCoinBase())
         return 0;
-    return std::max(0, (COINBASE_MATURITY+1) - GetDepthInMainChain());
+    return std::max(0, (static_cast<int>(Params().GetConsensus().nBlocksToMaturity) + 1) - GetDepthInMainChain());
 }
 
 

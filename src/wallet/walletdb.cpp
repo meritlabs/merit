@@ -306,11 +306,9 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             referral::ReferralTx rtx;
             ssValue >> rtx;
 
-            LogPrintf("Found rtx in database. Loading...\n");
-
             CValidationState state;
-            if (!(referral::CheckReferral(*(rtx.GetReferral()), state) 
-                        && (rtx.GetHash() == hash) 
+            if (!(referral::CheckReferral(*(rtx.GetReferral()), state)
+                        && (rtx.GetHash() == hash)
                         && state.IsValid())) {
                 return false;
             }

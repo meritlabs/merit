@@ -82,6 +82,8 @@ static const unsigned int DEFAULT_DESCENDANT_LIMIT = 25;
 static const unsigned int DEFAULT_DESCENDANT_SIZE_LIMIT = 101;
 /** Default for -mempoolexpiry, expiration time for mempool transactions in hours */
 static const unsigned int DEFAULT_MEMPOOL_EXPIRY = 336;
+/** Default for -refmempoolexpiry, expiration time for mempool referrals in hours */
+static const unsigned int DEFAULT_REFERRALS_MEMPOOL_EXPIRY = 336;
 /** Maximum kilobytes for transactions to store for processing during reorg */
 static const unsigned int MAX_DISCONNECTED_TX_POOL_SIZE = 20000;
 /** The maximum size of a blk?????.dat file (since 0.8) */
@@ -361,10 +363,15 @@ void PruneAndFlush();
 void PruneBlockFilesManual(int nManualPruneHeight);
 
 /** Update ANV using given transaction */
-bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo = false);
+using DebitsAndCredits = std::vector<std::tuple<char, referral::Address, CAmount>>;
+void GetDebitsAndCredits(
+        DebitsAndCredits& debits_and_credits,
+        const CTransaction& tx,
+        CCoinsViewCache& view,
+        bool undo = false);
 
 bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationState& state,
-        const referral::ReferralRef& referral, bool& pfMissingReferrer);
+        const referral::ReferralRef& referral, bool& pfMissingReferrer, bool fOverrideMempoolLimit = false);
 
 /** (try to) add transaction to memory pool
  * plTxnReplaced will be appended to with all transactions replaced from mempool **/
@@ -474,6 +481,7 @@ public:
         std::swap(ptxTo, check.ptxTo);
         std::swap(amount, check.amount);
         std::swap(blockHeight, check.blockHeight);
+        std::swap(coinHeight, check.coinHeight);
         std::swap(nIn, check.nIn);
         std::swap(nFlags, check.nFlags);
         std::swap(cacheStore, check.cacheStore);

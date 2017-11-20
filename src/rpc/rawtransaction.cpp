@@ -71,6 +71,8 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
                     in.push_back(Pair("address", CMeritAddress(CKeyID(spentInfo.addressHash)).ToString()));
                 } else if (spentInfo.addressType == 2)  {
                     in.push_back(Pair("address", CMeritAddress(CScriptID(spentInfo.addressHash)).ToString()));
+                } else if (spentInfo.addressType == 3)  {
+                    in.push_back(Pair("address", CMeritAddress(CParamScriptID(spentInfo.addressHash)).ToString()));
                 }
             }
 
@@ -643,7 +645,7 @@ UniValue decodescript(const JSONRPCRequest& request)
     UniValue type;
     type = find_value(r, "type");
 
-    if (type.isStr() && type.get_str() != "scripthash") {
+    if (type.isStr() && type.get_str() != "scripthash" && type.get_str() != "parameterized_scripthash") {
         // P2SH cannot be wrapped in a P2SH. If this script is already a P2SH,
         // don't return the address for a P2SH of the P2SH.
         r.push_back(Pair("p2sh", EncodeDestination(CScriptID(script))));
@@ -966,6 +968,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
             if (
                     fGivenKeys &&
                     (scriptPubKey.IsPayToScriptHash() ||
+                     scriptPubKey.IsParameterizedPayToScriptHash() ||
                      scriptPubKey.IsPayToWitnessScriptHash())) {
 
                 RPCTypeCheckObj(prevOut,

@@ -44,9 +44,10 @@ static CBlock CreateGenesisBlock(
     CPubKey rawPubKey{rawKeyStr};
     CKeyID address = rawPubKey.GetID();
     referral::MutableReferral refNew;
-    refNew.m_codeHash.SetHex("73a50383c1e58f5f215cdb40508b584bfd9f8d0e46cc3d0f17c79c6774a5dafd");
-    refNew.m_pubKeyId = address;
-    refNew.m_previousReferral.SetNull();
+    refNew.codeHash.SetHex("73a50383c1e58f5f215cdb40508b584bfd9f8d0e46cc3d0f17c79c6774a5dafd");
+    refNew.addressType = 1;
+    refNew.pubKeyId = address;
+    refNew.previousReferral.SetNull();
 
     CBlock genesis;
     genesis.nTime = nTime;
@@ -64,6 +65,7 @@ static CBlock CreateGenesisBlock(
         std::set<uint32_t> pow;
 
         uint32_t nMaxTries = 10000000;
+        genesis.nNonce = 0;
 
         printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
         while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, genesis.nEdgesRatio, pow, params)) {
@@ -78,7 +80,11 @@ static CBlock CreateGenesisBlock(
         } else {
             printf("Genesis block generated!!!\n");
             printf("==========================\n");
-            printf("hash: %s\nnonce: %d\nedges ratio: %d\nnodes:\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce, genesis.nEdgesRatio);
+            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges ratio: %d\nnodes:\n",
+                   genesis.GetHash().GetHex().c_str(),
+                   genesis.hashMerkleRoot.GetHex().c_str(),
+                   genesis.nNonce,
+                   genesis.nEdgesRatio);
             for (const auto& node : pow) {
                 printf("0x%x ", node);
             }
@@ -141,6 +147,7 @@ public:
     CMainParams()
     {
         strNetworkID = "main";
+        consensus.nBlocksToMaturity = 100;
         consensus.nSubsidyHalvingInterval = 210000;
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
@@ -175,7 +182,8 @@ public:
         nDefaultPort = 8445;
         nPruneAfterHeight = 100000;
 
-        genesis = CreateGenesisBlock(1503515697, 131, 0x207fffff, 28, 50, 1, 50 * COIN, consensus, false);
+        bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
+        genesis = CreateGenesisBlock(1503515697, 131, 0x207fffff, 28, 50, 1, 50 * COIN, consensus, generateGenesis);
 
         genesis.sCycle = {0x2077a, 0x4cbf3b, 0x60b30c, 0x6ff5d8, 0x992011, 0xb805cd, 0xbc47eb, 0xbf5169, 0xc1918c,
             0xe87071, 0xfac34a, 0x1145fcb, 0x14c597e, 0x155646c, 0x174d8d0, 0x18b83c6, 0x19fd75a, 0x1a12b40, 0x1a7637e,
@@ -197,6 +205,7 @@ public:
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 0);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 5);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1,8);
         base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 128);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};
@@ -229,6 +238,7 @@ public:
     CTestNetParams()
     {
         strNetworkID = "test";
+        consensus.nBlocksToMaturity = 5;
         consensus.nSubsidyHalvingInterval = 210000;
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
@@ -258,17 +268,20 @@ public:
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503444726, 79, 0x207fffff, 16, 50, 1, 50 * COIN, consensus, false);
+        bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
+        genesis = CreateGenesisBlock(1503444726, 3, 0x207fffff, 16, 50, 1, 50 * COIN, consensus, generateGenesis);
 
-
-        genesis.sCycle = {0x195, 0x1315, 0x2f27, 0x330b, 0x34ff, 0x41c7, 0x57d4, 0x5d4a, 0x675d, 0x6bb2,
-            0x722c, 0x723c, 0x73bb, 0x7df9, 0x812d, 0x8240, 0x82a6, 0x8dcc, 0x9399, 0x95d1, 0x9aba, 0x9f30,
-            0xa60e, 0xabd9, 0xae6e, 0xaf5f, 0xb2e2, 0xb96f, 0xbce9, 0xc34b, 0xc360, 0xc611, 0xcd0b, 0xcf5e,
-            0xd93f, 0xe365, 0xe8cf, 0xed28, 0xf39d, 0xfb76, 0xfba0, 0xfc46};
+        genesis.sCycle = {
+            0xe,0x394a,0x49c8,0x6b31,0x6ee9,0x7c9a,0xb55b,0xcace,0xe0a1,
+            0x104b5,0x16096,0x17a64,0x19129,0x1944b,0x1e484,0x1fead,0x213a1,
+            0x239d4,0x291c4,0x299a6,0x2a433,0x2a4a1,0x2bcc8,0x2cd26,0x2dbc1,
+            0x2e9a7,0x323f9,0x32d99,0x33574,0x352b7,0x370d5,0x382ca,0x383f2,
+            0x3d89c,0x3d9f0,0x3ef6f,0x3f094,0x3f3fe,0x4311a,0x44d69,0x45694,0x460d5
+        };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("731c199889740018032a5a126499f6af2a59de05192820b29fdfcba57a405d0e"));
-        assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
+        assert(consensus.hashGenesisBlock == uint256S("7b54e379256530673e9600de55de146688185936f8218a431bf0d92f4ef11942"));
+        assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -277,9 +290,9 @@ public:
         vSeeds.emplace_back("seed.tMRT.petertodd.org", true);
         vSeeds.emplace_back("testnet-seed.bluematt.me", false);
         vSeeds.emplace_back("testnet-seed.merit.schildbach.de", false);*/
-
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 196);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1,150);
         base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 239);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
@@ -313,6 +326,7 @@ public:
     CRegTestParams()
     {
         strNetworkID = "regtest";
+        consensus.nBlocksToMaturity = 5;
         consensus.nSubsidyHalvingInterval = 15000;
         consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
@@ -342,16 +356,18 @@ public:
         nDefaultPort = 18556;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1503670484, 55, 0x207fffff, 18, 60, 1, 50 * COIN, consensus, false);
+        bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
-        genesis.sCycle = {0x5dd, 0x10f3, 0x1725, 0x2336, 0x2f81, 0x336a, 0x3425, 0x3cc8, 0x4ec0, 0x57e7, 0x5ff5,
-            0x68c2, 0x7738, 0x7867, 0x7add, 0x8675, 0x8d59, 0x8e2a, 0x8edd, 0x917a, 0x953e, 0x9dea, 0x9fb4, 0xa0f4,
-            0xa27e, 0xabd5, 0xb1c8, 0xb3c1, 0xb574, 0xbdc3, 0xc326, 0xc39f, 0xc990, 0xc9d5, 0xd713, 0xd9bb, 0xdfcb,
-            0xe60b, 0xef13, 0xf392, 0xfba5, 0x104ae};
+        genesis = CreateGenesisBlock(1503670484, 2, 0x207fffff, 18, 60, 1, 50 * COIN, consensus, generateGenesis);
+
+        genesis.sCycle = {0xff, 0x3b5, 0x8e5, 0xa39, 0xf5b, 0xfd2, 0x15ad, 0x1a85, 0x2964, 0x2b43, 0x356f, 0x4f10,
+            0x5c0e, 0x5ef9, 0x686f, 0x6e9a, 0x749e, 0x7708, 0x7f2a, 0x8a6d, 0x8e09, 0x902c, 0x9278, 0x94c3, 0x9d99,
+            0xa1a8, 0xa2e0, 0xab0b, 0xafb4, 0xb440, 0xd302, 0xd604, 0xdc5e, 0xe6cd, 0xea2b, 0xefda, 0xf094, 0xf451,
+            0x10550, 0x106f6, 0x108c0, 0x113a3};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("a0f73c7161105ba136853e99d18a4483b6319620d53adc1d14128c00fdc2d272"));
-        assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
+        assert(consensus.hashGenesisBlock == uint256S("1b406b3f7eba08bc4dbe66b00eb8c96cff485c8074f67408923f952a2115c6a3"));
+        assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
@@ -373,6 +389,7 @@ public:
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 196);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1,150);
         base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 239);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};

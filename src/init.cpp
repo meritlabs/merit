@@ -352,6 +352,7 @@ std::string HelpMessage(HelpMessageMode mode)
         strUsage += HelpMessageOpt("-daemon", _("Run in the background as a daemon and accept commands"));
 #endif
     }
+    strUsage += HelpMessageOpt("-generategenesis", _("Generate genesis block"));
     strUsage += HelpMessageOpt("-datadir=<dir>", _("Specify data directory"));
     if (showDebug) {
         strUsage += HelpMessageOpt("-dbbatchsize", strprintf("Maximum database write batch size in bytes (default: %u)", nDefaultDbBatchSize));
@@ -363,6 +364,8 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-maxorphantx=<n>", strprintf(_("Keep at most <n> unconnectable transactions in memory (default: %u)"), DEFAULT_MAX_ORPHAN_TRANSACTIONS));
     strUsage += HelpMessageOpt("-maxmempool=<n>", strprintf(_("Keep the transaction memory pool below <n> megabytes (default: %u)"), DEFAULT_MAX_MEMPOOL_SIZE));
     strUsage += HelpMessageOpt("-mempoolexpiry=<n>", strprintf(_("Do not keep transactions in the mempool longer than <n> hours (default: %u)"), DEFAULT_MEMPOOL_EXPIRY));
+    strUsage += HelpMessageOpt("-maxrefmempool=<n>", strprintf(_("Keep the referrals memory pool below <n> megabytes (default: %u)"), DEFAULT_MAX_REFERRALS_MEMPOOL_SIZE));
+    strUsage += HelpMessageOpt("-refmempoolexpiry=<n>", strprintf(_("Do not keep referrals in the mempool longer than <n> hours (default: %u)"), DEFAULT_REFERRALS_MEMPOOL_EXPIRY));
     if (showDebug) {
         strUsage += HelpMessageOpt("-minimumchainwork=<hex>", strprintf("Minimum work assumed to exist on a valid chain in hex (default: %s, testnet: %s)", defaultChainParams->GetConsensus().nMinimumChainWork.GetHex(), testnetChainParams->GetConsensus().nMinimumChainWork.GetHex()));
     }
@@ -642,7 +645,6 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
     const CChainParams& chainparams = Params();
     RenameThread("merit-loadblk");
 
-    {
     CImportingNow imp;
 
     // -reindex
@@ -702,10 +704,10 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
         LogPrintf("Stopping after block import\n");
         StartShutdown();
     }
-    } // End scope of CImportingNow
     if (gArgs.GetArg("-persistmempool", DEFAULT_PERSIST_MEMPOOL)) {
-        LoadMempool();
+        // load referrals mempool first to load referrals that mempool transactions depend on
         LoadReferralMempool();
+        LoadMempool();
         fDumpMempoolLater = !fRequestShutdown;
     }
 }
@@ -1011,8 +1013,13 @@ bool AppInitParameterInteraction()
     // mempool limits
     int64_t nMempoolSizeMax = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
     int64_t nMempoolSizeMin = gArgs.GetArg("-limitdescendantsize", DEFAULT_DESCENDANT_SIZE_LIMIT) * 1000 * 40;
+    int64_t nReferralsMempoolSizeMax = gArgs.GetArg("-maxrefmempool", DEFAULT_MAX_REFERRALS_MEMPOOL_SIZE) * 1000000;
+
     if (nMempoolSizeMax < 0 || nMempoolSizeMax < nMempoolSizeMin)
         return InitError(strprintf(_("-maxmempool must be at least %d MB"), std::ceil(nMempoolSizeMin / 1000000.0)));
+    if (nReferralsMempoolSizeMax < 0)
+        return InitError(strprintf(_("-maxrefmempool must be greater than zero")));
+
     // incremental relay fee sets the minimum feerate increase necessary for BIP 125 replacement in the mempool
     // and the amount the mempool min fee increases above the feerate of txs evicted due to mempool limiting.
     if (gArgs.IsArgSet("-incrementalrelayfee"))
@@ -1429,11 +1436,15 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     nTotalCache -= nCoinDBCache;
     nCoinCacheUsage = nTotalCache; // the rest goes to in-memory cache
     int64_t nMempoolSizeMax = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
+    int64_t nReferralsMempoolSizeMax = gArgs.GetArg("-maxrefmempool", DEFAULT_MAX_REFERRALS_MEMPOOL_SIZE) * 1000000;
     LogPrintf("Cache configuration:\n");
     LogPrintf("* Max cache setting possible %.1fMiB\n", nMaxDbCache);
     LogPrintf("* Using %.1fMiB for block index database\n", nBlockTreeDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1fMiB for chain state database\n", nCoinDBCache * (1.0 / 1024 / 1024));
-    LogPrintf("* Using %.1fMiB for in-memory UTXO set (plus up to %.1fMiB of unused mempool space)\n", nCoinCacheUsage * (1.0 / 1024 / 1024), nMempoolSizeMax * (1.0 / 1024 / 1024));
+    LogPrintf("* Using %.1fMiB for in-memory UTXO set (plus up to %.1fMiB of unused mempool space and %.1fMiB of unused referrals mempool space)\n",
+        nCoinCacheUsage * (1.0 / 1024 / 1024),
+        nMempoolSizeMax * (1.0 / 1024 / 1024),
+        nReferralsMempoolSizeMax * (1.0 / 1024 / 1024));
 
     bool fLoaded = false;
     while (!fLoaded && !fRequestShutdown) {
@@ -1766,6 +1777,8 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     uiInterface.InitMessage(_("Done loading"));
 
 #ifdef ENABLE_WALLET
+    // wait until mempools are loaded
+    while(fImporting) { }
     for (CWalletRef pwallet : vpwallets) {
         pwallet->postInitProcess(scheduler);
     }

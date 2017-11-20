@@ -16,9 +16,10 @@ namespace pog
      * Aggregate Network Value is computed by walking the referral tree down from the 
      * key_id specified and aggregating each child's ANV.
      */
-    referral::MaybeANV ComputeANV(const referral::Address&, const referral::ReferralsViewDB&);
+    referral::MaybeAddressANV ComputeANV(const referral::Address&, const referral::ReferralsViewDB&);
     referral::AddressANVs GetANVs(const referral::Addresses& addresses, const referral::ReferralsViewDB&);
     referral::AddressANVs GetAllANVs(const referral::ReferralsViewDB&);
+    referral::AddressANVs GetAllRewardableANVs(const referral::ReferralsViewDB&);
 
 } // namespace pog
 

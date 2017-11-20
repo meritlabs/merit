@@ -39,6 +39,10 @@ public:
     virtual bool HaveCScript(const CScriptID &hash) const =0;
     virtual bool GetCScript(const CScriptID &hash, CScript& redeemScriptOut) const =0;
 
+    virtual bool AddParamScript(const CScript& redeemScript) =0;
+    virtual bool HaveParamScript(const CParamScriptID &hash) const =0;
+    virtual bool GetParamScript(const CParamScriptID &hash, CScript& redeemScriptOut) const =0;
+
     //! Support for Watch-only addresses
     virtual bool AddWatchOnly(const CScript &dest) =0;
     virtual bool RemoveWatchOnly(const CScript &dest) =0;
@@ -49,6 +53,7 @@ public:
 typedef std::map<CKeyID, CKey> KeyMap;
 typedef std::map<CKeyID, CPubKey> WatchKeyMap;
 typedef std::map<CScriptID, CScript > ScriptMap;
+typedef std::map<CParamScriptID, CScript > ParamScriptMap;
 typedef std::set<CScript> WatchOnlySet;
 
 /** Basic key store, that keeps keys in an address->secret map */
@@ -58,6 +63,7 @@ protected:
     KeyMap mapKeys;
     WatchKeyMap mapWatchKeys;
     ScriptMap mapScripts;
+    ParamScriptMap mapParamScripts;
     WatchOnlySet setWatchOnly;
 
 public:
@@ -101,6 +107,10 @@ public:
     bool AddCScript(const CScript& redeemScript) override;
     bool HaveCScript(const CScriptID &hash) const override;
     bool GetCScript(const CScriptID &hash, CScript& redeemScriptOut) const override;
+
+    bool AddParamScript(const CScript& redeemScript) override;
+    bool HaveParamScript(const CParamScriptID &hash) const override;
+    bool GetParamScript(const CParamScriptID &hash, CScript& redeemScriptOut) const override;
 
     bool AddWatchOnly(const CScript &dest) override;
     bool RemoveWatchOnly(const CScript &dest) override;

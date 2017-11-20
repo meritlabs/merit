@@ -53,7 +53,6 @@ EXTRA_LIBRARIES += \
   $(LIBMERIT_CRYPTO) \
   $(LIBMERIT_UTIL) \
   $(LIBMERIT_COMMON) \
-  $(LIBMERIT_CONSENSUS) \
   $(LIBMERIT_SERVER) \
   $(LIBMERIT_CLI) \
   $(LIBMERIT_WALLET) \
@@ -117,6 +116,7 @@ MERIT_CORE_H = \
   cuckoo/osx_barrier.h \
   cuckoo/miner.h \
   cuckoo/mean_cuckoo.h \
+  mempool.h \
   net.h \
   net_processing.h \
   netaddress.h \
@@ -140,6 +140,7 @@ MERIT_CORE_H = \
   rpc/blockchain.h \
   spentindex.h \
   timestampindex.h \
+  refmempool.h \
   rpc/client.h \
   rpc/mining.h \
   rpc/protocol.h \
@@ -180,6 +181,7 @@ MERIT_CORE_H = \
   wallet/init.h \
   wallet/rpcwallet.h \
   wallet/wallet.h \
+  wallet/vault.h \
   wallet/walletdb.h \
   warnings.h \
   zmq/zmqabstractnotifier.h \
@@ -226,6 +228,7 @@ libmerit_server_a_SOURCES = \
   policy/rbf.cpp \
   pow.cpp \
   refdb.cpp \
+  refmempool.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
   rpc/mining.cpp \
@@ -269,6 +272,7 @@ libmerit_wallet_a_SOURCES = \
   wallet/rpcdump.cpp \
   wallet/rpcwallet.cpp \
   wallet/wallet.cpp \
+  wallet/vault.cpp \
   wallet/walletdb.cpp \
   $(MERIT_CORE_H)
 
@@ -306,6 +310,7 @@ endif
 libmerit_consensus_a_CPPFLAGS = $(AM_CPPFLAGS) $(MERIT_INCLUDES)
 libmerit_consensus_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libmerit_consensus_a_SOURCES = \
+  $(MERIT_CORE_H) \
   amount.h \
   arith_uint256.cpp \
   arith_uint256.h \
@@ -489,7 +494,7 @@ if GLIBC_BACK_COMPAT
 endif
 
 libmeritconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
-libmeritconsensus_la_LIBADD = $(LIBSECP256K1) $(LIBMERITCRYPTO) $(LIBMERITUTIL) $(BOOST_LIBS)
+libmeritconsensus_la_LIBADD = $(LIBSECP256K1) $(LIBMERIT_COMMON) $(LIBMERITCRYPTO) $(LIBMERITUTIL) $(BOOST_LIBS)
 libmeritconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_MERIT_INTERNAL
 libmeritconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 

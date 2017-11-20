@@ -19,6 +19,10 @@ class CScript;
 class CTransaction;
 class uint256;
 
+using valtype = std::vector<unsigned char>;
+using StackElement = std::vector<unsigned char>;
+using Stack = std::vector<StackElement>;
+
 /** Signature hash types/flags */
 enum
 {
@@ -158,9 +162,24 @@ public:
          return false;
     }
 
+    virtual bool GetOutputAmount(int index, CAmount& amount) const
+    {
+         return false;
+    }
+
     virtual bool CheckCoinHeight(const int) const
     {
          return false;
+    }
+
+    virtual const CTxOut* GetTxnOutput(int index) const
+    {
+        return nullptr;
+    }
+
+    virtual size_t GetOutputCount() const
+    {
+        return 0;
     }
 
     virtual ~BaseSignatureChecker() {}
@@ -217,7 +236,10 @@ public:
 
     bool CheckLockTime(const CScriptNum& nLockTime) const override;
     bool CheckSequence(const CScriptNum& nSequence) const override;
+    bool GetOutputAmount(int index, CAmount& amount) const override;
     bool CheckCoinHeight(int maxHeight) const override;
+    const CTxOut* GetTxnOutput(int index) const override;
+    size_t GetOutputCount() const override;
 };
 
 class MutableTransactionSignatureChecker : public TransactionSignatureChecker
@@ -241,8 +263,14 @@ public:
         txTo(*txToIn) {}
 };
 
+bool EvalPushOnlyScript(
+        Stack& stack,
+        const CScript& script,
+        unsigned int flags,
+        ScriptError* serror);
+
 bool EvalScript(
-        std::vector<std::vector<unsigned char> >& stack,
+        Stack& stack,
         const CScript& script,
         unsigned int flags,
         const BaseSignatureChecker& checker,

@@ -5,6 +5,7 @@
 
 #include "tx_verify.h"
 
+#include "chainparams.h"
 #include "consensus.h"
 #include "primitives/transaction.h"
 #include "script/interpreter.h"
@@ -77,9 +78,6 @@ std::pair<int, int64_t> CalculateSequenceLocks(const CTransaction &tx, int flags
         }
     }
 
-    assert(nMinHeight >= 0);
-    assert(nMinTime >= 0);
-
     return std::make_pair(nMinHeight, nMinTime);
 }
 
@@ -123,7 +121,7 @@ unsigned int GetP2SHSigOpCount(const CTransaction& tx, const CCoinsViewCache& in
         const Coin& coin = inputs.AccessCoin(tx.vin[i].prevout);
         assert(!coin.IsSpent());
         const CTxOut &prevout = coin.out;
-        if (prevout.scriptPubKey.IsPayToScriptHash())
+        if (prevout.scriptPubKey.IsPayToScriptHash() || prevout.scriptPubKey.IsParameterizedPayToScriptHash())
             nSigOps += prevout.scriptPubKey.GetSigOpCount(tx.vin[i].scriptSig);
     }
     return nSigOps;
@@ -208,30 +206,31 @@ bool Consensus::CheckTxOutputs(
     // check addresses used for vouts are beaconed
     for (const auto& txout: tx.vout) {
         CTxDestination dest;
-        if (!ExtractDestination(txout.scriptPubKey, dest) || !IsValidDestination(dest)) {
+        txnouttype whichType;
+
+        // skip beaconing check for null_data
+        if (!ExtractDestination(txout.scriptPubKey, dest, whichType) && whichType == TX_NULL_DATA) {
+            continue;
+        }
+
+        if (!IsValidDestination(dest)) {
             return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-invalid-dest");
         }
 
-        if(boost::get<CNoDestination>(&dest)) continue;
+        uint160 addr;
+        bool got_uint160 = GetUint160(dest, addr);
+        assert(got_uint160);
 
-        const auto key = boost::get<CKeyID>(&dest);
-        const auto script = boost::get<CScriptID>(&dest);
-        const referral::Address* addr = key ?
-            static_cast<referral::Address*>(key) :
-            static_cast<referral::Address*>(script);
-
-        assert(addr);
-
-        bool addressBeaconed = referralsCache.WalletIdExists(*addr);
+        bool addressBeaconed = referralsCache.WalletIdExists(addr);
 
         // check cache for beaconed address
         if (!addressBeaconed) {
             // check vExtraReferrals vector for beaconed address
             const auto it = std::find_if(
                     vExtraReferrals.begin(), vExtraReferrals.end(),
-                    [addr](const referral::ReferralRef& ref) {
+                    [&addr](const referral::ReferralRef& ref) {
                         assert(ref);
-                        return ref->m_pubKeyId == *addr;
+                        return ref->pubKeyId == addr;
                     });
 
             addressBeaconed = it != vExtraReferrals.end();
@@ -262,7 +261,7 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, c
 
             // If prev is coinbase, check that it's matured
             if (coin.IsCoinBase()) {
-                if (nSpendHeight - coin.nHeight < COINBASE_MATURITY)
+                if (nSpendHeight - coin.nHeight < static_cast<int>(::Params().GetConsensus().nBlocksToMaturity))
                     return state.Invalid(false,
                         REJECT_INVALID, "bad-txns-premature-spend-of-coinbase",
                         strprintf("tried to spend coinbase at depth %d", nSpendHeight - coin.nHeight));

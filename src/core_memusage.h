@@ -8,6 +8,7 @@
 
 #include "primitives/transaction.h"
 #include "primitives/block.h"
+#include "primitives/referral.h"
 #include "memusage.h"
 
 static inline size_t RecursiveDynamicUsage(const CScript& script) {
@@ -62,6 +63,10 @@ static inline size_t RecursiveDynamicUsage(const CBlock& block) {
 
 static inline size_t RecursiveDynamicUsage(const CBlockLocator& locator) {
     return memusage::DynamicUsage(locator.vHave);
+}
+
+static inline size_t RecursiveDynamicUsage(const referral::ReferralRef& ref) {
+    return memusage::DynamicUsage(ref);
 }
 
 template<typename X>

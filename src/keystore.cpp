@@ -65,6 +65,34 @@ bool CBasicKeyStore::GetCScript(const CScriptID &hash, CScript& redeemScriptOut)
     return false;
 }
 
+bool CBasicKeyStore::AddParamScript(const CScript& redeemScript)
+{
+    if (redeemScript.size() > MAX_SCRIPT_ELEMENT_SIZE)
+        return error("CBasicKeyStore::AddCScript(): redeemScripts > %i bytes are invalid", MAX_SCRIPT_ELEMENT_SIZE);
+
+    LOCK(cs_KeyStore);
+    mapParamScripts[CParamScriptID(redeemScript)] = redeemScript;
+    return true;
+}
+
+bool CBasicKeyStore::HaveParamScript(const CParamScriptID& hash) const
+{
+    LOCK(cs_KeyStore);
+    return mapParamScripts.count(hash) > 0;
+}
+
+bool CBasicKeyStore::GetParamScript(const CParamScriptID &hash, CScript& redeemScriptOut) const
+{
+    LOCK(cs_KeyStore);
+    ParamScriptMap::const_iterator mi = mapParamScripts.find(hash);
+    if (mi != mapParamScripts.end())
+    {
+        redeemScriptOut = (*mi).second;
+        return true;
+    }
+    return false;
+}
+
 static bool ExtractPubKey(const CScript &dest, CPubKey& pubKeyOut)
 {
     //TODO: Use Solver to extract this?

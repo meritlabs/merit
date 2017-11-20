@@ -560,7 +560,7 @@ void CBlockPolicyEstimator::processTransaction(const CTxMemPoolEntry& entry, boo
 {
     LOCK(cs_feeEstimator);
     unsigned int txHeight = entry.GetHeight();
-    uint256 hash = entry.GetTx().GetHash();
+    uint256 hash = entry.GetEntryValue().GetHash();
     if (mapMemPoolTxs.count(hash)) {
         LogPrint(BCLog::ESTIMATEFEE, "Blockpolicy error mempool tx %s already being tracked\n",
                  hash.ToString().c_str());
@@ -584,7 +584,7 @@ void CBlockPolicyEstimator::processTransaction(const CTxMemPoolEntry& entry, boo
     trackedTxs++;
 
     // Feerates are stored and reported as MRT-per-kb:
-    CFeeRate feeRate(entry.GetFee(), entry.GetTxSize());
+    CFeeRate feeRate(entry.GetFee(), entry.GetSize());
 
     mapMemPoolTxs[hash].blockHeight = txHeight;
     unsigned int bucketIndex = feeStats->NewTx(txHeight, (double)feeRate.GetFeePerK());
@@ -597,7 +597,7 @@ void CBlockPolicyEstimator::processTransaction(const CTxMemPoolEntry& entry, boo
 
 bool CBlockPolicyEstimator::processBlockTx(unsigned int nBlockHeight, const CTxMemPoolEntry* entry)
 {
-    if (!removeTx(entry->GetTx().GetHash(), true)) {
+    if (!removeTx(entry->GetEntryValue().GetHash(), true)) {
         // This transaction wasn't being tracked for fee estimation
         return false;
     }
@@ -614,7 +614,7 @@ bool CBlockPolicyEstimator::processBlockTx(unsigned int nBlockHeight, const CTxM
     }
 
     // Feerates are stored and reported as MRT-per-kb:
-    CFeeRate feeRate(entry->GetFee(), entry->GetTxSize());
+    CFeeRate feeRate(entry->GetFee(), entry->GetSize());
 
     feeStats->Record(blocksToConfirm, (double)feeRate.GetFeePerK());
     shortStats->Record(blocksToConfirm, (double)feeRate.GetFeePerK());

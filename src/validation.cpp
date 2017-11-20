@@ -49,6 +49,8 @@
 #include "warnings.h"
 #include "cuckoo/miner.h"
 
+#include "core_io.h"
+
 #include <atomic>
 #include <sstream>
 
@@ -371,6 +373,15 @@ static void LimitMempoolSize(CTxMemPool& pool, size_t limit, unsigned long age) 
         pcoinsTip->Uncache(removed);
 }
 
+// TODO: add support for trimming by mempory usage with TrimToSize
+static void LimitMempoolSize(referral::ReferralTxMemPool& pool, unsigned long age) {
+    int expired = pool.Expire(GetTime() - age);
+
+    if (expired != 0) {
+        LogPrint(BCLog::MEMPOOL, "Expired %i referrals from the memory pool\n", expired);
+    }
+}
+
 /** Convert CValidationState to a human-readable message for logging */
 std::string FormatStateMessage(const CValidationState &state)
 {
@@ -397,7 +408,7 @@ static bool IsCurrentForFeeEstimation()
  * other transactions from the mempool that are no longer valid given the new
  * tip/height.
  *
- * Note: we assume that disconnectpool only contains transactions that are NOT
+ * Note: we assume that disconnectTransactions only contains transactions that are NOT
  * confirmed in the current chain nor already in the mempool (otherwise,
  * in-mempool descendants of such transactions would be removed).
  *
@@ -405,18 +416,20 @@ static bool IsCurrentForFeeEstimation()
  * and instead just erase from the mempool as needed.
  */
 
-void UpdateMempoolForReorg(DisconnectedBlockTransactions &disconnectpool, bool fAddToMempool)
+void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTransactions,
+    DisconnectedBlockEntries<referral::Referral>& disconnectReferrals,
+    bool fAddToMempool)
 {
     AssertLockHeld(cs_main);
-    std::vector<uint256> vHashUpdate;
-    // disconnectpool's insertion_order index sorts the entries from
+    std::vector<uint256> vTxHashUpdate;
+    // disconnectTransactions's insertion_order index sorts the entries from
     // oldest to newest, but the oldest entry will be the last tx from the
     // latest mined block that was disconnected.
-    // Iterate disconnectpool in reverse, so that we add transactions
+    // Iterate disconnectTransactions in reverse, so that we add transactions
     // back to the mempool starting with the earliest transaction that had
     // been previously seen in a block.
-    auto it = disconnectpool.queuedTx.get<insertion_order>().rbegin();
-    while (it != disconnectpool.queuedTx.get<insertion_order>().rend()) {
+    auto it = disconnectTransactions.queued.get<insertion_order>().rbegin();
+    while (it != disconnectTransactions.queued.get<insertion_order>().rend()) {
         // ignore validation errors in resurrected transactions
         CValidationState stateDummy;
         if (!fAddToMempool || (*it)->IsCoinBase() || !AcceptToMemoryPool(mempool, stateDummy, *it, false, nullptr, nullptr, true)) {
@@ -424,22 +437,42 @@ void UpdateMempoolForReorg(DisconnectedBlockTransactions &disconnectpool, bool f
             // transactions that depend on it (which would now be orphans).
             mempool.removeRecursive(**it, MemPoolRemovalReason::REORG);
         } else if (mempool.exists((*it)->GetHash())) {
-            vHashUpdate.push_back((*it)->GetHash());
+            vTxHashUpdate.push_back((*it)->GetHash());
         }
         ++it;
     }
-    disconnectpool.queuedTx.clear();
+    disconnectTransactions.queued.clear();
     // AcceptToMemoryPool/addUnchecked all assume that new mempool entries have
     // no in-mempool children, which is generally not true when adding
     // previously-confirmed transactions back to the mempool.
     // UpdateTransactionsFromBlock finds descendants of any transactions in
-    // the disconnectpool that were added back and cleans up the mempool state.
-    mempool.UpdateTransactionsFromBlock(vHashUpdate);
+    // the disconnectTransactions that were added back and cleans up the mempool state.
+    mempool.UpdateTransactionsFromBlock(vTxHashUpdate);
 
     // We also need to remove any now-immature transactions
     mempool.removeForReorg(pcoinsTip, chainActive.Tip()->nHeight + 1, STANDARD_LOCKTIME_VERIFY_FLAGS);
     // Re-limit mempool size, in case we added any transactions
     LimitMempoolSize(mempool, gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000, gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60);
+
+    // same flow for referrals mempool, but w/o UpdateReferralsFromBlock
+    // TODO: add UpdateReferralsFromBlock to account dynamic referral sizes
+    std::vector<uint256> vRefHashUpdate;
+    auto rit = disconnectReferrals.queued.get<insertion_order>().rbegin();
+    while (rit != disconnectReferrals.queued.get<insertion_order>().rend()) {
+        CValidationState stateDummy;
+        bool missingDummy;
+        if (!fAddToMempool || !AcceptReferralToMemoryPool(mempoolReferral, stateDummy, *rit, missingDummy, true)) {
+            mempoolReferral.RemoveRecursive(**rit, MemPoolRemovalReason::REORG);
+        } else if (mempoolReferral.exists((*it)->GetHash())) {
+            vRefHashUpdate.push_back((*it)->GetHash());
+        }
+        ++rit;
+    }
+    disconnectReferrals.queued.clear();
+
+    // TODO: add keeping track of referrals mempool dynamic size
+    LimitMempoolSize(mempoolReferral, gArgs.GetArg("-refmempoolexpiry", DEFAULT_REFERRALS_MEMPOOL_EXPIRY) * 60 * 60);
+
 }
 
 // Used to avoid mempool polluting consensus critical paths if CCoinsViewMempool
@@ -495,7 +528,12 @@ static bool CheckInputsFromMempoolAndCache(
             txdata);
 }
 
-bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationState& state, const referral::ReferralRef& referral, bool& missingReferrer)
+bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
+    CValidationState& state,
+    const referral::ReferralRef& referral,
+    int64_t nAcceptTime,
+    bool& missingReferrer,
+    bool fOverrideMempoolLimit)
 {
     assert(referral);
 
@@ -504,6 +542,8 @@ bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationSt
     if (!CheckReferral(*referral, state)) {
         return false;
     }
+
+    referral::RefMemPoolEntry entry(*referral, nAcceptTime, chainActive.Height());
 
     const uint256 hash = referral->GetHash();
 
@@ -515,22 +555,38 @@ bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationSt
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
 
-        if (!(prefviewcache->ReferralCodeExists(referral->m_previousReferral) ||
-             pool.ExistsWithCodeHash(referral->m_previousReferral))) {
-                missingReferrer = true;
-                return false;
+        if (!(prefviewcache->ReferralCodeExists(referral->previousReferral) ||
+            pool.ExistsWithCodeHash(referral->previousReferral))) {
+            missingReferrer = true;
+            return false;
         }
 
-        // TODO: check mempool(and maybe not only pool) for referral consistency
-        pool.AddUnchecked(referral->GetHash(), referral);
+        pool.AddUnchecked(referral->GetHash(), entry);
     }
 
+    // trim mempool and check if tx was trimmed
+    if (!fOverrideMempoolLimit) {
+        LimitMempoolSize(pool, gArgs.GetArg("-refmempoolexpiry", DEFAULT_REFERRALS_MEMPOOL_EXPIRY) * 60 * 60);
+        if (!pool.exists(hash)) {
+            return state.DoS(0, false, REJECT_MEMPOOL_FULL, "referrals mempool full");
+        }
+    }
 
     GetMainSignals().ReferralAddedToMempool(referral);
 
     return true;
 }
 
+bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool,
+    CValidationState& state,
+    const referral::ReferralRef& referral,
+    bool& missingReferrer,
+    bool fOverrideMempoolLimit)
+{
+    assert(referral);
+
+    return AcceptReferralToMemoryPoolWithTime(pool, state, referral, GetTime(), missingReferrer, fOverrideMempoolLimit);
+}
 
 static bool AcceptToMemoryPoolWorker(
         const CChainParams& chainparams,
@@ -706,7 +762,7 @@ static bool AcceptToMemoryPoolWorker(
         pool.ApplyDelta(hash, nModifiedFees);
 
         // Keep track of transactions that spend a coinbase, which we re-scan
-        // during reorgs to ensure COINBASE_MATURITY is still met.
+        // during reorgs to ensure nBlocksToMaturity is still met.
         bool fSpendsCoinbase = false;
         for (const CTxIn &txin : tx.vin) {
             const Coin &coin = view.AccessCoin(txin.prevout);
@@ -716,9 +772,9 @@ static bool AcceptToMemoryPoolWorker(
             }
         }
 
-        CTxMemPoolEntry entry(ptx, nFees, nAcceptTime, chainActive.Height(),
+        CTxMemPoolEntry entry(*ptx, nFees, nAcceptTime, chainActive.Height(),
                               fSpendsCoinbase, nSigOpsCost, lp);
-        unsigned int nSize = entry.GetTxSize();
+        unsigned int nSize = entry.GetSize();
 
         // Check that the transaction doesn't have an excessive number of
         // sigops, making it impossible to mine. Since the coinbase transaction
@@ -793,7 +849,7 @@ static bool AcceptToMemoryPoolWorker(
         // intersect.
         for (CTxMemPool::txiter ancestorIt : setAncestors)
         {
-            const uint256 &hashAncestor = ancestorIt->GetTx().GetHash();
+            const uint256 &hashAncestor = ancestorIt->GetEntryValue().GetHash();
             if (setConflicts.count(hashAncestor))
             {
                 return state.DoS(
@@ -851,7 +907,7 @@ static bool AcceptToMemoryPoolWorker(
                 // ignored when deciding whether or not to replace, we do
                 // require the replacement to pay more overall fees too,
                 // mitigating most cases.
-                CFeeRate oldFeeRate(mi->GetModifiedFee(), mi->GetTxSize());
+                CFeeRate oldFeeRate(mi->GetModifiedFee(), mi->GetSize());
                 if (newFeeRate <= oldFeeRate)
                 {
                     return state.DoS(
@@ -866,7 +922,7 @@ static bool AcceptToMemoryPoolWorker(
                                 oldFeeRate.ToString()));
                 }
 
-                for (const CTxIn &txin : mi->GetTx().vin)
+                for (const CTxIn &txin : mi->GetEntryValue().vin)
                 {
                     setConflictsParents.insert(txin.prevout.hash);
                 }
@@ -884,7 +940,7 @@ static bool AcceptToMemoryPoolWorker(
                 }
                 for (CTxMemPool::txiter it : allConflicting) {
                     nConflictingFees += it->GetModifiedFee();
-                    nConflictingSize += it->GetTxSize();
+                    nConflictingSize += it->GetSize();
                 }
             } else {
                 return state.DoS(
@@ -1077,12 +1133,12 @@ static bool AcceptToMemoryPoolWorker(
             LogPrint(
                     BCLog::MEMPOOL,
                     "replacing tx %s with %s for %s MRT ""additional fees, %d delta bytes\n",
-                    it->GetTx().GetHash().ToString(),
+                    it->GetEntryValue().GetHash().ToString(),
                     hash.ToString(),
                     FormatMoney(nModifiedFees - nConflictingFees),
                     (int)nSize - (int)nConflictingSize);
             if (plTxnReplaced)
-                plTxnReplaced->push_back(it->GetSharedTx());
+                plTxnReplaced->push_back(it->GetSharedEntryValue());
         }
         pool.RemoveStaged(allConflicting, false, MemPoolRemovalReason::REPLACED);
 
@@ -1407,7 +1463,7 @@ pog::AmbassadorLottery RewardAmbassadors(const uint256& previousBlockHash, CAmou
     assert(prefviewdb != nullptr);
 
     // Wallet selector will create a distribution from all the keys
-    pog::WalletSelector selector{pog::GetAllANVs(*prefviewdb)};
+    pog::WalletSelector selector{pog::GetAllRewardableANVs(*prefviewdb)};
 
     // We may have fewer keys in the distribution than the expected winners,
     // so just pick smallest of the two.
@@ -1432,6 +1488,13 @@ pog::AmbassadorLottery RewardAmbassadors(const uint256& previousBlockHash, CAmou
     return rewards;
 }
 
+bool IsValidAmbassadorDestination(const CTxDestination& dest)
+{
+    const auto which = dest.which();
+    //KeyID or ScriptID
+    return which == 1 || which == 2;
+}
+
 void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx)
 {
     // Pay them by adding a txout to the coinbase transaction;
@@ -1441,11 +1504,13 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
             std::back_inserter(tx.vout),
 
             [](const pog::AmbassadorReward& winner) {
-                if (!IsValidDestination(winner.address)) {
+                CMeritAddress addr{winner.addressType, winner.address};
+                const auto dest = addr.Get();
+                if (!addr.IsValid() || !IsValidAmbassadorDestination(dest)) {
                     throw std::runtime_error{"invalid ambassador"};
                 }
 
-                auto script = GetScriptForDestination(winner.address);
+                const auto script = GetScriptForDestination(dest);
                 return CTxOut{winner.amount, script};
             });
 }
@@ -1464,20 +1529,6 @@ void SortRewards(pog::Rewards& rewards)
     std::sort(std::begin(rewards), std::end(rewards), RewardComp());
 }
 
-const referral::Address* KeyOrScript(const CTxDestination& dest)
-{
-    if(boost::get<CNoDestination>(&dest)) return nullptr;
-
-    const auto* key = boost::get<CKeyID>(&dest);
-    const auto* script = boost::get<CScriptID>(&dest);
-
-    assert(key || script);
-
-    return key ?
-        static_cast<const referral::Address*>(key) :
-        static_cast<const referral::Address*>(script);
-}
-
 bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const CTransaction& coinbase) {
     assert(coinbase.IsCoinBase());
 
@@ -1490,12 +1541,21 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
     std::transform(std::begin(coinbase.vout), std::end(coinbase.vout), std::begin(sorted_outs),
             [](const CTxOut& out) -> pog::AmbassadorReward {
                 CTxDestination dest;
-                if(!ExtractDestination(out.scriptPubKey, dest)) return {{}, out.nValue};
+                if(!ExtractDestination(out.scriptPubKey, dest)) {
+                    return {0, {}, out.nValue};
+                }
 
-                const auto* address = KeyOrScript(dest);
-                if(!address) return {{}, out.nValue};
+                uint160 address;
+                if(!GetUint160(dest, address)) {
+                    return {0, {}, out.nValue};
+                }
 
-                return {*address, out.nValue};
+                auto addressType = AddressTypeFromDestination(dest);
+                if(addressType == 0) {
+                    return {0, {}, out.nValue};
+                }
+
+                return {addressType, address, out.nValue};
             });
     SortRewards(sorted_outs);
 
@@ -2015,14 +2075,17 @@ AddressPair ExtractAddress(const CTxOut& tout)
     uint160 hashBytes;
     int addressType = 0;
 
-    if (tout.scriptPubKey.IsPayToPublicKey()) {
-        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin(), tout.scriptPubKey.begin()+20));
+    if (tout.scriptPubKey.IsParameterizedPayToScriptHash()) {
+        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
         addressType = 3;
     } else if (tout.scriptPubKey.IsPayToScriptHash()) {
-        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
+        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
         addressType = 2;
+    } else if (tout.scriptPubKey.IsPayToPublicKey()) {
+        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin(), tout.scriptPubKey.begin()+20));
+        addressType = 1;
     } else if (tout.scriptPubKey.IsPayToPublicKeyHash()) {
-        hashBytes = uint160(std::vector <unsigned char>(tout.scriptPubKey.begin()+3, tout.scriptPubKey.begin()+23));
+        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin()+3, tout.scriptPubKey.begin()+23));
         addressType = 1;
     }
 
@@ -2031,15 +2094,15 @@ AddressPair ExtractAddress(const CTxOut& tout)
 
 using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
-using DebitsAndCredits = std::vector<std::pair<referral::Address, CAmount>>;
 
-bool DebitAndCreditANV(const DebitsAndCredits& debits_and_credits)
+bool UpdateANV(const DebitsAndCredits& debits_and_credits)
 {
     //apply the debit and credits to the addresses in the block transactions.
     for (const auto& t : debits_and_credits) {
-        const auto& address = t.first;
-        const auto amount = t.second;
-        if(!prefviewdb->UpdateANV(address, amount)) {
+        const auto addressType = std::get<0>(t);
+        const auto& address = std::get<1>(t);
+        const auto amount = std::get<2>(t);
+        if(!prefviewdb->UpdateANV(addressType, address, amount)) {
             return false;
         }
     }
@@ -2047,87 +2110,68 @@ bool DebitAndCreditANV(const DebitsAndCredits& debits_and_credits)
     return true;
 }
 
-bool UpdateANV(CTransactionRef tx, CCoinsViewCache& view, bool undo)
+void GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransaction& tx, CCoinsViewCache& view, bool undo)
 {
-    assert(tx);
-
-    // Debit and Credit all ANVs of addresses in the block
-    DebitsAndCredits debits_and_credits;
-
-    auto debitDir = !undo ? -1 : 1;
-    auto creditDir = !undo ? 1 : -1;
+    int64_t debitDir = !undo ? -1 : 1;
+    int64_t creditDir = !undo ? 1 : -1;
 
     //debit senders
-    if (!tx->IsCoinBase()) {
-        for (const auto& in :  tx->vin) {
+    if (!tx.IsCoinBase()) {
+        for (const auto& in :  tx.vin) {
             const auto &in_out = view.AccessCoin(in.prevout).out;
+            assert(in_out.nValue >= 0);
 
-            auto address = ExtractAddress(in_out);
+            const auto address = ExtractAddress(in_out);
             if(address.second == 0) continue;
 
-            debits_and_credits.push_back({address.first, CAmount{in_out.nValue * debitDir}});
+            const CAmount amount = in_out.nValue * debitDir;
+            debits_and_credits.push_back({address.second, address.first, amount});
         }
     }
 
     //credit recipients
-    for (const auto& out : tx->vout) {
+    for (const auto& out : tx.vout) {
         auto address = ExtractAddress(out);
         if(address.second == 0) continue;
 
-        debits_and_credits.push_back({address.first, CAmount{out.nValue * creditDir}});
+        const CAmount amount = out.nValue * creditDir;
+        debits_and_credits.push_back({address.second, address.first, amount});
     }
-
-    return DebitAndCreditANV(debits_and_credits);
 }
 
-bool IndexReferralsAndUpdateANV(const std::vector<CTransactionRef> vtx, const std::vector<referral::ReferralRef> vref, CCoinsViewCache& view)
+bool UpdateANV(const CBlock& block, CCoinsViewCache& view) {
+    DebitsAndCredits debits_and_credits;
+    for(const auto& tx: block.vtx) {
+        assert(tx);
+        GetDebitsAndCredits(debits_and_credits, *tx, view);
+    }
+    return UpdateANV(debits_and_credits);
+}
+
+bool IndexReferrals(const CBlock& block)
 {
     assert(prefviewdb);
 
     // Update offset and Record referrals into the referral DB
-    for (const auto& rtx : vref) {
+    for (const auto& rtx : block.m_vRef) {
         if(!prefviewdb->InsertReferral(*rtx)) {
             return false;
         }
     }
 
-    // Debit and Credit all ANVs of addresses in transactions set
-    for (const auto& txn : vtx) {
-        if (!UpdateANV(txn, view)) {
-            return false;
-        }
-    }
-
     return true;
 }
 
-bool IndexReferralsAndUpdateANV(const CBlock& block, CCoinsViewCache& view)
-{
-    return IndexReferralsAndUpdateANV(block.vtx, block.m_vRef, view);
-}
-
-bool RemoveReferralsAndUndoANV(const std::vector<CTransactionRef> vtx, const std::vector<referral::ReferralRef> vref, CCoinsViewCache& view)
+bool RemoveReferrals(const CBlock& block)
 {
     assert(prefviewdb);
 
-    // reverse the Debit and Credits of all ANVs of addresses in transactions set
-    for (const auto& txn : vtx) {
-        if (!UpdateANV(txn, view, true)) {
-            return false;
-        }
-    }
-
     // Update offset and Record referrals into the referral DB
-    for (const auto& rtx : vref) {
+    for (const auto& rtx : block.m_vRef) {
         if(!prefviewdb->RemoveReferral(*rtx))
             return false;
     }
     return true;
-}
-
-bool RemoveReferralsAndUndoANV(const CBlock& block, CCoinsViewCache& view)
-{
-    return RemoveReferralsAndUndoANV(block.vtx, block.m_vRef, view);
 }
 
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
@@ -2137,11 +2181,6 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
     debug("DisconnectBlock: %s", block.GetHash().GetHex());
 
     bool fClean = true;
-
-    if(!memory_only && !RemoveReferralsAndUndoANV(block, view)){
-        error("DisconnectBlock(): unable to undo referrals");
-        return DISCONNECT_FAILED;
-    }
 
     CBlockUndo blockUndo;
     CDiskBlockPos pos = pindex->GetUndoPos();
@@ -2162,6 +2201,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
     std::vector<std::pair<CAddressIndexKey, CAmount> > addressIndex;
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
+    DebitsAndCredits debits_and_credits;
 
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
@@ -2174,7 +2214,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
             for (unsigned int k = tx.vout.size(); k-- > 0;) {
                 const CTxOut &out = tx.vout[k];
 
-                if (out.scriptPubKey.IsPayToScriptHash()) {
+                if (out.scriptPubKey.IsPayToScriptHash() || out.scriptPubKey.IsParameterizedPayToScriptHash()) {
                     std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
 
                     // undo receiving activity
@@ -2228,10 +2268,27 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
             }
             // At this point, all of txundo.vprevout should have been moved out.
         }
+        GetDebitsAndCredits(debits_and_credits, tx, view, true);
     }
 
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
+
+    if(!memory_only) {
+        // The order here is important. The ANV values must be updated
+        // before the tree is manipulated to properly debit and credit the
+        // correct addresses because RemoveReferrals will change referral
+        // tree.
+        if(!UpdateANV(debits_and_credits)) {
+            error("DisconnectBlock(): unable to undo referrals");
+            return DISCONNECT_FAILED;
+        }
+
+        if(!RemoveReferrals(block)){
+            error("DisconnectBlock(): unable to undo referrals");
+            return DISCONNECT_FAILED;
+        }
+    }
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
@@ -2389,8 +2446,16 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     if (block.GetHash() == chainparams.GetConsensus().hashGenesisBlock) {
         if (!fJustCheck) {
             view.SetBestBlock(pindex->GetBlockHash());
-            if(!IndexReferralsAndUpdateANV(block, view)) {
-                return AbortNode(state, "Failed to write referral and ANV index");
+
+            //The order is important here. We must insert the referrals so that
+            //the referral tree is updated to be correct before we debit/credit
+            //the ANV to the appropriate addresses.
+            if(!IndexReferrals(block)) {
+                return AbortNode(state, "Failed to write referral index");
+            }
+
+            if(!UpdateANV(block, view)) {
+                return AbortNode(state, "Failed to write ANV index");
             }
         }
         return true;
@@ -2484,6 +2549,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     KeyActivity addressIndex;
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
+
+    // Update referral tree and ANV cache.
+    DebitsAndCredits debits_and_credits;
 
     for (int i = 0; i < static_cast<int>(block.vtx.size()); i++)
     {
@@ -2624,6 +2692,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         if (i > 0) {
             blockundo.vtxundo.push_back(CTxUndo());
         }
+
+        GetDebitsAndCredits(debits_and_credits, tx, view);
         UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
 
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
@@ -2751,9 +2821,15 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
 
-    // Update referral tree and ANV cache.
-    if(!IndexReferralsAndUpdateANV(block, view)) {
-        return AbortNode(state, "Failed to write referral and ANV index");
+    //The order is important here. We must insert the referrals so that
+    //the referral tree is updated to be correct before we debit/credit
+    //the ANV to the appropriate addresses.
+    if(!IndexReferrals(block)) {
+        return AbortNode(state, "Failed to write referral index");
+    }
+
+    if(!UpdateANV(debits_and_credits)) {
+        return AbortNode(state, "Failed to write referral ANV index");
     }
 
     int64_t nTime6 = GetTimeMicros(); nTimeConnect += nTime6 - nTime5;
@@ -2776,6 +2852,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
  */
 bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &state, FlushStateMode mode, int nManualPruneHeight) {
     int64_t nMempoolUsage = mempool.DynamicMemoryUsage();
+    int64_t nReferralsMempoolUsage = mempoolReferral.DynamicMemoryUsage();
+
     LOCK(cs_main);
     static int64_t nLastWrite = 0;
     static int64_t nLastFlush = 0;
@@ -2813,9 +2891,13 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
         if (nLastSetChain == 0) {
             nLastSetChain = nNow;
         }
+
+
         int64_t nMempoolSizeMax = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
+        int64_t nReferralsMempoolSizeMax = gArgs.GetArg("-maxrefmempool", DEFAULT_MAX_REFERRALS_MEMPOOL_SIZE) * 1000000;
         int64_t cacheSize = pcoinsTip->DynamicMemoryUsage();
-        int64_t nTotalSpace = nCoinCacheUsage + std::max<int64_t>(nMempoolSizeMax - nMempoolUsage, 0);
+        int64_t nTotalSpace = nCoinCacheUsage + std::max<int64_t>(nMempoolSizeMax - nMempoolUsage, 0) + std::max<int64_t>(nReferralsMempoolSizeMax - nReferralsMempoolUsage, 0);
+
         // The cache is large and we're within 10% and 10 MiB of the limit, but we have time now (not in the middle of a block processing).
         bool fCacheLarge = mode == FLUSH_STATE_PERIODIC && cacheSize > std::max((9 * nTotalSpace) / 10, nTotalSpace - MAX_BLOCK_COINSDB_USAGE * 1024 * 1024);
         // The cache is over the limit, we have to write now.
@@ -2959,17 +3041,21 @@ void static UpdateTip(CBlockIndex *pindexNew, const CChainParams& chainParams) {
 
 }
 
-/** Disconnect chainActive's tip.
-  * After calling, the mempool will be in an inconsistent state, with
-  * transactions from disconnected blocks being added to disconnectpool.  You
-  * should make the mempool consistent again by calling UpdateMempoolForReorg.
-  * with cs_main held.
-  *
-  * If disconnectpool is nullptr, then no disconnected transactions are added to
-  * disconnectpool (note that the caller is responsible for mempool consistency
-  * in any case).
-  */
-bool static DisconnectTip(CValidationState& state, const CChainParams& chainparams, DisconnectedBlockTransactions *disconnectpool)
+/**
+ * Disconnect chainActive's tip.
+ * After calling, the tx and refs mempools will be in an inconsistent state, with
+ * transactions from disconnected blocks being added to
+ * disconnectTransactions and disconnectReferrals. You should make the mempools
+ * consistent again by calling UpdateMempoolForReorg with cs_main held.
+ *
+ * If disconnectTransactions or disconnectReferralsis nullptr,
+ * then no disconnected transactions/referrals are added there
+ * (note that the caller is responsible for mempool consistency in any case).
+ */
+bool static DisconnectTip(CValidationState& state,
+    const CChainParams& chainparams,
+    DisconnectedBlockEntries<CTransaction>* disconnectTransactions,
+    DisconnectedBlockEntries<referral::Referral>* disconnectReferrals)
 {
     CBlockIndex *pindexDelete = chainActive.Tip();
     assert(pindexDelete);
@@ -2994,17 +3080,25 @@ bool static DisconnectTip(CValidationState& state, const CChainParams& chainpara
     if (!FlushStateToDisk(chainparams, state, FLUSH_STATE_IF_NEEDED))
         return false;
 
-    if (disconnectpool) {
+    if (disconnectTransactions) {
         // Save transactions to re-add to mempool at end of reorg
         for (auto it = block.vtx.rbegin(); it != block.vtx.rend(); ++it) {
-            disconnectpool->addTransaction(*it);
+            disconnectTransactions->addEntry(*it);
         }
-        while (disconnectpool->DynamicMemoryUsage() > MAX_DISCONNECTED_TX_POOL_SIZE * 1000) {
+        while (disconnectTransactions->DynamicMemoryUsage() > MAX_DISCONNECTED_TX_POOL_SIZE * 1000) {
             // Drop the earliest entry, and remove its children from the mempool.
-            auto it = disconnectpool->queuedTx.get<insertion_order>().begin();
+            auto it = disconnectTransactions->queued.get<insertion_order>().begin();
             mempool.removeRecursive(**it, MemPoolRemovalReason::REORG);
-            disconnectpool->removeEntry(it);
+            disconnectTransactions->removeEntry(it);
         }
+    }
+    if (disconnectReferrals) {
+        // Save transactions to re-add to mempool at end of reorg
+        for (auto it = block.m_vRef.rbegin(); it != block.m_vRef.rend(); ++it) {
+            disconnectReferrals->addEntry(*it);
+        }
+        // TODO: check size of disconnectReferrals and remove referrals from it and mempool
+        // in case it does not fit
     }
 
     // Update chainActive and related variables.
@@ -3092,7 +3186,13 @@ public:
  *
  * The block is added to connectTrace if connection succeeds.
  */
-bool static ConnectTip(CValidationState& state, const CChainParams& chainparams, CBlockIndex* pindexNew, const std::shared_ptr<const CBlock>& pblock, ConnectTrace& connectTrace, DisconnectedBlockTransactions &disconnectpool)
+bool static ConnectTip(CValidationState& state,
+    const CChainParams& chainparams,
+    CBlockIndex* pindexNew,
+    const std::shared_ptr<const CBlock>& pblock,
+    ConnectTrace& connectTrace,
+    DisconnectedBlockEntries<CTransaction>& disconnectTransactions,
+    DisconnectedBlockEntries<referral::Referral>& disconnectReferrals)
 {
     assert(pindexNew->pprev == chainActive.Tip());
     // Read block from disk.
@@ -3136,8 +3236,10 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
     LogPrint(BCLog::BENCH, "  - Writing chainstate: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime5 - nTime4) * MILLI, nTimeChainState * MICRO, nTimeChainState * MILLI / nBlocksTotal);
     // Remove conflicting transactions from the mempool.;
     mempool.removeForBlock(blockConnecting.vtx, pindexNew->nHeight);
-    disconnectpool.removeForBlock(blockConnecting.vtx);
     mempoolReferral.RemoveForBlock(blockConnecting.m_vRef);
+    disconnectTransactions.removeForBlock(blockConnecting.vtx);
+    disconnectReferrals.removeForBlock(blockConnecting.m_vRef);
+
     // Update chainActive & related variables.
     UpdateTip(pindexNew, chainparams);
 
@@ -3234,12 +3336,13 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
 
     // Disconnect active blocks which are no longer in the best chain.
     bool fBlocksDisconnected = false;
-    DisconnectedBlockTransactions disconnectpool;
+    DisconnectedBlockEntries<CTransaction> disconnectTransactions;
+    DisconnectedBlockEntries<referral::Referral> disconnectReferrals;
     while (chainActive.Tip() && chainActive.Tip() != pindexFork) {
-        if (!DisconnectTip(state, chainparams, &disconnectpool)) {
+        if (!DisconnectTip(state, chainparams, &disconnectTransactions, &disconnectReferrals)) {
             // This is likely a fatal error, but keep the mempool consistent,
             // just in case. Only remove from the mempool in this case.
-            UpdateMempoolForReorg(disconnectpool, false);
+            UpdateMempoolForReorg(disconnectTransactions, disconnectReferrals, false);
             return false;
         }
         fBlocksDisconnected = true;
@@ -3268,7 +3371,7 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
             if(pblock) debug("TestValidity: %s", pblock->GetHash().GetHex());
             else debug("%s...", __func__);
 
-            if (!ConnectTip(state, chainparams, pindexConnect, pindexConnect == pindexMostWork ? pblock : std::shared_ptr<const CBlock>(), connectTrace, disconnectpool)) {
+            if (!ConnectTip(state, chainparams, pindexConnect, pindexConnect == pindexMostWork ? pblock : std::shared_ptr<const CBlock>(), connectTrace, disconnectTransactions, disconnectReferrals)) {
                 if (state.IsInvalid()) {
                     // The block violates a consensus rule.
                     if (!state.CorruptionPossible())
@@ -3281,7 +3384,7 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
                     // A system error occurred (disk space, database error, ...).
                     // Make the mempool consistent with the current tip, just in case
                     // any observers try to use it before shutdown.
-                    UpdateMempoolForReorg(disconnectpool, false);
+                    UpdateMempoolForReorg(disconnectTransactions, disconnectReferrals, false);
                     return false;
                 }
             } else {
@@ -3296,9 +3399,9 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
     }
 
     if (fBlocksDisconnected) {
-        // If any blocks were disconnected, disconnectpool may be non empty.  Add
+        // If any blocks were disconnected, disconnectTransactions may be non empty.  Add
         // any disconnected transactions back to the mempool.
-        UpdateMempoolForReorg(disconnectpool, true);
+        UpdateMempoolForReorg(disconnectTransactions, disconnectReferrals, true);
     }
     mempool.check(pcoinsTip, *prefviewcache);
 
@@ -3449,7 +3552,8 @@ bool InvalidateBlock(CValidationState& state, const CChainParams& chainparams, C
     setDirtyBlockIndex.insert(pindex);
     setBlockIndexCandidates.erase(pindex);
 
-    DisconnectedBlockTransactions disconnectpool;
+    DisconnectedBlockEntries<CTransaction> disconnectTransactions;
+    DisconnectedBlockEntries<referral::Referral> disconnectReferrals;
     while (chainActive.Contains(pindex)) {
         CBlockIndex *pindexWalk = chainActive.Tip();
         pindexWalk->nStatus |= BLOCK_FAILED_CHILD;
@@ -3457,17 +3561,17 @@ bool InvalidateBlock(CValidationState& state, const CChainParams& chainparams, C
         setBlockIndexCandidates.erase(pindexWalk);
         // ActivateBestChain considers blocks already in chainActive
         // unconditionally valid already, so force disconnect away from it.
-        if (!DisconnectTip(state, chainparams, &disconnectpool)) {
+        if (!DisconnectTip(state, chainparams, &disconnectTransactions, &disconnectReferrals)) {
             // It's probably hopeless to try to make the mempool consistent
             // here if DisconnectTip failed, but we can try.
-            UpdateMempoolForReorg(disconnectpool, false);
+            UpdateMempoolForReorg(disconnectTransactions, disconnectReferrals, false);
             return false;
         }
     }
 
-    // DisconnectTip will add transactions to disconnectpool; try to add these
+    // DisconnectTip will add transactions to disconnectTransactions; try to add these
     // back to the mempool.
-    UpdateMempoolForReorg(disconnectpool, true);
+    UpdateMempoolForReorg(disconnectTransactions, disconnectReferrals, true);
 
     // The resulting new best tip may not be in setBlockIndexCandidates anymore, so
     // add it again.
@@ -3747,7 +3851,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
     for (const auto& ref : block.m_vRef) {
         if (!CheckReferral(*ref, state)) {
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
-                strprintf("Referral check failed (ref hash %s) %s", ref->m_codeHash.GetHex(), state.GetDebugMessage()));
+                strprintf("Referral check failed (ref hash %s) %s", ref->codeHash.GetHex(), state.GetDebugMessage()));
         }
     }
 
@@ -3768,23 +3872,27 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 // Check if an address is valid (beaconed)
 bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
 {
-    const auto* addr = KeyOrScript(dest);
-    if(!addr) return false;
+    // if target is CNoDestination skip is beaconed validation
+    if(boost::get<CNoDestination>(&dest)) {
+        return true;
+    }
 
-    bool beaconed = prefviewcache->WalletIdExists(*addr);
+    uint160 addr;
+    if(!GetUint160(dest, addr)) {
+        return false;
+    }
+
+    bool beaconed = prefviewcache->WalletIdExists(addr);
 
     if (!beaconed && checkMempool) {
         // check mempool referrals for beaconed address
-        const auto refsInMempool = mempoolReferral.GetReferrals();
-
         const auto it =
-            std::find_if(refsInMempool.begin(), refsInMempool.end(),
-                [addr](const referral::ReferralRef& ref) {
-                    assert(ref);
-                    return ref->m_pubKeyId == *addr;
+            std::find_if(mempoolReferral.mapRTx.begin(), mempoolReferral.mapRTx.end(),
+                [&addr](const referral::RefMemPoolEntry& entry) {
+                    return entry.GetSharedEntryValue()->pubKeyId == addr;
                 });
 
-        beaconed = it != refsInMempool.end();
+        beaconed = it != mempoolReferral.mapRTx.end();
     }
 
     return beaconed;
@@ -4746,7 +4854,7 @@ bool RewindBlockIndex(const CChainParams& params)
             // of the blockchain).
             break;
         }
-        if (!DisconnectTip(state, params, nullptr)) {
+        if (!DisconnectTip(state, params, nullptr, nullptr)) {
             return error("RewindBlockIndex: unable to disconnect block at height %i", pindex->nHeight);
         }
         // Occasionally flush state to disk.
@@ -4886,8 +4994,16 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
     try {
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
 
-        if (!prefviewdb->ReferralCodeExists(block.m_vRef[0]->m_codeHash)) {
-            IndexReferralsAndUpdateANV(block, *pcoinsTip);
+        if (!prefviewdb->ReferralCodeExists(block.m_vRef[0]->codeHash)) {
+            //The order is important here. We must insert the referrals so that
+            //the referral tree is updated to be correct before we debit/credit
+            //the ANV to the appropriate addresses.
+            if(!IndexReferrals(block)) {
+                return error("%s: IndexReferrals failed", __func__);
+            }
+            if(!UpdateANV(block, *pcoinsTip)) {
+                return error("%s: UpdateANV failed", __func__);
+            }
         }
 
         // Check whether we're already initialized by checking for genesis in
@@ -5354,7 +5470,8 @@ bool DumpMempool(void)
         file.fclose();
         RenameOver(GetDataDir() / "mempool.dat.new", GetDataDir() / "mempool.dat");
         int64_t last = GetTimeMicros();
-        LogPrintf("Dumped mempool: %gs to copy, %gs to dump\n", (mid-start)*MICRO, (last-mid)*MICRO);
+        LogPrintf("Dumped mempool: %lu records, %gs to copy, %gs to dump\n", vinfo.size(), (mid-start)*MICRO, (last-mid)*MICRO);
+
     } catch (const std::exception& e) {
         LogPrintf("Failed to dump mempool: %s. Continuing anyway.\n", e.what());
         return false;
@@ -5364,6 +5481,8 @@ bool DumpMempool(void)
 
 bool LoadReferralMempool()
 {
+    // use the same variable as for mempool expiry
+    int64_t nExpiryTimeout = gArgs.GetArg("-refmempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60;
     FILE* filestr = fsbridge::fopen(GetDataDir() / "mempool_referral.dat", "rb");
     CAutoFile file(filestr, SER_DISK, CLIENT_VERSION);
     if (file.IsNull()) {
@@ -5372,7 +5491,9 @@ bool LoadReferralMempool()
     }
 
     int64_t count = 0;
+    int64_t skipped = 0;
     int64_t failed = 0;
+    int64_t nNow = GetTime();
 
     try {
         uint64_t version;
@@ -5384,17 +5505,22 @@ bool LoadReferralMempool()
         file >> num;
         while (num--) {
             referral::ReferralRef ref;
+            int64_t nTime;
             file >> ref;
+            file >> nTime;
             CValidationState state;
 
-            LOCK(cs_main);
             bool dummy;
-            AcceptReferralToMemoryPool(mempoolReferral, state, ref, dummy);
-
-            if (state.IsValid()) {
-                ++count;
+            if (nTime + nExpiryTimeout > nNow) {
+                LOCK(cs_main);
+                AcceptReferralToMemoryPoolWithTime(mempoolReferral, state, ref, nTime, dummy, false);
+                if (state.IsValid()) {
+                    ++count;
+                } else {
+                    ++failed;
+                }
             } else {
-                ++failed;
+                ++skipped;
             }
 
             if (ShutdownRequested())
@@ -5405,7 +5531,7 @@ bool LoadReferralMempool()
         return false;
     }
 
-    LogPrintf("Imported mempool referrals from disk: %i successes, %i failed\n", count, failed);
+    LogPrintf("Imported mempool referrals from disk: %i successes, %i failed, %i expired\n", count, failed, skipped);
     return true;
 }
 
@@ -5413,14 +5539,14 @@ void DumpReferralMempool()
 {
     int64_t start = GetTimeMicros();
 
-    std::vector<referral::ReferralRef> vReferral;
+    std::vector<referral::RefMemPoolEntry> vEntries;
 
     {
-        LOCK(mempool.cs);
+        LOCK(mempoolReferral.cs);
         auto map = &mempoolReferral.mapRTx;
 
         for(const auto& it: *map)
-            vReferral.push_back(it.second);
+            vEntries.push_back(it);
     }
 
     int64_t mid = GetTimeMicros();
@@ -5436,16 +5562,18 @@ void DumpReferralMempool()
         uint64_t version = MEMPOOL_DUMP_VERSION;
         file << version;
 
-        file << (uint64_t)vReferral.size();
-        for (const auto& i : vReferral) {
-            file << i;
+        file << (uint64_t)vEntries.size();
+        for (const auto& i : vEntries) {
+            file << i.GetEntryValue();
+            file << (int64_t)i.GetTime();
         }
 
         FileCommit(file.Get());
         file.fclose();
         RenameOver(GetDataDir() / "mempool_referral.dat.new", GetDataDir() / "mempool_referral.dat");
         int64_t last = GetTimeMicros();
-        LogPrintf("Dumped referral mempool: %gs to copy, %gs to dump\n", (mid-start)*0.000001, (last-mid)*0.000001);
+        LogPrintf("Dumped referral mempool: %lu records, %gs to copy, %gs to dump\n", vEntries.size(), (mid-start)*0.000001, (last-mid)*0.000001);
+
     } catch (const std::exception& e) {
         LogPrintf("Failed to dump referral mempool: %s. Continuing anyway.\n", e.what());
     }

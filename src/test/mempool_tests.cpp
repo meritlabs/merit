@@ -67,7 +67,7 @@ BOOST_AUTO_TEST_CASE(MempoolRemoveTest)
     poolSize = testPool.size();
     testPool.removeRecursive(txParent);
     BOOST_CHECK_EQUAL(testPool.size(), poolSize - 1);
-    
+
     // Parent, children, grandchildren:
     testPool.addUnchecked(txParent.GetHash(), entry.FromTx(txParent));
     for (int i = 0; i < 3; i++)
@@ -113,7 +113,7 @@ void CheckSort(CTxMemPool &pool, std::vector<std::string> &sortedOrder)
     typename CTxMemPool::indexed_transaction_set::index<name>::type::iterator it = pool.mapTx.get<name>().begin();
     int count=0;
     for (; it != pool.mapTx.get<name>().end(); ++it, ++count) {
-        BOOST_CHECK_EQUAL(it->GetTx().GetHash().ToString(), sortedOrder[count]);
+        BOOST_CHECK_EQUAL(it->GetEntryValue().GetHash().ToString(), sortedOrder[count]);
     }
 }
 
@@ -282,11 +282,11 @@ BOOST_AUTO_TEST_CASE(MempoolIndexingTest)
     BOOST_CHECK_EQUAL(pool.size(), 10);
 
     // Now try removing tx10 and verify the sort order returns to normal
-    pool.removeRecursive(pool.mapTx.find(tx10.GetHash())->GetTx());
+    pool.removeRecursive(pool.mapTx.find(tx10.GetHash())->GetEntryValue());
     CheckSort<descendant_score>(pool, snapshotOrder);
 
-    pool.removeRecursive(pool.mapTx.find(tx9.GetHash())->GetTx());
-    pool.removeRecursive(pool.mapTx.find(tx8.GetHash())->GetTx());
+    pool.removeRecursive(pool.mapTx.find(tx9.GetHash())->GetEntryValue());
+    pool.removeRecursive(pool.mapTx.find(tx8.GetHash())->GetEntryValue());
     /* Now check the sort on the mining score index.
      * Final order should be:
      *

@@ -16,7 +16,7 @@ class CCoinsViewCache;
 class CTransaction;
 class CValidationState;
 
-namespace referral 
+namespace referral
 {
     class ReferralsViewCache;
 }
@@ -26,7 +26,7 @@ namespace referral
 /** Context-independent validity checks */
 bool CheckTransaction(const CTransaction& tx, CValidationState& state, bool fCheckDuplicateInputs=true);
 
-namespace Consensus 
+namespace Consensus
 {
 /**
  * Check whether all inputs of this transaction are valid (no double spends and amounts)

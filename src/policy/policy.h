@@ -11,6 +11,7 @@
 #include "feerate.h"
 #include "script/interpreter.h"
 #include "script/standard.h"
+#include "primitives/referral.h"
 
 #include <string>
 
@@ -19,6 +20,11 @@ class CTxOut;
 
 /** Default for -blockmaxsize, which controls the maximum size of block the mining code will create **/
 static const unsigned int DEFAULT_BLOCK_MAX_SIZE = 750000;
+/**
+ * Default for -blocktxsmaxsizeshare, which controls the maximum share of transacitons size in block the mining code will create
+ * Left space is used for referrals
+ */
+static const unsigned int DEFAULT_BLOCK_TRANSACTIONS_MAX_SIZE_SHARE = 90;
 /** Default for -blockmaxweight, which controls the range of block weights the mining code will create **/
 static const unsigned int DEFAULT_BLOCK_MAX_WEIGHT = 3000000;
 /** Default for -blockmintxfee, which sets the minimum feerate for a transaction in blocks created by mining code **/
@@ -31,6 +37,8 @@ static const unsigned int MAX_P2SH_SIGOPS = 15;
 static const unsigned int MAX_STANDARD_TX_SIGOPS_COST = MAX_BLOCK_SIGOPS_COST/5;
 /** Default for -maxmempool, maximum megabytes of mempool memory usage */
 static const unsigned int DEFAULT_MAX_MEMPOOL_SIZE = 300;
+/** Default for -maxrefmempool, maximum megabytes of mempool memory usage */
+static const unsigned int DEFAULT_MAX_REFERRALS_MEMPOOL_SIZE = 100;
 /** Default for -incrementalrelayfee, which sets the minimum feerate increase for mempool limiting or BIP 125 replacement **/
 static const unsigned int DEFAULT_INCREMENTAL_RELAY_FEE = 1000;
 /** Default for -bytespersigop */
@@ -105,5 +113,7 @@ extern unsigned int nBytesPerSigOp;
 /** Compute the virtual transaction size (weight reinterpreted as bytes). */
 int64_t GetVirtualTransactionSize(int64_t nWeight, int64_t nSigOpCost);
 int64_t GetVirtualTransactionSize(const CTransaction& tx, int64_t nSigOpCost = 0);
+int64_t GetVirtualReferralSize(int64_t nWeight);
+int64_t GetVirtualReferralSize(const referral::Referral& ref);
 
 #endif // MERIT_POLICY_POLICY_H
