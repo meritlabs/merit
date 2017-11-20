@@ -113,6 +113,13 @@ enum
     SCRIPT_VERIFY_WITNESS_PUBKEYTYPE = (1U << 15),
 };
 
+std::string OpcodeToStr(
+        const opcodetype opcode,
+        const std::vector<unsigned char>& vch,
+        const bool attempt_sighash_decode = false,
+        const bool is_unspendable = false);
+
+
 bool CheckSignatureEncoding(
         const std::vector<unsigned char> &vchSig,
         unsigned int flags,
@@ -203,11 +210,11 @@ protected:
 
 public:
     TransactionSignatureChecker(
-            const CTransaction* txToIn, 
-            unsigned int nInIn, 
-            const CAmount& amountIn, 
+            const CTransaction* txToIn,
+            unsigned int nInIn,
+            const CAmount& amountIn,
             const int blockHeightIn,
-            const int coinHeightIn) : 
+            const int coinHeightIn) :
         txTo{txToIn},
         nIn{nInIn},
         amount{amountIn},
@@ -221,7 +228,7 @@ public:
             const CAmount& amountIn,
             const int blockHeightIn,
             const int coinHeightIn,
-            const PrecomputedTransactionData& txdataIn) : 
+            const PrecomputedTransactionData& txdataIn) :
         txTo{txToIn},
         nIn{nInIn},
         amount{amountIn},
@@ -253,7 +260,7 @@ public:
             unsigned int nInIn,
             const CAmount& amountIn,
             const int blockHeightIn,
-            const int coinHeightIn) : 
+            const int coinHeightIn) :
         TransactionSignatureChecker(
                 &txTo,
                 nInIn,

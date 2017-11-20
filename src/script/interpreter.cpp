@@ -16,7 +16,6 @@
 #include "uint256.h"
 #include "util.h"
 
-#include "core_io.h"
 #include "utilstrencodings.h"
 
 #include <type_traits>
@@ -42,6 +41,16 @@ namespace {
 
 } // namespace
 
+const std::map<unsigned char, std::string> mapSigHashTypes = {
+    {static_cast<unsigned char>(SIGHASH_ALL), std::string("ALL")},
+    {static_cast<unsigned char>(SIGHASH_ALL|SIGHASH_ANYONECANPAY), std::string("ALL|ANYONECANPAY")},
+    {static_cast<unsigned char>(SIGHASH_NONE), std::string("NONE")},
+    {static_cast<unsigned char>(SIGHASH_NONE|SIGHASH_ANYONECANPAY), std::string("NONE|ANYONECANPAY")},
+    {static_cast<unsigned char>(SIGHASH_SINGLE), std::string("SINGLE")},
+    {static_cast<unsigned char>(SIGHASH_SINGLE|SIGHASH_ANYONECANPAY), std::string("SINGLE|ANYONECANPAY")},
+};
+
+
 bool CastToBool(const valtype& vch)
 {
     for (unsigned int i = 0; i < vch.size(); i++)
@@ -55,6 +64,42 @@ bool CastToBool(const valtype& vch)
         }
     }
     return false;
+}
+
+std::string OpcodeToStr(
+        const opcodetype opcode,
+        const std::vector<unsigned char>& vch,
+        const bool attempt_sighash_decode,
+        const bool is_unspendable)
+{
+    if(opcode < 0 || opcode > OP_PUSHDATA4) {
+        return GetOpName(opcode);
+    }
+
+    if (vch.size() <= static_cast<std::vector<unsigned char>::size_type>(4)) {
+        return strprintf("%d", CScriptNum(vch, false).getint());
+    }
+
+    if (!attempt_sighash_decode || is_unspendable) {
+        return HexStr(vch);
+    }
+
+    std::string sighash_decode;
+    auto vch_end = vch.begin() + vch.size();
+    // goal: only attempt to decode a defined sighash type from data that looks like a signature within a scriptSig.
+    // this won't decode correctly formatted public keys in Pubkey or Multisig scripts due to
+    // the restrictions on the pubkey formats (see IsCompressedOrUncompressedPubKey) being incongruous with the
+    // checks in CheckSignatureEncoding.
+    if (CheckSignatureEncoding(vch, SCRIPT_VERIFY_STRICTENC, nullptr)) {
+        const unsigned char chSigHashType = vch.back();
+        if (mapSigHashTypes.count(chSigHashType)) {
+            sighash_decode = "[" + mapSigHashTypes.find(chSigHashType)->second + "]";
+            assert(vch.size() > 1);
+            vch_end = vch.begin() + vch.size() - 1;
+        }
+    }
+
+    return HexStr(vch.begin(), vch_end) + sighash_decode;
 }
 
 /**
@@ -114,7 +159,7 @@ bool static IsCompressedPubKey(const valtype &vchPubKey) {
  * Where R and S are not negative (their first byte has its highest bit not set), and not
  * excessively padded (do not start with a 0 byte, unless an otherwise negative number follows,
  * in which case a single 0 byte is necessary and even required).
- * 
+ *
  * See https://bitcointalk.org/index.php?topic=8392.msg127623#msg127623
  *
  * This function is consensus-critical since BIP66.
@@ -154,7 +199,7 @@ bool static IsValidSignatureEncoding(const std::vector<unsigned char> &sig) {
     // Verify that the length of the signature matches the sum of the length
     // of the elements.
     if ((size_t)(lenR + lenS + 7) != sig.size()) return false;
- 
+
     // Check whether the R element is an integer.
     if (sig[2] != 0x02) return false;
 
@@ -330,7 +375,7 @@ bool EvalPushOnlyScript(
                 return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
 
 #ifdef DEBUG
-            debug("Executing Push Opcode: %s",OpcodeToStr(opcode, vchPushValue)); 
+            debug("Executing Push Opcode: %s", OpcodeToStr(opcode, vchPushValue));
 
             for(size_t c = 0; c < stack.size(); c++) {
                  debug("\tstack %d: %s", c, HexStr(stack[stack.size() - 1 - c]));
@@ -377,7 +422,7 @@ bool EvalPushOnlyScript(
 
                     default:
                         return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
-                } 
+                }
             }
 
             // Size limits
@@ -437,7 +482,7 @@ bool EvalScript(
                 return set_error(serror, SCRIPT_ERR_BAD_OPCODE);
 
 #ifdef DEBUG
-            debug("Executing Opcode: %s",OpcodeToStr(opcode, vchPushValue)); 
+            debug("Executing Opcode: %s", OpcodeToStr(opcode, vchPushValue));
 
             for(size_t c = 0; c < stack.size(); c++) {
                  debug("\tstack %d: %s", c, HexStr(stack[stack.size() - 1 - c]));
@@ -1120,7 +1165,7 @@ bool EvalScript(
                         popstack(stack);
                         stack.push_back(vchHash);
                     }
-                    break;                                   
+                    break;
 
                     case OP_CODESEPARATOR:
                     {
@@ -1288,7 +1333,7 @@ bool EvalScript(
 
                         //pop pub keys off the stack
                         std::vector<valtype> pub_keys(key_id_count);
-                        std::generate_n(std::begin(pub_keys), key_id_count, 
+                        std::generate_n(std::begin(pub_keys), key_id_count,
                                 [&stack, serror]() {
                                     valtype key;
                                     if(!Pop(stack, key, serror))
@@ -1299,7 +1344,7 @@ bool EvalScript(
                         assert(pub_keys.size() == key_id_count);
 
                         int max_block_depth = 0;
-                        if(!Pop(stack, max_block_depth, serror)) 
+                        if(!Pop(stack, max_block_depth, serror))
                             return set_error(serror, SCRIPT_ERR_BLOCKHEIGHT_COUNT);
 
                         //We now have a list of key ids and a signature. We have
@@ -1319,12 +1364,12 @@ bool EvalScript(
                             script_code.FindAndDelete(CScript(sig));
                         }
 
-                        auto matching_key = 
+                        auto matching_key =
                             std::find_if(std::begin(pub_keys), std::end(pub_keys),
                                 [&sig, flags, serror, sigversion, &checker, &script_code]
                                 (const valtype& pub_key) {
-                                    return 
-                                        CheckSignatureEncoding(sig, flags, serror) && 
+                                    return
+                                        CheckSignatureEncoding(sig, flags, serror) &&
                                         CheckPubKeyEncoding(pub_key, flags, sigversion, serror) &&
                                         checker.CheckSig(sig, pub_key, script_code, sigversion);
                                 });
@@ -1345,7 +1390,7 @@ bool EvalScript(
                     {
                         // ( [arg1 arg2 ... argN num_args ] output_index add1 add2 .. addN num_addresses-- bool)
                         size_t possible_address_count = 0;
-                        if(!Pop(stack, possible_address_count, serror)) 
+                        if(!Pop(stack, possible_address_count, serror))
                             return false;
 
                         if(possible_address_count < 1 || possible_address_count > stack.size()) {
@@ -1353,23 +1398,23 @@ bool EvalScript(
                         }
 
                         std::vector<uint160> possible_addresses(possible_address_count);
-                        std::generate_n(std::begin(possible_addresses), possible_address_count, 
+                        std::generate_n(std::begin(possible_addresses), possible_address_count,
                                 [&stack, &script, serror]() {
                                     valtype address;
                                     auto popped = Pop(stack, address, serror);
 
                                     assert(popped);
 
-                                    //Either the possible addresses are a hash of 
+                                    //Either the possible addresses are a hash of
                                     //the script coming into VerifyScript or a specific
                                     //address
                                     return address.size() != 20 ?
-                                            Hash160(script.begin(), script.end()) : 
+                                            Hash160(script.begin(), script.end()) :
                                             uint160{address};
                                 });
 
                         int output_index = 0;
-                        if(!Pop(stack, output_index, serror)) 
+                        if(!Pop(stack, output_index, serror))
                             return false;
 
                         const auto* maybe_output = checker.GetTxnOutput(output_index);
@@ -1381,7 +1426,7 @@ bool EvalScript(
                         //quick check to see if the output script is a supported type.
                         if(!output_script.IsStandardPayToHash())
                             return set_error(serror, SCRIPT_ERR_OUTPUT_UNSUPPORTED);
-                        
+
                         //get addresses from output type.
                         txnouttype output_type;
                         Solutions output_hashes;
@@ -1458,7 +1503,7 @@ bool EvalScript(
                                     stack.begin() + (stack.size() - param_size),
                                     stack.end(),
                                     output_stack.begin(),
-                                    [](const StackElement& a, const StackElement& b) { 
+                                    [](const StackElement& a, const StackElement& b) {
                                         if(a == vchFalse) return true;
                                         return a == b;
                                     });
@@ -1657,8 +1702,8 @@ uint256 SignatureHash(
         }
 
         if (
-                !(nHashType & SIGHASH_ANYONECANPAY) && 
-                (nHashType & 0x1f) != SIGHASH_SINGLE && 
+                !(nHashType & SIGHASH_ANYONECANPAY) &&
+                (nHashType & 0x1f) != SIGHASH_SINGLE &&
                 (nHashType & 0x1f) != SIGHASH_NONE) {
             hashSequence = cache ? cache->hashSequence : GetSequenceHash(txTo);
         }
@@ -1974,8 +2019,8 @@ bool VerifyScript(
     // Additional validation for spend-to-script-hash transactions:
     if ((flags & SCRIPT_VERIFY_P2SH) && scriptPubKey.IsPayToScriptHash())
     {
-        //TODO: Do beacon verification here. 
-        
+        //TODO: Do beacon verification here.
+
         // Restore stack.
         swap(stack, stackCopy);
 
@@ -2015,7 +2060,7 @@ bool VerifyScript(
     // specified in the scriptPubKey to the script in the scriptSig
     } else if (scriptPubKey.IsParameterizedPayToScriptHash()) {
 
-        //TODO: Do beacon verification here. 
+        //TODO: Do beacon verification here.
 
         //swap stack back to what is was after evaluating scriptSig
         swap(stack, stackCopy);
@@ -2057,7 +2102,7 @@ bool VerifyScript(
             return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
         if (!CastToBool(stack.back()))
             return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
-        
+
         if ((flags & SCRIPT_VERIFY_WITNESS) && redeem_script.IsWitnessProgram(witnessversion, witnessprogram)) {
             hadWitness = true;
             if (scriptSig != CScript() << std::vector<unsigned char>(redeem_script.begin(), redeem_script.end())) {
@@ -2147,7 +2192,7 @@ size_t CountWitnessSigOps(
                 flags);
     }
 
-    if ((scriptPubKey.IsPayToScriptHash() || scriptPubKey.IsParameterizedPayToScriptHash()) 
+    if ((scriptPubKey.IsPayToScriptHash() || scriptPubKey.IsParameterizedPayToScriptHash())
             && scriptSig.IsPushOnly()) {
 
         CScript::const_iterator pc = scriptSig.begin();
