@@ -132,6 +132,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, Solutions& vSoluti
  * scripts, instead use ExtractDestinations. Currently only works for P2PK,
  * P2PKH, and P2SH scripts.
  */
+bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet, txnouttype& whichTypeRet);
 bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet);
 
 /**
@@ -169,7 +170,7 @@ CScript GetScriptForSimpleVault(const uint160& tag);
 
 /**
  * Constructs a Parameterized P2SH. You can push params onto script after calling
- * this. 
+ * this.
  */
 CScript GetParameterizedP2SH(const CParamScriptID& dest);
 
