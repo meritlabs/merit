@@ -139,9 +139,6 @@ struct Params {
     Params(uint8_t difficulty)
     {
         nEdgesPerBucket = ((difficulty * (uint64_t)(2 * NYZ) / 100) / NSIPHASH) * NSIPHASH;
-        printf("difficulty:             %d\n", difficulty);
-        printf("NYZ:                    %d\n", NYZ);
-        printf("params.nEdgesPerBucket: %u\n", nEdgesPerBucket);
     }
 };
 
@@ -338,10 +335,6 @@ public:
     // There's no notion of odd/even node in the process of generating nodes (why?)
     void genUnodes(const uint32_t id, const uint32_t uorv)
     {
-        // printf("EDGEBITS: %d, BIGSIZE: %d, BIGSIZE0: %d", EDGEBITS, P::BIGSIZE, P::BIGSIZE0);
-        // printf(" NEEDSYNC %sdefined", P::NEEDSYNC ? "" : "is not ");
-
-
         uint64_t rdtsc0, rdtsc1;
         rdtsc0 = __rdtsc();
 
@@ -1079,7 +1072,6 @@ public:
         cyclevs.reserve(proofSize);
 
         setKeys(header, headerlen, &trimmer->sip_keys);
-        printf("k0 k1 %llx %llx\n", trimmer->sip_keys.k0, trimmer->sip_keys.k1);
 
         cuckoo = 0;
     }
