@@ -72,9 +72,9 @@ if BUILD_MERITD
   bin_PROGRAMS += meritd
 endif
 
-# if BUILD_MERIT_UTILS
-#   bin_PROGRAMS += merit-cli merit-tx
-# endif
+if BUILD_MERIT_UTILS
+  bin_PROGRAMS += merit-cli merit-tx
+endif
 
 .PHONY: FORCE check-symbols check-security
 # merit core #
@@ -115,7 +115,6 @@ MERIT_CORE_H = \
   merkleblock.h \
   miner.h \
   cuckoo/cuckoo.h \
-  cuckoo/osx_barrier.h \
   cuckoo/miner.h \
   cuckoo/mean_cuckoo.h \
   mempool.h \

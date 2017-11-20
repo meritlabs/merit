@@ -1,12 +1,9 @@
 // Cuckoo Cycle, a memory-hard proof-of-work
 // Copyright (c) 2013-2018 John Tromp
+// Copyright (c) 2017-2017 The Merit Foundation developers
 
 #include "mean_cuckoo.h"
 #include "cuckoo.h"
-
-#ifdef __APPLE__
-#include "osx_barrier.h"
-#endif
 
 #include "crypto/siphashxN.h"
 #include "tinyformat.h"
@@ -15,6 +12,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <x86intrin.h>
+#include <thread>
 
 // algorithm/performance parameters
 
@@ -61,6 +59,34 @@
 #ifndef TRIMFRAC256
 #define TRIMFRAC256 184
 #endif
+
+class Barrier {
+public:
+    explicit Barrier(std::size_t nThreadsIn) :
+      nThreads(nThreadsIn),
+      nCount(nThreadsIn),
+      nGeneration(0) {
+    }
+
+    void Wait() {
+        std::unique_lock<std::mutex> lLock{mMutex};
+        auto lGen = nGeneration;
+        if (!--nCount) {
+            nGeneration++;
+            nCount = nThreads;
+            cv.notify_all();
+        } else {
+            cv.wait(lLock, [this, lGen] { return lGen != nGeneration; });
+        }
+    }
+
+private:
+    std::mutex mMutex;
+    std::condition_variable cv;
+    std::size_t nThreads;
+    std::size_t nCount;
+    std::size_t nGeneration;
+};
 
 template <uint8_t EDGEBITS, uint8_t XBITS>
 struct Params {
@@ -220,36 +246,15 @@ template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 class solver_ctx;
 
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
-struct thread_ctx {
-    uint32_t id;
-    pthread_t thread;
-    edgetrimmer<offset_t, EDGEBITS, XBITS>* et;
-};
-
-template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
-void* etworker(void* vp)
+void etworker(edgetrimmer<offset_t, EDGEBITS, XBITS>* et, uint32_t id)
 {
-    thread_ctx<offset_t, EDGEBITS, XBITS>* tp = (thread_ctx<offset_t, EDGEBITS, XBITS>*)vp;
-    tp->et->trimmer(tp->id);
-    pthread_exit(NULL);
-    return 0;
+    et->trimmer(id);
 }
 
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
-struct match_ctx {
-    uint32_t id;
-    pthread_t thread;
-    solver_ctx<offset_t, EDGEBITS, XBITS>* solver;
-};
-
-template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
-void* matchworker(void* vp)
+void matchworker(solver_ctx<offset_t, EDGEBITS, XBITS>* solver, uint32_t id)
 {
-    match_ctx<offset_t, EDGEBITS, XBITS>* tp = (match_ctx<offset_t, EDGEBITS, XBITS>*)vp;
-    tp->solver->matchUnodes(tp);
-    pthread_exit(NULL);
-
-    return 0;
+    solver->matchUnodes(id);
 }
 
 template <uint8_t EDGEBITS, uint8_t XBITS>
@@ -286,7 +291,7 @@ public:
     uint8_t nThreads;
     uint32_t nTrims;
     Params<EDGEBITS, XBITS> params;
-    pthread_barrier_t barry;
+    Barrier* barry;
 
     using BIGTYPE0 = offset_t;
 
@@ -311,8 +316,7 @@ public:
         tzs = new zbucket16P[nThreads];
         tcounts = new offset_t[nThreads];
 
-        int err = pthread_barrier_init(&barry, NULL, nThreads);
-        assert(err == 0);
+        barry = new Barrier(nThreads);
     }
     ~edgetrimmer()
     {
@@ -322,6 +326,7 @@ public:
         delete[] tdegs;
         delete[] tzs;
         delete[] tcounts;
+        delete barry;
     }
     offset_t count() const
     {
@@ -331,8 +336,6 @@ public:
         return cnt;
     }
 
-    // Generate all nodes and store it in a buckets for further processing
-    // There's no notion of odd/even node in the process of generating nodes (why?)
     void genUnodes(const uint32_t id, const uint32_t uorv)
     {
         uint64_t rdtsc0, rdtsc1;
@@ -980,33 +983,26 @@ public:
             trimmer(0);
             return;
         }
-        thread_ctx<offset_t, EDGEBITS, XBITS>* threads = new thread_ctx<offset_t, EDGEBITS, XBITS>[nThreads];
+
+        std::thread* threads = new std::thread[nThreads];
         for (uint32_t t = 0; t < nThreads; t++) {
-            threads[t].id = t;
-            threads[t].et = this;
-            int err = pthread_create(&threads[t].thread, NULL, etworker<offset_t, EDGEBITS, XBITS>, (void*)&threads[t]);
-            assert(err == 0);
+            threads[t] = std::thread(&etworker<offset_t, EDGEBITS, XBITS>, this, t);
         }
         for (uint32_t t = 0; t < nThreads; t++) {
-            int err = pthread_join(threads[t].thread, NULL);
-            assert(err == 0);
+            threads[t].join();
         }
+
         delete[] threads;
-    }
-    void barrier()
-    {
-        int rc = pthread_barrier_wait(&barry);
-        assert(rc == 0 || rc == PTHREAD_BARRIER_SERIAL_THREAD);
     }
 
     void trimmer(uint32_t id)
     {
         genUnodes(id, 0);
-        barrier();
+        barry->Wait();
         genVnodes(id, 1);
 
         for (uint32_t round = 2; round < nTrims - 2; round += 2) {
-            barrier();
+            barry->Wait();
             if (round < P::COMPRESSROUND) {
                 if (round < P::EXPANDROUND)
                     trimedges<P::BIGSIZE, P::BIGSIZE, true>(id, round);
@@ -1018,7 +1014,7 @@ public:
                 trimrename<P::BIGGERSIZE, P::BIGGERSIZE, true>(id, round);
             } else
                 trimedges1<true>(id, round);
-            barrier();
+            barry->Wait();
             if (round < P::COMPRESSROUND) {
                 if (round + 1 < P::EXPANDROUND)
                     trimedges<P::BIGSIZE, P::BIGSIZE, false>(id, round + 1);
@@ -1032,9 +1028,9 @@ public:
                 trimedges1<false>(id, round + 1);
         }
 
-        barrier();
+        barry->Wait();
         trimrename1<true>(id, nTrims - 2);
-        barrier();
+        barry->Wait();
         trimrename1<false>(id, nTrims - 1);
     }
 };
@@ -1088,7 +1084,7 @@ public:
 
     uint32_t threadbytes() const
     {
-        return sizeof(thread_ctx<offset_t, EDGEBITS, XBITS>) + sizeof(yzbucketT) + sizeof(zbucket8P) + sizeof(zbucket16P) + sizeof(zbucket32P);
+        return sizeof(yzbucketT) + sizeof(zbucket8P) + sizeof(zbucket16P) + sizeof(zbucket32P);
     }
 
     void recordedge(const uint32_t i, const uint32_t u2, const uint32_t v2)
@@ -1125,17 +1121,14 @@ public:
             recordedge(ni++, vs[nv | 1], vs[(nv + 1) & ~1]); // u's in odd position; v's in even
 
         sols.resize(sols.size() + proofSize);
-        match_ctx<offset_t, EDGEBITS, XBITS>* threads = new match_ctx<offset_t, EDGEBITS, XBITS>[trimmer->nThreads];
+
+        std::thread* threads = new std::thread[trimmer->nThreads];
         for (uint32_t t = 0; t < trimmer->nThreads; t++) {
-            threads[t].id = t;
-            threads[t].solver = this;
-            int err = pthread_create(&threads[t].thread, NULL, matchworker<offset_t, EDGEBITS, XBITS>, (void*)&threads[t]);
-            assert(err == 0);
+            threads[t] = std::thread(&matchworker<offset_t, EDGEBITS, XBITS>, this, t);
         }
 
         for (uint32_t t = 0; t < trimmer->nThreads; t++) {
-            int err = pthread_join(threads[t].thread, NULL);
-            assert(err == 0);
+            threads[t].join();
         }
 
         qsort(&sols[sols.size() - proofSize], proofSize, sizeof(uint32_t), nonce_cmp);
@@ -1223,13 +1216,13 @@ public:
         return findcycles();
     }
 
-    void* matchUnodes(match_ctx<offset_t, EDGEBITS, XBITS>* mc)
+    void* matchUnodes(uint32_t threadId)
     {
         uint64_t rdtsc0, rdtsc1;
 
         rdtsc0 = __rdtsc();
-        const uint32_t starty = P::NY * mc->id / trimmer->nThreads;
-        const uint32_t endy = P::NY * (mc->id + 1) / trimmer->nThreads;
+        const uint32_t starty = P::NY * threadId / trimmer->nThreads;
+        const uint32_t endy = P::NY * (threadId + 1) / trimmer->nThreads;
         uint32_t edge = starty << P::YZBITS, endedge = edge + params.nEdgesPerBucket;
 #if NSIPHASH == 8
         static const __m256i vnodemask = {P::EDGEMASK, P::EDGEMASK, P::EDGEMASK, P::EDGEMASK};
@@ -1319,8 +1312,7 @@ public:
         }
 
         rdtsc1 = __rdtsc();
-        // if (trimmer->showall || !mc->id) printf("matchUnodes id %d rdtsc: %lu\n", mc->id, rdtsc1 - rdtsc0);
-        pthread_exit(NULL);
+        // if (trimmer->showall || !threadId) printf("matchUnodes threadId %d rdtsc: %lu\n", threadId, rdtsc1 - rdtsc0);
         return 0;
     }
 };
@@ -1328,12 +1320,12 @@ public:
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
-    // edgesRatio less than 45 makes no sense as the probobility to find a cycle gets too low
+    // edgesRatio less than 40 makes no sense as the probobility to find a cycle gets too low
     // edgesRatio more than 50 is not supported yet, as with 50 we tight to NYZ value and we occupy
     // all available BUCKETSIZE array.
     // TODO: modify checks in the algorith the way we would be able to generate more edges
     // should require changes of BUCKETSIZE values
-    assert(edgesRatio >= 45 && edgesRatio <= 50);
+    assert(edgesRatio >= 40 && edgesRatio <= 50);
     assert(edgeBits >= 15 && edgeBits <= 31);
 
     // static const uint8_t EDGEBITS = 27;

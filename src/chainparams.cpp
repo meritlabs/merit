@@ -181,6 +181,7 @@ public:
         pchMessageStart[3] = 0xd9;
         nDefaultPort = 8445;
         nPruneAfterHeight = 100000;
+        nMiningBlockStaleTime = 60;
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
         genesis = CreateGenesisBlock(1503515697, 131, 0x207fffff, 28, 50, 1, 50 * COIN, consensus, generateGenesis);
@@ -267,6 +268,7 @@ public:
         pchMessageStart[3] = 0x07;
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
+        nMiningBlockStaleTime = 60;
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
         genesis = CreateGenesisBlock(1503444726, 12, 0x207fffff, 16, 50, 1, 50 * COIN, consensus, generateGenesis);
@@ -353,6 +355,7 @@ public:
         pchMessageStart[3] = 0xda;
         nDefaultPort = 18556;
         nPruneAfterHeight = 1000;
+        nMiningBlockStaleTime = 60;
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 

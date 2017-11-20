@@ -664,7 +664,6 @@ static bool ProcessBlockFound(const CBlock* pblock, const CChainParams& chainpar
 void static MeritMiner(const CChainParams& chainparams)
 {
     LogPrintf("MeritMiner started\n");
-    SetThreadPriority(THREAD_PRIORITY_LOWEST);
     RenameThread("merit-miner");
 
     unsigned int nExtraNonce = 0;
@@ -728,25 +727,20 @@ void static MeritMiner(const CChainParams& chainparams)
                 // Check if something found
                 if (cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgesBits, pblock->nEdgesRatio, pow, chainparams.GetConsensus()))
                 {
-                    if (UintToArith256(hash) <= hashTarget)
-                    {
-                        // Found a solution
-                        pblock->nNonce = nNonce;
-                        assert(hash == pblock->GetHash());
+                    // Found a solution
+                    pblock->nNonce = nNonce;
+                    assert(hash == pblock->GetHash());
 
-                        SetThreadPriority(THREAD_PRIORITY_NORMAL);
-                        LogPrintf("MeritMiner:\n");
-                        LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex(), hashTarget.GetHex());
-                        ProcessBlockFound(pblock, chainparams);
-                        SetThreadPriority(THREAD_PRIORITY_LOWEST);
-                        coinbaseScript->KeepScript();
+                    LogPrintf("MeritMiner:\n");
+                    LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex(), hashTarget.GetHex());
+                    ProcessBlockFound(pblock, chainparams);
+                    coinbaseScript->KeepScript();
 
-                        // In regression test mode, stop mining after a block is found.
-                        if (chainparams.MineBlocksOnDemand())
-                            throw boost::thread_interrupted();
+                    // In regression test mode, stop mining after a block is found.
+                    if (chainparams.MineBlocksOnDemand())
+                        throw boost::thread_interrupted();
 
-                        break;
-                    }
+                    break;
                 }
 
                 // Check for stop or if block needs to be rebuilt
@@ -754,9 +748,9 @@ void static MeritMiner(const CChainParams& chainparams)
                 // Regtest mode doesn't require peers
                 if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0 && chainparams.MiningRequiresPeers())
                     break;
-                if (nNonce >= 0xffff0000)
+                if (nNonce >= 0xfffff)
                     break;
-                if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 60)
+                if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > chainparams.MininBlockStaleTime())
                     break;
                 if (pindexPrev != chainActive.Tip())
                     break;
@@ -770,6 +764,8 @@ void static MeritMiner(const CChainParams& chainparams)
                     // Changing pblock->nTime can change work required on testnet:
                     hashTarget.SetCompact(pblock->nBits);
                 }
+
+                ++nNonce;
             }
         }
     }
