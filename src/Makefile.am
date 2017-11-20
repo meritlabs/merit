@@ -54,6 +54,7 @@ EXTRA_LIBRARIES += \
   $(LIBMERIT_UTIL) \
   $(LIBMERIT_COMMON) \
   $(LIBMERIT_SERVER) \
+  $(LIBMERIT_CONSENSUS) \
   $(LIBMERIT_CLI) \
   $(LIBMERIT_WALLET) \
   $(LIBMERIT_CONSENSUS) \
@@ -70,9 +71,9 @@ if BUILD_MERITD
   bin_PROGRAMS += meritd
 endif
 
-if BUILD_MERIT_UTILS
-  bin_PROGRAMS += merit-cli merit-tx
-endif
+# if BUILD_MERIT_UTILS
+#   bin_PROGRAMS += merit-cli merit-tx
+# endif
 
 .PHONY: FORCE check-symbols check-security
 # merit core #
@@ -310,7 +311,6 @@ endif
 libmerit_consensus_a_CPPFLAGS = $(AM_CPPFLAGS) $(MERIT_INCLUDES)
 libmerit_consensus_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libmerit_consensus_a_SOURCES = \
-  $(MERIT_CORE_H) \
   amount.h \
   arith_uint256.cpp \
   arith_uint256.h \
@@ -335,6 +335,8 @@ libmerit_consensus_a_SOURCES = \
   script/script.h \
   script/script_error.cpp \
   script/script_error.h \
+  script/standard.cpp \
+  script/standard.h \
   serialize.h \
   tinyformat.h \
   uint256.cpp \
@@ -494,7 +496,7 @@ if GLIBC_BACK_COMPAT
 endif
 
 libmeritconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
-libmeritconsensus_la_LIBADD = $(LIBSECP256K1) $(LIBMERIT_COMMON) $(LIBMERITCRYPTO) $(LIBMERITUTIL) $(BOOST_LIBS)
+libmeritconsensus_la_LIBADD = $(LIBSECP256K1) $(LIBMERITCRYPTO) $(LIBMERITUTIL) $(BOOST_LIBS)
 libmeritconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_MERIT_INTERNAL
 libmeritconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
