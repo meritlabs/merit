@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "addressindex.h"
+#include "hash.h"
 #include "memusage.h"
 
 #include <boost/multi_index_container.hpp>
