@@ -13,6 +13,8 @@
 #include <unistd.h>
 #include <x86intrin.h>
 #include <thread>
+#include <condition_variable>
+#include <mutex>
 
 // algorithm/performance parameters
 
