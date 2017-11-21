@@ -18,6 +18,10 @@
 #include <iostream>
 #include <set>
 #include <vector>
+#include <numeric>
+#include <time.h>
+#include <chrono>
+#include <ctime>
 
 static CBlock CreateGenesisBlock(
     const char* pszTimestamp,
@@ -65,33 +69,60 @@ static CBlock CreateGenesisBlock(
         std::set<uint32_t> pow;
 
         uint32_t nMaxTries = 10000000;
-        genesis.nNonce = 0;
+        // genesis.nNonce = 0;
 
-        printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
-        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, genesis.nEdgesRatio, pow, params)) {
-            ++genesis.nNonce;
-            printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
+        float timems;
+        struct timeval time0, time1;
 
-            --nMaxTries;
+        gettimeofday(&time0, 0);
+
+        bool found = false;
+
+        auto times = std::set<double>();
+
+        // printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
+        while (nMaxTries > 0 && !found) {
+
+             auto start = std::chrono::system_clock::now();
+
+            found = cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, genesis.nEdgesRatio, pow, params);
+
+            auto end = std::chrono::system_clock::now();
+            std::chrono::duration<double> elapsed_seconds = end-start;
+
+            times.insert(elapsed_seconds.count());
+
+            if (!found) {
+                ++genesis.nNonce;
+                --nMaxTries;
+            }
         }
 
         if (nMaxTries == 0) {
             printf("Could not find cycle for genesis block");
         } else {
-            printf("Genesis block generated!!!\n");
-            printf("==========================\n");
-            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges ratio: %d\nnodes:\n",
-                   genesis.GetHash().GetHex().c_str(),
-                   genesis.hashMerkleRoot.GetHex().c_str(),
-                   genesis.nNonce,
-                   genesis.nEdgesRatio);
-            for (const auto& node : pow) {
-                printf("0x%x ", node);
-            }
 
-            printf("\n==========================\n");
+            gettimeofday(&time1, 0);
+            timems = (time1.tv_sec - time0.tv_sec) * 1000 + (time1.tv_usec - time0.tv_usec) / 1000;
+
+            // printf("Genesis block generated!!!\n");
+            // printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\nedges ratio: %d\nnodes:\n",
+            //        genesis.GetHash().GetHex().c_str(),
+            //        genesis.hashMerkleRoot.GetHex().c_str(),
+            //        genesis.nNonce,
+            //        genesis.nEdgesBits,
+            //        genesis.nEdgesRatio);
+            // for (const auto& node : pow) {
+            //     printf("0x%x, ", node);
+            // }
+
+            printf(".....%d............%d..........%3d...", genesis.nEdgesBits, genesis.nEdgesRatio, genesis.nNonce);
+
+            double timeTaken = std::accumulate(times.begin(), times.end(), 0.0);
+
+            // printf("\n\ngettimeofday time: %.3fs\n", timems / 1000);
+            printf("...%7.3f.......%5.3f...\n", timeTaken, timeTaken / times.size());
         }
-        exit(1);
     }
 
     return genesis;
@@ -271,7 +302,18 @@ public:
         nMiningBlockStaleTime = 60;
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503444726, 12, 0x207fffff, 16, 50, 1, 50 * COIN, consensus, generateGenesis);
+
+        std::vector<uint8_t> bits(9);
+        std::iota(std::begin(bits), std::end(bits), 21);
+
+        printf("  edgebits  |  difficulty  |  nonce  |    time    |    tpa    \n");
+        printf("==============================================================\n");
+
+        for (auto diff = 49; diff >= 43; diff--) {
+            for (const auto& edgeBits: bits) {
+                genesis = CreateGenesisBlock(1503444726, 0, 0x207fffff, edgeBits, diff, 1, 50 * COIN, consensus, generateGenesis);
+            }
+        }
 
         genesis.sCycle = {
             0xb, 0x524, 0xb9b, 0xd4e, 0x134b, 0x1b80, 0x1d59, 0x23af, 0x2728, 0x2910, 0x33e1, 0x5836,
