@@ -196,6 +196,7 @@ void Shutdown()
         pwallet->Flush(false);
     }
 #endif
+    GenerateMerit(false, 0, Params());
     MapPort(false);
     UnregisterValidationInterface(peerLogic.get());
     peerLogic.reset();
@@ -1763,6 +1764,11 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     }
     if (!connman.Start(scheduler, connOptions)) {
         return false;
+    }
+
+    if (gArgs.IsArgSet("-gen")) {
+        // Generate coins in the background
+        GenerateMerit(true, gArgs.GetArg("-genproclimit", 1), chainparams);
     }
 
     // ********************************************************* Step 12: finished

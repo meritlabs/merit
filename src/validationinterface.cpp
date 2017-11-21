@@ -29,6 +29,10 @@ struct MainSignalsInstance {
 
     // merit signals
     boost::signals2::signal<void (const referral::ReferralRef &)> ReferralTransactionAddedToMempool;
+    /** Notifies listeners that a key for mining is required (coinbase) */
+    boost::signals2::signal<void (std::shared_ptr<CReserveScript>&)> ScriptForMining;
+    /** Notifies listeners that a block has been successfully mined */
+    boost::signals2::signal<void (const uint256 &)> BlockFound;
 
     // We are not allowed to assume the scheduler only runs in one thread,
     // but must ensure all callbacks happen in-order, so we end up creating
@@ -70,6 +74,8 @@ void RegisterValidationInterface(CValidationInterface* pwalletIn) {
     g_signals.m_internals->BlockChecked.connect(boost::bind(&CValidationInterface::BlockChecked, pwalletIn, _1, _2));
     g_signals.m_internals->NewPoWValidBlock.connect(boost::bind(&CValidationInterface::NewPoWValidBlock, pwalletIn, _1, _2));
     g_signals.m_internals->ReferralTransactionAddedToMempool.connect(boost::bind(&CValidationInterface::ReferralTransactionAddedToMempool, pwalletIn, _1));
+    g_signals.m_internals->ScriptForMining.connect(boost::bind(&CValidationInterface::GetScriptForMining, pwalletIn, _1));
+    g_signals.m_internals->BlockFound.connect(boost::bind(&CValidationInterface::ResetRequestCount, pwalletIn, _1));
 }
 
 void UnregisterValidationInterface(CValidationInterface* pwalletIn) {
@@ -84,6 +90,8 @@ void UnregisterValidationInterface(CValidationInterface* pwalletIn) {
     g_signals.m_internals->UpdatedBlockTip.disconnect(boost::bind(&CValidationInterface::UpdatedBlockTip, pwalletIn, _1, _2, _3));
     g_signals.m_internals->NewPoWValidBlock.disconnect(boost::bind(&CValidationInterface::NewPoWValidBlock, pwalletIn, _1, _2));
     g_signals.m_internals->ReferralTransactionAddedToMempool.disconnect(boost::bind(&CValidationInterface::ReferralTransactionAddedToMempool, pwalletIn, _1));
+    g_signals.m_internals->ScriptForMining.disconnect(boost::bind(&CValidationInterface::GetScriptForMining, pwalletIn, _1));
+    g_signals.m_internals->BlockFound.disconnect(boost::bind(&CValidationInterface::ResetRequestCount, pwalletIn, _1));
 }
 
 void UnregisterAllValidationInterfaces() {
@@ -98,6 +106,8 @@ void UnregisterAllValidationInterfaces() {
     g_signals.m_internals->UpdatedBlockTip.disconnect_all_slots();
     g_signals.m_internals->NewPoWValidBlock.disconnect_all_slots();
     g_signals.m_internals->ReferralTransactionAddedToMempool.disconnect_all_slots();
+    g_signals.m_internals->ScriptForMining.disconnect_all_slots();
+    g_signals.m_internals->BlockFound.disconnect_all_slots();
 }
 
 void CMainSignals::UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload) {
@@ -138,4 +148,12 @@ void CMainSignals::NewPoWValidBlock(const CBlockIndex *pindex, const std::shared
 
 void CMainSignals::ReferralAddedToMempool(const referral::ReferralRef &rtx) {
     m_internals->ReferralTransactionAddedToMempool(rtx);
+}
+
+void CMainSignals::ScriptForMining(std::shared_ptr<CReserveScript>& script) {
+    m_internals->ScriptForMining(script);
+}
+
+void CMainSignals::BlockFound(const uint256& hash) {
+    m_internals->BlockFound(hash);
 }

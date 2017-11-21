@@ -5,7 +5,7 @@
 DIST_SUBDIRS = secp256k1 univalue
 
 AM_LDFLAGS = $(PTHREAD_CFLAGS) $(LIBTOOL_LDFLAGS) $(HARDENED_LDFLAGS)
-AM_CXXFLAGS = $(HARDENED_CXXFLAGS) $(ERROR_CXXFLAGS)
+AM_CXXFLAGS = $(HARDENED_CXXFLAGS) $(ERROR_CXXFLAGS) -mavx2
 AM_CPPFLAGS = $(HARDENED_CPPFLAGS)
 EXTRA_LIBRARIES =
 
@@ -55,6 +55,7 @@ EXTRA_LIBRARIES += \
   $(LIBMERIT_COMMON) \
   $(LIBMERIT_CONSENSUS) \
   $(LIBMERIT_SERVER) \
+  $(LIBMERIT_CONSENSUS) \
   $(LIBMERIT_CLI) \
   $(LIBMERIT_WALLET) \
   $(LIBMERIT_CONSENSUS) \
@@ -115,6 +116,7 @@ MERIT_CORE_H = \
   miner.h \
   cuckoo/cuckoo.h \
   cuckoo/miner.h \
+  cuckoo/mean_cuckoo.h \
   mempool.h \
   net.h \
   net_processing.h \
@@ -215,6 +217,7 @@ libmerit_server_a_SOURCES = \
   miner.cpp \
   cuckoo/cuckoo.cpp \
   cuckoo/miner.cpp \
+  cuckoo/mean_cuckoo.cpp \
   net.cpp \
   net_processing.cpp \
   noui.cpp \
@@ -297,7 +300,8 @@ crypto_libmerit_crypto_a_SOURCES = \
   crypto/sha512.h \
   crypto/blake2/blake2b-ref.c \
   crypto/blake2/blake2.h \
-  crypto/blake2/blake2-impl.h
+  crypto/blake2/blake2-impl.h \
+  crypto/siphashxN.h
 
 if USE_ASM
 crypto_libmerit_crypto_a_SOURCES += crypto/sha256_sse4.cpp

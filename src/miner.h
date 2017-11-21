@@ -24,6 +24,9 @@ namespace Consensus { struct Params; };
 
 static const bool DEFAULT_PRINTPRIORITY = false;
 
+/** Run the miner threads */
+void GenerateMerit(bool fGenerate, int nThreads, const CChainParams& chainparams);
+
 struct CBlockTemplate
 {
     CBlock block;

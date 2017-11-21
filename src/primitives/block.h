@@ -30,7 +30,7 @@ public:
     uint32_t nTime;
     uint32_t nBits;
     uint32_t nNonce;
-    uint8_t nNodesBits;
+    uint8_t nEdgesBits;
     uint8_t nEdgesRatio;
     std::set<uint32_t> sCycle;
 
@@ -49,7 +49,7 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
-        READWRITE(nNodesBits);
+        READWRITE(nEdgesBits);
         READWRITE(nEdgesRatio);
         if (!(s.GetType() & SER_GETHASH)) {
             READWRITE(sCycle);
@@ -64,7 +64,7 @@ public:
         nTime = 0;
         nBits = 0;
         nNonce = 0;
-        nNodesBits = 0;
+        nEdgesBits = 0;
         nEdgesRatio = 0;
         sCycle.clear();
     }
@@ -131,7 +131,7 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
-        block.nNodesBits     = nNodesBits;
+        block.nEdgesBits     = nEdgesBits;
         block.nEdgesRatio    = nEdgesRatio;
         block.sCycle       = sCycle;
         return block;

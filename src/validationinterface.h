@@ -70,6 +70,8 @@ protected:
 
     /** Notifies listeners of a referral having been added to mempool. */
     virtual void ReferralTransactionAddedToMempool(const referral::ReferralRef &rtx) {}
+    virtual void GetScriptForMining(std::shared_ptr<CReserveScript>&) {};
+    virtual void ResetRequestCount(const uint256 &hash) {};
 };
 
 struct MainSignalsInstance;
@@ -100,6 +102,8 @@ public:
     void NewPoWValidBlock(const CBlockIndex *, const std::shared_ptr<const CBlock>&);
 
     void ReferralAddedToMempool(const referral::ReferralRef &rtx);
+    void ScriptForMining(std::shared_ptr<CReserveScript>&);
+    void BlockFound(const uint256 &);
 };
 
 CMainSignals& GetMainSignals();
