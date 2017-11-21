@@ -268,6 +268,7 @@ using zbucket16 = uint16_t[Params<EDGEBITS, XBITS>::NTRIMMEDZ];
 template <uint8_t EDGEBITS, uint8_t XBITS>
 using zbucket32 = uint32_t[Params<EDGEBITS, XBITS>::NTRIMMEDZ];
 
+
 // maintains set of trimmable edges
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 class edgetrimmer
@@ -336,7 +337,39 @@ public:
         for (uint32_t t = 0; t < nThreads; t++)
             cnt += tcounts[t];
         return cnt;
+
     }
+
+#if NSIPHASH == 8
+
+    template<int x, int i>
+    void store(
+            uint8_t const* base,
+            uint32_t& ux,
+            indexerZ& dst,
+            uint32_t last[],
+            const uint32_t edge,
+            __m256i v,
+            __m256i w)
+    {
+        if (!P::NEEDSYNC) {
+            ux = _mm256_extract_epi32(v, x);
+            *(uint64_t*)(base + dst.index[ux]) = _mm256_extract_epi64(w, i % 4);
+            dst.index[ux] += P::BIGSIZE0;
+        } else {
+            uint32_t zz = _mm256_extract_epi32(w, x);
+
+            if (i || likely(zz)) {
+                ux = _mm256_extract_epi32(v, x);
+                for (; unlikely(last[ux] + P::NNONYZ <= edge + i); last[ux] += P::NNONYZ, dst.index[ux] += P::BIGSIZE0)
+                    *(uint32_t*)(base + dst.index[ux]) = 0;
+                *(uint32_t*)(base + dst.index[ux]) = zz;
+                dst.index[ux] += P::BIGSIZE0;
+                last[ux] = edge + i;
+            }
+        }
+    }
+#endif
 
     void genUnodes(const uint32_t id, const uint32_t uorv)
     {
@@ -442,33 +475,14 @@ public:
 
                 uint32_t ux;
 
-                auto store = [&](uint8_t i, __m256i v, uint8_t x, __m256i w) {
-                    if (!P::NEEDSYNC) {
-                        ux = _mm256_extract_epi32(v, x);
-                        *(uint64_t*)(base + dst.index[ux]) = _mm256_extract_epi64(w, i % 4);
-                        dst.index[ux] += P::BIGSIZE0;
-                    } else {
-                        uint32_t zz = _mm256_extract_epi32(w, x);
-
-                        if (i || likely(zz)) {
-                            ux = _mm256_extract_epi32(v, x);
-                            for (; unlikely(last[ux] + P::NNONYZ <= edge + i); last[ux] += P::NNONYZ, dst.index[ux] += P::BIGSIZE0)
-                                *(uint32_t*)(base + dst.index[ux]) = 0;
-                            *(uint32_t*)(base + dst.index[ux]) = zz;
-                            dst.index[ux] += P::BIGSIZE0;
-                            last[ux] = edge + i;
-                        }
-                    }
-                };
-
-                store(0, v1, 0, v0);
-                store(1, v1, 2, v0);
-                store(2, v1, 4, v0);
-                store(3, v1, 6, v0);
-                store(4, v5, 0, v4);
-                store(5, v5, 2, v4);
-                store(6, v5, 4, v4);
-                store(7, v5, 6, v4);
+                store<0, 0>(base, ux, dst, last, edge, v1, v0);
+                store<2, 1>(base, ux, dst, last, edge, v1, v0);
+                store<4, 2>(base, ux, dst, last, edge, v1, v0);
+                store<6, 3>(base, ux, dst, last, edge, v1, v0);
+                store<0, 4>(base, ux, dst, last, edge, v5, v4);
+                store<2, 5>(base, ux, dst, last, edge, v5, v4);
+                store<4, 6>(base, ux, dst, last, edge, v5, v4);
+                store<6, 7>(base, ux, dst, last, edge, v5, v4);
 #else
 #error not implemented
 #endif

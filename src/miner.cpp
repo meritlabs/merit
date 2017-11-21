@@ -52,7 +52,7 @@ uint64_t nLastBlockRef = 0;
 uint64_t nLastBlockSize = 0;
 uint64_t nLastBlockWeight = 0;
 
-std::unique_ptr<CConnman> g_connman;
+extern std::unique_ptr<CConnman> g_connman;
 
 int64_t UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
 {
