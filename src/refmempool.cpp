@@ -156,10 +156,7 @@ void ReferralTxMemPool::TrimToSize(size_t limit) {
     while (!mapRTx.empty() && DynamicMemoryUsage() > limit) {
         indexed_referrals_set::index<descendants_count>::type::iterator it = mapRTx.get<descendants_count>().begin();
 
-        setEntries stage;
-        CalculateDescendants(mapRTx.project<0>(it), stage);
-
-        RemoveStaged(stage, MemPoolRemovalReason::SIZELIMIT);
+        RemoveRecursive(it->GetEntryValue(), MemPoolRemovalReason::SIZELIMIT);
     }
 }
 

@@ -373,13 +373,14 @@ static void LimitMempoolSize(CTxMemPool& pool, size_t limit, unsigned long age) 
         pcoinsTip->Uncache(removed);
 }
 
-// TODO: add support for trimming by mempory usage with TrimToSize
-static void LimitMempoolSize(referral::ReferralTxMemPool& pool, unsigned long age) {
+static void LimitMempoolSize(referral::ReferralTxMemPool& pool, size_t limit, unsigned long age) {
     int expired = pool.Expire(GetTime() - age);
 
     if (expired != 0) {
         LogPrint(BCLog::MEMPOOL, "Expired %i referrals from the memory pool\n", expired);
     }
+
+    pool.TrimToSize(limit);
 }
 
 /** Convert CValidationState to a human-readable message for logging */
@@ -452,7 +453,9 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTra
     // We also need to remove any now-immature transactions
     mempool.removeForReorg(pcoinsTip, chainActive.Tip()->nHeight + 1, STANDARD_LOCKTIME_VERIFY_FLAGS);
     // Re-limit mempool size, in case we added any transactions
-    LimitMempoolSize(mempool, gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000, gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60);
+    LimitMempoolSize(mempool,
+        gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000,
+        gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60);
 
     // same flow for referrals mempool, but w/o UpdateReferralsFromBlock
     // TODO: add UpdateReferralsFromBlock to account dynamic referral sizes
@@ -470,9 +473,9 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTra
     }
     disconnectReferrals.queued.clear();
 
-    // TODO: add keeping track of referrals mempool dynamic size
-    LimitMempoolSize(mempoolReferral, gArgs.GetArg("-refmempoolexpiry", DEFAULT_REFERRALS_MEMPOOL_EXPIRY) * 60 * 60);
-
+    LimitMempoolSize(mempoolReferral,
+        gArgs.GetArg("-maxrefmempool", DEFAULT_MAX_REFERRALS_MEMPOOL_SIZE) * 1000000,
+        gArgs.GetArg("-refmempoolexpiry", DEFAULT_REFERRALS_MEMPOOL_EXPIRY) * 60 * 60);
 }
 
 // Used to avoid mempool polluting consensus critical paths if CCoinsViewMempool
@@ -566,7 +569,10 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
 
     // trim mempool and check if tx was trimmed
     if (!fOverrideMempoolLimit) {
-        LimitMempoolSize(pool, gArgs.GetArg("-refmempoolexpiry", DEFAULT_REFERRALS_MEMPOOL_EXPIRY) * 60 * 60);
+        LimitMempoolSize(
+            pool,
+            gArgs.GetArg("-maxrefmempool", DEFAULT_MAX_REFERRALS_MEMPOOL_SIZE) * 1000000,
+            gArgs.GetArg("-refmempoolexpiry", DEFAULT_REFERRALS_MEMPOOL_EXPIRY) * 60 * 60);
         if (!pool.exists(hash)) {
             return state.DoS(0, false, REJECT_MEMPOOL_FULL, "referrals mempool full");
         }
