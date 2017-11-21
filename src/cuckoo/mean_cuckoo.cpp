@@ -15,6 +15,7 @@
 #include <thread>
 #include <condition_variable>
 #include <mutex>
+#include <array>
 
 // algorithm/performance parameters
 
@@ -260,13 +261,13 @@ void matchworker(solver_ctx<offset_t, EDGEBITS, XBITS>* solver, uint32_t id)
 }
 
 template <uint8_t EDGEBITS, uint8_t XBITS>
-using zbucket8 = uint8_t[2 * Params<EDGEBITS, XBITS>::NZ];
+using zbucket8 = std::array<uint8_t, 2 * Params<EDGEBITS, XBITS>::NZ>;
 
 template <uint8_t EDGEBITS, uint8_t XBITS>
-using zbucket16 = uint16_t[Params<EDGEBITS, XBITS>::NTRIMMEDZ];
+using zbucket16 = std::array<uint16_t, Params<EDGEBITS, XBITS>::NTRIMMEDZ>;
 
 template <uint8_t EDGEBITS, uint8_t XBITS>
-using zbucket32 = uint32_t[Params<EDGEBITS, XBITS>::NTRIMMEDZ];
+using zbucket32 = std::array<uint32_t,Params<EDGEBITS, XBITS>::NTRIMMEDZ>;
 
 
 // maintains set of trimmable edges
@@ -564,7 +565,7 @@ public:
             }
 
             // counts of zz's for this ux
-            uint8_t* degs = tdegs[id];
+            uint8_t* degs = tdegs[id].data();
             small.storeu(tbuckets.data() + id, 0);
             dst.matrixu(ux);
             for (uint32_t uy = 0; uy < P::NY; uy++) {
@@ -578,9 +579,8 @@ public:
                     degs[*(uint32_t*)rdsmall & P::ZMASK]++;
                 }
 
-                uint16_t* zs = tzs[id];
-                uint32_t* edges0;
-                edges0 = tedges[id]; // list of nodes with 2+ edges
+                uint16_t* zs = tzs[id].data();
+                uint32_t* edges0 = tedges[id].data(); // list of nodes with 2+ edges
                 uint32_t *edges = edges0, edge = 0;
 
                 for (uint8_t* rdsmall = readsmall; rdsmall < endreadsmall; rdsmall += P::SMALLSIZE) {
@@ -601,7 +601,7 @@ public:
                     zs += delta;
                 }
                 assert(edges - edges0 < P::NTRIMMEDZ);
-                const uint16_t* readz = tzs[id];
+                const uint16_t* readz = tzs[id].data();
                 const uint32_t* readedge = edges0;
                 int64_t uy34 = (int64_t)uy << P::YZZBITS;
 
@@ -729,7 +729,7 @@ public:
                     exit(0);
                 }
             }
-            uint8_t* degs = tdegs[id];
+            uint8_t* degs = tdegs[id].data();
             small.storeu(tbuckets.data() + id, 0);
             TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
             for (uint32_t vy = 0; vy < P::NY; vy++) {
@@ -815,7 +815,7 @@ public:
                     small.index[vy] += SRCSIZE;
                 }
             }
-            uint16_t* degs = reinterpret_cast<uint16_t*>(tdegs[id]);
+            uint16_t* degs = reinterpret_cast<uint16_t*>(tdegs[id].data());
             small.storeu(tbuckets.data() + id, 0);
             TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
             uint32_t newnodeid = 0;
@@ -885,7 +885,7 @@ public:
 
         rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
-        uint8_t* degs = tdegs[id];
+        uint8_t* degs = tdegs[id].data();
         uint8_t const* base = reinterpret_cast<uint8_t*>(buckets.data());
         const uint32_t startvx = P::NY * id / nThreads;
         const uint32_t endvx = P::NY * (id + 1) / nThreads;
@@ -931,7 +931,7 @@ public:
 
         rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
-        uint16_t* degs = reinterpret_cast<uint16_t*>(tdegs[id]);
+        uint16_t* degs = reinterpret_cast<uint16_t*>(tdegs[id].data());
         uint8_t const* base = reinterpret_cast<uint8_t*>(buckets.data());
         const uint32_t startvx = P::NY * id / nThreads;
         const uint32_t endvx = P::NY * (id + 1) / nThreads;
