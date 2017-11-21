@@ -69,9 +69,6 @@ void setKeys(const char* header, const uint32_t headerlen, siphash_keys* keys)
     // SHA256((unsigned char *)header, headerlen, (unsigned char *)hdrkey);
     blake2b((void*)hdrkey, sizeof(hdrkey), (const void*)header, headerlen, 0, 0);
 
-    printf("header: %s, len: %d\n", header, headerlen);
-    printf("hdrkey: %llx\n", ((uint64_t *)hdrkey)[0]);
-
     keys->k0 = htole64(((uint64_t*)hdrkey)[0]);
     keys->k1 = htole64(((uint64_t*)hdrkey)[1]);
 }

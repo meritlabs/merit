@@ -547,10 +547,6 @@ public:
                     // printf("id %d ux %d y %d e %010lx e' %010x\n", id, ux, my, e, ((uint64_t)edge << ZBITS) | (e >> YBITS));
                     small.index[uy] += P::SMALLSIZE;
                 }
-                if (unlikely(edge >> P::NONYZBITS > (((my + 1) << P::YZBITS) - 1) >> P::NONYZBITS)) {
-                    printf("OOPS1: id %d ux %d y %d edge %x vs %x\n", id, ux, my, edge, ((my + 1) << P::YZBITS) - 1);
-                    exit(0);
-                }
             }
 
             // counts of zz's for this ux
@@ -589,10 +585,6 @@ public:
                     const uint32_t delta = degs[z] ? 1 : 0;
                     edges += delta;
                     zs += delta;
-                }
-                if (unlikely(edge >> NONDEGBITS != P::EDGEMASK >> NONDEGBITS)) {
-                    printf("OOPS2: id %d ux %d uy %d edge %x vs %x\n", id, ux, uy, edge, P::EDGEMASK);
-                    exit(0);
                 }
                 assert(edges - edges0 < P::NTRIMMEDZ);
                 const uint16_t* readz = tzs[id];
@@ -1182,7 +1174,7 @@ public:
                             for (nu -= min, nv -= min; us[nu] != vs[nv]; nu++, nv++)
                                 ;
                             const uint32_t len = nu + nv + 1;
-                            printf("%4d-cycle found\n", len);
+                            // printf("%4d-cycle found\n", len);
                             if (len == proofSize) {
                                 solution(us, nu, vs, nv);
                                 return true;
@@ -1328,8 +1320,6 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
     assert(edgesRatio >= 43 && edgesRatio <= 50);
     assert(edgeBits >= 15 && edgeBits <= 31);
 
-    // static const uint8_t EDGEBITS = 27;
-
     uint8_t nodesBits = edgeBits + 1;
 
     uint8_t nThreads = 8;
@@ -1337,24 +1327,9 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
 
     auto hashStr = hash.GetHex();
 
-    printf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofSize, edgeBits, hashStr.c_str(), edgesRatio);
-
     Params<EDGEBITS, XBITS> params{edgesRatio};
 
     solver_ctx<offset_t, EDGEBITS, XBITS> ctx(hashStr.c_str(), hashStr.size(), nThreads, nTrims, proofSize, params);
-
-    uint64_t sbytes = ctx.sharedbytes();
-    uint32_t tbytes = ctx.threadbytes();
-
-    int sunit, tunit;
-    for (sunit = 0; sbytes >= 10240; sbytes >>= 10, sunit++)
-        ;
-    for (tunit = 0; tbytes >= 10240; tbytes >>= 10, tunit++)
-        ;
-
-    printf("Using %llu%cB bucket memory at %llx,\n", sbytes, " KMGT"[sunit], (uint64_t)ctx.trimmer->buckets);
-    printf("%dx%d%cB thread memory at %llx,\n", nThreads, tbytes, " KMGT"[tunit], (uint64_t)ctx.trimmer->tbuckets);
-    printf("%d-way siphash, and %d buckets.\n", NSIPHASH, 1 << XBITS);
 
     uint32_t timems;
     struct timeval time0, time1;
@@ -1365,7 +1340,6 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
 
     gettimeofday(&time1, 0);
     timems = (time1.tv_sec - time0.tv_sec) * 1000 + (time1.tv_usec - time0.tv_usec) / 1000;
-    printf("Time: %d ms\n", timems);
 
     if (found) {
         copy(ctx.sols.begin(), ctx.sols.begin() + ctx.sols.size(), inserter(cycle, cycle.begin()));
@@ -1379,22 +1353,32 @@ bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio
     switch (edgeBits) {
     case 16:
         return run<uint32_t, 16u, 0u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 17:
+        return run<uint32_t, 17u, 1u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 18:
+        return run<uint32_t, 18u, 2u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 19:
         return run<uint32_t, 19u, 2u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 20:
         return run<uint32_t, 20u, 2u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 21:
+        return run<uint32_t, 21u, 4u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 22:
+        return run<uint32_t, 22u, 4u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 23:
+        return run<uint32_t, 23u, 4u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 24:
         return run<uint32_t, 24u, 5u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 25:
-        return run<uint32_t, 25u, 5u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 25u, 6u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 26:
-        return run<uint32_t, 26u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 26u, 6u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 27:
         return run<uint32_t, 27u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 28:
         return run<uint32_t, 28u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 29:
-        return run<uint32_t, 29u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 29u, 8u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 30:
         return run<uint64_t, 30u, 8u>(hash, edgeBits, edgesRatio, proofSize, cycle);
 
