@@ -213,7 +213,7 @@ struct indexer {
     }
     offset_t storev(yzbucket<EDGEBITS, XBITS, BUCKETSIZE>* buckets, const uint32_t y)
     {
-        uint8_t const* base = (uint8_t*)buckets;
+        uint8_t const* base = reinterpret_cast<uint8_t*>(buckets);
         offset_t sumsize = 0;
         for (uint32_t x = 0; x < P::NX; x++) {
             sumsize += buckets[x][y].setsize(base + index[x]);
@@ -228,7 +228,7 @@ struct indexer {
     }
     offset_t storeu(yzbucket<EDGEBITS, XBITS, BUCKETSIZE>* buckets, const uint32_t x)
     {
-        uint8_t const* base = (uint8_t*)buckets;
+        uint8_t const* base = reinterpret_cast<uint8_t*>(buckets);
         offset_t sumsize = 0;
         for (uint32_t y = 0; y < P::NY; y++)
             sumsize += buckets[x][y].setsize(base + index[y]);
@@ -260,7 +260,7 @@ void matchworker(solver_ctx<offset_t, EDGEBITS, XBITS>* solver, uint32_t id)
 }
 
 template <uint8_t EDGEBITS, uint8_t XBITS>
-using zbucket8 = uint8_t[2 * Params<EDGEBITS, XBITS>::NYZ1];
+using zbucket8 = uint8_t[2 * Params<EDGEBITS, XBITS>::NZ];
 
 template <uint8_t EDGEBITS, uint8_t XBITS>
 using zbucket16 = uint16_t[Params<EDGEBITS, XBITS>::NTRIMMEDZ];
@@ -285,16 +285,16 @@ public:
     using indexerT = indexer<offset_t, EDGEBITS, XBITS, P::TBUCKETSIZE>;
 
     siphash_keys sip_keys;
-    yzbucketZ* buckets;
-    yzbucketT* tbuckets;
-    zbucket32P* tedges;
-    zbucket16P* tzs;
-    zbucket8P* tdegs;
-    offset_t* tcounts;
+    std::vector<yzbucketZ> buckets;
+    std::vector<yzbucketT> tbuckets;
+    std::vector<zbucket32P> tedges;
+    std::vector<zbucket16P> tzs;
+    std::vector<zbucket8P> tdegs;
+    std::vector<offset_t> tcounts;
     uint8_t nThreads;
     uint32_t nTrims;
     Params<EDGEBITS, XBITS> params;
-    Barrier* barry;
+    std::unique_ptr<Barrier> barry;
 
     using BIGTYPE0 = offset_t;
 
@@ -304,33 +304,31 @@ public:
             *(uint32_t*)(p + i) = 0;
     }
 
-    edgetrimmer(const uint8_t nThreadsIn, const uint32_t nTrimsIn, const Params<EDGEBITS, XBITS>& paramsIn) : nThreads{nThreadsIn}, nTrims{nTrimsIn}, params{paramsIn}
+    edgetrimmer(
+            const uint8_t nThreadsIn,
+            const uint32_t nTrimsIn,
+            const Params<EDGEBITS,
+            XBITS>& paramsIn) : 
+        buckets(P::NX),
+        tbuckets(nThreadsIn),
+        tedges(nThreadsIn),
+        tdegs(nThreadsIn),
+        tzs(nThreadsIn),
+        tcounts(nThreadsIn),
+        nThreads{nThreadsIn},
+        nTrims{nTrimsIn},
+        params{paramsIn}
     {
+        assert(nThreads > 0);
         assert(sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucketZ));
         assert(sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucketZ));
 
-        buckets = new yzbucketZ[P::NX];
-        touch((uint8_t*)buckets, sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>));
-        tbuckets = new yzbucketT[nThreads];
-        touch((uint8_t*)tbuckets, nThreads * sizeof(yzbucketT));
+        touch(reinterpret_cast<uint8_t*>(buckets.data()), sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>));
+        touch(reinterpret_cast<uint8_t*>(tbuckets.data()), nThreads * sizeof(yzbucketT));
 
-        tedges = new zbucket32P[nThreads];
-        tdegs = new zbucket8P[nThreads];
-        tzs = new zbucket16P[nThreads];
-        tcounts = new offset_t[nThreads];
+        barry.reset(new Barrier(nThreads));
+    }
 
-        barry = new Barrier(nThreads);
-    }
-    ~edgetrimmer()
-    {
-        delete[] buckets;
-        delete[] tbuckets;
-        delete[] tedges;
-        delete[] tdegs;
-        delete[] tzs;
-        delete[] tcounts;
-        delete barry;
-    }
     offset_t count() const
     {
         offset_t cnt = 0;
@@ -379,7 +377,7 @@ public:
         // if NEEDSYNC
         uint32_t last[P::NX];
 
-        uint8_t const* base = (uint8_t*)buckets;
+        uint8_t const* base = reinterpret_cast<uint8_t*>(buckets.data());
         indexerZ dst;
         const uint32_t starty = P::NY * id / nThreads;     // 0 for nThreads = 1
         const uint32_t endy = P::NY * (id + 1) / nThreads; // 128 for nThreads = 1
@@ -497,7 +495,7 @@ public:
                 }
             }
 
-            sumsize += dst.storev(buckets, my);
+            sumsize += dst.storev(buckets.data(), my);
         }
         rdtsc1 = __rdtsc();
         // if (!id) printf("genUnodes round %2d size %u rdtsc: %lu\n", uorv, sumsize / P::BIGSIZE0, rdtsc1 - rdtsc0);
@@ -529,8 +527,8 @@ public:
 
         rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
-        uint8_t const* base = (uint8_t*)buckets;
-        uint8_t const* small0 = (uint8_t*)tbuckets[id];
+        uint8_t const* base = reinterpret_cast<uint8_t*>(buckets.data());
+        uint8_t const* small0 = reinterpret_cast<uint8_t*>(tbuckets[id]);
         const uint32_t startux = P::NX * id / nThreads;
         const uint32_t endux = P::NX * (id + 1) / nThreads;
 
@@ -567,7 +565,7 @@ public:
 
             // counts of zz's for this ux
             uint8_t* degs = tdegs[id];
-            small.storeu(tbuckets + id, 0);
+            small.storeu(tbuckets.data() + id, 0);
             dst.matrixu(ux);
             for (uint32_t uy = 0; uy < P::NY; uy++) {
                 // set to FF. FF + 1 gives zero! (why not just zero, and then check for degs[z] == 1 ???)
@@ -678,7 +676,7 @@ public:
                     dst.index[vx] += P::BIGSIZE;
                 }
             }
-            sumsize += dst.storeu(buckets, ux);
+            sumsize += dst.storeu(buckets.data(), ux);
         }
         rdtsc1 = __rdtsc();
         // if (!id) printf("genVnodes round %2d size %u rdtsc: %lu\n", uorv, sumsize / P::BIGSIZE, rdtsc1 - rdtsc0);
@@ -702,8 +700,8 @@ public:
 
         rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
-        uint8_t const* base = (uint8_t*)buckets;
-        uint8_t const* small0 = (uint8_t*)tbuckets[id];
+        uint8_t const* base = reinterpret_cast<uint8_t*>(buckets.data());
+        uint8_t const* small0 = reinterpret_cast<uint8_t*>(tbuckets[id]);
         const uint32_t startvx = P::NY * id / nThreads;
         const uint32_t endvx = P::NY * (id + 1) / nThreads;
         for (uint32_t vx = startvx; vx < endvx; vx++) {
@@ -732,7 +730,7 @@ public:
                 }
             }
             uint8_t* degs = tdegs[id];
-            small.storeu(tbuckets + id, 0);
+            small.storeu(tbuckets.data() + id, 0);
             TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
             for (uint32_t vy = 0; vy < P::NY; vy++) {
                 const uint64_t vy34 = (uint64_t)vy << P::YZZBITS;
@@ -759,7 +757,7 @@ public:
                     printf("OOPS4: id %d vx %x ux %x vs %x\n", id, vx, ux, P::XMASK);
                 }
             }
-            sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
+            sumsize += TRIMONV ? dst.storev(buckets.data(), vx) : dst.storeu(buckets.data(), vx);
         }
         rdtsc1 = __rdtsc();
         // if ((!id && !(round & (round + 1))))
@@ -783,8 +781,8 @@ public:
 
         rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
-        uint8_t const* base = (uint8_t*)buckets;
-        uint8_t const* small0 = (uint8_t*)tbuckets[id];
+        uint8_t const* base = reinterpret_cast<uint8_t*>(buckets.data());
+        uint8_t const* small0 = reinterpret_cast<uint8_t*>(tbuckets[id]);
         const uint32_t startvx = P::NY * id / nThreads;
         const uint32_t endvx = P::NY * (id + 1) / nThreads;
         for (uint32_t vx = startvx; vx < endvx; vx++) {
@@ -817,8 +815,8 @@ public:
                     small.index[vy] += SRCSIZE;
                 }
             }
-            uint16_t* degs = (uint16_t*)tdegs[id];
-            small.storeu(tbuckets + id, 0);
+            uint16_t* degs = reinterpret_cast<uint16_t*>(tdegs[id]);
+            small.storeu(tbuckets.data() + id, 0);
             TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
             uint32_t newnodeid = 0;
             uint32_t* renames = TRIMONV ? buckets[0][vx].renamev : buckets[vx][0].renameu;
@@ -871,7 +869,7 @@ public:
             }
             if (newnodeid > maxnnid)
                 maxnnid = newnodeid;
-            sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
+            sumsize += TRIMONV ? dst.storev(buckets.data(), vx) : dst.storeu(buckets.data(), vx);
         }
         rdtsc1 = __rdtsc();
         // if (!id) printf("trimrename round %2d size %u rdtsc: %lu maxnnid %d\n", round, sumsize / DSTSIZE, rdtsc1 - rdtsc0, maxnnid);
@@ -888,7 +886,7 @@ public:
         rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
         uint8_t* degs = tdegs[id];
-        uint8_t const* base = (uint8_t*)buckets;
+        uint8_t const* base = reinterpret_cast<uint8_t*>(buckets.data());
         const uint32_t startvx = P::NY * id / nThreads;
         const uint32_t endvx = P::NY * (id + 1) / nThreads;
         for (uint32_t vx = startvx; vx < endvx; vx++) {
@@ -916,7 +914,7 @@ public:
                     dst.index[ux] += degs[vyz] ? sizeof(uint32_t) : 0;
                 }
             }
-            sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
+            sumsize += TRIMONV ? dst.storev(buckets.data(), vx) : dst.storeu(buckets.data(), vx);
         }
         rdtsc1 = __rdtsc();
         // if ((!id && !(round & (round + 1))))
@@ -933,8 +931,8 @@ public:
 
         rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
-        uint16_t* degs = (uint16_t*)tdegs[id];
-        uint8_t const* base = (uint8_t*)buckets;
+        uint16_t* degs = reinterpret_cast<uint16_t*>(tdegs[id]);
+        uint8_t const* base = reinterpret_cast<uint8_t*>(buckets.data());
         const uint32_t startvx = P::NY * id / nThreads;
         const uint32_t endvx = P::NY * (id + 1) / nThreads;
         for (uint32_t vx = startvx; vx < endvx; vx++) {
@@ -977,7 +975,7 @@ public:
             }
             if (newnodeid > maxnnid)
                 maxnnid = newnodeid;
-            sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
+            sumsize += TRIMONV ? dst.storev(buckets.data(), vx) : dst.storeu(buckets.data(), vx);
         }
         rdtsc1 = __rdtsc();
         // if (!id) printf("trimrename1 round %2d size %u rdtsc: %lu maxnnid %d\n", round, sumsize / sizeof(uint32_t), rdtsc1 - rdtsc0, maxnnid);
@@ -1218,7 +1216,7 @@ public:
     {
         assert((uint64_t)P::CUCKOO_SIZE * sizeof(uint32_t) <= trimmer->nThreads * sizeof(yzbucketT));
         trimmer->trim();
-        cuckoo = (uint32_t*)trimmer->tbuckets;
+        cuckoo = reinterpret_cast<uint32_t*>(trimmer->tbuckets.data());
         memset(cuckoo, CUCKOO_NIL, P::CUCKOO_SIZE * sizeof(uint32_t));
 
         return findcycles();
