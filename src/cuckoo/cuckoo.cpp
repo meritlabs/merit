@@ -177,7 +177,7 @@ int VerifyCycle(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, const 
 
     CSipHasher hasher{keys.k0, keys.k1};
 
-    auto uvs = std::vector<uint32_t>(2 * proofSize);
+    std::vector<uint32_t> uvs(2 * proofSize);
     uint32_t xor0 = 0, xor1 = 0;
 
     for (uint32_t n = 0; n < proofSize; n++) {
