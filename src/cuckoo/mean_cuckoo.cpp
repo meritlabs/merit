@@ -1331,15 +1331,7 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
 
     solver_ctx<offset_t, EDGEBITS, XBITS> ctx(hashStr.c_str(), hashStr.size(), nThreads, nTrims, proofSize, params);
 
-    uint32_t timems;
-    struct timeval time0, time1;
-
-    gettimeofday(&time0, 0);
-
     bool found = ctx.solve();
-
-    gettimeofday(&time1, 0);
-    timems = (time1.tv_sec - time0.tv_sec) * 1000 + (time1.tv_usec - time0.tv_usec) / 1000;
 
     if (found) {
         copy(ctx.sols.begin(), ctx.sols.begin() + ctx.sols.size(), inserter(cycle, cycle.begin()));
