@@ -260,7 +260,7 @@ void matchworker(solver_ctx<offset_t, EDGEBITS, XBITS>* solver, uint32_t id)
 }
 
 template <uint8_t EDGEBITS, uint8_t XBITS>
-using zbucket8 = uint8_t[2 * Params<EDGEBITS, XBITS>::NYZ1];
+using zbucket8 = uint8_t[2 * Params<EDGEBITS, XBITS>::NZ];
 
 template <uint8_t EDGEBITS, uint8_t XBITS>
 using zbucket16 = uint16_t[Params<EDGEBITS, XBITS>::NTRIMMEDZ];
