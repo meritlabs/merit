@@ -11,6 +11,62 @@
 #include <stdint.h> // for types uint32_t,uint64_t
 #include <string.h> // for functions strlen, memset
 
+uint64_t siphash24(const siphash_keys* keys, const uint64_t nonce)
+{
+    uint64_t v0 = keys->k0 ^ 0x736f6d6570736575ULL,
+             v1 = keys->k1 ^ 0x646f72616e646f6dULL,
+             v2 = keys->k0 ^ 0x6c7967656e657261ULL,
+             v3 = keys->k1 ^ 0x7465646279746573ULL ^ nonce;
+    SIPROUND;
+    SIPROUND;
+    v0 ^= nonce;
+    v2 ^= 0xff;
+    SIPROUND;
+    SIPROUND;
+    SIPROUND;
+    SIPROUND;
+    return (v0 ^ v1) ^ (v2 ^ v3);
+}
+
+
+// convenience function for extracting siphash keys from header
+void setKeys(const char* header, const uint32_t headerlen, siphash_keys* keys)
+{
+    char hdrkey[32];
+    // SHA256((unsigned char *)header, headerlen, (unsigned char *)hdrkey);
+    blake2b((void*)hdrkey, sizeof(hdrkey), (const void*)header, headerlen, 0, 0);
+
+    keys->k0 = htole64(((uint64_t*)hdrkey)[0]);
+    keys->k1 = htole64(((uint64_t*)hdrkey)[1]);
+}
+
+// generate edge endpoint in cuckoo graph without partition bit
+uint32_t _sipnode(const siphash_keys* keys, uint32_t mask, uint32_t nonce, uint32_t uorv)
+{
+    return siphash24(keys, 2 * nonce + uorv) & mask;
+}
+
+// generate edge endpoint in cuckoo graph without partition bit
+uint32_t _sipnode(const CSipHasher* hasher, uint32_t mask, uint32_t nonce, uint32_t uorv)
+{
+    return CSipHasher(*hasher).Write(2 * nonce + uorv).Finalize() & mask;
+}
+
+// generate edge endpoint in cuckoo graph
+uint32_t sipnode(const CSipHasher* hasher, uint32_t mask, uint32_t nonce, uint32_t uorv)
+{
+    auto node = _sipnode(hasher, mask, nonce, uorv);
+
+    return node << 1 | uorv;
+}
+
+uint32_t sipnode(const siphash_keys* keys, uint32_t mask, uint32_t nonce, uint32_t uorv)
+{
+    auto node = _sipnode(keys, mask, nonce, uorv);
+
+    return node << 1 | uorv;
+}
+
 const char* errstr[] = {
     "OK",
     "wrong header length",
