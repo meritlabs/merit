@@ -571,7 +571,7 @@ public:
             dst.matrixu(ux);
             for (uint32_t uy = 0; uy < P::NY; uy++) {
                 // set to FF. FF + 1 gives zero! (why not just zero, and then check for degs[z] == 1 ???)
-                memset(degs, 0xff, P::NZ);
+                memset(degs, 0xff, 2 * P::NZ);
                 uint8_t *readsmall = tbuckets[id][uy].bytes, *endreadsmall = readsmall + tbuckets[id][uy].size;
                 // if (id==1) printf("id %d ux %d y %d size %u sumsize %u\n", id, ux, uy, tbuckets[id][uy].size/P::BIGSIZE, sumsize);
 
@@ -736,7 +736,7 @@ public:
             TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
             for (uint32_t vy = 0; vy < P::NY; vy++) {
                 const uint64_t vy34 = (uint64_t)vy << P::YZZBITS;
-                memset(degs, 0xff, P::NZ);
+                memset(degs, 0xff, 2 * P::NZ);
                 uint8_t *readsmall = tbuckets[id][vy].bytes, *endreadsmall = readsmall + tbuckets[id][vy].size;
                 // printf("id %d vx %d vy %d size %u sumsize %u\n", id, vx, vy, tbuckets[id][vx].size/P::BIGSIZE, sumsize);
                 for (uint8_t* rdsmall = readsmall; rdsmall < endreadsmall; rdsmall += DSTSIZE)
@@ -893,7 +893,7 @@ public:
         const uint32_t endvx = P::NY * (id + 1) / nThreads;
         for (uint32_t vx = startvx; vx < endvx; vx++) {
             TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
-            memset(degs, 0xff, P::NYZ1);
+            memset(degs, 0xff, 2 * P::NZ);
             for (uint32_t ux = 0; ux < P::NX; ux++) {
                 zbucketZ& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
                 uint32_t *readbig = zb.words, *endreadbig = readbig + zb.size / sizeof(uint32_t);
@@ -939,7 +939,7 @@ public:
         const uint32_t endvx = P::NY * (id + 1) / nThreads;
         for (uint32_t vx = startvx; vx < endvx; vx++) {
             TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
-            memset(degs, 0xff, 2 * P::NYZ1); // sets each uint16_t entry to 0xffff
+            memset(degs, 0xff, 2 * P::NZ); // sets each uint16_t entry to 0xffff
             for (uint32_t ux = 0; ux < P::NX; ux++) {
                 zbucketZ& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
                 uint32_t *readbig = zb.words, *endreadbig = readbig + zb.size / sizeof(uint32_t);
