@@ -69,16 +69,13 @@ static CBlock CreateGenesisBlock(
         std::set<uint32_t> pow;
 
         uint32_t nMaxTries = 10000000;
-        // genesis.nNonce = 0;
-
-        float timems;
-        struct timeval time0, time1;
-
-        gettimeofday(&time0, 0);
+        genesis.nNonce = 0;
 
         bool found = false;
 
-        auto times = std::set<double>();
+        printf(".....%d...........%d........", genesis.nEdgesBits, genesis.nEdgesRatio);
+
+        std::vector<double> times;
 
         // printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
         while (nMaxTries > 0 && !found) {
@@ -90,7 +87,7 @@ static CBlock CreateGenesisBlock(
             auto end = std::chrono::system_clock::now();
             std::chrono::duration<double> elapsed_seconds = end-start;
 
-            times.insert(elapsed_seconds.count());
+            times.push_back(elapsed_seconds.count());
 
             if (!found) {
                 ++genesis.nNonce;
@@ -101,9 +98,6 @@ static CBlock CreateGenesisBlock(
         if (nMaxTries == 0) {
             printf("Could not find cycle for genesis block");
         } else {
-
-            gettimeofday(&time1, 0);
-            timems = (time1.tv_sec - time0.tv_sec) * 1000 + (time1.tv_usec - time0.tv_usec) / 1000;
 
             // printf("Genesis block generated!!!\n");
             // printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\nedges ratio: %d\nnodes:\n",
@@ -116,12 +110,12 @@ static CBlock CreateGenesisBlock(
             //     printf("0x%x, ", node);
             // }
 
-            printf(".....%d............%d.........%4d...", genesis.nEdgesBits, genesis.nEdgesRatio, genesis.nNonce);
+            printf("%4d...", genesis.nNonce);
 
             double timeTaken = std::accumulate(times.begin(), times.end(), 0.0);
 
             // printf("\n\ngettimeofday time: %.3fs\n", timems / 1000);
-            printf("...%7.3f.......%5.3f...\n", timeTaken, timeTaken / times.size());
+            printf("..%8.3f.......%5.3f...\n", timeTaken, timeTaken / times.size());
         }
     }
 
@@ -303,13 +297,13 @@ public:
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
-        std::vector<uint8_t> bits(9);
-        std::iota(std::begin(bits), std::end(bits), 16);
+        std::vector<uint8_t> bits(5);
+        std::iota(std::begin(bits), std::end(bits), 25);
 
         printf("  edgebits  |  difficulty  |  nonce  |    time    |    tpa    \n");
         printf("==============================================================\n");
 
-        for (auto diff = 50; diff >= 43; diff--) {
+        for (auto diff = 50; diff >= 46; diff -= 1) {
             for (const auto& edgeBits: bits) {
                 genesis = CreateGenesisBlock(1503444726, 0, 0x207fffff, edgeBits, diff, 1, 50 * COIN, consensus, generateGenesis);
             }
