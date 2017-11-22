@@ -764,6 +764,7 @@ UniValue getaddressmempool(const JSONRPCRequest& request)
         delta.push_back(Pair("txid", it->first.txhash.GetHex()));
         delta.push_back(Pair("index", (int)it->first.index));
         delta.push_back(Pair("satoshis", it->second.amount));
+        delta.push_back(Pair("script", HexStr(it->second.scriptPubKey)));
         delta.push_back(Pair("timestamp", it->second.time));
         if (it->second.amount < 0) {
             delta.push_back(Pair("prevtxid", it->second.prevhash.GetHex()));
@@ -841,8 +842,8 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
 
         output.push_back(Pair("address", address));
         output.push_back(Pair("txid", it->first.txhash.GetHex()));
-        output.push_back(Pair("outputIndex", (int)it->first.index));
-        output.push_back(Pair("script", HexStr(it->second.script.begin(), it->second.script.end())));
+        output.push_back(Pair("index", (int)it->first.index));
+        output.push_back(Pair("script", HexStr(it->second.script)));
         output.push_back(Pair("satoshis", it->second.satoshis));
         output.push_back(Pair("height", it->second.blockHeight));
         output.push_back(Pair("isCoinbase", it->first.isCoinbase));
