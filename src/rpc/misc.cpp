@@ -842,7 +842,7 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
 
         output.push_back(Pair("address", address));
         output.push_back(Pair("txid", it->first.txhash.GetHex()));
-        output.push_back(Pair("index", (int)it->first.index));
+        output.push_back(Pair("outputIndex", (int)it->first.index));
         output.push_back(Pair("script", HexStr(it->second.script)));
         output.push_back(Pair("satoshis", it->second.satoshis));
         output.push_back(Pair("height", it->second.blockHeight));
