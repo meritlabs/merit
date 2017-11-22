@@ -73,6 +73,10 @@ public:
 
 class ReferralTxMemPool
 {
+private:
+    // sum of dynamic memory usage of all the map elements (NOT the maps themselves)
+    uint64_t cachedInnerUsage;
+
 public:
     using indexed_referrals_set = boost::multi_index_container<
         RefMemPoolEntry,

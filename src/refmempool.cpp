@@ -21,7 +21,7 @@ namespace referral
 RefMemPoolEntry::RefMemPoolEntry(const Referral& _entry, int64_t _nTime, unsigned int _entryHeight) : MemPoolEntry(_entry, _nTime, _entryHeight)
 {
     nWeight = GetReferralWeight(_entry);
-    nUsageSize = sizeof(RefMemPoolEntry);
+    nUsageSize = RecursiveDynamicUsage(entry);
     nCountWithDescendants = 1;
 }
 
@@ -55,7 +55,13 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry&
     if (parentit != mapRTx.end()) {
         mapChildren[parentit].insert(newit);
         mapRTx.modify(parentit, update_descendants_count(-1));
+
+        setEntries s;
+        cachedInnerUsage += memusage::IncrementalDynamicUsage(s);
     }
+
+    cachedInnerUsage += entry.DynamicMemoryUsage();
+    assert(cachedInnerUsage > 0);
 
     return true;
 }
@@ -124,8 +130,6 @@ void ReferralTxMemPool::RemoveUnchecked(refiter it, MemPoolRemovalReason reason)
 {
     NotifyEntryRemoved(it->GetSharedEntryValue(), reason);
 
-    mapRTx.erase(it);
-    mapChildren.erase(it);
 
     // check mempool referrals for a parent
     auto parentit =
@@ -137,7 +141,18 @@ void ReferralTxMemPool::RemoveUnchecked(refiter it, MemPoolRemovalReason reason)
     if (parentit != mapRTx.end()) {
         mapChildren[parentit].erase(it);
         mapRTx.modify(parentit, update_descendants_count(-1));
+
+        setEntries s;
+        cachedInnerUsage -= memusage::IncrementalDynamicUsage(s);
     }
+
+    cachedInnerUsage -= it->DynamicMemoryUsage();
+    cachedInnerUsage -= memusage::DynamicUsage(mapChildren[it]);
+
+    mapRTx.erase(it);
+    mapChildren.erase(it);
+
+    assert(cachedInnerUsage >= 0);
 }
 
 void ReferralTxMemPool::RemoveStaged(setEntries& stage, MemPoolRemovalReason reason)
@@ -253,7 +268,10 @@ std::vector<ReferralRef> ReferralTxMemPool::GetReferrals() const
 size_t ReferralTxMemPool::DynamicMemoryUsage() const
 {
     LOCK(cs);
-    return memusage::MallocUsage(sizeof(RefMemPoolEntry) + 15 * sizeof(void*)) * mapRTx.size() + memusage::DynamicUsage(mapChildren);
+    auto s = memusage::MallocUsage(sizeof(RefMemPoolEntry) + 15 * sizeof(void*)) * mapRTx.size() + memusage::DynamicUsage(mapChildren) + cachedInnerUsage;
+
+    printf("ReferralTxMemPool::DynamicMemoryUsage: %llu\n", s);
+    return s;
 }
 
 
@@ -262,5 +280,6 @@ void ReferralTxMemPool::Clear()
     LOCK(cs);
     mapChildren.clear();
     mapRTx.clear();
+    cachedInnerUsage = 0;
 }
 }
