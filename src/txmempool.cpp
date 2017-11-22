@@ -488,7 +488,7 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
         int type = ExtractAddressFromScript(hashBytes, out.scriptPubKey);
         if(type > 0) {
             CMempoolAddressDeltaKey key(type, uint160(hashBytes), txhash, k, 0);
-            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(entry.GetTime(), out.nValue)));
+            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(entry.GetTime(), out.nValue, out.scriptPubKey)));
             inserted.push_back(key);
         }
     }

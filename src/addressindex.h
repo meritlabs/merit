@@ -239,6 +239,7 @@ struct CMempoolAddressDelta
 {
     int64_t time;
     CAmount amount;
+    CScript scriptPubKey;
     uint256 prevhash;
     unsigned int prevout;
 
@@ -249,9 +250,10 @@ struct CMempoolAddressDelta
         prevout = out;
     }
 
-    CMempoolAddressDelta(int64_t t, CAmount a) {
+    CMempoolAddressDelta(int64_t t, CAmount a, const CScript& script) {
         time = t;
         amount = a;
+        scriptPubKey = script;
         prevhash.SetNull();
         prevout = 0;
     }
