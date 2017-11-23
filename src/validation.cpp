@@ -567,7 +567,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
         pool.AddUnchecked(referral->GetHash(), entry);
     }
 
-    // trim mempool and check if tx was trimmed
+    // trim mempool and check if referral was trimmed
     if (!fOverrideMempoolLimit) {
         LimitMempoolSize(
             pool,

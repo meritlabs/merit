@@ -268,10 +268,7 @@ std::vector<ReferralRef> ReferralTxMemPool::GetReferrals() const
 size_t ReferralTxMemPool::DynamicMemoryUsage() const
 {
     LOCK(cs);
-    auto s = memusage::MallocUsage(sizeof(RefMemPoolEntry) + 15 * sizeof(void*)) * mapRTx.size() + memusage::DynamicUsage(mapChildren) + cachedInnerUsage;
-
-    printf("ReferralTxMemPool::DynamicMemoryUsage: %llu\n", s);
-    return s;
+    return memusage::MallocUsage(sizeof(RefMemPoolEntry) + 15 * sizeof(void*)) * mapRTx.size() + memusage::DynamicUsage(mapChildren) + cachedInnerUsage;
 }
 
 
