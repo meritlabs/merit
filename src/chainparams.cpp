@@ -15,13 +15,13 @@
 
 #include "chainparamsseeds.h"
 #include "cuckoo/miner.h"
-#include <iostream>
-#include <set>
-#include <vector>
-#include <numeric>
-#include <time.h>
 #include <chrono>
 #include <ctime>
+#include <iostream>
+#include <numeric>
+#include <set>
+#include <time.h>
+#include <vector>
 
 static CBlock CreateGenesisBlock(
     const char* pszTimestamp,
@@ -73,19 +73,17 @@ static CBlock CreateGenesisBlock(
 
         bool found = false;
 
-        printf(".....%d...........%d........", genesis.nEdgesBits, genesis.nEdgesRatio);
 
         std::vector<double> times;
 
         // printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
         while (nMaxTries > 0 && !found) {
-
-             auto start = std::chrono::system_clock::now();
+            auto start = std::chrono::system_clock::now();
 
             found = cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, genesis.nEdgesRatio, pow, params);
 
             auto end = std::chrono::system_clock::now();
-            std::chrono::duration<double> elapsed_seconds = end-start;
+            std::chrono::duration<double> elapsed_seconds = end - start;
 
             times.push_back(elapsed_seconds.count());
 
@@ -98,7 +96,6 @@ static CBlock CreateGenesisBlock(
         if (nMaxTries == 0) {
             printf("Could not find cycle for genesis block");
         } else {
-
             // printf("Genesis block generated!!!\n");
             // printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\nedges ratio: %d\nnodes:\n",
             //        genesis.GetHash().GetHex().c_str(),
@@ -110,12 +107,14 @@ static CBlock CreateGenesisBlock(
             //     printf("0x%x, ", node);
             // }
 
-            printf("%4d...", genesis.nNonce);
-
             double timeTaken = std::accumulate(times.begin(), times.end(), 0.0);
 
-            // printf("\n\ngettimeofday time: %.3fs\n", timems / 1000);
-            printf("..%8.3f.......%5.3f...\n", timeTaken, timeTaken / times.size());
+            printf(".....%d...........%d..........%4d.....%8.3f.......%5.3f...\n",
+                genesis.nEdgesBits,
+                genesis.nEdgesRatio,
+                genesis.nNonce,
+                timeTaken,
+                timeTaken / times.size());
         }
     }
 
@@ -231,7 +230,7 @@ public:
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 0);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 5);
-        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1,8);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 8);
         base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 128);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};
@@ -297,14 +296,14 @@ public:
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
-        std::vector<uint8_t> bits(5);
-        std::iota(std::begin(bits), std::end(bits), 25);
+        std::vector<uint8_t> bits(1);
+        std::iota(std::begin(bits), std::end(bits), 29);
 
         printf("  edgebits  |  difficulty  |  nonce  |    time    |    tpa    \n");
         printf("==============================================================\n");
 
-        for (auto diff = 50; diff >= 46; diff -= 1) {
-            for (const auto& edgeBits: bits) {
+        for (auto diff = 49; diff >= 46; diff -= 1) {
+            for (const auto& edgeBits : bits) {
                 genesis = CreateGenesisBlock(1503444726, 0, 0x207fffff, edgeBits, diff, 1, 50 * COIN, consensus, generateGenesis);
             }
         }
@@ -328,7 +327,7 @@ public:
         vSeeds.emplace_back("testnet-seed.merit.schildbach.de", false);*/
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 196);
-        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1,150);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 150);
         base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 239);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
@@ -426,7 +425,7 @@ public:
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 196);
-        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1,150);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 150);
         base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 239);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};

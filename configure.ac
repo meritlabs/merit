@@ -264,9 +264,11 @@ fi
 # be compiled with them, rather that specific objects/libs may use them after checking for runtime
 # compatibility.
 AX_CHECK_COMPILE_FLAG([-msse4.2],[[SSE42_CXXFLAGS="-msse4.2"]],,[[$CXXFLAG_WERROR]])
+AX_CHECK_COMPILE_FLAG([-mavx2],[[AVX2_CXXFLAGS="-mavx2"]],,[[$CXXFLAG_WERROR]])
 
 TEMP_CXXFLAGS="$CXXFLAGS"
-CXXFLAGS="$CXXFLAGS $SSE42_CXXFLAGS"
+TEMP_CXXFLAGS="$TEMP_CXXFLAGS $SSE42_CXXFLAGS"
+TEMP_CXXFLAGS="$TEMP_CXXFLAGS $AVX2_CXXFLAGS"
 AC_MSG_CHECKING(for assembler crc32 support)
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
     #include <stdint.h>

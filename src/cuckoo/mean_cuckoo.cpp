@@ -166,6 +166,13 @@ struct Params {
 
     Params(uint8_t difficulty)
     {
+        // NZ should be gte NYZ1 as it is used in memset(degs, 0xff, SIZE)
+        // where SIZE can be NZ/2*NZ/NYZ1/2*NYZ1
+        // and size of degs array is 2 * NZ
+        if (NZ < NYZ1) {
+            printf("EDGEBITS: %d; ZBITS: %d; YZBITS: %d; YZ1BITS: %d\n", EDGEBITS, ZBITS, YZBITS, YZ1BITS);
+        }
+        assert(NZ >= NYZ1);
         nEdgesPerBucket = ((difficulty * (uint64_t)(2 * NYZ) / 100) / NSIPHASH) * NSIPHASH;
     }
 };
@@ -571,7 +578,7 @@ public:
             dst.matrixu(ux);
             for (uint32_t uy = 0; uy < P::NY; uy++) {
                 // set to FF. FF + 1 gives zero! (why not just zero, and then check for degs[z] == 1 ???)
-                memset(degs, 0xff, 2 * P::NZ);
+                memset(degs, 0xff, P::NZ);
                 uint8_t *readsmall = tbuckets[id][uy].bytes, *endreadsmall = readsmall + tbuckets[id][uy].size;
                 // if (id==1) printf("id %d ux %d y %d size %u sumsize %u\n", id, ux, uy, tbuckets[id][uy].size/P::BIGSIZE, sumsize);
 
@@ -736,7 +743,7 @@ public:
             TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
             for (uint32_t vy = 0; vy < P::NY; vy++) {
                 const uint64_t vy34 = (uint64_t)vy << P::YZZBITS;
-                memset(degs, 0xff, 2 * P::NZ);
+                memset(degs, 0xff, P::NZ);
                 uint8_t *readsmall = tbuckets[id][vy].bytes, *endreadsmall = readsmall + tbuckets[id][vy].size;
                 // printf("id %d vx %d vy %d size %u sumsize %u\n", id, vx, vy, tbuckets[id][vx].size/P::BIGSIZE, sumsize);
                 for (uint8_t* rdsmall = readsmall; rdsmall < endreadsmall; rdsmall += DSTSIZE)
@@ -893,7 +900,7 @@ public:
         const uint32_t endvx = P::NY * (id + 1) / nThreads;
         for (uint32_t vx = startvx; vx < endvx; vx++) {
             TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
-            memset(degs, 0xff, 2 * P::NZ);
+            memset(degs, 0xff, P::NYZ1);
             for (uint32_t ux = 0; ux < P::NX; ux++) {
                 zbucketZ& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
                 uint32_t *readbig = zb.words, *endreadbig = readbig + zb.size / sizeof(uint32_t);
@@ -939,7 +946,7 @@ public:
         const uint32_t endvx = P::NY * (id + 1) / nThreads;
         for (uint32_t vx = startvx; vx < endvx; vx++) {
             TRIMONV ? dst.matrixv(vx) : dst.matrixu(vx);
-            memset(degs, 0xff, 2 * P::NZ); // sets each uint16_t entry to 0xffff
+            memset(degs, 0xff, 2 * P::NYZ1); // sets each uint16_t entry to 0xffff
             for (uint32_t ux = 0; ux < P::NX; ux++) {
                 zbucketZ& zb = TRIMONV ? buckets[ux][vx] : buckets[vx][ux];
                 uint32_t *readbig = zb.words, *endreadbig = readbig + zb.size / sizeof(uint32_t);
@@ -1364,31 +1371,31 @@ bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio
     case 17:
         return run<uint32_t, 17u, 1u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 18:
-        return run<uint32_t, 18u, 2u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 18u, 1u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 19:
         return run<uint32_t, 19u, 2u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 20:
         return run<uint32_t, 20u, 2u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 21:
-        return run<uint32_t, 21u, 4u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 21u, 3u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 22:
-        return run<uint32_t, 22u, 4u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 22u, 3u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 23:
         return run<uint32_t, 23u, 4u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 24:
-        return run<uint32_t, 24u, 5u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 24u, 4u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 25:
-        return run<uint32_t, 25u, 6u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 25u, 5u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 26:
-        return run<uint32_t, 26u, 6u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 26u, 5u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 27:
-        return run<uint32_t, 27u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 27u, 6u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 28:
-        return run<uint32_t, 28u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 28u, 6u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 29:
-        return run<uint32_t, 29u, 8u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 29u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 30:
-        return run<uint64_t, 30u, 8u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint64_t, 30u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
 
     default:
         throw std::runtime_error(strprintf("%s: EDGEBITS equal to %d is not suppoerted", __func__, edgeBits));
