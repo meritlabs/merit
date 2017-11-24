@@ -112,7 +112,7 @@ bool ReferralsViewDB::UpdateANV(char addressType, const Address& start_address, 
     size_t levels = 0;
 
     //MAX_LEVELS guards against cycles in DB
-    while(address && levels < MAX_LEVELS)
+    while(address && change != 0 && levels < MAX_LEVELS)
     {
         //it's possible address didn't exist yet so an ANV of 0 is assumed.
         ANVTuple anv;
@@ -131,6 +131,7 @@ bool ReferralsViewDB::UpdateANV(char addressType, const Address& start_address, 
                 change);
 
         std::get<2>(anv) += change;
+        change /= 2;
 
         assert(std::get<2>(anv) >= 0);
 
