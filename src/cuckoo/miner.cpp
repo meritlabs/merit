@@ -17,7 +17,7 @@
 
 namespace cuckoo
 {
-bool FindProofOfWork(const uint256 hash, unsigned int nBits, uint8_t edgeBits, uint8_t edgesRatio, std::set<uint32_t>& cycle, const Consensus::Params& params)
+bool FindProofOfWork(const uint256 hash, unsigned int nBits, uint8_t edgeBits, uint16_t edgesRatio, std::set<uint32_t>& cycle, const Consensus::Params& params)
 {
     assert(cycle.empty());
     bool cycleFound = FindCycle(hash, edgeBits, edgesRatio, params.nCuckooProofSize, cycle);
@@ -48,7 +48,7 @@ bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t edgeBits, const
     return false;
 }
 
-bool FindProofOfWorkAdvanced(const uint256 hash, unsigned int nBits, uint8_t edgeBits, uint8_t edgesRatio, std::set<uint32_t>& cycle, const Consensus::Params& params)
+bool FindProofOfWorkAdvanced(const uint256 hash, unsigned int nBits, uint8_t edgeBits, uint16_t edgesRatio, std::set<uint32_t>& cycle, const Consensus::Params& params)
 {
     assert(cycle.empty());
     bool cycleFound = FindCycleAdvanced(hash, edgeBits, edgesRatio, params.nCuckooProofSize, cycle);

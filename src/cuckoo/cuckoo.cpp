@@ -148,7 +148,7 @@ void solution(CuckooCtx* ctx, uint32_t* us, int nu, uint32_t* vs, int nv, std::s
     // LogPrintf("\n");
 }
 
-bool FindCycle(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
+bool FindCycle(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
     assert(edgesRatio >= 0 && edgesRatio <= 100);
     assert(edgeBits <= 31);

@@ -164,7 +164,7 @@ struct Params {
     // const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
     const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
 
-    Params(uint8_t difficulty)
+    Params(uint16_t difficulty)
     {
         // NZ should be gte NYZ1 as it is used in memset(degs, 0xff, SIZE)
         // where SIZE can be NZ/2*NZ/NYZ1/2*NYZ1
@@ -173,7 +173,7 @@ struct Params {
             printf("EDGEBITS: %d; ZBITS: %d; YZBITS: %d; YZ1BITS: %d\n", EDGEBITS, ZBITS, YZBITS, YZ1BITS);
         }
         assert(NZ >= NYZ1);
-        nEdgesPerBucket = ((difficulty * (uint64_t)(2 * NYZ) / 100) / NSIPHASH) * NSIPHASH;
+        nEdgesPerBucket = ((difficulty * (uint64_t)(NYZ) / 1000) / NSIPHASH) * NSIPHASH;
     }
 };
 
@@ -1333,14 +1333,14 @@ public:
 };
 
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
-bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
+bool run(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
     // edgesRatio less than 43 makes no sense as the probobility to find a cycle gets too low
     // edgesRatio more than 50 is not supported yet, as with 50 we tight to NYZ value and we occupy
     // all available BUCKETSIZE array.
     // TODO: modify checks in the algorith the way we would be able to generate more edges
     // should require changes of BUCKETSIZE values
-    assert(edgesRatio >= 43 && edgesRatio <= 50);
+    assert(edgesRatio >= 800 && edgesRatio <= 1000);
     assert(edgeBits >= 15 && edgeBits <= 31);
 
     uint8_t nodesBits = edgeBits + 1;
@@ -1363,7 +1363,7 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proo
     return found;
 }
 
-bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
+bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
     switch (edgeBits) {
     case 16:
