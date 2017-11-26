@@ -723,7 +723,7 @@ UniValue getaddressmempool(const JSONRPCRequest& request)
             "  {\n"
             "    \"address\"  (string) The base58check encoded address\n"
             "    \"txid\"  (string) The related txid\n"
-            "    \"index\"  (number) The related input or output index\n"
+            "    \"outputIndex\"  (number) The related input or output index\n"
             "    \"satoshis\"  (number) The difference of satoshis\n"
             "    \"timestamp\"  (number) The time the transaction entered the mempool (seconds)\n"
             "    \"prevtxid\"  (string) The previous txid (if spending)\n"
@@ -762,7 +762,7 @@ UniValue getaddressmempool(const JSONRPCRequest& request)
         UniValue delta(UniValue::VOBJ);
         delta.push_back(Pair("address", address));
         delta.push_back(Pair("txid", it->first.txhash.GetHex()));
-        delta.push_back(Pair("index", (int)it->first.index));
+        delta.push_back(Pair("outputIndex", (int)it->first.index));
         delta.push_back(Pair("satoshis", it->second.amount));
         delta.push_back(Pair("script", HexStr(it->second.scriptPubKey)));
         delta.push_back(Pair("timestamp", it->second.time));
