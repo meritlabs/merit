@@ -414,7 +414,7 @@ public:
         uint32_t endedge = edge + params.nEdgesPerBucket; // 0 + 2^(7 + 13) = 1 048 576
 
         offset_t sumsize = 0;
-        for (uint32_t my = starty; my < endy; my++, endedge += params.nEdgesPerBucket) {
+        for (uint32_t my = starty; my < endy; my++, edge = my << P::YZBITS, endedge = edge + params.nEdgesPerBucket) {
             dst.matrixv(my);
 
             if (P::NEEDSYNC) {
@@ -762,9 +762,9 @@ public:
                     *(uint64_t*)(base + dst.index[ux]) = vy34 | ((e & P::ZMASK) << P::YZBITS) | ((e >> P::ZBITS) & P::YZMASK);
                     dst.index[ux] += degs[e & P::ZMASK] ? DSTSIZE : 0;
                 }
-                if (unlikely(ux >> DSTPREFBITS != P::XMASK >> DSTPREFBITS)) {
-                    printf("OOPS4: id %d vx %x ux %x vs %x\n", id, vx, ux, P::XMASK);
-                }
+                // if (unlikely(ux >> DSTPREFBITS != P::XMASK >> DSTPREFBITS)) {
+                    // printf("OOPS4: id %d vx %x ux %x vs %x\n", id, vx, ux, P::XMASK);
+                // }
             }
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
@@ -871,10 +871,10 @@ public:
                     }
                 }
                 newnodeid += nrenames;
-                if (TRIMONV && unlikely(ux >> SRCPREFBITS2 != P::XMASK >> SRCPREFBITS2)) {
-                    printf("OOPS6: id %d vx %d vy %d ux %x vs %x\n", id, vx, vy, ux, P::XMASK);
-                    exit(0);
-                }
+                // if (TRIMONV && unlikely(ux >> SRCPREFBITS2 != P::XMASK >> SRCPREFBITS2)) {
+                    // printf("OOPS6: id %d vx %d vy %d ux %x vs %x\n", id, vx, vy, ux, P::XMASK);
+                    // exit(0);
+                // }
             }
             if (newnodeid > maxnnid)
                 maxnnid = newnodeid;
@@ -1254,7 +1254,7 @@ public:
 #endif
 
 
-        for (uint32_t my = starty; my < endy; my++, endedge += params.nEdgesPerBucket) {
+        for (uint32_t my = starty; my < endy; my++, edge = my << P::YZBITS, endedge = edge + params.nEdgesPerBucket) {
             for (; edge < endedge; edge += NSIPHASH) {
 // bit        28..21     20..13    12..0
 // node       XXXXXX     YYYYYY    ZZZZZ
