@@ -95,7 +95,9 @@ struct Params {
     uint32_t nEdgesPerBucket;
 
     // prepare params for algorithm
-    const static uint32_t EDGEMASK = (1 << EDGEBITS) - 1;
+    const static uint32_t NEDGES =  ((uint32_t)1 << EDGEBITS);
+    const static uint32_t EDGEMASK = (NEDGES - 1);
+
 
     const static uint8_t YBITS = XBITS;
     // node bits have two groups of bucketbits (X for big and Y for small) and a remaining group Z of degree bits
@@ -216,7 +218,9 @@ struct indexer {
     {
         const yzbucket<EDGEBITS, XBITS, BUCKETSIZE>* foo = 0;
         for (uint32_t x = 0; x < P::NX; x++)
+        {
             index[x] = foo[x][y].bytes - (uint8_t*)foo;
+        }
     }
     offset_t storev(yzbucket<EDGEBITS, XBITS, BUCKETSIZE>* buckets, const uint32_t y)
     {
@@ -314,7 +318,7 @@ public:
     edgetrimmer(const uint8_t nThreadsIn, const uint32_t nTrimsIn, const Params<EDGEBITS, XBITS>& paramsIn) : nThreads{nThreadsIn}, nTrims{nTrimsIn}, params{paramsIn}
     {
         assert(sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucketZ));
-        assert(sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucketZ));
+        assert(sizeof(matrix<EDGEBITS, XBITS, P::TBUCKETSIZE>) == P::NX * sizeof(yzbucketT));
 
         buckets = new yzbucketZ[P::NX];
         touch((uint8_t*)buckets, sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>));
@@ -381,16 +385,17 @@ public:
     void genUnodes(const uint32_t id, const uint32_t uorv)
     {
         uint64_t rdtsc0, rdtsc1;
-        rdtsc0 = __rdtsc();
 
         // if NEEDSYNC
         uint32_t last[P::NX];
 
+        rdtsc0 = __rdtsc();
         uint8_t const* base = (uint8_t*)buckets;
         indexerZ dst;
         const uint32_t starty = P::NY * id / nThreads;     // 0 for nThreads = 1
         const uint32_t endy = P::NY * (id + 1) / nThreads; // 128 for nThreads = 1
         uint32_t edge = starty << P::YZBITS;               // 0 as starty is 0
+        uint32_t endedge = edge + P::NYZ; // 0 + 2^(7 + 13) = 1 048 576
 
 #if NSIPHASH == 8
         static const __m256i vxmask = {P::XMASK, P::XMASK, P::XMASK, P::XMASK};
@@ -411,10 +416,9 @@ public:
         static const __m256i vhiinc = {8 << P::YZBITS, 8 << P::YZBITS, 8 << P::YZBITS, 8 << P::YZBITS};
 #endif
 
-        uint32_t endedge = edge + params.nEdgesPerBucket; // 0 + 2^(7 + 13) = 1 048 576
 
         offset_t sumsize = 0;
-        for (uint32_t my = starty; my < endy; my++, edge = my << P::YZBITS, endedge = edge + params.nEdgesPerBucket) {
+        for (uint32_t my = starty; my < endy; my++, endedge += P::NYZ) {
             dst.matrixv(my);
 
             if (P::NEEDSYNC) {
@@ -529,7 +533,8 @@ public:
         __m256i v0, v1, v2, v3, v4, v5, v6, v7;
 #endif
 
-        static const uint32_t NONDEGBITS = std::min(40u, 2 * P::YZBITS) - P::ZBITS; // 28
+        static const auto BIGSLOTBITS = P::BIGSLOTBITS;
+        static const uint32_t NONDEGBITS = std::min(BIGSLOTBITS, 2 * P::YZBITS) - P::ZBITS; // 28
         static const uint32_t NONDEGMASK = (1 << NONDEGBITS) - 1;
         indexerZ dst;
         indexerT small;
@@ -570,6 +575,8 @@ public:
                     // printf("id %d ux %d y %d e %010lx e' %010x\n", id, ux, my, e, ((uint64_t)edge << ZBITS) | (e >> YBITS));
                     small.index[uy] += P::SMALLSIZE;
                 }
+                if (unlikely(edge >> P::NONYZBITS != (((my+1) << P::YZBITS) - 1) >> P::NONYZBITS))
+                { printf("OOPS1: id %d ux %d y %d edge %x vs %x\n", id, ux, my, edge >> P::NONYZBITS, (((my+1)<<P::YZBITS)-1)>> P::NONYZBITS) ; exit(0); }
             }
 
             // counts of zz's for this ux
@@ -609,6 +616,8 @@ public:
                     edges += delta;
                     zs += delta;
                 }
+                if (unlikely(edge >> NONDEGBITS != P::EDGEMASK >> NONDEGBITS))
+                { printf("OOPS2: id %d ux %d uy %d edge %x vs %x\n", id, ux, uy, edge, P::EDGEMASK); exit(0); }
                 assert(edges - edges0 < P::NTRIMMEDZ);
                 const uint16_t* readz = tzs[id];
                 const uint32_t* readedge = edges0;
@@ -1238,7 +1247,7 @@ public:
         rdtsc0 = __rdtsc();
         const uint32_t starty = P::NY * threadId / trimmer->nThreads;
         const uint32_t endy = P::NY * (threadId + 1) / trimmer->nThreads;
-        uint32_t edge = starty << P::YZBITS, endedge = edge + params.nEdgesPerBucket;
+        uint32_t edge = starty << P::YZBITS, endedge = edge + P::NYZ;
 #if NSIPHASH == 8
         static const __m256i vnodemask = {P::EDGEMASK, P::EDGEMASK, P::EDGEMASK, P::EDGEMASK};
         const __m256i vinit = _mm256_set_epi64x(
@@ -1254,7 +1263,7 @@ public:
 #endif
 
 
-        for (uint32_t my = starty; my < endy; my++, edge = my << P::YZBITS, endedge = edge + params.nEdgesPerBucket) {
+        for (uint32_t my = starty; my < endy; my++, endedge += P::NYZ) {
             for (; edge < endedge; edge += NSIPHASH) {
 // bit        28..21     20..13    12..0
 // node       XXXXXX     YYYYYY    ZZZZZ
