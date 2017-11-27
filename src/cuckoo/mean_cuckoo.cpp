@@ -5,6 +5,7 @@
 #include "mean_cuckoo.h"
 #include "cuckoo.h"
 
+#include "consensus/consensus.h"
 #include "crypto/siphashxN.h"
 #include "tinyformat.h"
 #include <bitset>
@@ -17,8 +18,6 @@
 #include <x86intrin.h>
 
 // algorithm/performance parameters
-
-// EDGEBITS/NEDGES/EDGEMASK defined in cuckoo.h
 
 // The node bits are logically split into 3 groups:
 // XBITS 'X' bits (most significant), YBITS 'Y' bits, and ZBITS 'Z' bits (least significant)
@@ -171,11 +170,8 @@ struct Params {
         // NZ should be gte NYZ1 as it is used in memset(degs, 0xff, SIZE)
         // where SIZE can be NZ/2*NZ/NYZ1/2*NYZ1
         // and size of degs array is 2 * NZ
-        if (NZ < NYZ1) {
-            printf("EDGEBITS: %d; ZBITS: %d; YZBITS: %d; YZ1BITS: %d\n", EDGEBITS, ZBITS, YZBITS, YZ1BITS);
-        }
         assert(NZ >= NYZ1);
-        nEdgesPerBucket = ((difficulty * (uint64_t)(NYZ) / 1000) / NSIPHASH) * NSIPHASH;
+        nEdgesPerBucket = ((difficulty * (uint64_t)(NYZ) / MAX_CUCKOO_DIFFICULTY) / NSIPHASH) * NSIPHASH;
     }
 };
 
@@ -1341,8 +1337,8 @@ bool run(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t pro
     // all available BUCKETSIZE array.
     // TODO: modify checks in the algorith the way we would be able to generate more edges
     // should require changes of BUCKETSIZE values
-    assert(edgesRatio >= 800 && edgesRatio <= 1000);
-    assert(edgeBits >= 15 && edgeBits <= 31);
+    assert(edgesRatio >= MIN_CUCKOO_DIFFICULTY && edgesRatio <= MAX_CUCKOO_DIFFICULTY);
+    assert(edgeBits >= MIN_EDGE_BITS && edgeBits <= MAX_EDGE_BITS);
 
     uint8_t nodesBits = edgeBits + 1;
 
@@ -1366,6 +1362,8 @@ bool run(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t pro
 
 bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
+    // EDGEBITS - 2 * XBITS should be gte 15 (15 is the best value) - ZBITS
+    // otherwise assert(NZ >= NYZ1) would fail
     switch (edgeBits) {
     case 16:
         return run<uint32_t, 16u, 0u>(hash, edgeBits, edgesRatio, proofSize, cycle);
@@ -1396,7 +1394,7 @@ bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint16_t edgesRati
     case 29:
         return run<uint32_t, 29u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 30:
-        return run<uint64_t, 30u, 8u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint64_t, 30u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
 
     default:
         throw std::runtime_error(strprintf("%s: EDGEBITS equal to %d is not suppoerted", __func__, edgeBits));

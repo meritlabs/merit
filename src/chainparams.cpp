@@ -5,6 +5,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "chainparams.h"
+#include "consensus/consensus.h"
 #include "consensus/merkle.h"
 
 #include "tinyformat.h"
@@ -109,12 +110,13 @@ static CBlock CreateGenesisBlock(
 
             double timeTaken = std::accumulate(times.begin(), times.end(), 0.0);
 
-            printf(".....%d...........%d..........%4d.....%8.3f.......%5.3f...\n",
+            printf(".....%d...........%d.........%4d.....%8.3f......%7.3f......%s..\n",
                 genesis.nEdgesBits,
                 genesis.nEdgesRatio,
                 genesis.nNonce,
                 timeTaken,
-                timeTaken / times.size());
+                timeTaken / times.size(),
+                genesis.GetHash().GetHex().c_str());
         }
     }
 
@@ -296,13 +298,13 @@ public:
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
-        std::vector<uint8_t> bits(10);
-        std::iota(std::begin(bits), std::end(bits), 16);
+        std::vector<uint8_t> bits(3);
+        std::iota(std::begin(bits), std::end(bits), 27);
 
-        printf("  edgebits  |  difficulty  |  nonce  |    time    |    tpa    \n");
-        printf("==============================================================\n");
+        printf("  edgebits  |  difficulty  |  nonce  |    time    |     tpa     |                              header                \n");
+        printf("=====================================================================================================================================\n");
 
-        for (auto diff = 1000; diff >= 900; diff -= 10) {
+        for (auto diff = MAX_CUCKOO_DIFFICULTY; diff >= MAX_CUCKOO_DIFFICULTY - 100; diff -= 5) {
             for (const auto& edgeBits : bits) {
                 genesis = CreateGenesisBlock(1503444726, 0, 0x207fffff, edgeBits, diff, 1, 50 * COIN, consensus, generateGenesis);
             }

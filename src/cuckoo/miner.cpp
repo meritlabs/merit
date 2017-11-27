@@ -3,8 +3,10 @@
 
 #include "miner.h"
 #include "cuckoo.h"
-#include "hash.h"
 #include "mean_cuckoo.h"
+
+#include "consensus/consensus.h"
+#include "hash.h"
 #include "pow.h"
 
 #include <assert.h>
@@ -32,9 +34,16 @@ bool FindProofOfWork(const uint256 hash, unsigned int nBits, uint8_t edgeBits, u
     return false;
 }
 
+// TODO: check easiness here
 bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t edgeBits, const std::set<uint32_t>& cycle, const Consensus::Params& params)
 {
-    assert(cycle.size() == params.nCuckooProofSize);
+    if (cycle.size() != params.nCuckooProofSize) {
+        return false;
+    }
+
+    if (edgeBits < MIN_EDGE_BITS || edgeBits > MAX_EDGE_BITS) {
+        return false;
+    }
 
     std::vector<uint32_t> vCycle{cycle.begin(), cycle.end()};
 
