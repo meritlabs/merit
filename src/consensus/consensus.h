@@ -28,7 +28,7 @@ static const uint16_t MIN_CUCKOO_DIFFICULTY = MAX_CUCKOO_DIFFICULTY * .9;
 /** Minimum number of edge bits for cuckoo miner - block.nEdgesBits value */
 static const uint16_t MIN_EDGE_BITS = 16;
 /** Maximum number of edge bits for cuckoo miner - block.nEdgesBits value */
-static const uint16_t MAX_EDGE_BITS = 30;
+static const uint16_t MAX_EDGE_BITS = 32;
 
 static const int WITNESS_SCALE_FACTOR = 4;
 

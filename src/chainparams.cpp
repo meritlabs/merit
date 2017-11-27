@@ -110,7 +110,7 @@ static CBlock CreateGenesisBlock(
 
             double timeTaken = std::accumulate(times.begin(), times.end(), 0.0);
 
-            printf(".....%d...........%d.........%4d.....%8.3f......%7.3f......%s..\n",
+            printf(".....%d...........%d.........%4d.....%8.3f......%7.3f.....%s..\n",
                 genesis.nEdgesBits,
                 genesis.nEdgesRatio,
                 genesis.nNonce,
@@ -298,8 +298,8 @@ public:
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
-        std::vector<uint8_t> bits(3);
-        std::iota(std::begin(bits), std::end(bits), 27);
+        std::vector<uint8_t> bits(1);
+        std::iota(std::begin(bits), std::end(bits), 30);
 
         printf("  edgebits  |  difficulty  |  nonce  |    time    |     tpa     |                              header                \n");
         printf("=====================================================================================================================================\n");

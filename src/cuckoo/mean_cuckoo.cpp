@@ -95,8 +95,9 @@ template <uint8_t EDGEBITS, uint8_t XBITS>
 struct Params {
     uint32_t nEdgesPerBucket;
 
+
     // prepare params for algorithm
-    const static uint32_t EDGEMASK = (1 << EDGEBITS) - 1;
+    const static uint32_t EDGEMASK = (1 << EDGEBITS) - 1U;
 
     const static uint8_t YBITS = XBITS;
     // node bits have two groups of bucketbits (X for big and Y for small) and a remaining group Z of degree bits
@@ -136,10 +137,13 @@ struct Params {
     const static uint32_t YZZBITS = YZBITS + ZBITS;
     const static uint32_t YZZ1BITS = YZ1BITS + ZBITS;
 
+    const static uint8_t COMPRESSROUND = EDGEBITS <= 15 ? 0 : (EDGEBITS < 30 ? 14 : 22);
+    const static uint8_t EXPANDROUND = EDGEBITS < 30 ? COMPRESSROUND : 8;
+
     const static uint8_t BIGSIZE = EDGEBITS <= 15 ? 4 : 5;
     const static uint8_t BIGSIZE0 = EDGEBITS < 30 ? 4 : BIGSIZE;
     const static uint8_t SMALLSIZE = BIGSIZE;
-    const static uint8_t BIGGERSIZE = BIGSIZE;
+    const static uint8_t BIGGERSIZE = EDGEBITS < 30 ? BIGSIZE : BIGSIZE + 1;
 
     const static uint32_t BIGSLOTBITS = BIGSIZE * 8;
     const static uint32_t SMALLSLOTBITS = SMALLSIZE * 8;
@@ -150,9 +154,6 @@ struct Params {
 
     const static uint32_t NONYZBITS = BIGSLOTBITS0 - YZBITS;
     const static uint32_t NNONYZ = 1 << NONYZBITS;
-
-    const static uint8_t COMPRESSROUND = EDGEBITS <= 15 ? 0 : 14;
-    const static uint8_t EXPANDROUND = COMPRESSROUND;
 
     const static uint32_t NTRIMMEDZ = NZ * TRIMFRAC256 / 256;
     const static uint32_t ZBUCKETSLOTS = NZ + NZ * BIGEPS;
@@ -167,10 +168,6 @@ struct Params {
 
     Params(uint16_t difficulty)
     {
-        // NZ should be gte NYZ1 as it is used in memset(degs, 0xff, SIZE)
-        // where SIZE can be NZ/2*NZ/NYZ1/2*NYZ1
-        // and size of degs array is 2 * NZ
-        assert(NZ >= NYZ1);
         nEdgesPerBucket = ((difficulty * (uint64_t)(NYZ) / MAX_CUCKOO_DIFFICULTY) / NSIPHASH) * NSIPHASH;
     }
 };
@@ -264,8 +261,14 @@ void matchworker(solver_ctx<offset_t, EDGEBITS, XBITS>* solver, uint32_t id)
     solver->matchUnodes(id);
 }
 
+template <typename T>
+constexpr T& max(T& a, T& b)
+{
+    return a > b ? a : b;
+}
+
 template <uint8_t EDGEBITS, uint8_t XBITS>
-using zbucket8 = uint8_t[2 * Params<EDGEBITS, XBITS>::NZ];
+using zbucket8 = uint8_t[2 * max(Params<EDGEBITS, XBITS>::NZ, Params<EDGEBITS, XBITS>::NYZ1)];
 
 template <uint8_t EDGEBITS, uint8_t XBITS>
 using zbucket16 = uint16_t[Params<EDGEBITS, XBITS>::NTRIMMEDZ];
@@ -765,8 +768,8 @@ public:
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
         rdtsc1 = __rdtsc();
-        // if ((!id && !(round & (round + 1))))
-        // printf("trimedges round %2d size %u rdtsc: %lu\n", round, sumsize / DSTSIZE, rdtsc1 - rdtsc0);
+        // if ((!id)) printf("trimedges round %2d size %u; SRCSIZE: %u; DSTSIZE: %u, TRIMONV: %d; rdtsc: %lu\n",
+            // round, sumsize / DSTSIZE, SRCSIZE, DSTSIZE, TRIMONV ? "true" : "false", rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / DSTSIZE;
     }
 
@@ -922,8 +925,7 @@ public:
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
         rdtsc1 = __rdtsc();
-        // if ((!id && !(round & (round + 1))))
-        // printf("trimedges1 round %2d size %u rdtsc: %lu\n", round, sumsize / sizeof(uint32_t), rdtsc1 - rdtsc0);
+        // if ((!id)) printf("trimedges1 round %2d size %u rdtsc: %lu\n", round, sumsize / sizeof(uint32_t), rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / sizeof(uint32_t);
     }
 
@@ -1011,7 +1013,6 @@ public:
         genUnodes(id, 0);
         barry->Wait();
         genVnodes(id, 1);
-
         for (uint32_t round = 2; round < nTrims - 2; round += 2) {
             barry->Wait();
             if (round < P::COMPRESSROUND) {
@@ -1340,10 +1341,8 @@ bool run(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t pro
     assert(edgesRatio >= MIN_CUCKOO_DIFFICULTY && edgesRatio <= MAX_CUCKOO_DIFFICULTY);
     assert(edgeBits >= MIN_EDGE_BITS && edgeBits <= MAX_EDGE_BITS);
 
-    uint8_t nodesBits = edgeBits + 1;
-
     uint8_t nThreads = 8;
-    uint32_t nTrims = nodesBits > 31 ? 96 : 68;
+    uint32_t nTrims = edgeBits >= 30 ? 96 : 68;
 
     auto hashStr = hash.GetHex();
 
@@ -1362,8 +1361,6 @@ bool run(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t pro
 
 bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
-    // EDGEBITS - 2 * XBITS should be gte 15 (15 is the best value) - ZBITS
-    // otherwise assert(NZ >= NYZ1) would fail
     switch (edgeBits) {
     case 16:
         return run<uint32_t, 16u, 0u>(hash, edgeBits, edgesRatio, proofSize, cycle);
@@ -1394,7 +1391,11 @@ bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint16_t edgesRati
     case 29:
         return run<uint32_t, 29u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
     case 30:
-        return run<uint64_t, 30u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint64_t, 30u, 8u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 31:
+        return run<uint64_t, 31u, 8u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+    case 32:
+        return run<uint64_t, 32u, 8u>(hash, edgeBits, edgesRatio, proofSize, cycle);
 
     default:
         throw std::runtime_error(strprintf("%s: EDGEBITS equal to %d is not suppoerted", __func__, edgeBits));
