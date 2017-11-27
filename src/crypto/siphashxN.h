@@ -47,9 +47,9 @@
         v6 = ROT32(v6);   \
     } while (0)
 
-// #ifndef NSIPHASH
-// #define NSIPHASH 8
-// #endif
+#ifndef NSIPHASH
+#define NSIPHASH 8
+#endif
 
 #endif
 
