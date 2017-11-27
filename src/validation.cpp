@@ -2125,7 +2125,7 @@ void GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
             if(address.second == 0) continue;
 
             const CAmount amount = in_out.nValue * debitDir;
-            debits_and_credits.push_back({address.second, address.first, amount});
+            debits_and_credits.push_back(std::make_tuple(address.second, address.first, amount));
         }
     }
 
@@ -2135,7 +2135,7 @@ void GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
         if(address.second == 0) continue;
 
         const CAmount amount = out.nValue * creditDir;
-        debits_and_credits.push_back({address.second, address.first, amount});
+        debits_and_credits.push_back(std::make_tuple(address.second, address.first, amount));
     }
 }
 
