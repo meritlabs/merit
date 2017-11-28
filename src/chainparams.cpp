@@ -5,6 +5,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "chainparams.h"
+#include "consensus/consensus.h"
 #include "consensus/merkle.h"
 
 #include "tinyformat.h"
@@ -15,8 +16,12 @@
 
 #include "chainparamsseeds.h"
 #include "cuckoo/miner.h"
+#include <chrono>
+#include <ctime>
 #include <iostream>
+#include <numeric>
 #include <set>
+#include <time.h>
 #include <vector>
 
 static CBlock CreateGenesisBlock(
@@ -26,7 +31,7 @@ static CBlock CreateGenesisBlock(
     uint32_t nNonce,
     uint32_t nBits,
     uint8_t nEdgesBits,
-    uint8_t nEdgesRatio,
+    uint16_t nEdgesRatio,
     int32_t nVersion,
     const CAmount& genesisReward,
     Consensus::Params& params,
@@ -67,30 +72,30 @@ static CBlock CreateGenesisBlock(
         uint32_t nMaxTries = 10000000;
         genesis.nNonce = 0;
 
-        printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
+        bool found = false;
+
+        // printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
         while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, genesis.nEdgesRatio, pow, params)) {
             ++genesis.nNonce;
-            printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
-
             --nMaxTries;
+            // printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
         }
 
         if (nMaxTries == 0) {
             printf("Could not find cycle for genesis block");
         } else {
             printf("Genesis block generated!!!\n");
-            printf("==========================\n");
-            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges ratio: %d\nnodes:\n",
+            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\nedges ratio: %d\nnodes:\n",
                    genesis.GetHash().GetHex().c_str(),
                    genesis.hashMerkleRoot.GetHex().c_str(),
                    genesis.nNonce,
+                   genesis.nEdgesBits,
                    genesis.nEdgesRatio);
             for (const auto& node : pow) {
-                printf("0x%x ", node);
+                printf("0x%x, ", node);
             }
-
-            printf("\n==========================\n");
         }
+
         exit(1);
     }
 
@@ -113,7 +118,7 @@ static CBlock CreateGenesisBlock(
     uint32_t nNonce,
     uint32_t nBits,
     uint8_t nEdgesBits,
-    uint8_t nEdgesRatio,
+    uint16_t nEdgesRatio,
     int32_t nVersion,
     const CAmount& genesisReward,
     Consensus::Params& params,
@@ -206,7 +211,7 @@ public:
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 0);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 5);
-        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1,8);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 8);
         base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 128);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};
@@ -292,7 +297,7 @@ public:
         vSeeds.emplace_back("testnet-seed.merit.schildbach.de", false);*/
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 196);
-        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1,150);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 150);
         base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 239);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
@@ -390,7 +395,7 @@ public:
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 196);
-        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1,150);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 150);
         base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 239);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};

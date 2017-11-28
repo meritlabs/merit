@@ -31,7 +31,7 @@ public:
     uint32_t nBits;
     uint32_t nNonce;
     uint8_t nEdgesBits;
-    uint8_t nEdgesRatio;
+    uint16_t nEdgesRatio;
     std::set<uint32_t> sCycle;
 
     CBlockHeader()

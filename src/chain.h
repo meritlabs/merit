@@ -214,7 +214,7 @@ public:
     unsigned int nBits;
     unsigned int nNonce;
     uint8_t nEdgesBits;
-    uint8_t nEdgesRatio;
+    uint16_t nEdgesRatio;
 
     std::set<uint32_t> sCycle;
 
