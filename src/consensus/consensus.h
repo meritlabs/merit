@@ -20,11 +20,6 @@ static const unsigned int MAX_BLOCK_WEIGHT = 4000000;
 /** The maximum allowed number of signature check operations in a block (network rule) */
 static const int64_t MAX_BLOCK_SIGOPS_COST = 80000;
 
-/** Maximum value for cuckoo miner diffucuty - block.nEdgesRatio value */
-static const uint16_t MAX_CUCKOO_DIFFICULTY = std::numeric_limits<uint16_t>::max();
-/** Minimum value for cuckoo miner diffucuty - block.nEdgesRatio value */
-static const uint16_t MIN_CUCKOO_DIFFICULTY = MAX_CUCKOO_DIFFICULTY * .9;
-
 /** Minimum number of edge bits for cuckoo miner - block.nEdgesBits value */
 static const uint16_t MIN_EDGE_BITS = 16;
 /** Maximum number of edge bits for cuckoo miner - block.nEdgesBits value */

@@ -93,10 +93,6 @@ private:
 
 template <uint8_t EDGEBITS, uint8_t XBITS>
 struct Params {
-    uint32_t nEdgesPerBucket;
-
-    static_assert(EDGEBITS <= 32, "EDGEBITS cannot be greater than 32");
-
     // prepare params for algorithm
     const static uint32_t EDGEMASK = (1LU << EDGEBITS) - 1U;
 
@@ -166,11 +162,6 @@ struct Params {
     // grow with cube root of size, hardly affected by trimming
     // const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
     const static uint32_t CUCKOO_SIZE = 2 * NX * NYZ2;
-
-    Params(uint16_t difficulty)
-    {
-        nEdgesPerBucket = ((difficulty * (uint64_t)(NYZ) / MAX_CUCKOO_DIFFICULTY) / NSIPHASH) * NSIPHASH;
-    }
 };
 
 template <uint8_t EDGEBITS, uint8_t XBITS, uint32_t BUCKETSIZE>
@@ -389,11 +380,11 @@ public:
 
         uint8_t const* base = (uint8_t*)buckets;
         indexerZ dst;
-        const uint32_t starty = P::NY * id / nThreads;     // 0 for nThreads = 1
-        const uint32_t endy = P::NY * (id + 1) / nThreads; // 128 for nThreads = 1
+        const uint32_t starty = P::NY * id / nThreads;
+        const uint32_t endy = P::NY * (id + 1) / nThreads;
 
-        uint32_t edge = starty << P::YZBITS;              // 0 as starty is 0
-        uint32_t endedge = edge + params.nEdgesPerBucket; // 0 + 2^(7 + 13) = 1 048 576
+        uint32_t edge = starty << P::YZBITS;
+        uint32_t endedge = P::NYZ;
 
 #if NSIPHASH == 8
             static const __m256i vxmask = {P::XMASK, P::XMASK, P::XMASK, P::XMASK};
@@ -404,11 +395,6 @@ public:
                 sip_keys.k1 ^ 0x646f72616e646f6dULL,
                 sip_keys.k0 ^ 0x736f6d6570736575ULL);
             __m256i v0, v1, v2, v3, v4, v5, v6, v7;
-#endif
-
-        offset_t sumsize = 0;
-        for (uint32_t my = starty; my < endy; my++, edge = my << P::YZBITS, endedge = edge + params.nEdgesPerBucket) {
-#if NSIPHASH == 8
             const uint32_t e2 = 2 * edge + uorv;
             __m256i vpacket0 = _mm256_set_epi64x(e2 + 6, e2 + 4, e2 + 2, e2 + 0);
             __m256i vpacket1 = _mm256_set_epi64x(e2 + 14, e2 + 12, e2 + 10, e2 + 8);
@@ -418,6 +404,9 @@ public:
             __m256i vhi1 = _mm256_set_epi64x((e1 + 7) << P::YZBITS, (e1 + 6) << P::YZBITS, (e1 + 5) << P::YZBITS, (e1 + 4) << P::YZBITS);
             static const __m256i vhiinc = {8 << P::YZBITS, 8 << P::YZBITS, 8 << P::YZBITS, 8 << P::YZBITS};
 #endif
+
+        offset_t sumsize = 0;
+        for (uint32_t my = starty; my < endy; my++, endedge += P::NYZ) {
             dst.matrixv(my);
 
             if (P::NEEDSYNC) {
@@ -1014,9 +1003,15 @@ public:
 
     void trimmer(uint32_t id)
     {
+
+
         genUnodes(id, 0);
+
         barry->Wait();
+
         genVnodes(id, 1);
+
+
         for (uint32_t round = 2; round < nTrims - 2; round += 2) {
             barry->Wait();
             if (round < P::COMPRESSROUND) {
@@ -1044,7 +1039,9 @@ public:
                 trimedges1<false>(id, round + 1);
         }
 
+
         barry->Wait();
+
         trimrename1<true>(id, nTrims - 2);
         barry->Wait();
         trimrename1<false>(id, nTrims - 1);
@@ -1241,7 +1238,7 @@ public:
         const uint32_t endy = P::NY * (threadId + 1) / trimmer->nThreads;
 
         uint32_t edge = starty << P::YZBITS;
-        uint32_t endedge = edge + params.nEdgesPerBucket;
+        uint32_t endedge = edge + P::NYZ;
 
 #if NSIPHASH == 8
             static const __m256i vnodemask = {P::EDGEMASK, P::EDGEMASK, P::EDGEMASK, P::EDGEMASK};
@@ -1251,16 +1248,13 @@ public:
                 trimmer->sip_keys.k1 ^ 0x646f72616e646f6dULL,
                 trimmer->sip_keys.k0 ^ 0x736f6d6570736575ULL);
             __m256i v0, v1, v2, v3, v4, v5, v6, v7;
-#endif
-
-        for (uint32_t my = starty; my < endy; my++, edge = my << P::YZBITS, endedge = edge + params.nEdgesPerBucket) {
-#if NSIPHASH == 8
-
             const uint32_t e2 = 2 * edge;
             __m256i vpacket0 = _mm256_set_epi64x(e2 + 6, e2 + 4, e2 + 2, e2 + 0);
             __m256i vpacket1 = _mm256_set_epi64x(e2 + 14, e2 + 12, e2 + 10, e2 + 8);
             static const __m256i vpacketinc = {16, 16, 16, 16};
 #endif
+
+        for (uint32_t my = starty; my < endy; my++, endedge += P::NYZ) {
             for (; edge < endedge; edge += NSIPHASH) {
 // bit        28..21     20..13    12..0
 // node       XXXXXX     YYYYYY    ZZZZZ
@@ -1339,14 +1333,10 @@ public:
 };
 
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
-bool run(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
+bool run(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
-    // edgesRatio less than 43 makes no sense as the probobility to find a cycle gets too low
-    // edgesRatio more than 50 is not supported yet, as with 50 we tight to NYZ value and we occupy
-    // all available BUCKETSIZE array.
     // TODO: modify checks in the algorith the way we would be able to generate more edges
     // should require changes of BUCKETSIZE values
-    assert(edgesRatio >= MIN_CUCKOO_DIFFICULTY && edgesRatio <= MAX_CUCKOO_DIFFICULTY);
     assert(edgeBits >= MIN_EDGE_BITS && edgeBits <= MAX_EDGE_BITS);
 
     uint8_t nThreads = 8;
@@ -1354,7 +1344,7 @@ bool run(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t pro
 
     auto hashStr = hash.GetHex();
 
-    Params<EDGEBITS, XBITS> params{edgesRatio};
+    Params<EDGEBITS, XBITS> params;
 
     solver_ctx<offset_t, EDGEBITS, XBITS> ctx(hashStr.c_str(), hashStr.size(), nThreads, nTrims, proofSize, params);
 
@@ -1367,43 +1357,43 @@ bool run(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t pro
     return found;
 }
 
-bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
+bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
     switch (edgeBits) {
     case 16:
-        return run<uint32_t, 16u, 0u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 16u, 0u>(hash, edgeBits, proofSize, cycle);
     case 17:
-        return run<uint32_t, 17u, 1u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 17u, 1u>(hash, edgeBits, proofSize, cycle);
     case 18:
-        return run<uint32_t, 18u, 1u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 18u, 1u>(hash, edgeBits, proofSize, cycle);
     case 19:
-        return run<uint32_t, 19u, 2u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 19u, 2u>(hash, edgeBits, proofSize, cycle);
     case 20:
-        return run<uint32_t, 20u, 2u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 20u, 2u>(hash, edgeBits, proofSize, cycle);
     case 21:
-        return run<uint32_t, 21u, 3u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 21u, 3u>(hash, edgeBits, proofSize, cycle);
     case 22:
-        return run<uint32_t, 22u, 3u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 22u, 3u>(hash, edgeBits, proofSize, cycle);
     case 23:
-        return run<uint32_t, 23u, 4u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 23u, 4u>(hash, edgeBits, proofSize, cycle);
     case 24:
-        return run<uint32_t, 24u, 4u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 24u, 4u>(hash, edgeBits, proofSize, cycle);
     case 25:
-        return run<uint32_t, 25u, 5u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 25u, 5u>(hash, edgeBits, proofSize, cycle);
     case 26:
-        return run<uint32_t, 26u, 5u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 26u, 5u>(hash, edgeBits, proofSize, cycle);
     case 27:
-        return run<uint32_t, 27u, 6u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 27u, 6u>(hash, edgeBits, proofSize, cycle);
     case 28:
-        return run<uint32_t, 28u, 6u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 28u, 6u>(hash, edgeBits, proofSize, cycle);
     case 29:
-        return run<uint32_t, 29u, 7u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint32_t, 29u, 7u>(hash, edgeBits, proofSize, cycle);
     case 30:
-        return run<uint64_t, 30u, 8u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint64_t, 30u, 8u>(hash, edgeBits, proofSize, cycle);
     case 31:
-        return run<uint64_t, 31u, 8u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint64_t, 31u, 8u>(hash, edgeBits, proofSize, cycle);
     case 32:
-        return run<uint64_t, 32u, 8u>(hash, edgeBits, edgesRatio, proofSize, cycle);
+        return run<uint64_t, 32u, 8u>(hash, edgeBits, proofSize, cycle);
 
     default:
         throw std::runtime_error(strprintf("%s: EDGEBITS equal to %d is not suppoerted", __func__, edgeBits));

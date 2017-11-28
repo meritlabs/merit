@@ -255,7 +255,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, chain_params);
     pblock->nNonce         = 0;
     pblock->nEdgesBits     = cuckoo::GetNextNodesBitsRequired(pindexPrev);
-    pblock->nEdgesRatio    = cuckoo::GetNextEdgesRatioRequired(pindexPrev);
     pblocktemplate->vTxSigOpsCost[0] = WITNESS_SCALE_FACTOR * GetLegacySigOpCount(*pblock->vtx[0]);
 
     CValidationState state;
@@ -725,7 +724,7 @@ void static MeritMiner(const CChainParams& chainparams)
 
             while (true) {
                 // Check if something found
-                if (cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgesBits, MAX_CUCKOO_DIFFICULTY, pow, chainparams.GetConsensus()))
+                if (cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgesBits, pow, chainparams.GetConsensus()))
                 {
                     // Found a solution
                     pblock->nNonce = nNonce;

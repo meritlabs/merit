@@ -149,12 +149,11 @@ void solution(CuckooCtx* ctx, uint32_t* us, int nu, uint32_t* vs, int nv, std::s
     // LogPrintf("\n");
 }
 
-bool FindCycle(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle)
+bool FindCycle(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle)
 {
-    assert(edgesRatio >= MIN_CUCKOO_DIFFICULTY && edgesRatio <= MAX_CUCKOO_DIFFICULTY);
     assert(edgeBits >= MIN_EDGE_BITS && edgeBits <= MAX_EDGE_BITS);
 
-    LogPrintf("Looking for %d-cycle on cuckoo%d(\"%s\") with %d%% edges\n", proofSize, edgeBits + 1, hash.GetHex().c_str(), edgesRatio);
+    LogPrintf("Looking for %d-cycle on cuckoo%d(\"%s\") with 50% edges\n", proofSize, edgeBits + 1, hash.GetHex().c_str());
 
     uint32_t nodesCount = 1 << (edgeBits + 1);
     // edge mask is a max valid value of an edge.
@@ -162,7 +161,8 @@ bool FindCycle(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8
     // if nodesCount if 0x1000 then mask is 0x7ff
     uint32_t edgeMask = (1 << edgeBits) - 1;
 
-    uint32_t difficulty = edgesRatio * (uint64_t)nodesCount / MAX_CUCKOO_DIFFICULTY;
+    // set 50% difficulty - generate half of nodesCount number of edges
+    uint32_t difficulty = (uint64_t)nodesCount / 2;
 
     auto hashStr = hash.GetHex();
     CuckooCtx ctx(hashStr.c_str(), hashStr.size(), difficulty, nodesCount);

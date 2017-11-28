@@ -214,7 +214,6 @@ public:
     unsigned int nBits;
     unsigned int nNonce;
     uint8_t nEdgesBits;
-    uint16_t nEdgesRatio;
 
     std::set<uint32_t> sCycle;
 
@@ -246,7 +245,6 @@ public:
         nBits          = 0;
         nNonce         = 0;
         nEdgesBits     = 0;
-        nEdgesRatio    = 0;
         sCycle.clear();
     }
 
@@ -265,7 +263,6 @@ public:
         nBits          = block.nBits;
         nNonce         = block.nNonce;
         nEdgesBits     = block.nEdgesBits;
-        nEdgesRatio    = block.nEdgesRatio;
         sCycle       = block.sCycle;
     }
 
@@ -298,7 +295,6 @@ public:
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.nEdgesBits     = nEdgesBits;
-        block.nEdgesRatio    = nEdgesRatio;
         block.sCycle       = sCycle;
         return block;
     }
@@ -420,7 +416,6 @@ public:
         READWRITE(nBits);
         READWRITE(nNonce);
         READWRITE(nEdgesBits);
-        READWRITE(nEdgesRatio);
         READWRITE(sCycle);
     }
 
@@ -434,7 +429,6 @@ public:
         block.nBits           = nBits;
         block.nNonce          = nNonce;
         block.nEdgesBits      = nEdgesBits;
-        block.nEdgesRatio     = nEdgesRatio;
         return block.GetHash();
     }
 

@@ -3977,10 +3977,6 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
         return state.DoS(100, false, REJECT_INVALID, "bad-nodesbits", false, "incorrect proof of work");
     }
 
-    if (block.nEdgesRatio != cuckoo::GetNextEdgesRatioRequired(pindexPrev)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-edgesratio", false, "incorrect proof of work");
-    }
-
     // Check against checkpoints
     if (fCheckpointsEnabled) {
         // Don't accept any forks from the main chain prior to last checkpoint.

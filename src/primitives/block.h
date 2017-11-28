@@ -31,7 +31,6 @@ public:
     uint32_t nBits;
     uint32_t nNonce;
     uint8_t nEdgesBits;
-    uint16_t nEdgesRatio;
     std::set<uint32_t> sCycle;
 
     CBlockHeader()
@@ -50,7 +49,6 @@ public:
         READWRITE(nBits);
         READWRITE(nNonce);
         READWRITE(nEdgesBits);
-        READWRITE(nEdgesRatio);
         if (!(s.GetType() & SER_GETHASH)) {
             READWRITE(sCycle);
         }
@@ -65,7 +63,6 @@ public:
         nBits = 0;
         nNonce = 0;
         nEdgesBits = 0;
-        nEdgesRatio = 0;
         sCycle.clear();
     }
 
@@ -132,7 +129,6 @@ public:
         block.nBits          = nBits;
         block.nNonce         = nNonce;
         block.nEdgesBits     = nEdgesBits;
-        block.nEdgesRatio    = nEdgesRatio;
         block.sCycle       = sCycle;
         return block;
     }

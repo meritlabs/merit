@@ -61,7 +61,7 @@ uint32_t sipnode(const CSipHasher* hasher, uint32_t mask, uint32_t nonce, uint32
 uint32_t sipnode(const siphash_keys* keys, uint32_t mask, uint32_t nonce, uint32_t uorv);
 
 // Find proofsize-length cuckoo cycle in random graph
-bool FindCycle(const uint256& hash, uint8_t edgeBits, uint16_t edgesRatio, uint8_t proofSize, std::set<uint32_t>& cycle);
+bool FindCycle(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle);
 
 // verify that cycle is valid in block hash generated graph
 int VerifyCycle(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, const std::vector<uint32_t>& cycle);
