@@ -75,7 +75,7 @@ static CBlock CreateGenesisBlock(
         bool found = false;
 
         // printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
-        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, genesis.nEdgesRatio, pow, params)) {
+        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, MAX_CUCKOO_DIFFICULTY, pow, params)) {
             ++genesis.nNonce;
             --nMaxTries;
             // printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
@@ -276,16 +276,12 @@ public:
         nMiningBlockStaleTime = 60;
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503444726, 12, 0x207fffff, 16, 50, 1, 50 * COIN, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(1503444726, 90, 0x207fffff, 16, 50, 1, 50 * COIN, consensus, generateGenesis);
 
-        genesis.sCycle = {
-            0xb, 0x524, 0xb9b, 0xd4e, 0x134b, 0x1b80, 0x1d59, 0x23af, 0x2728, 0x2910, 0x33e1, 0x5836,
-            0x5ba2, 0x5d3d, 0x6513, 0x6c6a, 0x7113, 0x75e3, 0x77bb, 0x7828, 0x7950, 0x7e79, 0x8247,
-            0x8753, 0x899c, 0x8dd0, 0x95a1, 0xa7cf, 0xa8d4, 0xaa7f, 0xbdca, 0xc77e, 0xc9ff, 0xcd99,
-            0xd820, 0xe31a, 0xe9d2, 0xebfb, 0xec0c, 0xefd4, 0xf5fa, 0xfa15};
+        genesis.sCycle = {0xc1, 0x30a, 0x34f, 0x4c3, 0x5bb, 0x1286, 0x185f, 0x2ca5, 0x30ed, 0x3330, 0x3770, 0x382d, 0x474c, 0x51d2, 0x5420, 0x5549, 0x5a3a, 0x5cb7, 0x66d1, 0x6892, 0x745b, 0x74c4, 0x786f, 0xa637, 0xae51, 0xafaa, 0xb3c8, 0xbb3c, 0xc439, 0xc9eb, 0xcce2, 0xcf21, 0xd719, 0xdd03, 0xde42, 0xe1d5, 0xe6f3, 0xe9d1, 0xf305, 0xf5da, 0xf836, 0xf85a, };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("cddca22254f8223afabe89c07518034b5c984ada4e6d2f1845e5f6755a7b4b9e"));
+        assert(consensus.hashGenesisBlock == uint256S("3292b40715a1a4acacb49c72c6a9770fa7370a0b39f23485c7e964536489d948"));
         assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
 
         vFixedSeeds.clear();

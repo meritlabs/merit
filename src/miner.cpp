@@ -725,7 +725,7 @@ void static MeritMiner(const CChainParams& chainparams)
 
             while (true) {
                 // Check if something found
-                if (cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgesBits, pblock->nEdgesRatio, pow, chainparams.GetConsensus()))
+                if (cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgesBits, MAX_CUCKOO_DIFFICULTY, pow, chainparams.GetConsensus()))
                 {
                     // Found a solution
                     pblock->nNonce = nNonce;
