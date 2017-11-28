@@ -20,9 +20,9 @@ static const unsigned int MAX_BLOCK_WEIGHT = 4000000;
 /** The maximum allowed number of signature check operations in a block (network rule) */
 static const int64_t MAX_BLOCK_SIGOPS_COST = 80000;
 
-/** Minimum number of edge bits for cuckoo miner - block.nEdgesBits value */
+/** Minimum number of edge bits for cuckoo miner - block.nEdgeBits value */
 static const uint16_t MIN_EDGE_BITS = 16;
-/** Maximum number of edge bits for cuckoo miner - block.nEdgesBits value */
+/** Maximum number of edge bits for cuckoo miner - block.nEdgeBits value */
 static const uint16_t MAX_EDGE_BITS = 32;
 
 static const int WITNESS_SCALE_FACTOR = 4;

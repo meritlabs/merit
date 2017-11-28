@@ -75,6 +75,6 @@ bool FindProofOfWorkAdvanced(const uint256 hash, unsigned int nBits, uint8_t edg
 // TODO: udpdate this function if we wanna control memory usage size
 uint8_t GetNextNodesBitsRequired(const CBlockIndex* pindexLast)
 {
-    return pindexLast->nEdgesBits;
+    return pindexLast->nEdgeBits;
 }
 }

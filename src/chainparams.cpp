@@ -30,7 +30,7 @@ static CBlock CreateGenesisBlock(
     uint32_t nTime,
     uint32_t nNonce,
     uint32_t nBits,
-    uint8_t nEdgesBits,
+    uint8_t nEdgeBits,
     int32_t nVersion,
     const CAmount& genesisReward,
     Consensus::Params& params,
@@ -57,7 +57,7 @@ static CBlock CreateGenesisBlock(
     genesis.nTime = nTime;
     genesis.nBits = nBits;
     genesis.nNonce = nNonce;
-    genesis.nEdgesBits = nEdgesBits;
+    genesis.nEdgeBits = nEdgeBits;
     genesis.nVersion = nVersion;
     genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
     genesis.m_vRef.push_back(referral::MakeReferralRef(std::move(refNew)));
@@ -70,7 +70,7 @@ static CBlock CreateGenesisBlock(
         uint32_t nMaxTries = 10000000;
         genesis.nNonce = 0;
 
-        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, pow, params)) {
+        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgeBits, pow, params)) {
             ++genesis.nNonce;
             --nMaxTries;
         }
@@ -83,7 +83,7 @@ static CBlock CreateGenesisBlock(
                    genesis.GetHash().GetHex().c_str(),
                    genesis.hashMerkleRoot.GetHex().c_str(),
                    genesis.nNonce,
-                   genesis.nEdgesBits);
+                   genesis.nEdgeBits);
             for (const auto& node : pow) {
                 printf("0x%x, ", node);
             }
@@ -110,7 +110,7 @@ static CBlock CreateGenesisBlock(
     uint32_t nTime,
     uint32_t nNonce,
     uint32_t nBits,
-    uint8_t nEdgesBits,
+    uint8_t nEdgeBits,
     int32_t nVersion,
     const CAmount& genesisReward,
     Consensus::Params& params,
@@ -118,7 +118,7 @@ static CBlock CreateGenesisBlock(
 {
     const char* pszTimestamp = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
     const CScript genesisOutputScript = CScript() << ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35") << OP_CHECKSIG;
-    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nEdgesBits, nVersion, genesisReward, params, findPoW);
+    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nEdgeBits, nVersion, genesisReward, params, findPoW);
 }
 
 void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout)
@@ -149,7 +149,7 @@ void runEdgeBitsGenerator(Consensus::Params& consensus) {
         while (nMaxTries > 0 && !found) {
             auto start = std::chrono::system_clock::now();
 
-            found = cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, pow, consensus);
+            found = cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgeBits, pow, consensus);
 
             auto end = std::chrono::system_clock::now();
             std::chrono::duration<double> elapsed_seconds = end - start;
@@ -167,7 +167,7 @@ void runEdgeBitsGenerator(Consensus::Params& consensus) {
             double timeTaken = std::accumulate(times.begin(), times.end(), 0.0);
 
             printf("%3d  %5d    %8.3f     %8.3f     %s\n",
-                genesis.nEdgesBits,
+                genesis.nEdgeBits,
                 genesis.nNonce,
                 timeTaken,
                 timeTaken / times.size(),
