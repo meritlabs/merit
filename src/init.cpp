@@ -353,6 +353,7 @@ std::string HelpMessage(HelpMessageMode mode)
 #endif
     }
     strUsage += HelpMessageOpt("-generategenesis", _("Generate genesis block"));
+    strUsage += HelpMessageOpt("-testedgebits", _("Run edgeBits time test")); // TODO: remove before launch
     strUsage += HelpMessageOpt("-datadir=<dir>", _("Specify data directory"));
     if (showDebug) {
         strUsage += HelpMessageOpt("-dbbatchsize", strprintf("Maximum database write batch size in bytes (default: %u)", nDefaultDbBatchSize));
