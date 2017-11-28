@@ -63,8 +63,9 @@ int64_t UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParam
         pblock->nTime = nNewTime;
 
     // Updating time can change work required on testnet:
-    if (consensusParams.fPowAllowMinDifficultyBlocks)
-        pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, consensusParams);
+    if (consensusParams.fPowAllowMinDifficultyBlocks) {
+        pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, consensusParams).nBits;
+    }
 
     return nNewTime - nOldTime;
 }
@@ -249,12 +250,14 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     uint64_t nSerializeSize = GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION);
     LogPrintf("CreateNewBlock(): total size: %u block weight: %u txs: %u fees: %ld sigops: %d refs: %d\n", nSerializeSize, GetBlockWeight(*pblock), nBlockTx, nFees, nBlockSigOpsCost, nBlockRef);
 
+    auto pow = GetNextWorkRequired(pindexPrev, pblock, chain_params);
+
     // Fill in header
     pblock->hashPrevBlock  = previousBlockHash;
     UpdateTime(pblock, chain_params, pindexPrev);
-    pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, chain_params);
+    pblock->nBits          = pow.nBits;
     pblock->nNonce         = 0;
-    pblock->nEdgeBits     = cuckoo::GetNextNodesBitsRequired(pindexPrev);
+    pblock->nEdgeBits      = pow.nEdgeBits;
     pblocktemplate->vTxSigOpsCost[0] = WITNESS_SCALE_FACTOR * GetLegacySigOpCount(*pblock->vtx[0]);
 
     CValidationState state;

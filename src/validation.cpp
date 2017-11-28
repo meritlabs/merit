@@ -3969,11 +3969,12 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
 
     // Check proof of work
     const Consensus::Params& consensusParams = params.GetConsensus();
-    if (block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams)) {
+    auto pow = GetNextWorkRequired(pindexPrev, &block, consensusParams);
+    if (block.nBits != pow.nBits) {
         return state.DoS(100, false, REJECT_INVALID, "bad-diffbits", false, "incorrect proof of work");
     }
 
-    if (block.nEdgeBits != cuckoo::GetNextNodesBitsRequired(pindexPrev)) {
+    if (block.nEdgeBits != pow.nEdgeBits) {
         return state.DoS(100, false, REJECT_INVALID, "bad-nodesbits", false, "incorrect proof of work");
     }
 
