@@ -384,7 +384,7 @@ public:
         const uint32_t endy = P::NY * (id + 1) / nThreads;
 
         uint32_t edge = starty << P::YZBITS;
-        uint32_t endedge = P::NYZ;
+        uint32_t endedge = edge + P::NYZ;
 
 #if NSIPHASH == 8
             static const __m256i vxmask = {P::XMASK, P::XMASK, P::XMASK, P::XMASK};
