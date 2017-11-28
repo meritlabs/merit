@@ -74,50 +74,29 @@ static CBlock CreateGenesisBlock(
 
         bool found = false;
 
-
-        std::vector<double> times;
-
-        while (nMaxTries > 0 && !found) {
-            auto start = std::chrono::system_clock::now();
+        // printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
+        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, genesis.nEdgesRatio, pow, params)) {
+            ++genesis.nNonce;
+            --nMaxTries;
             // printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
-
-            found = cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, genesis.nEdgesRatio, pow, params);
-
-            auto end = std::chrono::system_clock::now();
-            std::chrono::duration<double> elapsed_seconds = end - start;
-
-            times.push_back(elapsed_seconds.count());
-
-            if (!found) {
-                ++genesis.nNonce;
-                --nMaxTries;
-            }
         }
 
         if (nMaxTries == 0) {
             printf("Could not find cycle for genesis block");
         } else {
-            // printf("Genesis block generated!!!\n");
-            // printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\nedges ratio: %d\nnodes:\n",
-            //        genesis.GetHash().GetHex().c_str(),
-            //        genesis.hashMerkleRoot.GetHex().c_str(),
-            //        genesis.nNonce,
-            //        genesis.nEdgesBits,
-            //        genesis.nEdgesRatio);
-            // for (const auto& node : pow) {
-            //     printf("0x%x, ", node);
-            // }
-
-            double timeTaken = std::accumulate(times.begin(), times.end(), 0.0);
-
-            printf(".....%d...........%d.........%4d.....%8.3f......%7.3f.....%s..\n",
-                genesis.nEdgesBits,
-                genesis.nEdgesRatio,
-                genesis.nNonce,
-                timeTaken,
-                timeTaken / times.size(),
-                genesis.GetHash().GetHex().c_str());
+            printf("Genesis block generated!!!\n");
+            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\nedges ratio: %d\nnodes:\n",
+                   genesis.GetHash().GetHex().c_str(),
+                   genesis.hashMerkleRoot.GetHex().c_str(),
+                   genesis.nNonce,
+                   genesis.nEdgesBits,
+                   genesis.nEdgesRatio);
+            for (const auto& node : pow) {
+                printf("0x%x, ", node);
+            }
         }
+
+        exit(1);
     }
 
     return genesis;
@@ -297,18 +276,7 @@ public:
         nMiningBlockStaleTime = 60;
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-
-        std::vector<uint8_t> bits(1);
-        std::iota(std::begin(bits), std::end(bits), 30);
-
-        printf("  edgebits  |  difficulty  |  nonce  |    time    |     tpa     |                              header                \n");
-        printf("=====================================================================================================================================\n");
-
-        for (auto diff = MAX_CUCKOO_DIFFICULTY; diff >= MAX_CUCKOO_DIFFICULTY - 100; diff -= 5) {
-            for (const auto& edgeBits : bits) {
-                genesis = CreateGenesisBlock(1503444726, 0, 0x207fffff, edgeBits, diff, 1, 50 * COIN, consensus, generateGenesis);
-            }
-        }
+        genesis = CreateGenesisBlock(1503444726, 12, 0x207fffff, 16, 50, 1, 50 * COIN, consensus, generateGenesis);
 
         genesis.sCycle = {
             0xb, 0x524, 0xb9b, 0xd4e, 0x134b, 0x1b80, 0x1d59, 0x23af, 0x2728, 0x2910, 0x33e1, 0x5836,
