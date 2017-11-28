@@ -394,8 +394,6 @@ public:
         uint32_t edge = starty << P::YZBITS;              // 0 as starty is 0
         uint32_t endedge = edge + params.nEdgesPerBucket; // 0 + 2^(7 + 13) = 1 048 576
 
-        offset_t sumsize = 0;
-        for (uint32_t my = starty; my < endy; my++, edge = my << P::YZBITS, endedge = edge + params.nEdgesPerBucket) {
 #if NSIPHASH == 8
             static const __m256i vxmask = {P::XMASK, P::XMASK, P::XMASK, P::XMASK};
             static const __m256i vyzmask = {P::YZMASK, P::YZMASK, P::YZMASK, P::YZMASK};
@@ -405,6 +403,11 @@ public:
                 sip_keys.k1 ^ 0x646f72616e646f6dULL,
                 sip_keys.k0 ^ 0x736f6d6570736575ULL);
             __m256i v0, v1, v2, v3, v4, v5, v6, v7;
+#endif
+
+        offset_t sumsize = 0;
+        for (uint32_t my = starty; my < endy; my++, edge = my << P::YZBITS, endedge = edge + params.nEdgesPerBucket) {
+#if NSIPHASH == 8
             const uint32_t e2 = 2 * edge + uorv;
             __m256i vpacket0 = _mm256_set_epi64x(e2 + 6, e2 + 4, e2 + 2, e2 + 0);
             __m256i vpacket1 = _mm256_set_epi64x(e2 + 14, e2 + 12, e2 + 10, e2 + 8);
@@ -1239,7 +1242,6 @@ public:
         uint32_t edge = starty << P::YZBITS;
         uint32_t endedge = edge + params.nEdgesPerBucket;
 
-        for (uint32_t my = starty; my < endy; my++, edge = my << P::YZBITS, endedge = edge + params.nEdgesPerBucket) {
 #if NSIPHASH == 8
             static const __m256i vnodemask = {P::EDGEMASK, P::EDGEMASK, P::EDGEMASK, P::EDGEMASK};
             const __m256i vinit = _mm256_set_epi64x(
@@ -1248,6 +1250,11 @@ public:
                 trimmer->sip_keys.k1 ^ 0x646f72616e646f6dULL,
                 trimmer->sip_keys.k0 ^ 0x736f6d6570736575ULL);
             __m256i v0, v1, v2, v3, v4, v5, v6, v7;
+#endif
+
+        for (uint32_t my = starty; my < endy; my++, edge = my << P::YZBITS, endedge = edge + params.nEdgesPerBucket) {
+#if NSIPHASH == 8
+
             const uint32_t e2 = 2 * edge;
             __m256i vpacket0 = _mm256_set_epi64x(e2 + 6, e2 + 4, e2 + 2, e2 + 0);
             __m256i vpacket1 = _mm256_set_epi64x(e2 + 14, e2 + 12, e2 + 10, e2 + 8);

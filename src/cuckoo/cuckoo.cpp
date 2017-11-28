@@ -233,8 +233,6 @@ int VerifyCycle(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, const 
 
     setKeys(hashStr.c_str(), hashStr.size(), &keys);
 
-    CSipHasher hasher{keys.k0, keys.k1};
-
     std::vector<uint32_t> uvs(2 * proofSize);
     uint32_t xor0 = 0, xor1 = 0;
 
@@ -247,7 +245,6 @@ int VerifyCycle(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, const 
             return POW_TOO_SMALL;
         }
 
-        // sipnode edge mask should be nodesCount >> 1 as it would be shifted left after random number generated
         xor0 ^= uvs[2 * n] = sipnode(&keys, edgeMask, cycle[n], 0);
         xor1 ^= uvs[2 * n + 1] = sipnode(&keys, edgeMask, cycle[n], 1);
     }
