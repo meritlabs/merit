@@ -95,9 +95,10 @@ template <uint8_t EDGEBITS, uint8_t XBITS>
 struct Params {
     uint32_t nEdgesPerBucket;
 
+    static_assert(EDGEBITS <= 32, "EDGEBITS cannot be greater than 32");
 
     // prepare params for algorithm
-    const static uint32_t EDGEMASK = (1 << EDGEBITS) - 1U;
+    const static uint32_t EDGEMASK = (1LU << EDGEBITS) - 1U;
 
     const static uint8_t YBITS = XBITS;
     // node bits have two groups of bucketbits (X for big and Y for small) and a remaining group Z of degree bits
