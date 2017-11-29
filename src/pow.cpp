@@ -58,16 +58,21 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
     uint8_t edgeBitsAdjustment = 0;
     if (nActualTimespan < params.nPowTargetTimespan / params.nEdgeBitsTargetThreshold) {
         edgeBitsAdjustment++;
+        // Limit nBits adjustment step
+        nActualTimespan = params.nPowTargetTimespan / 4;
     }
     if (nActualTimespan > params.nPowTargetTimespan * params.nEdgeBitsTargetThreshold) {
         edgeBitsAdjustment--;
+        // Limit nBits adjustment step
+        nActualTimespan = params.nPowTargetTimespan * 4;
     }
 
-    if (params.sEdgeBitsSet.count(edgeBitsAdjustment)) {
+    // Retarget nEdgeBits
+    if (params.sEdgeBitsAllowed.count(edgeBitsAdjustment)) {
         return PoW{pindexLast->nBits, static_cast<uint8_t>(pindexLast->nEdgeBits + edgeBitsAdjustment)};
     }
 
-    // Retarget
+    // Retarget nBits
     const arith_uint256 bnPowLimit = UintToArith256(params.powLimit.uHashLimit);
     arith_uint256 bnNew;
     bnNew.SetCompact(pindexLast->nBits);

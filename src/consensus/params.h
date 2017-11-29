@@ -59,7 +59,7 @@ struct Params {
     BIP9Deployment vDeployments[MAX_VERSION_BITS_DEPLOYMENTS];
     /** Proof of work parameters */
     PoWLimit powLimit;
-    std::set<uint8_t> sEdgeBitsSet;
+    std::set<uint8_t> sEdgeBitsAllowed;
     bool fPowAllowMinDifficultyBlocks;
     bool fPowNoRetargeting;
     int64_t nPowTargetSpacing; // target time for a block

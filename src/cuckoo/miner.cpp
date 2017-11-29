@@ -34,16 +34,17 @@ bool FindProofOfWork(const uint256 hash, unsigned int nBits, uint8_t edgeBits, s
     return false;
 }
 
-// TODO: check easiness here
 bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t edgeBits, const std::set<uint32_t>& cycle, const Consensus::Params& params)
 {
     if (cycle.size() != params.nCuckooProofSize) {
         return false;
     }
 
-    if (edgeBits < MIN_EDGE_BITS || edgeBits > MAX_EDGE_BITS) {
+    if (!params.sEdgeBitsAllowed.count(edgeBits)) {
         return false;
     }
+
+    assert(edgeBits >= MIN_EDGE_BITS && edgeBits <= MAX_EDGE_BITS);
 
     std::vector<uint32_t> vCycle{cycle.begin(), cycle.end()};
 

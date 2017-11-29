@@ -196,8 +196,10 @@ public:
         strNetworkID = "main";
         consensus.nBlocksToMaturity = 100;
         consensus.nSubsidyHalvingInterval = 210000;
-        consensus.sEdgeBitsSet = {26, 27, 28, 29, 30, 31};
-        consensus.powLimit = Consensus::PoWLimit{uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), MIN_EDGE_BITS};
+        consensus.sEdgeBitsAllowed = {26, 27, 28, 29, 30, 31};
+        consensus.powLimit = Consensus::PoWLimit{
+            uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+            *consensus.sEdgeBitsAllowed.begin()};
         consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
         consensus.nEdgeBitsTargetThreshold = 4;      // one month for nEdgeBits adjustment
         consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
@@ -290,8 +292,10 @@ public:
         strNetworkID = "test";
         consensus.nBlocksToMaturity = 5;
         consensus.nSubsidyHalvingInterval = 210000;
-        consensus.sEdgeBitsSet = {20, 21, 22, 23, 24, 25, 26};
-        consensus.powLimit = Consensus::PoWLimit{uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), MIN_EDGE_BITS};
+        consensus.sEdgeBitsAllowed = {20, 21, 22, 23, 24, 25, 26};
+        consensus.powLimit = Consensus::PoWLimit{
+            uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+            *consensus.sEdgeBitsAllowed.begin()};
         consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
         consensus.nEdgeBitsTargetThreshold = 2;      // one month for nEdgeBits adjustment
         consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
@@ -387,8 +391,10 @@ public:
         strNetworkID = "regtest";
         consensus.nBlocksToMaturity = 5;
         consensus.nSubsidyHalvingInterval = 15000;
-        consensus.sEdgeBitsSet = {16, 17, 18, 19, 20, 21, 22, 23, 24};
-        consensus.powLimit = Consensus::PoWLimit{uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), MIN_EDGE_BITS};
+        consensus.sEdgeBitsAllowed = {16, 17, 18, 19, 20, 21, 22, 23, 24};
+        consensus.powLimit = Consensus::PoWLimit{
+            uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+            *consensus.sEdgeBitsAllowed.begin()};
         consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
         consensus.nEdgeBitsTargetThreshold = 2;      // one month for nEdgeBits adjustment
         consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
