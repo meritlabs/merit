@@ -201,7 +201,7 @@ public:
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
             *consensus.sEdgeBitsAllowed.begin()};
         consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
-        consensus.nEdgeBitsTargetThreshold = 4;      // one month for nEdgeBits adjustment
+        consensus.nEdgeBitsTargetThreshold = 4;      // adjust nEdgeBits if block time is 4x more/less than expected
         consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
@@ -298,12 +298,12 @@ public:
             *consensus.sEdgeBitsAllowed.begin()};
         // TODO: reset after testing
         consensus.nPowTargetTimespan = 60 * 60; // one day for nBits adjustment
-        consensus.nEdgeBitsTargetThreshold = 2;      // one month for nEdgeBits adjustment
-        consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
+        consensus.nEdgeBitsTargetThreshold = 2; // adjust nEdgeBits if block time is twice more/less than expected
+        consensus.nPowTargetSpacing = 1 * 60;   // one minute for a block
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
-        consensus.nRuleChangeActivationThreshold = 1080; // 75% for testchains
-        consensus.nMinerConfirmationWindow = 1440;       // nPowTargetTimespan / nPowTargetSpacing
+        consensus.nRuleChangeActivationThreshold = 45; // 75% for testchains
+        consensus.nMinerConfirmationWindow = 60;         // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35;           // 35%
         consensus.total_winning_ambassadors = 5;
         consensus.nCuckooProofSize = 42;
@@ -333,18 +333,17 @@ public:
         }
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503444726, 41, 0x207fffff, 20, 1, 50 * COIN, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(1503444726, 16, 0x207fffff, 24, 1, 50 * COIN, consensus, generateGenesis);
 
         genesis.sCycle = {
-            0x9910, 0xdbed, 0x1173f, 0x11d4f, 0x1206e, 0x1b8dc, 0x1d540, 0x2cd4b,
-            0x2dd27, 0x3f1aa, 0x40c62, 0x41ed9, 0x47689, 0x539c0, 0x57c03, 0x64cd6,
-            0x6cc56, 0x72613, 0x73248, 0x74162, 0x91da9, 0x9aaf4, 0x9ad00, 0xa3f03,
-            0xa4b66, 0xa578d, 0xaae0c, 0xaf9be, 0xc0fbe, 0xc1280, 0xc1634, 0xc172d,
-            0xc9ec1, 0xd1cfa, 0xd3cc2, 0xd49cd, 0xe0e5c, 0xea45e, 0xf57ee, 0xf837b,
-            0xf8b25, 0xffa95};
+            0x2e65e, 0x2ef31, 0xe8ca8, 0xe9443, 0x1cca67, 0x1dae0f, 0x1e4e40, 0x20496c, 0x265b10, 0x28a207,
+            0x31afc5, 0x40e747, 0x4f28a2, 0x5118af, 0x58988d, 0x5928df, 0x5f3c30, 0x6357bb, 0x682380,
+            0x712045, 0x715d03, 0x797191, 0x8460e8, 0x97416d, 0x982c36, 0x9940e9, 0x9fe403, 0xa13dfa,
+            0xa3ba51, 0xa4b570, 0xa77e52, 0xabbbb7, 0xae519d, 0xbbc128, 0xc4116c, 0xcf822d, 0xd5c7ee,
+            0xdef513, 0xe5c07a, 0xf0e870, 0xf266c6, 0xf3c0a9};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("070b0eb5b084dcb57b434930f28476109d0daf1379b62f2b52ad37eb54e8bf04"));
+        assert(consensus.hashGenesisBlock == uint256S("3ebaabc77fe92523326e0d2de5c3f3cac3969690896451aed4a9683aa8c89fb5"));
         assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
 
         vFixedSeeds.clear();
@@ -392,12 +391,12 @@ public:
         strNetworkID = "regtest";
         consensus.nBlocksToMaturity = 5;
         consensus.nSubsidyHalvingInterval = 15000;
-        consensus.sEdgeBitsAllowed = {16, 17, 18, 19, 20, 21, 22, 23, 24};
+        consensus.sEdgeBitsAllowed = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26};
         consensus.powLimit = Consensus::PoWLimit{
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
             *consensus.sEdgeBitsAllowed.begin()};
         consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
-        consensus.nEdgeBitsTargetThreshold = 2;      // one month for nEdgeBits adjustment
+        consensus.nEdgeBitsTargetThreshold = 2;      // adjust nEdgeBits if block time is twice more/less than expected
         consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = true;

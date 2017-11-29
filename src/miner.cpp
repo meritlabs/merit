@@ -31,6 +31,7 @@
 #include "validationinterface.h"
 
 #include <algorithm>
+#include <chrono>
 #include <boost/thread.hpp>
 #include <queue>
 #include <utility>
@@ -718,14 +719,24 @@ void static MeritMiner(const CChainParams& chainparams)
             uint256 hash;
             std::set<uint32_t> cycle;
 
+            auto start = std::chrono::system_clock::now();
+
             while (true) {
                 // Check if something found
+
                 if (cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgeBits, cycle, chainparams.GetConsensus())) {
                     // Found a solution
                     pblock->sCycle = cycle;
 
+                    auto end = std::chrono::system_clock::now();
+                    std::chrono::duration<double> elapsed = end - start;
+
                     LogPrintf("MeritMiner:\n");
-                    LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", pblock->GetHash().GetHex(), hashTarget.GetHex());
+                    LogPrintf("proof-of-work found within %8.3f seconds \n  hash: %s  \ntarget: %s\n",
+                        elapsed.count(),
+                        pblock->GetHash().GetHex(),
+                        hashTarget.GetHex());
+
                     ProcessBlockFound(pblock, chainparams);
                     coinbaseScript->KeepScript();
 

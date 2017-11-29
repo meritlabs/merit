@@ -11,6 +11,7 @@
 #include "cuckoo/miner.h"
 #include "primitives/block.h"
 #include "uint256.h"
+#include "util.h"
 
 using Consensus::PoW;
 
@@ -65,7 +66,7 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
 
     // Retarget nEdgeBits
     if (params.sEdgeBitsAllowed.count(edgeBitsAdjusted)) {
-        printf("%s: adjusted edge bits accepted. prev bits: %u new bits: %u\n", __func__, pindexLast->nEdgeBits, edgeBitsAdjusted);
+        LogPrintf("%s: adjusted edge bits accepted. prev bits: %u new bits: %u\n", __func__, pindexLast->nEdgeBits, edgeBitsAdjusted);
         return PoW{pindexLast->nBits, static_cast<uint8_t>(edgeBitsAdjusted)};
     }
 
@@ -88,7 +89,7 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
         bnNew = bnPowLimit;
     }
 
-    printf("%s: adjusted nbits accepted. prev bits: %08x; new bits: %08x\n", __func__, pindexLast->nBits, bnNew.GetCompact());
+    LogPrintf("%s: adjusted nbits accepted. prev bits: %08x; new bits: %08x\n", __func__, pindexLast->nBits, bnNew.GetCompact());
 
     return PoW{bnNew.GetCompact(), pindexLast->nEdgeBits};
 }
