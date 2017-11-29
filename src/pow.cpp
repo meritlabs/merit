@@ -64,7 +64,7 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
     }
 
     if (params.sEdgeBitsSet.count(edgeBitsAdjustment)) {
-        return PoW{pindexLast->nBits, pindexLast->nEdgeBits + edgeBitsAdjustment};
+        return PoW{pindexLast->nBits, static_cast<uint8_t>(pindexLast->nEdgeBits + edgeBitsAdjustment)};
     }
 
     // Retarget

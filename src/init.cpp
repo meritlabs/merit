@@ -352,6 +352,7 @@ std::string HelpMessage(HelpMessageMode mode)
         strUsage += HelpMessageOpt("-daemon", _("Run in the background as a daemon and accept commands"));
 #endif
     }
+    strUsage += HelpMessageOpt("-gen", _("Generate coins in the background"));
     strUsage += HelpMessageOpt("-generategenesis", _("Generate genesis block"));
     strUsage += HelpMessageOpt("-testedgebits", _("Run edgeBits time test")); // TODO: remove before launch
     strUsage += HelpMessageOpt("-datadir=<dir>", _("Specify data directory"));
