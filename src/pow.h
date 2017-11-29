@@ -15,13 +15,8 @@ class CBlockHeader;
 class CBlockIndex;
 class uint256;
 
-struct PoW {
-    uint32_t nBits;
-    uint8_t nEdgeBits;
-};
-
-PoW GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params&);
-PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime, const Consensus::Params&);
+Consensus::PoW GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params&);
+Consensus::PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime, const Consensus::Params&);
 
 /** Check whether a block hash satisfies the proof-of-work requirement specified by nBits */
 bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params&);

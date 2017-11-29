@@ -80,10 +80,10 @@ static CBlock CreateGenesisBlock(
         } else {
             printf("Genesis block generated!!!\n");
             printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\nnodes:\n",
-                   genesis.GetHash().GetHex().c_str(),
-                   genesis.hashMerkleRoot.GetHex().c_str(),
-                   genesis.nNonce,
-                   genesis.nEdgeBits);
+                genesis.GetHash().GetHex().c_str(),
+                genesis.hashMerkleRoot.GetHex().c_str(),
+                genesis.nNonce,
+                genesis.nEdgeBits);
             for (const auto& node : pow) {
                 printf("0x%x, ", node);
             }
@@ -128,7 +128,8 @@ void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64
 }
 
 // TODO: remove befor launch
-void runEdgeBitsGenerator(Consensus::Params& consensus) {
+void runEdgeBitsGenerator(Consensus::Params& consensus)
+{
     std::vector<uint8_t> bits(16);
     std::iota(std::begin(bits), std::end(bits), 16);
 
@@ -174,7 +175,6 @@ void runEdgeBitsGenerator(Consensus::Params& consensus) {
                 genesis.GetHash().GetHex().c_str());
         }
     }
-
 }
 
 /**
@@ -196,13 +196,15 @@ public:
         strNetworkID = "main";
         consensus.nBlocksToMaturity = 100;
         consensus.nSubsidyHalvingInterval = 210000;
-        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
-        consensus.nPowTargetSpacing = 10 * 60;
+        consensus.sEdgeBitsSet = {26, 27, 28, 29, 30, 31};
+        consensus.powLimit = Consensus::PoWLimit{uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), MIN_EDGE_BITS};
+        consensus.nBitsTargetTimespan = 24 * 60 * 60;          // one day for nBits adjustment
+        consensus.nEdgeBitsTargetTimespan = 30 * 24 * 60 * 60; // one month for nEdgeBits adjustment
+        consensus.nPowTargetSpacing = 1 * 60;                  // one minute for a block
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
-        consensus.nRuleChangeActivationThreshold = 1916; // 95% of 2016
-        consensus.nMinerConfirmationWindow = 2016;       // nPowTargetTimespan / nPowTargetSpacing
+        consensus.nRuleChangeActivationThreshold = 1368; // 95% of 2016
+        consensus.nMinerConfirmationWindow = 1440;       // nBitsTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35;           //35%
         consensus.total_winning_ambassadors = 5;
         consensus.nCuckooProofSize = 42;
@@ -288,14 +290,16 @@ public:
         strNetworkID = "test";
         consensus.nBlocksToMaturity = 5;
         consensus.nSubsidyHalvingInterval = 210000;
-        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
-        consensus.nPowTargetSpacing = 10 * 60;
+        consensus.sEdgeBitsSet = {20, 21, 22, 23, 24, 25, 26};
+        consensus.powLimit = Consensus::PoWLimit{uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), MIN_EDGE_BITS};
+        consensus.nBitsTargetTimespan = 24 * 60 * 60;          // one day for nBits adjustment
+        consensus.nEdgeBitsTargetTimespan = 30 * 24 * 60 * 60; // one month for nEdgeBits adjustment
+        consensus.nPowTargetSpacing = 1 * 60;                  // one minute for a block
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = false;
-        consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
-        consensus.nMinerConfirmationWindow = 2016;       // nPowTargetTimespan / nPowTargetSpacing
-        consensus.ambassador_percent_cut = 35;           //35%
+        consensus.nRuleChangeActivationThreshold = 1080; // 75% for testchains
+        consensus.nMinerConfirmationWindow = 1440;       // nBitsTargetTimespan / nPowTargetSpacing
+        consensus.ambassador_percent_cut = 35;           // 35%
         consensus.total_winning_ambassadors = 5;
         consensus.nCuckooProofSize = 42;
 
@@ -381,14 +385,16 @@ public:
         strNetworkID = "regtest";
         consensus.nBlocksToMaturity = 5;
         consensus.nSubsidyHalvingInterval = 15000;
-        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
-        consensus.nPowTargetSpacing = 10 * 60;
+        consensus.sEdgeBitsSet = {16, 17, 18, 19, 20, 21, 22, 23, 24};
+        consensus.powLimit = Consensus::PoWLimit{uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"), MIN_EDGE_BITS};
+        consensus.nBitsTargetTimespan = 24 * 60 * 60;          // one day for nBits adjustment
+        consensus.nEdgeBitsTargetTimespan = 30 * 24 * 60 * 60; // one month for nEdgeBits adjustment
+        consensus.nPowTargetSpacing = 1 * 60;                  // one minute for a block
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = true;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains
         consensus.nMinerConfirmationWindow = 144;       // Faster than normal for regtest (144 instead of 2016)
-        consensus.ambassador_percent_cut = 35;          //35%
+        consensus.ambassador_percent_cut = 35;          // 35%
         consensus.total_winning_ambassadors = 5;
         consensus.nCuckooProofSize = 42;
 

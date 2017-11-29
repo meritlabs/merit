@@ -9,6 +9,7 @@
 
 #include "uint256.h"
 #include <map>
+#include <set>
 #include <string>
 
 namespace Consensus {
@@ -31,6 +32,16 @@ struct BIP9Deployment {
     int64_t nTimeout;
 };
 
+struct PoW {
+    uint32_t nBits;
+    uint8_t nEdgeBits;
+};
+
+struct PoWLimit {
+    uint256 uHashLimit;
+    uint8_t nEdgeBitsLimit;
+};
+
 /**
  * Parameters that influence chain consensus.
  */
@@ -40,19 +51,21 @@ struct Params {
     uint32_t nBlocksToMaturity;
     /**
      * Minimum blocks including miner confirmation of the total of 2016 blocks in a retargeting period,
-     * (nPowTargetTimespan / nPowTargetSpacing) which is also used for BIP9 deployments.
+     * (nBitsTargetTimespan / nPowTargetSpacing) which is also used for BIP9 deployments.
      * Examples: 1916 for 95%, 1512 for testchains.
      */
     uint32_t nRuleChangeActivationThreshold;
     uint32_t nMinerConfirmationWindow;
     BIP9Deployment vDeployments[MAX_VERSION_BITS_DEPLOYMENTS];
     /** Proof of work parameters */
-    uint256 powLimit;
+    PoWLimit powLimit;
+    std::set<uint8_t> sEdgeBitsSet;
     bool fPowAllowMinDifficultyBlocks;
     bool fPowNoRetargeting;
-    int64_t nPowTargetSpacing;
-    int64_t nPowTargetTimespan;
-    int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
+    int64_t nPowTargetSpacing; // target time for a block
+    int64_t nBitsTargetTimespan; // target time for nBits adjustments
+    int64_t nEdgeBitsTargetTimespan; // target time for nEdgeBits adjustments
+    int64_t DifficultyAdjustmentInterval() const { return nBitsTargetTimespan / nPowTargetSpacing; }
     int64_t ambassador_percent_cut;
     size_t total_winning_ambassadors;
     uint256 nMinimumChainWork;
