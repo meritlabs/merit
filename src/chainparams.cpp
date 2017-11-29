@@ -296,10 +296,11 @@ public:
         consensus.powLimit = Consensus::PoWLimit{
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
             *consensus.sEdgeBitsAllowed.begin()};
-        consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
+        // TODO: reset after testing
+        consensus.nPowTargetTimespan = 60 * 60; // one day for nBits adjustment
         consensus.nEdgeBitsTargetThreshold = 2;      // one month for nEdgeBits adjustment
         consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
-        consensus.fPowAllowMinDifficultyBlocks = true;
+        consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1080; // 75% for testchains
         consensus.nMinerConfirmationWindow = 1440;       // nPowTargetTimespan / nPowTargetSpacing

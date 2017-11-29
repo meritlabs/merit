@@ -55,21 +55,26 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
     int64_t nActualTimespan = pindexLast->GetBlockTime() - nFirstBlockTime;
 
     // Check if we can adjust nEdgeBits value
-    uint8_t edgeBitsAdjustment = 0;
+    uint8_t edgeBitsAdjusted = pindexLast->nEdgeBits;
     if (nActualTimespan < params.nPowTargetTimespan / params.nEdgeBitsTargetThreshold) {
-        edgeBitsAdjustment++;
-        // Limit nBits adjustment step
-        nActualTimespan = params.nPowTargetTimespan / 4;
+        edgeBitsAdjusted++;
     }
     if (nActualTimespan > params.nPowTargetTimespan * params.nEdgeBitsTargetThreshold) {
-        edgeBitsAdjustment--;
-        // Limit nBits adjustment step
-        nActualTimespan = params.nPowTargetTimespan * 4;
+        edgeBitsAdjusted--;
     }
 
     // Retarget nEdgeBits
-    if (params.sEdgeBitsAllowed.count(edgeBitsAdjustment)) {
-        return PoW{pindexLast->nBits, static_cast<uint8_t>(pindexLast->nEdgeBits + edgeBitsAdjustment)};
+    if (params.sEdgeBitsAllowed.count(edgeBitsAdjusted)) {
+        printf("%s: adjusted edge bits accepted. prev bits: %u new bits: %u\n", __func__, pindexLast->nEdgeBits, edgeBitsAdjusted);
+        return PoW{pindexLast->nBits, static_cast<uint8_t>(edgeBitsAdjusted)};
+    }
+
+    // Limit nBits adjustment step
+    if (nActualTimespan < params.nPowTargetTimespan / 4) {
+        nActualTimespan = params.nPowTargetTimespan / 4;
+    }
+    if (nActualTimespan > params.nPowTargetTimespan * 4) {
+        nActualTimespan = params.nPowTargetTimespan * 4;
     }
 
     // Retarget nBits
@@ -79,8 +84,11 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
     bnNew *= nActualTimespan;
     bnNew /= params.nPowTargetTimespan;
 
-    if (bnNew > bnPowLimit)
+    if (bnNew > bnPowLimit) {
         bnNew = bnPowLimit;
+    }
+
+    printf("%s: adjusted nbits accepted. prev bits: %08x; new bits: %08x\n", __func__, pindexLast->nBits, bnNew.GetCompact());
 
     return PoW{bnNew.GetCompact(), pindexLast->nEdgeBits};
 }
