@@ -1352,8 +1352,6 @@ bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t proofSize,
         return run<uint64_t, 30u, 8u>(hash, edgeBits, proofSize, cycle);
     case 31:
         return run<uint64_t, 31u, 8u>(hash, edgeBits, proofSize, cycle);
-    case 32:
-        return run<uint64_t, 32u, 8u>(hash, edgeBits, proofSize, cycle);
 
     default:
         throw std::runtime_error(strprintf("%s: EDGEBITS equal to %d is not suppoerted", __func__, edgeBits));

@@ -233,7 +233,7 @@ bool CTxMemPool::CalculateMemPoolAncestors(const CTxMemPoolEntry &entry, setEntr
     return true;
 }
 
-bool CTxMemPool::CalculateMemPoolAncestorsReferrals(const setEntries& setAncestors, referral::ReferralTxMemPool::setEntries& ancestorsReferrals) const
+void CTxMemPool::CalculateMemPoolAncestorsReferrals(const setEntries& setAncestors, referral::ReferralTxMemPool::setEntries& ancestorsReferrals) const
 {
     for (const auto& entry: setAncestors) {
         mempoolReferral.GetReferralsForTransaction(entry->GetSharedEntryValue(), ancestorsReferrals);
