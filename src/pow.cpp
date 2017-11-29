@@ -52,19 +52,27 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
     if (params.fPowNoRetargeting)
         return PoW{pindexLast->nBits, pindexLast->nEdgeBits};
 
-    // Limit adjustment step
     int64_t nActualTimespan = pindexLast->GetBlockTime() - nFirstBlockTime;
-    if (nActualTimespan < params.nBitsTargetTimespan / 4)
-        nActualTimespan = params.nBitsTargetTimespan / 4;
-    if (nActualTimespan > params.nBitsTargetTimespan * 4)
-        nActualTimespan = params.nBitsTargetTimespan * 4;
+
+    // Check if we can adjust nEdgeBits value
+    uint8_t edgeBitsAdjustment = 0;
+    if (nActualTimespan < params.nPowTargetTimespan / params.nEdgeBitsTargetThreshold) {
+        edgeBitsAdjustment++;
+    }
+    if (nActualTimespan > params.nPowTargetTimespan * params.nEdgeBitsTargetThreshold) {
+        edgeBitsAdjustment--;
+    }
+
+    if (params.sEdgeBitsSet.count(edgeBitsAdjustment)) {
+        return PoW{pindexLast->nBits, pindexLast->nEdgeBits + edgeBitsAdjustment};
+    }
 
     // Retarget
     const arith_uint256 bnPowLimit = UintToArith256(params.powLimit.uHashLimit);
     arith_uint256 bnNew;
     bnNew.SetCompact(pindexLast->nBits);
     bnNew *= nActualTimespan;
-    bnNew /= params.nBitsTargetTimespan;
+    bnNew /= params.nPowTargetTimespan;
 
     if (bnNew > bnPowLimit)
         bnNew = bnPowLimit;
