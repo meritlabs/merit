@@ -219,7 +219,7 @@ UniValue getmininginfo(const JSONRPCRequest& request)
             "  \"currentblocktx\": nnn,     (numeric) The last block transaction\n"
             "  \"currentblockref\": nnn,    (numeric) The last block referrals\n"
             "  \"difficulty\": xxx.xxxxx    (numeric) The current difficulty\n"
-            "  \"errors\": \"...\"            (string) Current errors\n"
+            "  \"errors\": \"...\"          (string) Current errors\n"
             "  \"networkhashps\": nnn,      (numeric) The network hashes per second\n"
             "  \"pooledtx\": n              (numeric) The size of the mempool\n"
             "  \"chain\": \"xxxx\",           (string) current network name as defined in BIP70 (main, test, regtest)\n"

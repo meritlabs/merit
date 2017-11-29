@@ -716,14 +716,13 @@ void static MeritMiner(const CChainParams& chainparams)
             int64_t nStart = GetTime();
             arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
             uint256 hash;
-            uint32_t nNonce = 0;
-            std::set<uint32_t> pow;
+            std::set<uint32_t> cycle;
 
             while (true) {
                 // Check if something found
-                if (cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgeBits, pow, chainparams.GetConsensus())) {
+                if (cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgeBits, cycle, chainparams.GetConsensus())) {
                     // Found a solution
-                    pblock->nNonce = nNonce;
+                    pblock->sCycle = cycle;
 
                     LogPrintf("MeritMiner:\n");
                     LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", pblock->GetHash().GetHex(), hashTarget.GetHex());
@@ -744,7 +743,7 @@ void static MeritMiner(const CChainParams& chainparams)
                 if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0 && chainparams.MiningRequiresPeers())
                     break;
 
-                if (nNonce >= 0xfffff)
+                if (pblock->nNonce >= 0xfffff)
                     break;
 
                 if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > chainparams.MininBlockStaleTime())
@@ -764,7 +763,7 @@ void static MeritMiner(const CChainParams& chainparams)
                     hashTarget.SetCompact(pblock->nBits);
                 }
 
-                ++nNonce;
+                ++pblock->nNonce;
             }
         }
     } catch (const boost::thread_interrupted&) {
