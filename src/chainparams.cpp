@@ -235,17 +235,20 @@ public:
         nMiningBlockStaleTime = 60;
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503515697, 131, 0x207fffff, 28, 1, 50 * COIN, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(1503515697, 222, 0x207fffff, 27, 1, 50 * COIN, consensus, generateGenesis);
 
-        genesis.sCycle = {0x2077a, 0x4cbf3b, 0x60b30c, 0x6ff5d8, 0x992011, 0xb805cd, 0xbc47eb, 0xbf5169, 0xc1918c,
-            0xe87071, 0xfac34a, 0x1145fcb, 0x14c597e, 0x155646c, 0x174d8d0, 0x18b83c6, 0x19fd75a, 0x1a12b40, 0x1a7637e,
-            0x1adadd9, 0x1c0994f, 0x1e007ad, 0x22a00a2, 0x2374c5e, 0x276f9f4, 0x27910f8, 0x286c27a, 0x2a6f7c5, 0x2aee0e6,
-            0x2b6182f, 0x2c9174d, 0x2cc3922, 0x305c560, 0x340d0de, 0x34f3cc5, 0x36be4cd, 0x390c947, 0x3a90c9c, 0x3d40295,
-            0x3e31d30, 0x3e32e42, 0x3fe989b};
+        genesis.sCycle = {
+            0x1653d2, 0x1aa66d, 0x4384b9, 0x5a7e1c, 0x74cac8, 0x903db4, 0x93f75e, 0x97762d,
+            0x112cfc2, 0x1a38e7f, 0x25460b6, 0x258daed, 0x26bae6d, 0x3334127, 0x34d6778,
+            0x35d38a7, 0x3a69340, 0x41ba626, 0x41c8874, 0x41fa4c3, 0x42d49a8, 0x42f33ae,
+            0x43f65a7, 0x4556706, 0x456bfb5, 0x5111825, 0x54b6eee, 0x5556e58, 0x5c2b69d,
+            0x60f5391, 0x64ad69c, 0x64d99ac, 0x6533e34, 0x678bbfe, 0x6a5c50d, 0x6d4853f,
+            0x6e2686f, 0x7066225, 0x7678208, 0x76ba183, 0x7ac12d4, 0x7e5f23a
+        };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("e69d09e1479a52cf739ba605a05d5abc85b0a70768b010d3f2c0c84fe75f2cef"));
-        assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
+        assert(consensus.hashGenesisBlock == uint256S("b359b0d650f6295756a2a1ce5cb5e8255211d89617354f67d5249d0ae898dd3a"));
+        assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
 
         // Note that of those with the service bits flag, most only support a subset of possible options
         /*vSeeds.emplace_back("seed.merit.sipa.be", true); // Pieter Wuille, only supports x1, x5, x9, and xd
