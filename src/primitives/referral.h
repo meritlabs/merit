@@ -5,10 +5,11 @@
 #ifndef MERIT_PRIMITIVES_REFERRAL_H
 #define MERIT_PRIMITIVES_REFERRAL_H
 
-#include <stdint.h>
 #include "pubkey.h"
+#include "script/script.h"
 #include "serialize.h"
 #include "uint256.h"
+#include <stdint.h>
 
 namespace referral
 {
@@ -73,6 +74,8 @@ public:
     // hash of code
     const uint256 codeHash;
 
+    CScript scriptSig;
+
 private:
     /** Memory only. */
     const uint256 m_hash;
@@ -133,6 +136,7 @@ struct MutableReferral
     Address pubKeyId;
     std::string code;
     uint256 codeHash;
+    CScript scriptSig;
 
     MutableReferral() : version(Referral::CURRENT_VERSION), addressType{0} { }
     MutableReferral(char addressType, const Address& addressIn, const uint256& referralIn);
