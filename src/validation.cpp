@@ -1413,7 +1413,7 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
     }
 
     // Check the header
-    if (!cuckoo::VerifyProofOfWork(block.GetHash(), block.nBits, block.nEdgesBits, block.sCycle, consensusParams))
+    if (!cuckoo::VerifyProofOfWork(block.GetHash(), block.nBits, block.nEdgeBits, block.sCycle, consensusParams))
         return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
 
     return true;
@@ -3794,7 +3794,7 @@ static bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, 
 static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
 {
     // Check proof of work matches claimed amount
-    if (fCheckPOW && !cuckoo::VerifyProofOfWork(block.GetHash(), block.nBits, block.nEdgesBits, block.sCycle, consensusParams))
+    if (fCheckPOW && !cuckoo::VerifyProofOfWork(block.GetHash(), block.nBits, block.nEdgeBits, block.sCycle, consensusParams))
         return state.DoS(50, false, REJECT_INVALID, "high-hash", false, "proof of work failed");
 
     return true;
@@ -3969,16 +3969,13 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
 
     // Check proof of work
     const Consensus::Params& consensusParams = params.GetConsensus();
-    if (block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams)) {
+    auto pow = GetNextWorkRequired(pindexPrev, &block, consensusParams);
+    if (block.nBits != pow.nBits) {
         return state.DoS(100, false, REJECT_INVALID, "bad-diffbits", false, "incorrect proof of work");
     }
 
-    if (block.nEdgesBits != cuckoo::GetNextNodesBitsRequired(pindexPrev)) {
+    if (block.nEdgeBits != pow.nEdgeBits) {
         return state.DoS(100, false, REJECT_INVALID, "bad-nodesbits", false, "incorrect proof of work");
-    }
-
-    if (block.nEdgesRatio != cuckoo::GetNextEdgesRatioRequired(pindexPrev)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-edgesratio", false, "incorrect proof of work");
     }
 
     // Check against checkpoints
@@ -4239,7 +4236,7 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
         CheckBlockIndex(chainparams.GetConsensus());
         if (!ret) {
             GetMainSignals().BlockChecked(*pblock, state);
-            return error("%s: AcceptBlock FAILED", __func__);
+            return error("%s: AcceptBlock FAILED: %s", __func__, FormatStateMessage(state));
         }
     }
 
@@ -4247,7 +4244,7 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
 
     CValidationState state; // Only used to report errors, not invalidity - ignore it
     if (!ActivateBestChain(state, chainparams, pblock))
-        return error("%s: ActivateBestChain failed", __func__);
+        return error("%s: ActivateBestChain failed: %s", __func__, FormatStateMessage(state));
 
     return true;
 }

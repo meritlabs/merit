@@ -30,8 +30,7 @@ static CBlock CreateGenesisBlock(
     uint32_t nTime,
     uint32_t nNonce,
     uint32_t nBits,
-    uint8_t nEdgesBits,
-    uint16_t nEdgesRatio,
+    uint8_t nEdgeBits,
     int32_t nVersion,
     const CAmount& genesisReward,
     Consensus::Params& params,
@@ -58,8 +57,7 @@ static CBlock CreateGenesisBlock(
     genesis.nTime = nTime;
     genesis.nBits = nBits;
     genesis.nNonce = nNonce;
-    genesis.nEdgesBits = nEdgesBits;
-    genesis.nEdgesRatio = nEdgesRatio;
+    genesis.nEdgeBits = nEdgeBits;
     genesis.nVersion = nVersion;
     genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
     genesis.m_vRef.push_back(referral::MakeReferralRef(std::move(refNew)));
@@ -72,25 +70,20 @@ static CBlock CreateGenesisBlock(
         uint32_t nMaxTries = 10000000;
         genesis.nNonce = 0;
 
-        bool found = false;
-
-        // printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
-        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgesBits, MAX_CUCKOO_DIFFICULTY, pow, params)) {
+        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgeBits, pow, params)) {
             ++genesis.nNonce;
             --nMaxTries;
-            // printf("header: %s, nonce: %d\n", genesis.GetHash().GetHex().c_str(), genesis.nNonce);
         }
 
         if (nMaxTries == 0) {
             printf("Could not find cycle for genesis block");
         } else {
             printf("Genesis block generated!!!\n");
-            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\nedges ratio: %d\nnodes:\n",
-                   genesis.GetHash().GetHex().c_str(),
-                   genesis.hashMerkleRoot.GetHex().c_str(),
-                   genesis.nNonce,
-                   genesis.nEdgesBits,
-                   genesis.nEdgesRatio);
+            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\nnodes:\n",
+                genesis.GetHash().GetHex().c_str(),
+                genesis.hashMerkleRoot.GetHex().c_str(),
+                genesis.nNonce,
+                genesis.nEdgeBits);
             for (const auto& node : pow) {
                 printf("0x%x, ", node);
             }
@@ -117,8 +110,7 @@ static CBlock CreateGenesisBlock(
     uint32_t nTime,
     uint32_t nNonce,
     uint32_t nBits,
-    uint8_t nEdgesBits,
-    uint16_t nEdgesRatio,
+    uint8_t nEdgeBits,
     int32_t nVersion,
     const CAmount& genesisReward,
     Consensus::Params& params,
@@ -126,13 +118,63 @@ static CBlock CreateGenesisBlock(
 {
     const char* pszTimestamp = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
     const CScript genesisOutputScript = CScript() << ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35") << OP_CHECKSIG;
-    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nEdgesBits, nEdgesRatio, nVersion, genesisReward, params, findPoW);
+    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nEdgeBits, nVersion, genesisReward, params, findPoW);
 }
 
 void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout)
 {
     consensus.vDeployments[d].nStartTime = nStartTime;
     consensus.vDeployments[d].nTimeout = nTimeout;
+}
+
+// TODO: remove befor launch
+void runEdgeBitsGenerator(Consensus::Params& consensus)
+{
+    std::vector<uint8_t> bits(16);
+    std::iota(std::begin(bits), std::end(bits), 16);
+
+    printf(" EB  / Nonce /    Time    /    TPA    /                              Header\n");
+    printf("========================================================================================================\n");
+
+    std::vector<double> times;
+
+    for (const auto& edgeBits : bits) {
+        auto genesis = CreateGenesisBlock(1503444726, 0, 0x207fffff, edgeBits, 1, 50 * COIN, consensus);
+        std::set<uint32_t> pow;
+
+        uint32_t nMaxTries = 10000000;
+
+        bool found = false;
+        std::vector<double> times;
+
+        while (nMaxTries > 0 && !found) {
+            auto start = std::chrono::system_clock::now();
+
+            found = cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgeBits, pow, consensus);
+
+            auto end = std::chrono::system_clock::now();
+            std::chrono::duration<double> elapsed_seconds = end - start;
+            times.push_back(elapsed_seconds.count());
+
+            if (!found) {
+                ++genesis.nNonce;
+                --nMaxTries;
+            }
+        }
+
+        if (nMaxTries == 0) {
+            printf("Could not find cycle for genesis block");
+        } else {
+            double timeTaken = std::accumulate(times.begin(), times.end(), 0.0);
+
+            printf("%3d  %5d    %8.3f     %8.3f     %s\n",
+                genesis.nEdgeBits,
+                genesis.nNonce,
+                timeTaken,
+                timeTaken / times.size(),
+                genesis.GetHash().GetHex().c_str());
+        }
+    }
 }
 
 /**
@@ -154,13 +196,17 @@ public:
         strNetworkID = "main";
         consensus.nBlocksToMaturity = 100;
         consensus.nSubsidyHalvingInterval = 210000;
-        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
-        consensus.nPowTargetSpacing = 10 * 60;
+        consensus.sEdgeBitsAllowed = {26, 27, 28, 29, 30, 31};
+        consensus.powLimit = Consensus::PoWLimit{
+            uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+            *consensus.sEdgeBitsAllowed.begin()};
+        consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
+        consensus.nEdgeBitsTargetThreshold = 4;      // adjust nEdgeBits if block time is 4x more/less than expected
+        consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
-        consensus.nRuleChangeActivationThreshold = 1916; // 95% of 2016
-        consensus.nMinerConfirmationWindow = 2016;       // nPowTargetTimespan / nPowTargetSpacing
+        consensus.nRuleChangeActivationThreshold = 1368; // 95% of 2016
+        consensus.nMinerConfirmationWindow = 1440;       // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35;           //35%
         consensus.total_winning_ambassadors = 5;
         consensus.nCuckooProofSize = 42;
@@ -189,17 +235,20 @@ public:
         nMiningBlockStaleTime = 60;
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503515697, 131, 0x207fffff, 28, 50, 1, 50 * COIN, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(1503515697, 222, 0x207fffff, 27, 1, 50 * COIN, consensus, generateGenesis);
 
-        genesis.sCycle = {0x2077a, 0x4cbf3b, 0x60b30c, 0x6ff5d8, 0x992011, 0xb805cd, 0xbc47eb, 0xbf5169, 0xc1918c,
-            0xe87071, 0xfac34a, 0x1145fcb, 0x14c597e, 0x155646c, 0x174d8d0, 0x18b83c6, 0x19fd75a, 0x1a12b40, 0x1a7637e,
-            0x1adadd9, 0x1c0994f, 0x1e007ad, 0x22a00a2, 0x2374c5e, 0x276f9f4, 0x27910f8, 0x286c27a, 0x2a6f7c5, 0x2aee0e6,
-            0x2b6182f, 0x2c9174d, 0x2cc3922, 0x305c560, 0x340d0de, 0x34f3cc5, 0x36be4cd, 0x390c947, 0x3a90c9c, 0x3d40295,
-            0x3e31d30, 0x3e32e42, 0x3fe989b};
+        genesis.sCycle = {
+            0x1653d2, 0x1aa66d, 0x4384b9, 0x5a7e1c, 0x74cac8, 0x903db4, 0x93f75e, 0x97762d,
+            0x112cfc2, 0x1a38e7f, 0x25460b6, 0x258daed, 0x26bae6d, 0x3334127, 0x34d6778,
+            0x35d38a7, 0x3a69340, 0x41ba626, 0x41c8874, 0x41fa4c3, 0x42d49a8, 0x42f33ae,
+            0x43f65a7, 0x4556706, 0x456bfb5, 0x5111825, 0x54b6eee, 0x5556e58, 0x5c2b69d,
+            0x60f5391, 0x64ad69c, 0x64d99ac, 0x6533e34, 0x678bbfe, 0x6a5c50d, 0x6d4853f,
+            0x6e2686f, 0x7066225, 0x7678208, 0x76ba183, 0x7ac12d4, 0x7e5f23a
+        };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("e69d09e1479a52cf739ba605a05d5abc85b0a70768b010d3f2c0c84fe75f2cef"));
-        assert(genesis.hashMerkleRoot == uint256S("12f0ddebc1f8d0d24487ccd1d21bfd466a298e887f10bb0385378ba52a0b875c"));
+        assert(consensus.hashGenesisBlock == uint256S("b359b0d650f6295756a2a1ce5cb5e8255211d89617354f67d5249d0ae898dd3a"));
+        assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
 
         // Note that of those with the service bits flag, most only support a subset of possible options
         /*vSeeds.emplace_back("seed.merit.sipa.be", true); // Pieter Wuille, only supports x1, x5, x9, and xd
@@ -246,14 +295,19 @@ public:
         strNetworkID = "test";
         consensus.nBlocksToMaturity = 5;
         consensus.nSubsidyHalvingInterval = 210000;
-        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
-        consensus.nPowTargetSpacing = 10 * 60;
-        consensus.fPowAllowMinDifficultyBlocks = true;
+        consensus.sEdgeBitsAllowed = {20, 21, 22, 23, 24, 25, 26};
+        consensus.powLimit = Consensus::PoWLimit{
+            uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+            *consensus.sEdgeBitsAllowed.begin()};
+        // TODO: reset after testing
+        consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
+        consensus.nEdgeBitsTargetThreshold = 4; // adjust nEdgeBits if block time is twice more/less than expected
+        consensus.nPowTargetSpacing = 1 * 60;   // one minute for a block
+        consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
-        consensus.nRuleChangeActivationThreshold = 1512; // 75% for testchains
-        consensus.nMinerConfirmationWindow = 2016;       // nPowTargetTimespan / nPowTargetSpacing
-        consensus.ambassador_percent_cut = 35;           //35%
+        consensus.nRuleChangeActivationThreshold = 1080; // 75% for testchains
+        consensus.nMinerConfirmationWindow = 1440;         // nPowTargetTimespan / nPowTargetSpacing
+        consensus.ambassador_percent_cut = 35;           // 35%
         consensus.total_winning_ambassadors = 5;
         consensus.nCuckooProofSize = 42;
 
@@ -275,13 +329,24 @@ public:
         nPruneAfterHeight = 1000;
         nMiningBlockStaleTime = 60;
 
-        bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503444726, 90, 0x207fffff, 16, 50, 1, 50 * COIN, consensus, generateGenesis);
+        // TODO: remove after miner is stable
+        if (gArgs.GetBoolArg("-testedgebits", false)) {
+            runEdgeBitsGenerator(consensus);
+            exit(0);
+        }
 
-        genesis.sCycle = {0xc1, 0x30a, 0x34f, 0x4c3, 0x5bb, 0x1286, 0x185f, 0x2ca5, 0x30ed, 0x3330, 0x3770, 0x382d, 0x474c, 0x51d2, 0x5420, 0x5549, 0x5a3a, 0x5cb7, 0x66d1, 0x6892, 0x745b, 0x74c4, 0x786f, 0xa637, 0xae51, 0xafaa, 0xb3c8, 0xbb3c, 0xc439, 0xc9eb, 0xcce2, 0xcf21, 0xd719, 0xdd03, 0xde42, 0xe1d5, 0xe6f3, 0xe9d1, 0xf305, 0xf5da, 0xf836, 0xf85a, };
+        bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
+        genesis = CreateGenesisBlock(1503444726, 16, 0x207fffff, 24, 1, 50 * COIN, consensus, generateGenesis);
+
+        genesis.sCycle = {
+            0x2e65e, 0x2ef31, 0xe8ca8, 0xe9443, 0x1cca67, 0x1dae0f, 0x1e4e40, 0x20496c, 0x265b10, 0x28a207,
+            0x31afc5, 0x40e747, 0x4f28a2, 0x5118af, 0x58988d, 0x5928df, 0x5f3c30, 0x6357bb, 0x682380,
+            0x712045, 0x715d03, 0x797191, 0x8460e8, 0x97416d, 0x982c36, 0x9940e9, 0x9fe403, 0xa13dfa,
+            0xa3ba51, 0xa4b570, 0xa77e52, 0xabbbb7, 0xae519d, 0xbbc128, 0xc4116c, 0xcf822d, 0xd5c7ee,
+            0xdef513, 0xe5c07a, 0xf0e870, 0xf266c6, 0xf3c0a9};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("3292b40715a1a4acacb49c72c6a9770fa7370a0b39f23485c7e964536489d948"));
+        assert(consensus.hashGenesisBlock == uint256S("3ebaabc77fe92523326e0d2de5c3f3cac3969690896451aed4a9683aa8c89fb5"));
         assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
 
         vFixedSeeds.clear();
@@ -329,14 +394,18 @@ public:
         strNetworkID = "regtest";
         consensus.nBlocksToMaturity = 5;
         consensus.nSubsidyHalvingInterval = 15000;
-        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
-        consensus.nPowTargetSpacing = 10 * 60;
+        consensus.sEdgeBitsAllowed = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26};
+        consensus.powLimit = Consensus::PoWLimit{
+            uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+            *consensus.sEdgeBitsAllowed.begin()};
+        consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
+        consensus.nEdgeBitsTargetThreshold = 2;      // adjust nEdgeBits if block time is twice more/less than expected
+        consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = true;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains
         consensus.nMinerConfirmationWindow = 144;       // Faster than normal for regtest (144 instead of 2016)
-        consensus.ambassador_percent_cut = 35;          //35%
+        consensus.ambassador_percent_cut = 35;          // 35%
         consensus.total_winning_ambassadors = 5;
         consensus.nCuckooProofSize = 42;
 
@@ -360,7 +429,7 @@ public:
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
-        genesis = CreateGenesisBlock(1503670484, 2, 0x207fffff, 18, 60, 1, 50 * COIN, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(1503670484, 2, 0x207fffff, 18, 1, 50 * COIN, consensus, generateGenesis);
 
         genesis.sCycle = {0xff, 0x3b5, 0x8e5, 0xa39, 0xf5b, 0xfd2, 0x15ad, 0x1a85, 0x2964, 0x2b43, 0x356f, 0x4f10,
             0x5c0e, 0x5ef9, 0x686f, 0x6e9a, 0x749e, 0x7708, 0x7f2a, 0x8a6d, 0x8e09, 0x902c, 0x9278, 0x94c3, 0x9d99,

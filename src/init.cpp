@@ -352,7 +352,9 @@ std::string HelpMessage(HelpMessageMode mode)
         strUsage += HelpMessageOpt("-daemon", _("Run in the background as a daemon and accept commands"));
 #endif
     }
+    strUsage += HelpMessageOpt("-mine", _("Mine coins in the background"));
     strUsage += HelpMessageOpt("-generategenesis", _("Generate genesis block"));
+    strUsage += HelpMessageOpt("-testedgebits", _("Run edgeBits time test")); // TODO: remove before launch
     strUsage += HelpMessageOpt("-datadir=<dir>", _("Specify data directory"));
     if (showDebug) {
         strUsage += HelpMessageOpt("-dbbatchsize", strprintf("Maximum database write batch size in bytes (default: %u)", nDefaultDbBatchSize));
@@ -1766,9 +1768,9 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
         return false;
     }
 
-    if (gArgs.IsArgSet("-gen")) {
+    if (gArgs.IsArgSet("-mine")) {
         // Generate coins in the background
-        GenerateMerit(true, gArgs.GetArg("-genproclimit", 1), chainparams);
+        GenerateMerit(true, gArgs.GetArg("-mineproclimit", 1), chainparams);
     }
 
     // ********************************************************* Step 12: finished
