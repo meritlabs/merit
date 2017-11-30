@@ -24,28 +24,7 @@ bool FindProofOfWork(const uint256 hash, unsigned int nBits, uint8_t edgeBits, s
     assert(cycle.empty());
     bool cycleFound = FindCycle(hash, edgeBits, params.nCuckooProofSize, cycle);
 
-    auto cycleHash = SerializeHash(cycle);
-
-    bool fNegative;
-    bool fOverflow;
-    arith_uint256 bnTarget;
-
-    bnTarget.SetCompact(nBits, &fNegative, &fOverflow);
-
-    printf("%s: cycle  hash: %s\n", __func__, cycleHash.GetHex().c_str());
-    printf("%s: target hash: %s\n", __func__, bnTarget.GetHex().c_str());
-
-    // Check range
-    if (fNegative || bnTarget == 0 || fOverflow || bnTarget > UintToArith256(params.powLimit.uHashLimit)) {
-        printf("%s: simple check not passed\n", __func__);
-    }
-
-    // Check proof of work matches claimed amount
-    if (UintToArith256(hash) > bnTarget)
-        printf("%s: target check not passed\n", __func__);
-
-    // if cycle is found check that hash of that cycle is less than a difficulty (old school bitcoin pow)
-    if (cycleFound && ::CheckProofOfWork(cycleHash, nBits, params)) {
+    if (cycleFound && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
         return true;
     }
 
@@ -83,32 +62,10 @@ bool FindProofOfWorkAdvanced(const uint256 hash, unsigned int nBits, uint8_t edg
     assert(cycle.empty());
     bool cycleFound = FindCycleAdvanced(hash, edgeBits, params.nCuckooProofSize, cycle);
 
-    if (cycleFound) {
-        auto cycleHash = SerializeHash(cycle);
-
-        bool fNegative;
-        bool fOverflow;
-        arith_uint256 bnTarget;
-
-        bnTarget.SetCompact(nBits, &fNegative, &fOverflow);
-
-        printf("%s: cycle  hash: %s\n", __func__, cycleHash.GetHex().c_str());
-        printf("%s: target hash: %s\n", __func__, bnTarget.GetHex().c_str());
-
-        // Check range
-        if (fNegative || bnTarget == 0 || fOverflow || bnTarget > UintToArith256(params.powLimit.uHashLimit)) {
-            printf("%s: simple check not passed\n", __func__);
-        }
-
-        // Check proof of work matches claimed amount
-        if (UintToArith256(cycleHash) > bnTarget)
-            printf("%s: target check not passed\n", __func__);
-
-        // if cycle is found check that hash of that cycle is less than a difficulty (old school bitcoin pow)
-        if (::CheckProofOfWork(cycleHash, nBits, params)) {
-            return true;
-        }
+    if (cycleFound && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
+        return true;
     }
+
     cycle.clear();
 
     return false;
