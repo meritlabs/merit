@@ -30,7 +30,8 @@ MutableReferral::MutableReferral(
     addressType{addressTypeIn},
     pubKeyId{addressIn},
     code{GenerateReferralCode()},
-    codeHash{Hash(code.begin(), code.end())} {}
+    codeHash{Hash(code.begin(), code.end())},
+    scriptSig{CScript()} {}
 
 MutableReferral::MutableReferral(const Referral& ref) :
     version{ref.version},
@@ -38,7 +39,8 @@ MutableReferral::MutableReferral(const Referral& ref) :
     addressType{ref.addressType},
     pubKeyId{ref.pubKeyId},
     code{ref.code},
-    codeHash{ref.codeHash} {}
+    codeHash{ref.codeHash},
+    scriptSig{ref.scriptSig} {}
 
 uint256 MutableReferral::GetHash() const
 {
@@ -61,6 +63,7 @@ Referral::Referral(
     pubKeyId{addressIn},
     code{GenerateReferralCode()},
     codeHash{Hash(code.begin(), code.end())},
+    scriptSig{CScript()},
     m_hash{} {}
 
 Referral::Referral(const MutableReferral &ref) :
@@ -70,6 +73,7 @@ Referral::Referral(const MutableReferral &ref) :
     pubKeyId{ref.pubKeyId},
     code{ref.code},
     codeHash{ref.codeHash},
+    scriptSig{ref.scriptSig},
     m_hash{ComputeHash()} {}
 
 Referral::Referral(MutableReferral &&ref) :
@@ -79,6 +83,7 @@ Referral::Referral(MutableReferral &&ref) :
     pubKeyId{std::move(ref.pubKeyId)},
     code{ref.code},
     codeHash{ref.codeHash},
+    scriptSig{ref.scriptSig},
     m_hash{ComputeHash()} {}
 
 unsigned int Referral::GetTotalSize() const
