@@ -71,12 +71,8 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
     }
 
     // Limit nBits adjustment step
-    if (nActualTimespan < params.nPowTargetTimespan / 4) {
-        nActualTimespan = params.nPowTargetTimespan / 4;
-    }
-    if (nActualTimespan > params.nPowTargetTimespan * 4) {
-        nActualTimespan = params.nPowTargetTimespan * 4;
-    }
+    nActualTimespan = std::max(nActualTimespan, params.nPowTargetTimespan / 4);
+    nActualTimespan = std::min(nActualTimespan, params.nPowTargetTimespan * 4);
 
     // Retarget nBits
     const arith_uint256 bnPowLimit = UintToArith256(params.powLimit.uHashLimit);
@@ -86,9 +82,8 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
     bnNew /= params.nPowTargetTimespan;
     bnNew *= nActualTimespan;
 
-    if (bnNew > bnPowLimit) {
-        bnNew = bnPowLimit;
-    }
+    bnNew = std::min(bnNew, bnPowLimit);
+
     LogPrintf("%s: adjusted nbits accepted. prev bits: %08x; new bits: %08x\n", __func__, pindexLast->nBits, bnNew.GetCompact());
 
     return PoW{bnNew.GetCompact(), pindexLast->nEdgeBits};

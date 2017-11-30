@@ -23,7 +23,7 @@ static const int64_t MAX_BLOCK_SIGOPS_COST = 80000;
 /** Minimum number of edge bits for cuckoo miner - block.nEdgeBits value */
 static const uint16_t MIN_EDGE_BITS = 16;
 /** Maximum number of edge bits for cuckoo miner - block.nEdgeBits value */
-static const uint16_t MAX_EDGE_BITS = 32;
+static const uint16_t MAX_EDGE_BITS = 31;
 
 static const int WITNESS_SCALE_FACTOR = 4;
 
