@@ -297,13 +297,13 @@ public:
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
             *consensus.sEdgeBitsAllowed.begin()};
         // TODO: reset after testing
-        consensus.nPowTargetTimespan = 20 * 60; // one day for nBits adjustment
+        consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
         consensus.nEdgeBitsTargetThreshold = 4; // adjust nEdgeBits if block time is twice more/less than expected
         consensus.nPowTargetSpacing = 1 * 60;   // one minute for a block
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
-        consensus.nRuleChangeActivationThreshold = 45; // 75% for testchains
-        consensus.nMinerConfirmationWindow = 60;         // nPowTargetTimespan / nPowTargetSpacing
+        consensus.nRuleChangeActivationThreshold = 1080; // 75% for testchains
+        consensus.nMinerConfirmationWindow = 1440;         // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35;           // 35%
         consensus.total_winning_ambassadors = 5;
         consensus.nCuckooProofSize = 42;
