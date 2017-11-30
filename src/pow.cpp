@@ -55,6 +55,9 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
 
     int64_t nActualTimespan = pindexLast->GetBlockTime() - nFirstBlockTime;
 
+    printf("%s: nActualTimespan: %d\n", __func__, nActualTimespan);
+    printf("%s: params.nPowTargetTimespan: %d\n", __func__, params.nPowTargetTimespan);
+
     // Check if we can adjust nEdgeBits value
     uint8_t edgeBitsAdjusted = pindexLast->nEdgeBits;
     if (nActualTimespan < params.nPowTargetTimespan / params.nEdgeBitsTargetThreshold) {
@@ -65,16 +68,18 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
     }
 
     // Retarget nEdgeBits
-    if (params.sEdgeBitsAllowed.count(edgeBitsAdjusted)) {
+    if (edgeBitsAdjusted != pindexLast->nEdgeBits && params.sEdgeBitsAllowed.count(edgeBitsAdjusted)) {
         LogPrintf("%s: adjusted edge bits accepted. prev bits: %u new bits: %u\n", __func__, pindexLast->nEdgeBits, edgeBitsAdjusted);
         return PoW{pindexLast->nBits, static_cast<uint8_t>(edgeBitsAdjusted)};
     }
 
     // Limit nBits adjustment step
     if (nActualTimespan < params.nPowTargetTimespan / 4) {
+        printf("%s: less than 4 times\n", __func__);
         nActualTimespan = params.nPowTargetTimespan / 4;
     }
     if (nActualTimespan > params.nPowTargetTimespan * 4) {
+        printf("%s: more than 4 times\n", __func__);
         nActualTimespan = params.nPowTargetTimespan * 4;
     }
 
@@ -82,12 +87,15 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
     const arith_uint256 bnPowLimit = UintToArith256(params.powLimit.uHashLimit);
     arith_uint256 bnNew;
     bnNew.SetCompact(pindexLast->nBits);
-    bnNew *= nActualTimespan;
+    LogPrintf("%s: prev bits: %s\n", __func__, bnNew.GetHex().c_str());
+
     bnNew /= params.nPowTargetTimespan;
+    bnNew *= nActualTimespan;
 
     if (bnNew > bnPowLimit) {
         bnNew = bnPowLimit;
     }
+    LogPrintf("%s: new bits:  %s\n", __func__, bnNew.GetHex().c_str());
 
     LogPrintf("%s: adjusted nbits accepted. prev bits: %08x; new bits: %08x\n", __func__, pindexLast->nBits, bnNew.GetCompact());
 

@@ -297,8 +297,8 @@ public:
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
             *consensus.sEdgeBitsAllowed.begin()};
         // TODO: reset after testing
-        consensus.nPowTargetTimespan = 60 * 60; // one day for nBits adjustment
-        consensus.nEdgeBitsTargetThreshold = 2; // adjust nEdgeBits if block time is twice more/less than expected
+        consensus.nPowTargetTimespan = 20 * 60; // one day for nBits adjustment
+        consensus.nEdgeBitsTargetThreshold = 4; // adjust nEdgeBits if block time is twice more/less than expected
         consensus.nPowTargetSpacing = 1 * 60;   // one minute for a block
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;

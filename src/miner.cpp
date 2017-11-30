@@ -731,10 +731,13 @@ void static MeritMiner(const CChainParams& chainparams)
                     auto end = std::chrono::system_clock::now();
                     std::chrono::duration<double> elapsed = end - start;
 
+                    auto cycleHash = SerializeHash(cycle);
+
                     LogPrintf("MeritMiner:\n");
-                    LogPrintf("proof-of-work found within %8.3f seconds \n  hash: %s  \ntarget: %s\n",
+                    LogPrintf("proof-of-work found within %8.3f seconds \n  block hash: %s  \n  cycle hash: %s  \ntarget: %s\n",
                         elapsed.count(),
                         pblock->GetHash().GetHex(),
+                        cycleHash.GetHex(),
                         hashTarget.GetHex());
 
                     ProcessBlockFound(pblock, chainparams);
