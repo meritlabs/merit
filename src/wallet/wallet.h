@@ -888,8 +888,8 @@ public:
 
     const CWalletTx* GetWalletTx(const uint256& hash) const;
 
-    // Sets the referral code to unlock the wallet and sends referral tx to the network
-    referral::ReferralRef Unlock(const uint256& referralCodeIn);
+    // Sets the referral address to unlock the wallet and sends referral tx to the network
+    referral::ReferralRef Unlock(const referral::Address& parentAddress);
 
     //! check whether we are allowed to upgrade (or already support) to the named feature
     bool CanSupportFeature(enum WalletFeature wf) const { AssertLockHeld(cs_wallet); return nWalletMaxVersion >= wf; }
@@ -1058,7 +1058,7 @@ public:
 
     bool NewKeyPool();
     size_t KeypoolCountExternalKeys();
-    bool TopUpKeyPool(unsigned int kpSize = 0, std::shared_ptr<uint256> referredBy = nullptr, bool outReferral = false);
+    bool TopUpKeyPool(unsigned int kpSize = 0, std::shared_ptr<referral::Address> referredBy = nullptr, bool outReferral = false);
     void ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRequestedInternal);
     void KeepKey(int64_t nIndex);
     void ReturnKey(int64_t nIndex, bool fInternal, const CPubKey& pubkey);
@@ -1216,22 +1216,22 @@ public:
     referral::ReferralRef GenerateNewReferral(
             char addressType,
             const referral::Address& addr,
-            const uint256& referredBy);
+            const referral::Address& parentAddress);
 
     referral::ReferralRef GenerateNewReferral(
             const CScriptID& id,
-            const uint256& referredBy);
+            const referral::Address& parentAddress);
 
     referral::ReferralRef GenerateNewReferral(
             const CParamScriptID& id,
-            const uint256& referredBy);
+            const referral::Address& parentAddress);
 
     referral::ReferralRef GenerateNewReferral(
             const CPubKey& pubkey,
-            const uint256& referredBy);
+            const referral::Address& parentAddress);
 
     bool IsReferred() const;
-    uint256 ReferralCodeHash() const;
+    referral::Address ReferralAddress() const;
 };
 
 /** A key allocated from the key pool. */

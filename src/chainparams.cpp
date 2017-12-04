@@ -48,10 +48,9 @@ static CBlock CreateGenesisBlock(
     CPubKey rawPubKey{rawKeyStr};
     CKeyID address = rawPubKey.GetID();
     referral::MutableReferral refNew;
-    refNew.codeHash.SetHex("73a50383c1e58f5f215cdb40508b584bfd9f8d0e46cc3d0f17c79c6774a5dafd");
     refNew.addressType = 1;
-    refNew.pubKeyId = address;
-    refNew.previousReferral.SetNull();
+    refNew.address = address;
+    refNew.parentAddress.SetNull();
 
     CBlock genesis;
     genesis.nTime = nTime;

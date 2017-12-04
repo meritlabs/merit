@@ -176,7 +176,7 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
     return &(it->second);
 }
 
-referral::ReferralRef CWallet::Unlock(const uint256& referredByHash)
+referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress)
 {
     // check wallet is not unlocked yet
     if (IsReferred()) {
@@ -188,9 +188,9 @@ referral::ReferralRef CWallet::Unlock(const uint256& referredByHash)
         throw std::runtime_error(std::string(__func__) + ": wallet alredy have unconfirmed unlock referral transaction");
     }
 
-    // check if provided referral code hash is valid, i.e. exists in the blockchain or mempool
-    if (!prefviewcache->ReferralCodeExists(referredByHash) && !mempoolReferral.ExistsWithCodeHash(referredByHash)) {
-        throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain");
+    // check if provided referral address is valid, i.e. exists in the blockchain or mempool
+    if (!prefviewcache->ReferralAddressExists(parentAddress) && !mempoolReferral.ExistsWithAddress(parentAddress)) {
+        throw std::runtime_error(std::string(__func__) + ": provided address does not exist in the chain");
     }
 
     int64_t nIndex = ++m_max_keypool_index;
@@ -212,9 +212,9 @@ referral::ReferralRef CWallet::Unlock(const uint256& referredByHash)
     LoadKeyPool(nIndex, keypool);
 
     // generate new referral associated with new pubkey
-    auto referral = GenerateNewReferral(pubkey, referredByHash);
+    auto referral = GenerateNewReferral(pubkey, parentAddress);
 
-    LogPrintf("Generated new unlock referral. Code: %s\n", referral->code);
+    LogPrintf("Generated new unlock referral. Address: %s\n", referral->address.ToString());
 
     return referral;
 }
@@ -1649,13 +1649,13 @@ bool CWallet::IsHDEnabled() const
 referral::ReferralRef CWallet::GenerateNewReferral(
         char addressType,
         const referral::Address& address,
-        const uint256& referred_by)
+        const referral::Address& parentAddress)
 {
     // generate referral for given public key
     auto referral =
         referral::MakeReferralRef(
                 referral::MutableReferral(
-                    addressType, address, referred_by));
+                    addressType, address, parentAddress));
 
     referral::ReferralTx rtx{true};
 
@@ -1668,24 +1668,24 @@ referral::ReferralRef CWallet::GenerateNewReferral(
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CScriptID& id,
-        const uint256& referred_by)
+        const referral::Address& parentAddress)
 {
-    return GenerateNewReferral(2, id, referred_by);
+    return GenerateNewReferral(2, id, parentAddress);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CParamScriptID& id,
-        const uint256& referred_by)
+        const referral::Address& parentAddress)
 {
-    return GenerateNewReferral(3, id, referred_by);
+    return GenerateNewReferral(3, id, parentAddress);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CPubKey& pubkey,
-        const uint256& referred_by)
+        const referral::Address& parentAddress)
 {
     const referral::Address key_id = pubkey.GetID();
-    return GenerateNewReferral(1, key_id, referred_by);
+    return GenerateNewReferral(1, key_id, parentAddress);
 }
 
 bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool)
@@ -1712,10 +1712,9 @@ bool CWallet::IsReferred() const
     return !m_unlockReferralTx.IsNull();
 }
 
-uint256 CWallet::ReferralCodeHash() const
+referral::Address CWallet::ReferralAddress() const
 {
-    return IsReferred() ?
-        m_unlockReferralTx.m_pReferral->codeHash : uint256{};
+    return IsReferred() ? m_unlockReferralTx.m_pReferral->address : referral::Address{};
 }
 
 int64_t CWalletTx::GetTxTime() const
@@ -3272,28 +3271,29 @@ bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef
     // generate referral tx and bind it to this wallet
     rtx.BindWallet(this);
 
-    CKeyID keyId;
-    if (!CMeritAddress{referral->addressType, referral->pubKeyId}.GetKeyID(keyId)) {
-        return false;
-    }
+    // TODO: remove this code with simple signature of address + parentSignature
+    // CKeyID keyId;
+    // if (!CMeritAddress{referral->addressType, referral->address}.GetKeyID(keyId)) {
+    //     return false;
+    // }
 
-    std::map<CKeyID, int64_t>::const_iterator mi = m_pool_key_to_index.find(keyId);
-    if (mi == m_pool_key_to_index.end()) {
-        return false;
-    }
+    // std::map<CKeyID, int64_t>::const_iterator mi = m_pool_key_to_index.find(keyId);
+    // if (mi == m_pool_key_to_index.end()) {
+    //     return false;
+    // }
 
-    CPubKey pubkey;
-    GetPubKey(mi->first, pubkey);
+    // CPubKey pubkey;
+    // GetPubKey(mi->first, pubkey);
 
-    const CScript scriptPubKey = CScript() << ToByteVector(pubkey) << OP_CHECKSIG;
-    SignatureData sigdata;
+    // const CScript scriptPubKey = CScript() << ToByteVector(pubkey) << OP_CHECKSIG;
+    // SignatureData sigdata;
     referral::MutableReferral newRef{*referral};
 
-    if (!ProduceSignature(ReferralSignatureCreator(this, referral, SIGHASH_ALL), scriptPubKey, sigdata)) {
-        return false;
-    } else {
-        newRef.scriptSig = sigdata.scriptSig;
-    }
+    // if (!ProduceSignature(ReferralSignatureCreator(this, referral, SIGHASH_ALL), scriptPubKey, sigdata)) {
+    //     return false;
+    // } else {
+    //     newRef.scriptSig = sigdata.scriptSig;
+    // }
 
     rtx.SetReferral(MakeReferralRef(newRef));
 
@@ -3596,7 +3596,7 @@ void CWallet::LoadReferral(int64_t nIndex, const referral::Referral& referral)
     // TODO: figure out if we need to set referral to CKeyMetadata and update mapKeyMetadata here
 }
 
-bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referredBy, bool outReferral)
+bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<referral::Address> parentAddress, bool outReferral)
 {
     {
         LOCK2(cs_main, cs_wallet);
@@ -3605,16 +3605,16 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
         }
 
         CWalletDB walletdb(*dbw);
-        std::shared_ptr<uint256> currentTopReferral;
+        std::shared_ptr<referral::Address> currentTopReferral;
 
-        if (referredBy != nullptr) {
-            currentTopReferral = std::move(referredBy);
+        if (parentAddress != nullptr) {
+            currentTopReferral = std::move(parentAddress);
         } else if (IsReferred()) {
-            LogPrintf("referredBy code hash not provided. Looking for unlock referral\n");
+            LogPrintf("parentAddress not provided. Looking for unlock referral\n");
 
-            currentTopReferral = std::make_shared<uint256>(m_unlockReferralTx.GetReferral()->codeHash);
+            currentTopReferral = std::make_shared<referral::Address>(m_unlockReferralTx.GetReferral()->address);
         } else {
-            LogPrintf("referredBy code hash not found\n");
+            LogPrintf("parentAddress not found\n");
             return false;
         }
 
@@ -3657,7 +3657,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<uint256> referre
 
             auto referral = GenerateNewReferral(pubkey, *currentTopReferral);
 
-            LogPrintf("Generated new referral. Code: %s\n", referral->code);
+            LogPrintf("Generated new referral. Address: %s\n", referral->address.ToString());
 
             if (internal) {
                 setInternalKeyPool.insert(index);

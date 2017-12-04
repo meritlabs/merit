@@ -555,8 +555,8 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
 
-        if (!(prefviewcache->ReferralCodeExists(referral->previousReferral) ||
-            pool.ExistsWithCodeHash(referral->previousReferral))) {
+        if (!(prefviewcache->ReferralAddressExists(referral->parentAddress) ||
+            pool.ExistsWithAddress(referral->parentAddress))) {
             missingReferrer = true;
             return false;
         }
@@ -3851,7 +3851,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
     for (const auto& ref : block.m_vRef) {
         if (!CheckReferral(*ref, state)) {
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
-                strprintf("Referral check failed (ref hash %s) %s", ref->codeHash.GetHex(), state.GetDebugMessage()));
+                strprintf("Referral check failed (ref hash %s) %s", ref->GetHash().GetHex(), state.GetDebugMessage()));
         }
     }
 
@@ -3889,7 +3889,7 @@ bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
         const auto it =
             std::find_if(mempoolReferral.mapRTx.begin(), mempoolReferral.mapRTx.end(),
                 [&addr](const referral::RefMemPoolEntry& entry) {
-                    return entry.GetSharedEntryValue()->pubKeyId == addr;
+                    return entry.GetSharedEntryValue()->address == addr;
                 });
 
         beaconed = it != mempoolReferral.mapRTx.end();
@@ -4991,7 +4991,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
     try {
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
 
-        if (!prefviewdb->ReferralCodeExists(block.m_vRef[0]->codeHash)) {
+        if (!prefviewdb->ReferralAddressExists(block.m_vRef[0]->address)) {
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.

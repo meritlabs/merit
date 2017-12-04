@@ -519,13 +519,13 @@ static UniValue EasySend(
     CScriptID script_id = easy_send_script;
     CScript script_pub_key = GetScriptForDestination(script_id);
 
-    if(!pwallet.GenerateNewReferral(receiver_pub, pwallet.ReferralCodeHash())) {
+    if(!pwallet.GenerateNewReferral(receiver_pub, pwallet.ReferralAddress())) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Unable to generate referral for receiver key");
     }
 
-    if(!pwallet.GenerateNewReferral(script_id, pwallet.ReferralCodeHash())) {
+    if(!pwallet.GenerateNewReferral(script_id, pwallet.ReferralAddress())) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Unable to generate referral for easy send script");
@@ -1067,7 +1067,7 @@ UniValue createvault(const JSONRPCRequest& request)
                     ToByteVector(vault_tag),
                     0 /* simple is type 0 */);
 
-        if(!pwallet->GenerateNewReferral(script_id, pwallet->ReferralCodeHash())) {
+        if(!pwallet->GenerateNewReferral(script_id, pwallet->ReferralAddress())) {
             throw JSONRPCError(
                     RPC_WALLET_ERROR,
                     "Unable to generate referral for the vault script");
@@ -4327,18 +4327,20 @@ UniValue generate(const JSONRPCRequest& request)
     return generateBlocks(coinbase_script, num_generate, max_tries, true);
 }
 
-UniValue validatereferralcode(const JSONRPCRequest& request)
+UniValue validatereferraladdress(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1) {
         throw std::runtime_error(
-            "validatereferralcode \"code\"\n"
-            + HelpExampleCli("validatereferralcode", "code")
+            "validatereferraladdress \"address\"\n"
+            + HelpExampleCli("validatereferraladdress", "code")
         );
     }
 
-    const std::string unlockCode = request.params[0].get_str();
-    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
-    bool is_valid = prefviewcache->ReferralCodeExists(codeHash);
+    CMeritAddress address(request.params[0].get_str());
+    auto addressUint160 = address.GetUint160();
+    assert(addressUint160);
+
+    bool is_valid = prefviewcache->ReferralAddressExists(*addressUint160);
 
     UniValue result(is_valid);
     return result;
@@ -4353,11 +4355,11 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() != 1 || request.params[0].get_str().empty()) {
         throw std::runtime_error(
-            "unlockwallet \"code\"\n"
+            "unlockwallet \"parentaddress\"\n"
             "Updates the wallet with referral code and beacons first key with associated referral.\n"
             "Returns an object containing various wallet state info.\n"
             "\nArguments:\n"
-            "1. code      (string, required) Referral code needed to unlock the wallet.\n"
+            "1. parentaddress   (string, required) Parent address needed to unlock the wallet.\n"
             "\nResult:\n"
             "{\n"
             "  \"walletname\": xxxxx,             (string) the wallet name\n"
@@ -4372,21 +4374,20 @@ UniValue unlockwallet(const JSONRPCRequest& request)
             "  \"unlocked_until\": ttt,           (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
             "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
             "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
-            "  \"referralcode\":  \"<string>\"    (string) the referral code generated that can be shared with other users\n"
-            "  \"codehash\":  \"<string>\"        (string) the referral code hash generated that is stored on blockchain\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("unlockwallet", "\"referralcode\"")
-            + HelpExampleRpc("unlockwallet", "\"referralcode\"")
+            + HelpExampleCli("unlockwallet", "\"parentaddress\"")
+            + HelpExampleRpc("unlockwallet", "\"parentaddress\"")
         );
     }
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    std::string unlockCode = request.params[0].get_str();
-    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
+    CMeritAddress parentAddress{request.params[0].get_str()};
+    auto parentAddressUint160 = parentAddress.GetUint160();
+    assert(parentAddressUint160);
 
-    referral::ReferralRef referral = pwallet->Unlock(codeHash);
+    referral::ReferralRef referral = pwallet->Unlock(*parentAddressUint160);
 
     // TODO: Make this check more robust.
     UniValue obj(UniValue::VOBJ);
@@ -4412,9 +4413,6 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     if (!masterKeyID.IsNull())
         obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
-
-    obj.push_back(Pair("referralcode", referral->code));
-    obj.push_back(Pair("codehash", referral->codeHash.GetHex()));
 
     return obj;
 }
@@ -4480,22 +4478,20 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 2 || request.params[0].get_str().empty() || request.params[1].get_str().empty()) {
         throw std::runtime_error(
-            "unlockwalletwithaddress \"address\" \"code\"\n"
-            "Updates the wallet with referral code and beacons first key with associated referral.\n"
+            "unlockwalletwithaddress \"address\" \"parentaddress\"\n"
+            "Updates the wallet with referral address and beacons first key with associated referral.\n"
             "Return information about the given merit address..\n"
             "\nArguments:\n"
-            "1. address      (string, required) Address of the wallet to unlock.\n"
-            "2. code         (string, required) Referral code needed to unlock the wallet.\n"
+            "1. address       (string, required) Address of the wallet to unlock.\n"
+            "2. parentaddress (string, required) Parent address needed to unlock the wallet.\n"
             "\nResult:\n"
             "{\n"
             "  \"isvalid\":  true|false           (boolean) if address is a valid merit address\n"
-            "  \"address\":  \"<string>\"         (string) merit address\n"
-            "  \"referralcode\":  \"<string>\"    (string) the referral code generated that can be shared with other users\n"
-            "  \"codehash\":  \"<string>\"        (string) the referral code hash generated that is stored on blockchain\n"
+            "  \"address\":  \"<string>\"         (string) beaconed merit address\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("unlockwalletwithaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\" \"referralcode\"")
-            + HelpExampleRpc("unlockwalletwithaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\", \"referralcode\"")
+            + HelpExampleCli("unlockwalletwithaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\" \"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWd\"")
+            + HelpExampleRpc("unlockwalletwithaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\", \"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWd\"")
         );
     }
 
@@ -4503,47 +4499,51 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
     }
 
-
     LOCK(cs_main);
 
     CMeritAddress address(request.params[0].get_str());
+    CMeritAddress parentAddress(request.params[1].get_str());
     bool isValid = address.IsValid();
 
-    UniValue ret(UniValue::VOBJ);
-    if (!isValid) {
+    if (!address.IsValid()) {
         throw std::runtime_error("Address is not valid or in wrong format.");
     }
 
-    std::string currentAddress = address.ToString();
+    if (!parentAddress.IsValid()) {
+        throw std::runtime_error("Parent address is not valid or in wrong format.");
+    }
 
-    // Create referral trasnaction
-    std::string unlockCode = request.params[1].get_str();
-    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
+    UniValue ret(UniValue::VOBJ);
+
+    auto addressUint160 = address.GetUint160();
+    assert(addressUint160);
+
+    auto parentAddressUint160 = parentAddress.GetUint160();
+    assert(parentAddressUint160);
 
     // check if provided referral code hash is valid, i.e. exists in the blockchain
-    if (!prefviewcache->ReferralCodeExists(codeHash) && !mempoolReferral.ExistsWithCodeHash(codeHash)) {
-        throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain (RPC)");
+    if (!prefviewcache->ReferralAddressExists(*parentAddressUint160)
+        && !mempoolReferral.ExistsWithAddress(*parentAddressUint160)) {
+        throw std::runtime_error(std::string(__func__) + ": provided parent address does not exist in the chain (RPC)");
     }
 
     if (CheckAddressBeaconed(address)) {
         throw std::runtime_error(std::string(__func__) + ": Address is already beaconed.");
     }
 
-    auto addressUint160 = address.GetUint160();
-    assert(addressUint160);
-
     referral::ReferralRef referral =
         referral::MakeReferralRef(
                 referral::MutableReferral(
-                    address.GetType(), *addressUint160, codeHash));
+                    address.GetType(), *addressUint160, *parentAddressUint160));
 
     // check that new referral is not in the cache or in mempool
-    if (prefviewcache->ReferralCodeExists(referral->GetHash()) || mempoolReferral.ExistsWithCodeHash(referral->GetHash())) {
+    if (prefviewcache->ReferralAddressExists(referral->address) || mempoolReferral.ExistsWithAddress(referral->address)) {
         throw std::runtime_error(std::string(__func__) + ": new referral is already beaconed");
     }
 
     CValidationState state;
     bool missingReferrer = false;
+
     if (!AcceptReferralToMemoryPool(mempoolReferral, state, referral, missingReferrer)) {
         if (missingReferrer) {
             throw JSONRPCError(RPC_REFERRAL_REJECTED, "Missing referrer");
@@ -4558,9 +4558,7 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
     });
 
     ret.push_back(Pair("isvalid", isValid));
-    ret.push_back(Pair("address", currentAddress));
-    ret.push_back(Pair("referralcode", referral->code)); // referral->code
-    ret.push_back(Pair("codehash", referral->codeHash.GetHex()));
+    ret.push_back(Pair("address", address.ToString()));
 
     return ret;
 }
@@ -4675,12 +4673,12 @@ static const CRPCCommand commands[] =
 
     // merit specific commands
 
-    { "referral",           "validatereferralcode",     &validatereferralcode,     {"code"} },
-    { "referral",           "unlockwallet",             &unlockwallet,             {"code"} },
+    { "referral",           "validatereferraladdress",  &validatereferraladdress,  {"address"} },
+    { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress"} },
     { "referral",           "getanv",                   &getanv,                   {"address"} },
     { "wallet",             "getrewards",               &getrewards,               {} },
 #ifdef ENABLE_WALLET
-    { "referral",           "unlockwalletwithaddress",  &unlockwalletwithaddress,  {"address", "referralcode"} }
+    { "referral",           "unlockwalletwithaddress",  &unlockwalletwithaddress,  {"address", "parentaddress"} }
 #endif
 };
 

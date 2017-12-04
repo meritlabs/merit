@@ -1590,8 +1590,8 @@ namespace {
      template<typename S>
      void Serialize(S &s) const {
          // Serialize referral
-         ::Serialize(s, referral.codeHash);
-         ::Serialize(s, referral.previousReferral);
+        //  ::Serialize(s, referral.codeHash);
+        //  ::Serialize(s, referral.previousReferral);
 
          // serialize script
          SerializeScriptCode(s);

@@ -14,33 +14,22 @@
 namespace referral
 {
 
-static inline std::string GenerateReferralCode()
-{
-    auto randomHash = GetRandHash();
-
-    return randomHash.ToString().substr(0, 10);
-}
-
 MutableReferral::MutableReferral(
         char addressTypeIn,
         const Address& addressIn,
-        const uint256& referralIn) :
+        const Address& parentAddressIn) :
     version{Referral::CURRENT_VERSION},
-    previousReferral{referralIn},
+    parentAddress{parentAddressIn},
     addressType{addressTypeIn},
-    pubKeyId{addressIn},
-    code{GenerateReferralCode()},
-    codeHash{Hash(code.begin(), code.end())},
-    scriptSig{CScript()} {}
+    address{addressIn},
+    signature{valtype()} {}
 
 MutableReferral::MutableReferral(const Referral& ref) :
     version{ref.version},
-    previousReferral{ref.previousReferral},
+    parentAddress{ref.parentAddress},
     addressType{ref.addressType},
-    pubKeyId{ref.pubKeyId},
-    code{ref.code},
-    codeHash{ref.codeHash},
-    scriptSig{ref.scriptSig} {}
+    address{ref.address},
+    signature{ref.signature} {}
 
 uint256 MutableReferral::GetHash() const
 {
@@ -56,35 +45,29 @@ uint256 Referral::ComputeHash() const
 Referral::Referral(
         char addressTypeIn,
         const Address& addressIn,
-        const uint256& referralIn) :
+        const Address& parentAddressIn) :
     version{Referral::CURRENT_VERSION},
-    previousReferral{referralIn},
+    parentAddress{parentAddressIn},
     addressType{addressTypeIn},
-    pubKeyId{addressIn},
-    code{GenerateReferralCode()},
-    codeHash{Hash(code.begin(), code.end())},
-    scriptSig{CScript()},
-    m_hash{} {}
+    address{addressIn},
+    signature{valtype()},
+    hash{} {}
 
 Referral::Referral(const MutableReferral &ref) :
     version{ref.version},
-    previousReferral{ref.previousReferral},
+    parentAddress{ref.parentAddress},
     addressType{ref.addressType},
-    pubKeyId{ref.pubKeyId},
-    code{ref.code},
-    codeHash{ref.codeHash},
-    scriptSig{ref.scriptSig},
-    m_hash{ComputeHash()} {}
+    address{ref.address},
+    signature{ref.signature},
+    hash{ComputeHash()} {}
 
 Referral::Referral(MutableReferral &&ref) :
     version{ref.version},
-    previousReferral{std::move(ref.previousReferral)},
+    parentAddress{std::move(ref.parentAddress)},
     addressType{ref.addressType},
-    pubKeyId{std::move(ref.pubKeyId)},
-    code{ref.code},
-    codeHash{ref.codeHash},
-    scriptSig{ref.scriptSig},
-    m_hash{ComputeHash()} {}
+    address{std::move(ref.address)},
+    signature{ref.signature},
+    hash{ComputeHash()} {}
 
 unsigned int Referral::GetTotalSize() const
 {
@@ -94,13 +77,12 @@ unsigned int Referral::GetTotalSize() const
 std::string Referral::ToString() const
 {
     std::string str;
-    str += strprintf("Referral(hash=%s, ver=%d, codeHash=%s, previousReferral=%s, addressType%d, pubKeyId=%s)\n",
-        GetHash().GetHex().substr(0,10),
+    str += strprintf("Referral(hash=%s, ver=%d, parentAddress=%s, address=%s, addressType=%d)\n",
+        GetHash().GetHex(),
         version,
-        codeHash.GetHex(),
-        previousReferral.GetHex(),
-        static_cast<int>(addressType),
-        pubKeyId.GetHex());
+        parentAddress.GetHex(),
+        address.GetHex(),
+        static_cast<int>(addressType));
     return str;
 }
 
