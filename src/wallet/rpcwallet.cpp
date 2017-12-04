@@ -4393,6 +4393,11 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
 
     CMeritAddress parentAddress{request.params[0].get_str()};
+
+    if (!parentAddress.IsValid()) {
+        throw std::runtime_error(strprintf("Parent address \"%s\" is not valid or in wrong format.", parentAddress.ToString().c_str()));
+    }
+
     auto parentAddressUint160 = parentAddress.GetUint160();
     assert(parentAddressUint160);
 
