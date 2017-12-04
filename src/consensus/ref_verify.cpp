@@ -15,16 +15,17 @@ bool CheckReferral(const Referral& referral, CValidationState &state)
 {
     // Basic checks that don't depend on any context
     if (referral.address.IsNull()) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-pubkey");
+        return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-address");
     }
 
-    if (referral.parentAddress.IsNull()) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-ref-code-empty");
-    }
+    // TODO: check parentAddress not empty if not genesis
+    // if (referral.parentAddress.IsNull()) {
+    //     return state.DoS(100, false, REJECT_INVALID, "bad-ref-code-empty");
+    // }
 
-    if (referral.signature.empty()) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-ref-signature-empty");
-    }
+    // if (referral.signature.empty()) {
+    //     return state.DoS(100, false, REJECT_INVALID, "bad-ref-signature-empty");
+    // }
 
     return true;
 }
