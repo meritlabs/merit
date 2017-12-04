@@ -160,16 +160,15 @@ public:
      */
     const setEntries& GetMemPoolChildren(refiter entry) const;
 
+    /**
+     *  Check if referral with a given address exists in mempool
+     */
+    bool ExistsWithAddress(const Address& address) const;
 
     /**
-     *  Check if referral with a given code hash (hash of unlock code) exists in mempool
+     *  Get referral with a given address from mempool
      */
-    bool ExistsWithCodeHash(const uint256& hash) const;
-
-    /**
-     *  Get referral with a given code hash (hash of unlock code) from mempool
-     */
-    ReferralRef GetWithCodeHash(const uint256& codeHash) const;
+    ReferralRef GetWithAddress(const Address& address) const;
 
     /**
      * Check if referral with a given hash exists in mempoll

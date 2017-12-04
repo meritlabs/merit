@@ -599,11 +599,3 @@ bool CBlockTreeDB::WriteReferralTxIndex(const std::vector<std::pair<uint256, CDi
         batch.Write(std::make_pair(DB_REFERRALSINDEX, it->first), it->second);
     return WriteBatch(batch);
 }
-
-bool CBlockTreeDB::GenesisReferralIndexExists(const CChainParams& chainparams)
-{
-    CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
-
-    const auto& reftx = block.m_vRef[0];
-    return Exists(std::make_pair(DB_REFERRALSINDEX, reftx->codeHash));
-}

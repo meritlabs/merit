@@ -221,7 +221,7 @@ bool Consensus::CheckTxOutputs(
         bool got_uint160 = GetUint160(dest, addr);
         assert(got_uint160);
 
-        bool addressBeaconed = referralsCache.WalletIdExists(addr);
+        bool addressBeaconed = referralsCache.ReferralAddressExists(addr);
 
         // check cache for beaconed address
         if (!addressBeaconed) {
@@ -230,7 +230,7 @@ bool Consensus::CheckTxOutputs(
                     vExtraReferrals.begin(), vExtraReferrals.end(),
                     [&addr](const referral::ReferralRef& ref) {
                         assert(ref);
-                        return ref->pubKeyId == addr;
+                        return ref->address == addr;
                     });
 
             addressBeaconed = it != vExtraReferrals.end();

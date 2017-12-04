@@ -37,7 +37,7 @@ protected:
 public:
     explicit ReferralsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false, const std::string& name = "referrals");
 
-    MaybeReferral GetReferral(const uint256&) const;
+    MaybeReferral GetReferral(const Address&) const;
     MaybeAddress GetReferrer(const Address&) const;
     ChildAddresses GetChildren(const Address&) const;
 
@@ -50,6 +50,7 @@ public:
     bool InsertReferral(const Referral&, bool allow_no_parent = false);
     bool RemoveReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;
+    bool ReferralAddressExists(const Address&) const;
     bool WalletIdExists(const Address&) const;
 };
 

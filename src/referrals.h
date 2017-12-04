@@ -15,7 +15,7 @@
 
 namespace referral
 {
-using ReferralMap = std::unordered_map<uint256, Referral>;
+using ReferralMap = std::unordered_map<Address, Referral, std::hash<uint160>>;
 using WalletToReferrer = std::unordered_map<Address, Address, std::hash<uint160>>;
 
 class ReferralsViewCache
@@ -26,17 +26,17 @@ private:
     mutable ReferralMap m_referral_cache;
     mutable WalletToReferrer m_wallet_to_referrer;
 
-    ReferralMap::iterator Fetch(const uint256& code) const;
+    ReferralMap::iterator Fetch(const Address& address) const;
     void InsertReferralIntoCache(const Referral&) const;
     void InsertWalletRelationshipIntoCache(const Address& child, const Address& parent) const;
 
 public:
     ReferralsViewCache(ReferralsViewDB*);
 
-    MaybeReferral GetReferral(const uint256&) const;
+    MaybeReferral GetReferral(const Address&) const;
     MaybeAddress GetReferrer(const Address& address) const;
 
-    bool ReferralCodeExists(const uint256&) const;
+    bool ReferralAddressExists(const Address&) const;
     bool WalletIdExists(const Address&) const;
 
     void RemoveReferral(const Referral&) const;

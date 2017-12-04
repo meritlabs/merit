@@ -151,7 +151,6 @@ public:
     // Referrals
     bool ReadReferralTxIndex(const uint256 &txid, CDiskTxPos &pos);
     bool WriteReferralTxIndex(const std::vector<std::pair<uint256, CDiskTxPos> > &list);
-    bool GenesisReferralIndexExists(const CChainParams& chainparams);
 };
 
 #endif // MERIT_TXDB_H

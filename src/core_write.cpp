@@ -197,9 +197,8 @@ void RefToUniv(const referral::Referral& ref, const uint256& hashBlock, UniValue
 {
     entry.pushKV("refd", ref.GetHash().GetHex());
     entry.pushKV("version", ref.version);
-    entry.pushKV("codeHash", ref.codeHash.GetHex());
-    entry.pushKV("parent", ref.previousReferral.GetHex());
-    entry.pushKV("key", EncodeDestination(CMeritAddress{ref.addressType, ref.pubKeyId}.Get()));
+    entry.pushKV("parent", ref.parentAddress.GetHex());
+    entry.pushKV("address", EncodeDestination(CMeritAddress{ref.addressType, ref.address}.Get()));
     entry.pushKV("size", (int)::GetSerializeSize(ref, SER_NETWORK, PROTOCOL_VERSION));
 
     if (!hashBlock.IsNull())

@@ -624,7 +624,8 @@ bool AddOrphanReferral(const referral::ReferralRef& ref, NodeId peer) EXCLUSIVE_
     auto ret = mapOrphanReferrals.emplace(hash, OrphanReferral{ref, peer, GetTime() + ORPHAN_TX_EXPIRE_TIME});
     assert(ret.second);
 
-    mapOrphanReferralsByPrev[ref->previousReferral].insert(ret.first);
+    // TODO: look for parent referral and use it's hash
+    // mapOrphanReferralsByPrev[ref->previousReferral].insert(ret.first);
 
     LogPrint(BCLog::REFMEMPOOL, "stored orphan referral %s (mapsz %u prevsz)\n", hash.ToString(), mapOrphanReferrals.size());
 
@@ -673,16 +674,17 @@ int static EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 
     mapOrphanReferrals.erase(it);
 
-    auto itPrev = mapOrphanReferralsByPrev.find(it->second.ref->previousReferral);
+    // TODO: look for parent referral and use it's hash
+    // auto itPrev = mapOrphanReferralsByPrev.find(it->second.ref->parentAddress);
 
-    if (itPrev != mapOrphanReferralsByPrev.end()) {
-        itPrev->second.erase(it);
+    // if (itPrev != mapOrphanReferralsByPrev.end()) {
+    //     itPrev->second.erase(it);
 
-        // erase map for prevRef in case it has no orphan referral that depends on it
-        if (itPrev->second.empty()) {
-            mapOrphanReferralsByPrev.erase(itPrev);
-        }
-    }
+    //     // erase map for prevRef in case it has no orphan referral that depends on it
+    //     if (itPrev->second.empty()) {
+    //         mapOrphanReferralsByPrev.erase(itPrev);
+    //     }
+    // }
 
     return 1;
 }
@@ -1009,8 +1011,10 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         // TODO: add to recentRejects if referral code is not valid
         return recentRejects->contains(inv.hash) ||
             mempoolReferral.exists(inv.hash) ||
-            mapOrphanReferrals.count(inv.hash) ||
-            prefviewcache->ReferralCodeExists(inv.hash);
+            mapOrphanReferrals.count(inv.hash);
+            // TODO: check if we can use ref hash here to check if it exists in db
+            // mapOrphanReferrals.count(inv.hash) ||
+            // prefviewcache->ReferralCodeExists(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;

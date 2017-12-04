@@ -9,9 +9,11 @@
 #include "script/script.h"
 #include "serialize.h"
 #include "uint256.h"
-#include <stdint.h>
 
+#include <stdint.h>
 #include <vector>
+
+typedef std::vector<unsigned char> valtype;
 
 namespace referral
 {
@@ -29,18 +31,18 @@ static const int SERIALIZE_REFERRAL = 0x40000000;
  */
 template<typename Stream, typename TxType>
 inline void UnserializeReferral(TxType& ref, Stream& s) {
-    s >> ref.previousReferral;
+    s >> ref.parentAddress;
     s >> ref.addressType;
-    s >> ref.pubKeyId;
-    s >> ref.codeHash;
+    s >> ref.address;
+    // s >> ref.signature;
 }
 
 template<typename Stream, typename TxType>
 inline void SerializeReferral(const TxType& ref, Stream& s) {
-    s << ref.previousReferral;
+    s << ref.parentAddress;
     s << ref.addressType;
-    s << ref.pubKeyId;
-    s << ref.codeHash;
+    s << ref.address;
+    // s >> ref.signature;
 }
 
 /** The basic referral that is broadcast on the network and contained in
@@ -61,26 +63,21 @@ public:
 
     const int32_t version;
 
-    // hash code of revious referral
-    uint256 previousReferral;
+    // address of previous referral
+    Address parentAddress;
 
     // Type of address. 0 == Key ID, 1 = Script ID, 2 = Parameterized Script ID
     const char addressType;
 
     // address that this referral is related to
-    Address pubKeyId;
+    Address address;
 
-    // Referral code that is used as a referrence to a wallet
-    const std::string code;
-
-    // hash of code
-    const uint256 codeHash;
-
-    CScript scriptSig;
+    // signature of parentAddress + address
+    valtype signature;
 
 private:
     /** Memory only. */
-    const uint256 m_hash;
+    const uint256 hash;
 
     uint256 ComputeHash() const;
 
@@ -89,7 +86,7 @@ public:
     Referral(
             char addressTypeIn,
             const Address& addressIn,
-            const uint256& referralIn);
+            const Address& parentAddressIn);
 
     /** Convert a MutableReferral into a Referral. */
     Referral(const MutableReferral &ref);
@@ -106,7 +103,7 @@ public:
     Referral(deserialize_type, Stream& s) : Referral(MutableReferral(deserialize, s)) {}
 
     const uint256& GetHash() const {
-        return m_hash;
+        return hash;
     }
 
     /**
@@ -118,12 +115,12 @@ public:
 
     friend bool operator==(const Referral& a, const Referral& b)
     {
-        return a.m_hash == b.m_hash;
+        return a.hash == b.hash;
     }
 
     friend bool operator!=(const Referral& a, const Referral& b)
     {
-        return a.m_hash != b.m_hash;
+        return a.hash != b.hash;
     }
 
     std::string ToString() const;
@@ -133,15 +130,13 @@ public:
 struct MutableReferral
 {
     int32_t version;
-    uint256 previousReferral;
+    Address parentAddress;
     char addressType;
-    Address pubKeyId;
-    std::string code;
-    uint256 codeHash;
-    CScript scriptSig;
+    Address address;
+    valtype signature;
 
     MutableReferral() : version(Referral::CURRENT_VERSION), addressType{0} { }
-    MutableReferral(char addressType, const Address& addressIn, const uint256& referralIn);
+    MutableReferral(char addressTypeIn, const Address& addressIn, const Address& parentAddressIn);
     MutableReferral(const Referral& ref);
 
     template <typename Stream>
@@ -162,12 +157,11 @@ struct MutableReferral
         Unserialize(s);
     }
 
-    /** Compute the hash of this MutableReferral. This is computed on the
+    /**
+     * Compute the hash of this MutableReferral. This is computed on the
      * fly, as opposed to GetHash() in Referral, which uses a cached result.
      */
     uint256 GetHash() const;
-
-    uint256 GetCodeHash() const;
 
     friend bool operator==(const MutableReferral& a, const MutableReferral& b)
     {
@@ -181,12 +175,12 @@ using ReferralRefs = std::vector<ReferralRef>;
 static inline ReferralRef MakeReferralRef(
         char addressTypeIn,
         Address& addressIn,
-        uint256 referralCodeHashIn)
+        Address parentAddressIn)
 {
     return std::make_shared<const Referral>(
             addressTypeIn,
             addressIn,
-            referralCodeHashIn);
+            parentAddressIn);
 }
 
 template <typename Ref> static inline ReferralRef MakeReferralRef(Ref&& referralIn)

@@ -14,22 +14,22 @@ ReferralsViewCache::ReferralsViewCache(ReferralsViewDB *db) : m_db{db}
     assert(db);
 };
 
-ReferralMap::iterator ReferralsViewCache::Fetch(const uint256& code) const
+ReferralMap::iterator ReferralsViewCache::Fetch(const Address& address) const
 {
-    return m_referral_cache.find(code);
+    return m_referral_cache.find(address);
 }
 
-MaybeReferral ReferralsViewCache::GetReferral(const uint256& code) const
+MaybeReferral ReferralsViewCache::GetReferral(const Address& address) const
 {
     {
         LOCK(m_cs_cache);
-        auto it = Fetch(code);
+        auto it = Fetch(address);
         if (it != m_referral_cache.end()) {
             return it->second;
         }
     }
 
-    if (auto ref = m_db->GetReferral(code)) {
+    if (auto ref = m_db->GetReferral(address)) {
         InsertReferralIntoCache(*ref);
         return ref;
     }
@@ -40,18 +40,18 @@ void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
     //insert into referral cache
-    m_referral_cache.insert(std::make_pair(ref.codeHash, ref));
+    m_referral_cache.insert(std::make_pair(ref.address, ref));
 }
 
-bool ReferralsViewCache::ReferralCodeExists(const uint256& code) const
+bool ReferralsViewCache::ReferralAddressExists(const Address& address) const
 {
     {
         LOCK(m_cs_cache);
-        if (m_referral_cache.count(code) > 0) {
+        if (m_referral_cache.count(address) > 0) {
             return true;
         }
     }
-    if (auto ref = m_db->GetReferral(code)) {
+    if (auto ref = m_db->GetReferral(address)) {
         InsertReferralIntoCache(*ref);
         return true;
     }
@@ -120,7 +120,7 @@ bool ReferralsViewCache::WalletIdExists(const Address& address) const
 
 void ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
-    m_referral_cache.erase(ref.codeHash);
+    m_referral_cache.erase(ref.address);
     m_db->RemoveReferral(ref);
 }
 }
