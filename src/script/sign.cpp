@@ -9,7 +9,6 @@
 #include "key.h"
 #include "keystore.h"
 #include "policy/policy.h"
-#include "primitives/referral.h"
 #include "primitives/transaction.h"
 #include "script/standard.h"
 #include "uint256.h"
@@ -17,36 +16,6 @@
 
 
 typedef std::vector<unsigned char> valtype;
-
-ReferralSignatureCreator::ReferralSignatureCreator(
-    const CKeyStore* keystoreIn,
-    const referral::ReferralRef& referralIn,
-    int nHashTypeIn) : BaseSignatureCreator{keystoreIn},
-                       referral{referralIn},
-                       nHashType{nHashTypeIn},
-                       checker{referralIn} {}
-
-bool ReferralSignatureCreator::CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& address, const CScript& scriptCode, SigVersion sigversion) const
-{
-    CKey key;
-    if (!keystore->GetKey(address, key)) {
-        return false;
-    }
-
-    // Signing with uncompressed keys is disabled in witness scripts
-    if (sigversion == SIGVERSION_WITNESS_V0 && !key.IsCompressed()) {
-        return false;
-    }
-
-    uint256 hash = SignatureHash(scriptCode, *referral, nHashType);
-    if (!key.Sign(hash, vchSig)) {
-        return false;
-    }
-
-    vchSig.push_back((unsigned char)nHashType);
-
-    return true;
-}
 
 TransactionSignatureCreator::TransactionSignatureCreator(
         const CKeyStore* keystoreIn,
