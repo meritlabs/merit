@@ -3270,30 +3270,14 @@ bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef
 {
     // generate referral tx and bind it to this wallet
     rtx.BindWallet(this);
+    auto it = mapKeys.find(CKeyID(referral->address));
+    assert(it != mapKeys.end());
 
-    // TODO: remove this code with simple signature of address + parentSignature
-    // CKeyID keyId;
-    // if (!CMeritAddress{referral->addressType, referral->address}.GetKeyID(keyId)) {
-    //     return false;
-    // }
+    valtype signature;
+    it->second.Sign((CHashWriter(SER_GETHASH, 0) << referral->parentAddress << referral->address).GetHash(), signature);
 
-    // std::map<CKeyID, int64_t>::const_iterator mi = m_pool_key_to_index.find(keyId);
-    // if (mi == m_pool_key_to_index.end()) {
-    //     return false;
-    // }
-
-    // CPubKey pubkey;
-    // GetPubKey(mi->first, pubkey);
-
-    // const CScript scriptPubKey = CScript() << ToByteVector(pubkey) << OP_CHECKSIG;
-    // SignatureData sigdata;
     referral::MutableReferral newRef{*referral};
-
-    // if (!ProduceSignature(ReferralSignatureCreator(this, referral, SIGHASH_ALL), scriptPubKey, sigdata)) {
-    //     return false;
-    // } else {
-    //     newRef.scriptSig = sigdata.scriptSig;
-    // }
+    newRef.signature = signature;
 
     rtx.SetReferral(MakeReferralRef(newRef));
 

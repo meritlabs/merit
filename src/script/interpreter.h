@@ -8,7 +8,6 @@
 #define MERIT_SCRIPT_INTERPRETER_H
 
 #include "script_error.h"
-#include "primitives/referral.h"
 #include "primitives/transaction.h"
 
 #include <vector>
@@ -139,8 +138,6 @@ enum SigVersion
     SIGVERSION_WITNESS_V0 = 1,
 };
 
-uint256 SignatureHash(const CScript &scriptCode, const referral::Referral& referral, int nHashType);
-
 uint256 SignatureHash(
         const CScript &scriptCode,
         const CTransaction& txTo,
@@ -193,21 +190,6 @@ public:
     }
 
     virtual ~BaseSignatureChecker() {}
-};
-
-class ReferralSignatureChecker : public BaseSignatureChecker
-{
-private:
-    const referral::ReferralRef pReferral;
-
-public:
-    ReferralSignatureChecker(const referral::ReferralRef& referralIn) : pReferral{referralIn} {}
-
-    bool CheckSig(
-        const std::vector<unsigned char>& scriptSig,
-        const std::vector<unsigned char>& vchPubKey,
-        const CScript& scriptCode,
-        SigVersion sigversion) const override;
 };
 
 class TransactionSignatureChecker : public BaseSignatureChecker
