@@ -48,7 +48,8 @@ static CBlock CreateGenesisBlock(
     txNew.vout[0].nValue = genesisReward;
     txNew.vout[0].scriptPubKey = genesisOutputScript;
 
-    auto rawKeyStr = ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35");
+    // compressed pubkey
+    auto rawKeyStr = ParseHex("0337d249c44b0327389a65687c7e9a823271a8c4355c74378d0b608b3339480e9a");
     CPubKey rawPubKey{rawKeyStr};
     CKeyID address = rawPubKey.GetID();
     referral::MutableReferral refNew;
@@ -56,6 +57,7 @@ static CBlock CreateGenesisBlock(
     refNew.address = address;
     refNew.pubkey = rawPubKey;
     refNew.parentAddress.SetNull();
+    refNew.signature = ParseHex("3044022068fc88103f01cf0851616131c9c83ce37c45e0392aab983980c04afa0e603bcc022043319a4e8b62456b4121e960d1b4d5ba2f29c5523e55a65da968fff27a61a321");
 
     CBlock genesis;
     genesis.nTime = nTime;
@@ -347,21 +349,21 @@ public:
             exit(0);
         }
 
-        // genesis ref address: mmQWWZVCev5LYVd1kkYPVk5M2mBqyqPr8X
+        // genesis ref address: miB2255Vay5SGYsxrsbDq3WoVku4LJiFeG
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503444726, 32, 0x207fffff, 24, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
+        genesis = CreateGenesisBlock(1503444726, 52, 0x207fffff, 24, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0x56db7, 0x8c16d, 0x8e2ad, 0x1bf0ed, 0x1ec250, 0x267bf2, 0x2d602c, 0x34fad7,
-            0x390557, 0x3a6b9e, 0x3bf1d5, 0x408bcc, 0x4dbf50, 0x59a21e, 0x59ffdf, 0x5aa5de,
-            0x5efc8e, 0x63fba0, 0x6450c5, 0x73f0c3, 0x846247, 0x8c0377, 0x8d4e64, 0x974b87,
-            0x9aa728, 0xb2c9fe, 0xb5b11c, 0xb7bcbf, 0xb92d16, 0xc8fe95, 0xcedfed, 0xd71e0f,
-            0xd95f44, 0xdbdd91, 0xdef829, 0xe14975, 0xe15f3f, 0xe40e8b, 0xe785b7, 0xe92cf5,
-            0xf51de9, 0xf6131c};
+            0x17b15, 0x50f74, 0x6022c, 0xa11ea, 0x111a9f, 0x19afe3, 0x1cfb74, 0x228bdc, 0x24b446,
+            0x287e17, 0x33e6a7, 0x3d9e5d, 0x3de3be, 0x3ff5aa, 0x4a24fd, 0x56f490, 0x58a3da,
+            0x608959, 0x6c3c18, 0x7886ad, 0x862834, 0x876e7c, 0x885840, 0x8e37c2, 0x8f9d6c,
+            0xa0116e, 0xa8ca9e, 0xb79b6c, 0xbeadbc, 0xbed87c, 0xc5d6eb, 0xca38c2, 0xd3f7e7,
+            0xd8c8e7, 0xd992df, 0xdbd993, 0xe4c6ae, 0xe8a5aa, 0xea6e97, 0xf2ed83, 0xf4ba7c,
+            0xfe70f2};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("eeae48f7cc56522a3f4b96d1a0ff869d735fb16ad97fa9836488c9ecb34e1c0c"));
-        assert(genesis.hashMerkleRoot == uint256S("9e9dcb835dd5ec231a9a910f0d3f25f1d6e4b66530cd6b7b015b20d511f2f060"));
+        assert(consensus.hashGenesisBlock == uint256S("2f5166441084cd09a483a449696c757f6c9d4747eda3dcd7c8e585595eabeada"));
+        assert(genesis.hashMerkleRoot == uint256S("1f3464201f82d9b2e1bcb248a4736c90741a9e2f83fafc5ea70efe9106fe69dc"));
 
         vFixedSeeds.clear();
         vSeeds.clear();

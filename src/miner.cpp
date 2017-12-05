@@ -298,6 +298,8 @@ bool BlockAssembler::CheckReferrals(CTxMemPool::setEntries& testSet, referral::R
         }
     }
 
+    // TODO: check referral signatures
+
     return true;
 }
 

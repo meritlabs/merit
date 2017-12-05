@@ -8,8 +8,7 @@
 
 namespace referral
 {
-
-ReferralsViewCache::ReferralsViewCache(ReferralsViewDB *db) : m_db{db}
+ReferralsViewCache::ReferralsViewCache(ReferralsViewDB* db) : m_db{db}
 {
     assert(db);
 };
@@ -36,23 +35,6 @@ MaybeReferral ReferralsViewCache::GetReferral(const Address& address) const
 
     return {};
 }
-
-MaybeReferral ReferralsViewCache::LookupPubKeyReferral(const Address& childAddress) const
-{
-    MaybeReferral referral = GetReferral(childAddress);
-
-    if (!referral) {
-        return {};
-    }
-
-    // verify signature in case we have a pubkey
-    if (referral->addressType == 1) {
-        return referral;
-    }
-
-    return LookupPubKeyReferral(referral->parentAddress);
-}
-
 
 void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
