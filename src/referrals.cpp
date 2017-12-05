@@ -33,8 +33,26 @@ MaybeReferral ReferralsViewCache::GetReferral(const Address& address) const
         InsertReferralIntoCache(*ref);
         return ref;
     }
+
     return {};
 }
+
+MaybeReferral ReferralsViewCache::LookupPubKeyReferral(const Address& childAddress) const
+{
+    MaybeReferral referral = GetReferral(childAddress);
+
+    if (!referral) {
+        return {};
+    }
+
+    // verify signature in case we have a pubkey
+    if (referral->addressType == 1) {
+        return referral;
+    }
+
+    return LookupPubKeyReferral(referral->parentAddress);
+}
+
 
 void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
