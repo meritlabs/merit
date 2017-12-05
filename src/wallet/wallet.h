@@ -1216,6 +1216,7 @@ public:
     referral::ReferralRef GenerateNewReferral(
             char addressType,
             const referral::Address& addr,
+            const referral::MaybePubKey& pubkey,
             const referral::Address& parentAddress);
 
     referral::ReferralRef GenerateNewReferral(

@@ -1649,13 +1649,14 @@ bool CWallet::IsHDEnabled() const
 referral::ReferralRef CWallet::GenerateNewReferral(
         char addressType,
         const referral::Address& address,
+        const referral::MaybePubKey& pubkey,
         const referral::Address& parentAddress)
 {
     // generate referral for given public key
     auto referral =
         referral::MakeReferralRef(
                 referral::MutableReferral(
-                    addressType, address, parentAddress));
+                    addressType, address, pubkey, parentAddress));
 
     referral::ReferralTx rtx{true};
 
@@ -1670,14 +1671,14 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const CScriptID& id,
         const referral::Address& parentAddress)
 {
-    return GenerateNewReferral(2, id, parentAddress);
+    return GenerateNewReferral(2, id, referral::MaybePubKey{}, parentAddress);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CParamScriptID& id,
         const referral::Address& parentAddress)
 {
-    return GenerateNewReferral(3, id, parentAddress);
+    return GenerateNewReferral(3, id, referral::MaybePubKey{}, parentAddress);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
@@ -1685,7 +1686,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const referral::Address& parentAddress)
 {
     const referral::Address key_id = pubkey.GetID();
-    return GenerateNewReferral(1, key_id, parentAddress);
+    return GenerateNewReferral(1, key_id, pubkey, parentAddress);
 }
 
 bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool)
