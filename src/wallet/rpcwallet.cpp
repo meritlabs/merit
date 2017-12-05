@@ -4537,10 +4537,11 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
         throw std::runtime_error(std::string(__func__) + ": Address is already beaconed.");
     }
 
+    // TODO: add real pubkey after LW updated with real pubkey instead address
     referral::ReferralRef referral =
         referral::MakeReferralRef(
                 referral::MutableReferral(
-                    address.GetType(), *addressUint160, *parentAddressUint160));
+                    address.GetType(), *addressUint160, referral::MaybePubKey{}, *parentAddressUint160));
 
     // check that new referral is not in the cache or in mempool
     if (prefviewcache->ReferralAddressExists(referral->address) || mempoolReferral.ExistsWithAddress(referral->address)) {

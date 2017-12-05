@@ -17,11 +17,13 @@ namespace referral
 MutableReferral::MutableReferral(
         char addressTypeIn,
         const Address& addressIn,
+        const MaybePubKey& pubkeyIn,
         const Address& parentAddressIn) :
     version{Referral::CURRENT_VERSION},
     parentAddress{parentAddressIn},
     addressType{addressTypeIn},
     address{addressIn},
+    pubkey{pubkeyIn},
     signature{valtype()} {}
 
 MutableReferral::MutableReferral(const Referral& ref) :
@@ -29,6 +31,7 @@ MutableReferral::MutableReferral(const Referral& ref) :
     parentAddress{ref.parentAddress},
     addressType{ref.addressType},
     address{ref.address},
+    pubkey{ref.pubkey},
     signature{ref.signature} {}
 
 uint256 MutableReferral::GetHash() const
@@ -45,11 +48,13 @@ uint256 Referral::ComputeHash() const
 Referral::Referral(
         char addressTypeIn,
         const Address& addressIn,
+        const MaybePubKey& pubkeyIn,
         const Address& parentAddressIn) :
     version{Referral::CURRENT_VERSION},
     parentAddress{parentAddressIn},
     addressType{addressTypeIn},
     address{addressIn},
+    pubkey{pubkeyIn},
     signature{valtype()},
     hash{} {}
 
@@ -58,6 +63,7 @@ Referral::Referral(const MutableReferral &ref) :
     parentAddress{ref.parentAddress},
     addressType{ref.addressType},
     address{ref.address},
+    pubkey{ref.pubkey},
     signature{ref.signature},
     hash{ComputeHash()} {}
 
@@ -66,6 +72,7 @@ Referral::Referral(MutableReferral &&ref) :
     parentAddress{std::move(ref.parentAddress)},
     addressType{ref.addressType},
     address{std::move(ref.address)},
+    pubkey{std::move(ref.pubkey)},
     signature{ref.signature},
     hash{ComputeHash()} {}
 

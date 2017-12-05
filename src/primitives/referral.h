@@ -12,13 +12,16 @@
 
 #include <stdint.h>
 #include <vector>
+#include <boost/optional.hpp>
 
 typedef std::vector<unsigned char> valtype;
 
 namespace referral
 {
-
 using Address = uint160;
+
+using MaybeAddress = boost::optional<Address>;
+using MaybePubKey = boost::optional<CPubKey>;
 
 struct MutableReferral;
 
@@ -29,20 +32,31 @@ static const int SERIALIZE_REFERRAL = 0x40000000;
  *
  * Extended referral serialization format:
  */
-template<typename Stream, typename TxType>
-inline void UnserializeReferral(TxType& ref, Stream& s) {
+template <typename Stream, typename TxType>
+inline void UnserializeReferral(TxType& ref, Stream& s)
+{
     s >> ref.parentAddress;
     s >> ref.addressType;
     s >> ref.address;
-    // s >> ref.signature;
+    if (ref.addressType == 1) {
+        ref.pubkey = CPubKey{};
+        s >> (*ref.pubkey);
+        assert(ref.pubkey && (*ref.pubkey).IsValid());
+    }
+    s >> ref.signature;
 }
 
-template<typename Stream, typename TxType>
-inline void SerializeReferral(const TxType& ref, Stream& s) {
+template <typename Stream, typename TxType>
+inline void SerializeReferral(const TxType& ref, Stream& s)
+{
     s << ref.parentAddress;
     s << ref.addressType;
     s << ref.address;
-    // s >> ref.signature;
+    if (ref.addressType == 1) {
+        assert(ref.pubkey && (*ref.pubkey).IsValid());
+        s << *ref.pubkey;
+    }
+    s << ref.signature;
 }
 
 /** The basic referral that is broadcast on the network and contained in
@@ -53,13 +67,13 @@ class Referral
 {
 public:
     // Default referral version.
-    static const int32_t CURRENT_VERSION=0;
+    static const int32_t CURRENT_VERSION = 0;
 
     // Changing the default referral version requires a two step process: first
     // adapting relay policy by bumping MAX_STANDARD_VERSION, and then later date
     // bumping the default CURRENT_VERSION at which point both CURRENT_VERSION and
     // MAX_STANDARD_VERSION will be equal.
-    static const int32_t MAX_STANDARD_VERSION=0;
+    static const int32_t MAX_STANDARD_VERSION = 0;
 
     const int32_t version;
 
@@ -72,6 +86,9 @@ public:
     // address that this referral is related to
     Address address;
 
+    // pubky of beaconed address if available
+    MaybePubKey pubkey;
+
     // signature of parentAddress + address
     valtype signature;
 
@@ -82,27 +99,32 @@ private:
     uint256 ComputeHash() const;
 
 public:
-
     Referral(
-            char addressTypeIn,
-            const Address& addressIn,
-            const Address& parentAddressIn);
+        char addressTypeIn,
+        const Address& addressIn,
+        const MaybePubKey& pubkeyIn,
+        const Address& parentAddressIn);
 
     /** Convert a MutableReferral into a Referral. */
-    Referral(const MutableReferral &ref);
-    Referral(MutableReferral &&ref);
+    Referral(const MutableReferral& ref);
+
+    Referral(MutableReferral&& ref);
 
     template <typename Stream>
-    inline void Serialize(Stream& s) const {
+    inline void Serialize(Stream& s) const
+    {
         SerializeReferral(*this, s);
     }
 
     /** This deserializing constructor is provided instead of an Unserialize method.
      *  Unserialize is not possible, since it would require overwriting const fields. */
     template <typename Stream>
-    Referral(deserialize_type, Stream& s) : Referral(MutableReferral(deserialize, s)) {}
+    Referral(deserialize_type, Stream& s) : Referral(MutableReferral(deserialize, s))
+    {
+    }
 
-    const uint256& GetHash() const {
+    const uint256& GetHash() const
+    {
         return hash;
     }
 
@@ -127,17 +149,24 @@ public:
 };
 
 /** A mutable version of Referral. */
-struct MutableReferral
-{
+struct MutableReferral {
     int32_t version;
     Address parentAddress;
     char addressType;
     Address address;
+    MaybePubKey pubkey;
     valtype signature;
 
-    MutableReferral() : version(Referral::CURRENT_VERSION), addressType{0} { }
-    MutableReferral(char addressTypeIn, const Address& addressIn, const Address& parentAddressIn);
+    MutableReferral() : version(Referral::CURRENT_VERSION), addressType{0} {}
+
     MutableReferral(const Referral& ref);
+
+    MutableReferral(
+        char addressTypeIn,
+        const Address& addressIn,
+        const MaybePubKey& pubkeyIn,
+        const Address& parentAddressIn);
+
 
     template <typename Stream>
     inline void Serialize(Stream& s) const
@@ -153,7 +182,8 @@ struct MutableReferral
     }
 
     template <typename Stream>
-    MutableReferral(deserialize_type, Stream& s) {
+    MutableReferral(deserialize_type, Stream& s)
+    {
         Unserialize(s);
     }
 
@@ -173,19 +203,22 @@ using ReferralRef =  std::shared_ptr<const Referral>;
 using ReferralRefs = std::vector<ReferralRef>;
 
 static inline ReferralRef MakeReferralRef(
-        char addressTypeIn,
-        Address& addressIn,
-        Address parentAddressIn)
+    char addressTypeIn,
+    Address& addressIn,
+    MaybePubKey& pubkeyIn,
+    Address& parentAddressIn)
 {
     return std::make_shared<const Referral>(
-            addressTypeIn,
-            addressIn,
-            parentAddressIn);
+        addressTypeIn,
+        addressIn,
+        pubkeyIn,
+        parentAddressIn);
 }
 
-template <typename Ref> static inline ReferralRef MakeReferralRef(Ref&& referralIn)
+template <typename Ref>
+static inline ReferralRef MakeReferralRef(Ref&& referralIn)
 {
-     return std::make_shared<const Referral>(std::forward<Ref>(referralIn));
+    return std::make_shared<const Referral>(std::forward<Ref>(referralIn));
 }
 
 } //namespace referral

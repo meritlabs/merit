@@ -4,8 +4,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "base58.h"
 #include "chainparams.h"
+#include "base58.h"
 #include "consensus/consensus.h"
 #include "consensus/merkle.h"
 
@@ -55,6 +55,7 @@ static CBlock CreateGenesisBlock(
     referral::MutableReferral refNew;
     refNew.addressType = 1;
     refNew.address = address;
+    refNew.pubkey = rawPubKey;
     refNew.parentAddress.SetNull();
 
     CBlock genesis;
@@ -88,7 +89,7 @@ static CBlock CreateGenesisBlock(
                 genesis.hashMerkleRoot.GetHex().c_str(),
                 genesis.nNonce,
                 genesis.nEdgeBits,
-                CMeritAddress(address, pkPrefix).ToString().c_str());
+                CMeritAddress(address, pkPrefix).ToString().c_str()); // use pkPrefix here as it differs for different nets
             for (const auto& node : pow) {
                 printf("0x%x, ", node);
             }
@@ -256,8 +257,7 @@ public:
             0x35d38a7, 0x3a69340, 0x41ba626, 0x41c8874, 0x41fa4c3, 0x42d49a8, 0x42f33ae,
             0x43f65a7, 0x4556706, 0x456bfb5, 0x5111825, 0x54b6eee, 0x5556e58, 0x5c2b69d,
             0x60f5391, 0x64ad69c, 0x64d99ac, 0x6533e34, 0x678bbfe, 0x6a5c50d, 0x6d4853f,
-            0x6e2686f, 0x7066225, 0x7678208, 0x76ba183, 0x7ac12d4, 0x7e5f23a
-        };
+            0x6e2686f, 0x7066225, 0x7678208, 0x76ba183, 0x7ac12d4, 0x7e5f23a};
 
         consensus.hashGenesisBlock = genesis.GetHash();
         assert(consensus.hashGenesisBlock == uint256S("b359b0d650f6295756a2a1ce5cb5e8255211d89617354f67d5249d0ae898dd3a"));
@@ -307,12 +307,12 @@ public:
             *consensus.sEdgeBitsAllowed.begin()};
         // TODO: reset after testing
         consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
-        consensus.nEdgeBitsTargetThreshold = 4; // adjust nEdgeBits if block time is twice more/less than expected
-        consensus.nPowTargetSpacing = 1 * 60;   // one minute for a block
+        consensus.nEdgeBitsTargetThreshold = 4;      // adjust nEdgeBits if block time is twice more/less than expected
+        consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1080; // 75% for testchains
-        consensus.nMinerConfirmationWindow = 1440;         // nPowTargetTimespan / nPowTargetSpacing
+        consensus.nMinerConfirmationWindow = 1440;       // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35;           // 35%
         consensus.total_winning_ambassadors = 5;
         consensus.nCuckooProofSize = 42;
@@ -348,19 +348,21 @@ public:
             exit(0);
         }
 
+        // genesis ref address: mmQWWZVCev5LYVd1kkYPVk5M2mBqyqPr8X
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503444726, 20, 0x207fffff, 24, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
+        genesis = CreateGenesisBlock(1503444726, 32, 0x207fffff, 24, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0x5ca79, 0xacafb, 0xb99ac, 0x107447, 0x1378cd, 0x179a41, 0x18c3e4, 0x18f124, 0x1fbab5,
-            0x3106d8, 0x387323, 0x3f41ec, 0x46faa4, 0x4b96ca, 0x4f17d0, 0x5911f3, 0x771e04, 0x818d3a,
-            0x903d5d, 0x921797, 0x93d040, 0x94c9e1, 0xaac30f, 0xab388b, 0xabcbaa, 0xac3da6, 0xb43c95,
-            0xbd58c4, 0xbd8e67, 0xc715eb, 0xc7e41b, 0xcd7cf7, 0xe21cc8, 0xe33ebe, 0xe9934e, 0xf1cf7a,
-            0xf4df3c, 0xf9f04d, 0xfad778, 0xfdc71d, 0xfde339, 0xfde5bc};
+            0x56db7, 0x8c16d, 0x8e2ad, 0x1bf0ed, 0x1ec250, 0x267bf2, 0x2d602c, 0x34fad7,
+            0x390557, 0x3a6b9e, 0x3bf1d5, 0x408bcc, 0x4dbf50, 0x59a21e, 0x59ffdf, 0x5aa5de,
+            0x5efc8e, 0x63fba0, 0x6450c5, 0x73f0c3, 0x846247, 0x8c0377, 0x8d4e64, 0x974b87,
+            0x9aa728, 0xb2c9fe, 0xb5b11c, 0xb7bcbf, 0xb92d16, 0xc8fe95, 0xcedfed, 0xd71e0f,
+            0xd95f44, 0xdbdd91, 0xdef829, 0xe14975, 0xe15f3f, 0xe40e8b, 0xe785b7, 0xe92cf5,
+            0xf51de9, 0xf6131c};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("51cab2c8946884e884e502c18ff8f0db6515c3571ea8bd0453923ceda2361c09"));
-        assert(genesis.hashMerkleRoot == uint256S("216b5dbacf2effdec8af0a006227dbbf8d3ac19b57c94001e1035a7441d2095d"));
+        assert(consensus.hashGenesisBlock == uint256S("eeae48f7cc56522a3f4b96d1a0ff869d735fb16ad97fa9836488c9ecb34e1c0c"));
+        assert(genesis.hashMerkleRoot == uint256S("9e9dcb835dd5ec231a9a910f0d3f25f1d6e4b66530cd6b7b015b20d511f2f060"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
