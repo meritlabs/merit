@@ -561,6 +561,14 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return false;
         }
 
+        // verify signature in case we have a pubkey
+        if (referral->addressType == 1) {
+            auto hash = (CHashWriter(SER_GETHASH, 0) << referral->parentAddress << referral->address).GetHash();
+            if (!(*referral->pubkey).Verify(hash, referral->signature)) {
+                return state.Invalid(false, REJECT_INVALID, "ref-bad-sig");
+            }
+        }
+
         pool.AddUnchecked(referral->GetHash(), entry);
     }
 
@@ -2813,13 +2821,20 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             return AbortNode(state, "Failed to write blockhash index");
     }
 
+    for (const auto& ref: block.m_vRef) {
+        // verify signature in case we have a pubkey
+        if (ref->addressType == 1) {
+            auto hash = (CHashWriter(SER_GETHASH, 0) << ref->parentAddress << ref->address).GetHash();
+            if (!(*ref->pubkey).Verify(hash, ref->signature)) {
+                return error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex());
+            }
+        }
+    }
+
     if (fReferralIndex) {
         if (!UpdateAndIndexReferralOffset(block, curBlockPos))
             return AbortNode(state, "Failed to write referral transaction index");
     }
-
-    // add this block to the view's block chain
-    view.SetBestBlock(pindex->GetBlockHash());
 
     //The order is important here. We must insert the referrals so that
     //the referral tree is updated to be correct before we debit/credit
@@ -2831,6 +2846,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     if(!UpdateANV(debits_and_credits)) {
         return AbortNode(state, "Failed to write referral ANV index");
     }
+
+    // add this block to the view's block chain
+    view.SetBestBlock(pindex->GetBlockHash());
 
     int64_t nTime6 = GetTimeMicros(); nTimeConnect += nTime6 - nTime5;
     LogPrint(BCLog::BENCH, "    - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n", (unsigned)block.m_vRef.size(), MILLI * (nTime6 - nTime5), MILLI * (nTime6 - nTime5) / block.m_vRef.size(), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
