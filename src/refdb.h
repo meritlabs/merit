@@ -49,7 +49,6 @@ public:
 
     bool InsertReferral(const Referral&, bool allow_no_parent = false);
     bool RemoveReferral(const Referral&);
-    bool ReferralCodeExists(const uint256&) const;
     bool ReferralAddressExists(const Address&) const;
     bool WalletIdExists(const Address&) const;
 };

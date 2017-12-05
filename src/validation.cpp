@@ -236,6 +236,17 @@ bool CheckInputs(const CTransaction& tx,
 
 static FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 
+bool CheckReferralSignature(const referral::ReferralRef& ref)
+{
+    // verify signature in case we have a pubkey
+    if (ref->addressType == 1) {
+        auto hash = (CHashWriter(SER_GETHASH, 0) << ref->parentAddress << ref->address).GetHash();
+        return (*ref->pubkey).Verify(hash, ref->signature);
+    }
+
+    return true;
+}
+
 bool CheckFinalTx(const CTransaction &tx, int flags)
 {
     AssertLockHeld(cs_main);
@@ -564,12 +575,8 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return false;
         }
 
-        // verify signature in case we have a pubkey
-        if (referral->addressType == 1) {
-            auto hash = (CHashWriter(SER_GETHASH, 0) << referral->parentAddress << referral->address).GetHash();
-            if (!(*referral->pubkey).Verify(hash, referral->signature)) {
-                return state.Invalid(false, REJECT_INVALID, "ref-bad-sig");
-            }
+        if (!CheckReferralSignature(referral)) {
+            return state.Invalid(false, REJECT_INVALID, "ref-bad-sig");
         }
 
         pool.AddUnchecked(referral->GetHash(), entry);
@@ -2400,8 +2407,6 @@ static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consens
     return flags;
 }
 
-
-
 static int64_t nTimeCheck = 0;
 static int64_t nTimeForks = 0;
 static int64_t nTimeVerify = 0;
@@ -2823,12 +2828,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     }
 
     for (const auto& ref: block.m_vRef) {
-        // verify signature in case we have a pubkey
-        if (ref->addressType == 1) {
-            auto hash = (CHashWriter(SER_GETHASH, 0) << ref->parentAddress << ref->address).GetHash();
-            if (!(*ref->pubkey).Verify(hash, ref->signature)) {
-                return error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex());
-            }
+        if (!CheckReferralSignature(ref)) {
+            return error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex());
         }
     }
 

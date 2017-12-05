@@ -4,28 +4,29 @@
 
 #include "ref_verify.h"
 
-#include "referrals.h"
 #include "primitives/referral.h"
+#include "referrals.h"
 #include "validation.h"
 
 namespace referral
 {
-
-bool CheckReferral(const Referral& referral, CValidationState &state)
+bool CheckReferral(const Referral& referral, CValidationState& state)
 {
     // Basic checks that don't depend on any context
     if (referral.address.IsNull()) {
         return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-address");
     }
 
-    // TODO: check parentAddress not empty if not genesis
-    // if (referral.parentAddress.IsNull()) {
-    //     return state.DoS(100, false, REJECT_INVALID, "bad-ref-code-empty");
-    // }
-
-    // if (referral.signature.empty()) {
-    //     return state.DoS(100, false, REJECT_INVALID, "bad-ref-signature-empty");
-    // }
+    // Check referral pubkey and signature in case pubkey is beaconed
+    if (referral.addressType == 1) {
+        if (!(*referral.pubkey).IsValid()) {
+            return state.DoS(100, false, REJECT_INVALID, "bad-ref-invalid-pubkey");
+        } else {
+            if (referral.signature.empty()) {
+                return state.DoS(100, false, REJECT_INVALID, "bad-ref-sig-empty");
+            }
+        }
+    }
 
     return true;
 }
