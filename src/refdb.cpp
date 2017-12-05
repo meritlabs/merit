@@ -91,10 +91,6 @@ bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
     return true;
 }
 
-bool ReferralsViewDB::ReferralCodeExists(const uint256& code_hash) const {
-    return m_db.Exists(std::make_pair(DB_REFERRALS, code_hash));
-}
-
 bool ReferralsViewDB::ReferralAddressExists(const referral::Address& address) const {
     return m_db.Exists(std::make_pair(DB_REFERRALS, address));
 }
