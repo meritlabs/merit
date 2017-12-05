@@ -291,14 +291,18 @@ bool BlockAssembler::CheckReferrals(CTxMemPool::setEntries& testSet, referral::R
             return entryit->GetSharedEntryValue();
         });
 
+    // test all referrals are signed
+    for (const auto& entryit: candidateReferrals) {
+        CheckReferralSignature(entryit->GetEntryValue(), vRefs);
+    }
+
+    // test all tx's outputs are beaconed
     for (const CTxMemPool::txiter it : testSet) {
         CValidationState dummy;
         if (!Consensus::CheckTxOutputs(it->GetEntryValue(), dummy, *prefviewcache, vRefs)) {
             return false;
         }
     }
-
-    // TODO: check referral signatures
 
     return true;
 }
