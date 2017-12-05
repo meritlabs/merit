@@ -3333,13 +3333,10 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CCon
  */
 bool CWallet::CommitTransaction(referral::ReferralTx& rtxNew, CConnman* connman, CValidationState& state)
 {
+    LogPrintf("CommitTransaction:\n%s", rtxNew.m_pReferral->ToString());
+
     {
         LOCK2(cs_main, cs_wallet);
-        LogPrintf("CommitTransaction:\n%s", rtxNew.m_pReferral->ToString());
-        if (!AddToWallet(rtxNew)) {
-            return false;
-        }
-
         // Track how many getdata requests our transaction gets
         mapRequestCount[rtxNew.GetHash()] = 0;
 
@@ -3347,9 +3344,14 @@ bool CWallet::CommitTransaction(referral::ReferralTx& rtxNew, CConnman* connman,
         {
             if (!rtxNew.AcceptToMemoryPool(state)) {
                 LogPrintf("CommitTransaction(): Referral transaction cannot be broadcast immediately, %s\n", state.GetRejectReason());
+                return false;
             } else {
                 rtxNew.RelayWalletTransaction(connman);
             }
+        }
+
+        if (!AddToWallet(rtxNew)) {
+            return false;
         }
     }
 
@@ -3636,11 +3638,12 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<referral::Addres
             int64_t index = ++m_max_keypool_index;
 
             CPubKey pubkey(GenerateNewKey(walletdb, internal));
+
+            auto referral = GenerateNewReferral(pubkey, *currentTopReferral);
+
             if (!walletdb.WritePool(index, CKeyPool(pubkey, internal, outReferral))) {
                 throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
             }
-
-            auto referral = GenerateNewReferral(pubkey, *currentTopReferral);
 
             LogPrintf("Generated new referral. Address: %s\n", referral->address.ToString());
 

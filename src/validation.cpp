@@ -236,18 +236,44 @@ bool CheckInputs(const CTransaction& tx,
 
 static FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 
-bool CheckReferralSignature(const referral::ReferralRef& ref)
+referral::MaybeReferral LookupReferral(
+    const referral::Address& address,
+    const referral::ReferralsViewCache& referralsCache,
+    const std::vector<referral::ReferralRef>& extraReferrals)
 {
-    referral::MaybeReferral pubkeyRef = prefviewcache->LookupPubKeyReferral(ref->address);
+    // lookup cache for referral
+    referral::MaybeReferral referral = referralsCache.GetReferral(address);
 
-    if (!pubkeyRef) {
-        debug("referral with pubkey not found");
-        return false;
+    if (referral) {
+        return referral;
     }
 
-    auto hash = (CHashWriter(SER_GETHASH, 0) << pubkeyRef->parentAddress << pubkeyRef->address).GetHash();
+    // otherwise lookupt extraReferrals vector for the needle
+    auto it = std::find_if(
+        extraReferrals.begin(), extraReferrals.end(),
+        [&address](const referral::ReferralRef& ref) {
+            assert(ref);
+            return ref->address == address;
+        });
 
-    return pubkeyRef->pubkey->Verify(hash, pubkeyRef->signature);
+    return it != extraReferrals.end() ? **it : referral::MaybeReferral{};
+}
+
+bool CheckReferralSignature(const referral::Referral& ref, const std::vector<referral::ReferralRef>& extraReferrals)
+{
+    // if given referral beacons pubkey, check it
+    if (ref.addressType == 1) {
+        assert(ref.pubkey);
+        auto hash = (CHashWriter(SER_GETHASH, 0) << ref.parentAddress << ref.address).GetHash();
+
+        return ref.pubkey->Verify(hash, ref.signature);
+    }
+
+    // otherwise look up the chain for parent referral with pubkey beaconed to check signature
+    auto parentRef = LookupReferral(ref.parentAddress, *prefviewcache, extraReferrals);
+    assert(parentRef);
+
+    return CheckReferralSignature(*parentRef, extraReferrals);
 }
 
 bool CheckFinalTx(const CTransaction &tx, int flags)
@@ -578,7 +604,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return false;
         }
 
-        if (!CheckReferralSignature(referral)) {
+        if (!CheckReferralSignature(*referral, pool.GetReferrals())) {
             return state.Invalid(false, REJECT_INVALID, "ref-bad-sig");
         }
 
@@ -2831,7 +2857,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     }
 
     for (const auto& ref: block.m_vRef) {
-        if (!CheckReferralSignature(ref)) {
+        if (!CheckReferralSignature(*ref, block.m_vRef)) {
             return error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex());
         }
     }

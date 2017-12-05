@@ -36,8 +36,6 @@ public:
     MaybeReferral GetReferral(const Address&) const;
     MaybeAddress GetReferrer(const Address& address) const;
 
-    MaybeReferral LookupPubKeyReferral(const Address& childAddress) const;
-
     bool ReferralAddressExists(const Address&) const;
     bool WalletIdExists(const Address&) const;
 
