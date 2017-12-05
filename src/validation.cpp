@@ -238,13 +238,16 @@ static FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 
 bool CheckReferralSignature(const referral::ReferralRef& ref)
 {
-    // verify signature in case we have a pubkey
-    if (ref->addressType == 1) {
-        auto hash = (CHashWriter(SER_GETHASH, 0) << ref->parentAddress << ref->address).GetHash();
-        return (*ref->pubkey).Verify(hash, ref->signature);
+    referral::MaybeReferral pubkeyRef = prefviewcache->LookupPubKeyReferral(ref->address);
+
+    if (!pubkeyRef) {
+        debug("referral with pubkey not found");
+        return false;
     }
 
-    return true;
+    auto hash = (CHashWriter(SER_GETHASH, 0) << pubkeyRef->parentAddress << pubkeyRef->address).GetHash();
+
+    return pubkeyRef->pubkey->Verify(hash, pubkeyRef->signature);
 }
 
 bool CheckFinalTx(const CTransaction &tx, int flags)
