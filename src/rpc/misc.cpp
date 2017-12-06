@@ -18,6 +18,10 @@
 #include "txmempool.h"
 #include "util.h"
 #include "utilstrencodings.h"
+
+#include "rpc/safemode.h"
+#include "pog/anv.h"
+
 #ifdef ENABLE_WALLET
 #include "wallet/rpcwallet.h"
 #include "wallet/wallet.h"
@@ -663,11 +667,12 @@ bool getAddressFromIndex(const int &type, const uint160 &hash, std::string &addr
 bool getAddressesFromParams(const UniValue& params, std::vector<std::pair<uint160, int> > &addresses)
 {
     if (params[0].isStr()) {
-        CMeritAddress address(params[0].get_str());
+        auto stringAddress = params[0].get_str();
+        CMeritAddress address(stringAddress);
         uint160 hashBytes;
         int type = 0;
         if (!address.GetIndexKey(hashBytes, type)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address string: " + stringAddress);
         }
         addresses.push_back(std::make_pair(hashBytes, type));
     } else if (params[0].isObject()) {
@@ -679,16 +684,17 @@ bool getAddressesFromParams(const UniValue& params, std::vector<std::pair<uint16
         std::vector<UniValue> values = addressValues.getValues();
 
         for (std::vector<UniValue>::iterator it = values.begin(); it != values.end(); ++it) {
-            CMeritAddress address(it->get_str());
+            auto stringAddress = it->get_str();
+            CMeritAddress address(stringAddress);
             uint160 hashBytes;
             int type = 0;
             if (!address.GetIndexKey(hashBytes, type)) {
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address: " + stringAddress);
             }
             addresses.push_back(std::make_pair(hashBytes, type));
         }
     } else {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address, must be a string or an object with key 'addresses'");
     }
 
     return true;
@@ -1344,6 +1350,55 @@ UniValue getaddressrewards(const JSONRPCRequest& request)
     return ret;
 }
 
+UniValue getaddressanv(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 1) {
+        throw std::runtime_error(
+            "getaddressanv"
+            "\nArguments:\n"
+            "{\n"
+            "  \"addresses\"\n"
+            "    [\n"
+            "      \"address\"  (string) The base58check encoded address\n"
+            "      ,...\n"
+            "    ],\n"
+            "}\n"
+            "\nReturns ANV for all addresess input.\n"
+            "\nResult:\n"
+            "ANV              (numeric) The total Aggregate Network Value in " + CURRENCY_UNIT + " received for the keys or wallet.\n"
+            + HelpExampleCli("getaddressanv", "'{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}'")
+        );
+    }
+
+    assert(prefviewdb);
+
+    ObserveSafeMode();
+
+    auto params = request.params[0].get_obj();
+    std::vector<std::pair<uint160, int>> addresses;
+    if (!getAddressesFromParams(request.params, addresses)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+    }
+
+    std::vector<referral::Address> keys;
+    keys.reserve(addresses.size());
+
+    for(const std::pair<uint160, int> &addressPair: addresses) {
+        auto key = addressPair.first;
+        keys.push_back(key);
+    }
+
+    auto anvs = pog::GetANVs(keys, *prefviewdb);
+
+    auto total =
+        std::accumulate(std::begin(anvs), std::end(anvs), CAmount{0},
+            [](CAmount total, const referral::AddressANV& v){
+                return total + v.anv;
+            });
+
+    return total;
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
@@ -1356,12 +1411,13 @@ static const CRPCCommand commands[] =
     { "util",               "signmessagewithprivkey", &signmessagewithprivkey, {"privkey","message"} },
 
     /* Address index */
-    { "addressindex",       "getaddressmempool",      &getaddressmempool,      {}},
+    { "addressindex",       "getaddressmempool",      &getaddressmempool,      {} },
     { "addressindex",       "getaddressutxos",        &getaddressutxos,        {} },
     { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       {} },
     { "addressindex",       "getaddresstxids",        &getaddresstxids,        {} },
     { "addressindex",       "getaddressbalance",      &getaddressbalance,      {} },
     { "addressindex",       "getaddressrewards",      &getaddressrewards,      {} },
+    { "addressindex",       "getaddressanv",          &getaddressanv,          {} },
 
     /* Blockchain */
     { "blockchain",         "getspentinfo",           &getspentinfo,           {} },
