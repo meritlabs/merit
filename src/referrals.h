@@ -15,7 +15,9 @@
 
 namespace referral
 {
+// TODO: rewrite to boost::multi_index_container
 using ReferralMap = std::unordered_map<Address, Referral, std::hash<uint160>>;
+using ReferralHashMap = std::unordered_map<uint256, Referral>;
 using WalletToReferrer = std::unordered_map<Address, Address, std::hash<uint160>>;
 
 class ReferralsViewCache
@@ -25,6 +27,7 @@ private:
     ReferralsViewDB *m_db;
     mutable ReferralMap m_referral_cache;
     mutable WalletToReferrer m_wallet_to_referrer;
+    mutable ReferralHashMap m_referral_hash_cache;
 
     ReferralMap::iterator Fetch(const Address& address) const;
     void InsertReferralIntoCache(const Referral&) const;
@@ -38,6 +41,8 @@ public:
 
     bool ReferralAddressExists(const Address&) const;
     bool WalletIdExists(const Address&) const;
+
+    bool exists(const uint256&) const;
 
     void RemoveReferral(const Referral&) const;
 

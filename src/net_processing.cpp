@@ -1008,13 +1008,10 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_WITNESS_BLOCK:
         return mapBlockIndex.count(inv.hash);
     case MSG_REFERRAL:
-        // TODO: add to recentRejects if referral code is not valid
         return recentRejects->contains(inv.hash) ||
             mempoolReferral.exists(inv.hash) ||
             mapOrphanReferrals.count(inv.hash);
-            // TODO: check if we can use ref hash here to check if it exists in db
-            // mapOrphanReferrals.count(inv.hash) ||
-            // prefviewcache->ReferralCodeExists(inv.hash);
+            prefviewcache->exists(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -2222,8 +2219,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 }
 
                 AddOrphanReferral(pref, pfrom->GetId());
-
-                // TODO: add orphan referral tx to map
             } else {
                 LogPrint(BCLog::REFMEMPOOL, "not keeping orphan with rejected parents %s\n", hash.ToString());
                 // We will continue to reject this tx since it has rejected

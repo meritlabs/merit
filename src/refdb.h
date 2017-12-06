@@ -38,6 +38,7 @@ public:
     explicit ReferralsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false, const std::string& name = "referrals");
 
     MaybeReferral GetReferral(const Address&) const;
+    MaybeReferral GetReferral(const uint256&) const;
     MaybeAddress GetReferrer(const Address&) const;
     ChildAddresses GetChildren(const Address&) const;
 
