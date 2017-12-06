@@ -36,11 +36,29 @@ MaybeReferral ReferralsViewCache::GetReferral(const Address& address) const
     return {};
 }
 
+bool ReferralsViewCache::exists(const uint256& hash) const
+{
+    {
+        LOCK(m_cs_cache);
+        if (m_referral_hash_cache.count(hash) > 0) {
+            return true;
+        }
+    }
+
+    if (auto ref = m_db->GetReferral(hash)) {
+        InsertReferralIntoCache(*ref);
+        return true;
+    }
+
+    return false;
+}
+
 void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
     //insert into referral cache
     m_referral_cache.insert(std::make_pair(ref.address, ref));
+    m_referral_hash_cache.insert(std::make_pair(ref.GetHash(), ref));
 }
 
 bool ReferralsViewCache::ReferralAddressExists(const Address& address) const
@@ -121,6 +139,7 @@ bool ReferralsViewCache::WalletIdExists(const Address& address) const
 void ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
     m_referral_cache.erase(ref.address);
+    m_referral_hash_cache.erase(ref.GetHash());
     m_db->RemoveReferral(ref);
 }
 }
