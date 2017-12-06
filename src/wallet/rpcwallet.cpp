@@ -4430,7 +4430,7 @@ UniValue getanv(const JSONRPCRequest& request)
 
     if (request.fHelp)
         throw std::runtime_error(
-            "getanv ( key1, key2, ..., keyN )\n"
+            "getanv ( key1  key2  ...  keyN )\n"
             "\nIf keys are not specified , returns the wallet's available balance.\n"
             "\nResult:\n"
             "anv              (numeric) The total Aggregate Network Value in " + CURRENCY_UNIT + " received for the keys or wallet.\n"
@@ -4438,7 +4438,7 @@ UniValue getanv(const JSONRPCRequest& request)
             "\nThe total amount in the wallet with 1 or more confirmations\n"
             + HelpExampleCli("getanv", "") +
             "\nGet Aggregate Network Value for all keys listed"
-            + HelpExampleCli("getanv", "abc, xyz, ggg")
+            + HelpExampleCli("getanv", "abc  xyz  ggg")
         );
 
     ObserveSafeMode();
