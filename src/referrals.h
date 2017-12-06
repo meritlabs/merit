@@ -5,27 +5,60 @@
 #ifndef REFERRALS_H
 #define REFERRALS_H
 
+#include "hash.h"
 #include "primitives/referral.h"
+#include "random.h"
 #include "refdb.h"
 #include "sync.h"
 #include "uint256.h"
 
-#include <unordered_map>
+#include <boost/multi_index/hashed_index.hpp>
+#include <boost/multi_index/mem_fun.hpp>
+#include <boost/multi_index/member.hpp>
+#include <boost/multi_index/tag.hpp>
+#include <boost/multi_index_container.hpp>
 #include <boost/optional.hpp>
+#include <unordered_map>
+
+using namespace boost::multi_index;
 
 namespace referral
 {
-// TODO: rewrite to boost::multi_index_container
-using ReferralMap = std::unordered_map<Address, Referral, std::hash<uint160>>;
-using ReferralHashMap = std::unordered_map<uint256, Referral>;
+template <unsigned int BITS>
+class SaltedHasher
+{
+private:
+    /** Salt */
+    const uint64_t k0, k1;
+
+public:
+    SaltedHasher() : k0(GetRand(std::numeric_limits<uint64_t>::max())), k1(GetRand(std::numeric_limits<uint64_t>::max())) {}
+
+    size_t operator()(const base_blob<BITS>& data) const
+    {
+        return CSipHasher(k0, k1).Write(data.begin(), data.size()).Finalize();
+    }
+};
+
+// multi_index tags
+struct by_address { };
+struct by_hash { };
+
+
+using ReferralIndex = multi_index_container<
+    Referral,
+    indexed_by<
+        // sorted by beaconed address
+        hashed_unique<tag<by_address>, member<Referral, Address, &Referral::address>, SaltedHasher<160>>,
+        // sorted by hash
+        hashed_unique<tag<by_hash>, const_mem_fun<Referral, const uint256&, &Referral::GetHash>, SaltedHasher<256>>>>;
 
 class ReferralsViewCache
 {
 private:
     mutable CCriticalSection m_cs_cache;
-    ReferralsViewDB *m_db;
-    mutable ReferralMap m_referral_cache;
-    mutable ReferralHashMap m_referral_hash_cache;
+    ReferralsViewDB* m_db;
+    mutable ReferralIndex referrals_index;
 
     void InsertReferralIntoCache(const Referral&) const;
     void InsertWalletRelationshipIntoCache(const Address& child, const Address& parent) const;
