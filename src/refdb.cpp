@@ -39,6 +39,10 @@ MaybeReferral ReferralsViewDB::GetReferral(const uint256& hash) const
     return {};
 }
 
+bool ReferralsViewDB::exists(const referral::Address& address) const {
+    return m_db.Exists(std::make_pair(DB_REFERRALS, address));
+}
+
 MaybeAddress ReferralsViewDB::GetReferrer(const Address& address) const
 {
     Address parent;
@@ -98,15 +102,6 @@ bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
         return false;
 
     return true;
-}
-
-bool ReferralsViewDB::ReferralAddressExists(const referral::Address& address) const {
-    return m_db.Exists(std::make_pair(DB_REFERRALS, address));
-}
-
-bool ReferralsViewDB::WalletIdExists(const Address& address) const
-{
-    return m_db.Exists(std::make_pair(DB_PARENT_KEY, address));
 }
 
 /**

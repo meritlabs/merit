@@ -49,8 +49,8 @@ public:
 
     bool InsertReferral(const Referral&);
     bool RemoveReferral(const Referral&);
-    bool ReferralAddressExists(const Address&) const;
-    bool WalletIdExists(const Address&) const;
+
+    bool exists(const Address&) const;
 };
 
 } // namespace referral

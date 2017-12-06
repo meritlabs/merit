@@ -36,16 +36,19 @@ private:
 public:
     ReferralsViewCache(ReferralsViewDB*);
 
+    /** Get referral by address */
     MaybeReferral GetReferral(const Address&) const;
-    MaybeAddress GetReferrer(const Address& address) const;
 
-    bool ReferralAddressExists(const Address&) const;
-    bool WalletIdExists(const Address&) const;
+    /** Check if referral exists by beaconed address */
+    bool exists(const Address&) const;
 
+    /** Check if referral exists by hash */
     bool exists(const uint256&) const;
 
+    /** Remove referral from cache */
     void RemoveReferral(const Referral&) const;
 
+    /** Flush referrals to disk and clear cache */
     void Flush();
 };
 

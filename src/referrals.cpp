@@ -61,7 +61,7 @@ void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
     m_referral_hash_cache.insert(std::make_pair(ref.GetHash(), ref));
 }
 
-bool ReferralsViewCache::ReferralAddressExists(const Address& address) const
+bool ReferralsViewCache::exists(const Address& address) const
 {
     {
         LOCK(m_cs_cache);
@@ -90,40 +90,6 @@ void ReferralsViewCache::InsertWalletRelationshipIntoCache(const Address& child,
 {
     LOCK(m_cs_cache);
     m_wallet_to_referrer.insert(std::make_pair(child, parent));
-}
-
-MaybeAddress ReferralsViewCache::GetReferrer(const Address& address) const
-{
-    {
-        LOCK(m_cs_cache);
-        auto it = m_wallet_to_referrer.find(address);
-        if (it != std::end(m_wallet_to_referrer)) {
-            return it->second;
-        }
-    }
-
-    if (auto parent = m_db->GetReferrer(address)) {
-        InsertWalletRelationshipIntoCache(address, *parent);
-        return parent;
-    }
-    return {};
-}
-
-// TODO: Consider naming here.
-bool ReferralsViewCache::WalletIdExists(const Address& address) const
-{
-    {
-        LOCK(m_cs_cache);
-        auto it = m_wallet_to_referrer.find(address);
-        if (it != std::end(m_wallet_to_referrer)) {
-            return true;
-        }
-    }
-    if (auto parent = m_db->GetReferrer(address)) {
-        InsertWalletRelationshipIntoCache(address, *parent);
-        return true;
-    }
-    return false;
 }
 
 void ReferralsViewCache::RemoveReferral(const Referral& ref) const

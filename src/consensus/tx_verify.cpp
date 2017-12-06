@@ -221,7 +221,7 @@ bool Consensus::CheckTxOutputs(
         bool got_uint160 = GetUint160(dest, addr);
         assert(got_uint160);
 
-        bool addressBeaconed = referralsCache.ReferralAddressExists(addr);
+        bool addressBeaconed = referralsCache.exists(addr);
 
         // check cache for beaconed address
         if (!addressBeaconed) {
