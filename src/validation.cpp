@@ -598,7 +598,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
 
-        if (!(prefviewcache->ReferralAddressExists(referral->parentAddress) ||
+        if (!(prefviewcache->exists(referral->parentAddress) ||
             pool.ExistsWithAddress(referral->parentAddress))) {
             missingReferrer = true;
             return false;
@@ -3942,7 +3942,7 @@ bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
         return false;
     }
 
-    bool beaconed = prefviewcache->WalletIdExists(addr);
+    bool beaconed = prefviewcache->exists(addr);
 
     if (!beaconed && checkMempool) {
         // check mempool referrals for beaconed address
@@ -5051,7 +5051,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
     try {
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
 
-        if (!prefviewdb->ReferralAddressExists(block.m_vRef[0]->address)) {
+        if (!prefviewdb->exists(block.m_vRef[0]->address)) {
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.

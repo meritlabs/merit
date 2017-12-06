@@ -4349,7 +4349,7 @@ UniValue validatereferraladdress(const JSONRPCRequest& request)
     auto addressUint160 = address.GetUint160();
     assert(addressUint160);
 
-    bool is_valid = prefviewcache->ReferralAddressExists(*addressUint160);
+    bool is_valid = prefviewcache->exists(*addressUint160);
 
     UniValue result(is_valid);
     return result;
@@ -4528,7 +4528,7 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
     assert(parentAddressUint160);
 
     // check if provided referral code hash is valid, i.e. exists in the blockchain
-    if (!prefviewcache->ReferralAddressExists(*parentAddressUint160)
+    if (!prefviewcache->exists(*parentAddressUint160)
         && !mempoolReferral.ExistsWithAddress(*parentAddressUint160)) {
         throw std::runtime_error(std::string(__func__) + ": provided parent address does not exist in the chain (RPC)");
     }
@@ -4544,7 +4544,7 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
                     address.GetType(), *addressUint160, referral::MaybePubKey{}, *parentAddressUint160));
 
     // check that new referral is not in the cache or in mempool
-    if (prefviewcache->ReferralAddressExists(referral->address) || mempoolReferral.ExistsWithAddress(referral->address)) {
+    if (prefviewcache->exists(referral->address) || mempoolReferral.ExistsWithAddress(referral->address)) {
         throw std::runtime_error(std::string(__func__) + ": new referral is already beaconed");
     }
 

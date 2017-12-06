@@ -231,7 +231,7 @@ void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, re
 
         assert(GetUint160(dest, addr));
 
-        bool addressBeaconed = prefviewcache->WalletIdExists(addr);
+        bool addressBeaconed = prefviewcache->exists(addr);
 
         // check cache for beaconed address
         if (addressBeaconed) {
