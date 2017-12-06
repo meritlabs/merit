@@ -17,9 +17,9 @@ MaybeReferral ReferralsViewCache::GetReferral(const Address& address) const
 {
     {
         LOCK(m_cs_cache);
-        auto it = m_referral_cache.find(address);
-        if (it != m_referral_cache.end()) {
-            return it->second;
+        auto it = referrals_index.find(address);
+        if (it != referrals_index.end()) {
+            return *it;
         }
     }
 
@@ -35,7 +35,7 @@ bool ReferralsViewCache::exists(const uint256& hash) const
 {
     {
         LOCK(m_cs_cache);
-        if (m_referral_hash_cache.count(hash) > 0) {
+        if (referrals_index.get<by_hash>().count(hash) > 0) {
             return true;
         }
     }
@@ -52,7 +52,7 @@ bool ReferralsViewCache::exists(const Address& address) const
 {
     {
         LOCK(m_cs_cache);
-        if (m_referral_cache.count(address) > 0) {
+        if (referrals_index.count(address) > 0) {
             return true;
         }
     }
@@ -66,15 +66,13 @@ bool ReferralsViewCache::exists(const Address& address) const
 void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
-    //insert into referral cache
-    m_referral_cache.insert(std::make_pair(ref.address, ref));
-    m_referral_hash_cache.insert(std::make_pair(ref.GetHash(), ref));
+
+    referrals_index.insert(ref);
 }
 
 void ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
-    m_referral_cache.erase(ref.address);
-    m_referral_hash_cache.erase(ref.GetHash());
+    referrals_index.erase(ref.address);
     m_db->RemoveReferral(ref);
 }
 
