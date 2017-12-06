@@ -13,16 +13,11 @@ ReferralsViewCache::ReferralsViewCache(ReferralsViewDB* db) : m_db{db}
     assert(db);
 };
 
-ReferralMap::iterator ReferralsViewCache::Fetch(const Address& address) const
-{
-    return m_referral_cache.find(address);
-}
-
 MaybeReferral ReferralsViewCache::GetReferral(const Address& address) const
 {
     {
         LOCK(m_cs_cache);
-        auto it = Fetch(address);
+        auto it = m_referral_cache.find(address);
         if (it != m_referral_cache.end()) {
             return it->second;
         }
@@ -53,14 +48,6 @@ bool ReferralsViewCache::exists(const uint256& hash) const
     return false;
 }
 
-void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
-{
-    LOCK(m_cs_cache);
-    //insert into referral cache
-    m_referral_cache.insert(std::make_pair(ref.address, ref));
-    m_referral_hash_cache.insert(std::make_pair(ref.GetHash(), ref));
-}
-
 bool ReferralsViewCache::exists(const Address& address) const
 {
     {
@@ -76,6 +63,21 @@ bool ReferralsViewCache::exists(const Address& address) const
     return false;
 }
 
+void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
+{
+    LOCK(m_cs_cache);
+    //insert into referral cache
+    m_referral_cache.insert(std::make_pair(ref.address, ref));
+    m_referral_hash_cache.insert(std::make_pair(ref.GetHash(), ref));
+}
+
+void ReferralsViewCache::RemoveReferral(const Referral& ref) const
+{
+    m_referral_cache.erase(ref.address);
+    m_referral_hash_cache.erase(ref.GetHash());
+    m_db->RemoveReferral(ref);
+}
+
 void ReferralsViewCache::Flush()
 {
     LOCK(m_cs_cache);
@@ -84,18 +86,5 @@ void ReferralsViewCache::Flush()
         m_db->InsertReferral(pr.second);
     }
     m_referral_cache.clear();
-}
-
-void ReferralsViewCache::InsertWalletRelationshipIntoCache(const Address& child, const Address& parent) const
-{
-    LOCK(m_cs_cache);
-    m_wallet_to_referrer.insert(std::make_pair(child, parent));
-}
-
-void ReferralsViewCache::RemoveReferral(const Referral& ref) const
-{
-    m_referral_cache.erase(ref.address);
-    m_referral_hash_cache.erase(ref.GetHash());
-    m_db->RemoveReferral(ref);
 }
 }
