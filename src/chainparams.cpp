@@ -351,19 +351,18 @@ public:
 
         // genesis ref address: miB2255Vay5SGYsxrsbDq3WoVku4LJiFeG
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503444726, 52, 0x207fffff, 24, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
+        genesis = CreateGenesisBlock(1503444726, 136, 0x207fffff, 24, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0x17b15, 0x50f74, 0x6022c, 0xa11ea, 0x111a9f, 0x19afe3, 0x1cfb74, 0x228bdc, 0x24b446,
-            0x287e17, 0x33e6a7, 0x3d9e5d, 0x3de3be, 0x3ff5aa, 0x4a24fd, 0x56f490, 0x58a3da,
-            0x608959, 0x6c3c18, 0x7886ad, 0x862834, 0x876e7c, 0x885840, 0x8e37c2, 0x8f9d6c,
-            0xa0116e, 0xa8ca9e, 0xb79b6c, 0xbeadbc, 0xbed87c, 0xc5d6eb, 0xca38c2, 0xd3f7e7,
-            0xd8c8e7, 0xd992df, 0xdbd993, 0xe4c6ae, 0xe8a5aa, 0xea6e97, 0xf2ed83, 0xf4ba7c,
-            0xfe70f2};
+            0x64625, 0xbea75, 0xd1621, 0xda2e0, 0x18a1d7, 0x1f0a89, 0x27b01a, 0x34bf50, 0x36d0eb,
+            0x48456b, 0x48fe99, 0x5166ec, 0x527c53, 0x52a05f, 0x5ae690, 0x5fe675, 0x61aa69,
+            0x66b28a, 0x6a042a, 0x6c6dde, 0x72d941, 0x7711eb, 0x7bd505, 0x7f1695, 0x81ca1d,
+            0x863e65, 0x921e9d, 0x940913, 0xa1197c, 0xa20a21, 0xacb91e, 0xaf3cac, 0xafcbff,
+            0xb24be3, 0xbb9b6e, 0xd12fc2, 0xd7c9ef, 0xe2700a, 0xe2b5db, 0xeb81e8, 0xf6c7d4, 0xf8bb1c};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("2f5166441084cd09a483a449696c757f6c9d4747eda3dcd7c8e585595eabeada"));
-        assert(genesis.hashMerkleRoot == uint256S("1f3464201f82d9b2e1bcb248a4736c90741a9e2f83fafc5ea70efe9106fe69dc"));
+        assert(consensus.hashGenesisBlock == uint256S("d22a75d84d3a827245c0fe96be6eb4b63807a4acb54a6bddfd7fb717c4c588a3"));
+        assert(genesis.hashMerkleRoot == uint256S("3a1633942793fb3e0ae37790ecd25d26a7229939c07125c67a9bdf992ef28ad9"));
 
         vFixedSeeds.clear();
         vSeeds.clear();

@@ -34,6 +34,7 @@ static const int SERIALIZE_REFERRAL = 0x40000000;
 template <typename Stream, typename TxType>
 inline void UnserializeReferral(TxType& ref, Stream& s)
 {
+    s >> ref.version;
     s >> ref.parentAddress;
     s >> ref.addressType;
     s >> ref.address;
@@ -48,6 +49,7 @@ inline void UnserializeReferral(TxType& ref, Stream& s)
 template <typename Stream, typename TxType>
 inline void SerializeReferral(const TxType& ref, Stream& s)
 {
+    s << ref.version;
     s << ref.parentAddress;
     s << ref.addressType;
     s << ref.address;
@@ -79,7 +81,7 @@ public:
     // address of previous referral
     Address parentAddress;
 
-    // Type of address. 0 == Key ID, 1 = Script ID, 2 = Parameterized Script ID
+    // Type of address. 1 == Key ID, 2 = Script ID, 3 = Parameterized Script ID
     const char addressType;
 
     // address that this referral is related to

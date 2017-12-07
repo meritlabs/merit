@@ -1413,13 +1413,10 @@ bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, const Consensus
 /** Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock */
 bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock)
 {
-    CBlockIndex *pindexSlow = nullptr;
-
     LOCK(cs_main);
 
     referral::ReferralRef mempoolref = mempoolReferral.get(hash);
-    if (mempoolref)
-    {
+    if (mempoolref) {
         refOut = mempoolref;
         return true;
     }
@@ -1440,7 +1437,10 @@ bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &ha
             }
             hashBlock = header.GetHash();
             if (refOut->GetHash() != hash)
-                return error("%s: txid mismatch", __func__);
+                return error("%s: txid mismatch: requested::actual %s::%s",
+                __func__,
+                hash.GetHex().c_str()),
+                refOut->GetHash().GetHex().c_str());
 
             return true;
         }
@@ -2480,10 +2480,10 @@ static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
 
-bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos)
+bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos, uint pos_offset)
 {
     // Update offsets for referrals so they can be recorded.
-    CDiskTxPos pos{cur_block_pos, GetSizeOfCompactSize(block.m_vRef.size())};
+    CDiskTxPos pos{cur_block_pos, GetSizeOfCompactSize(block.m_vRef.size()) + pos_offset};
     RefPositions positions(block.m_vRef.size());
 
     std::transform(std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(positions),
@@ -2898,7 +2898,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     }
 
     if (fReferralIndex) {
-        if (!UpdateAndIndexReferralOffset(block, curBlockPos))
+        if (!UpdateAndIndexReferralOffset(block, curBlockPos, pos.nTxOffset))
             return AbortNode(state, "Failed to write referral transaction index");
     }
 
