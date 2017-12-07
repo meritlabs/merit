@@ -22,6 +22,7 @@ enum opcodetype : short;
 namespace referral
 {
     class Referral;
+    struct MutableReferral;
 }
 
 // core_read.cpp
@@ -35,6 +36,8 @@ bool DecodeHexTx(
         CMutableTransaction& tx,
         const std::string& strHexTx,
         bool fTryNoWitness = false);
+
+bool DecodeHexRef(referral::MutableReferral& ref, const std::string& strHexRef);
 
 bool DecodeHexBlk(CBlock&, const std::string& strHexBlk);
 uint256 ParseHashUV(const UniValue& v, const std::string& strName);
@@ -51,6 +54,8 @@ std::string FormatScript(const CScript& script);
 std::string EncodeHexTx(
         const CTransaction& tx,
         const int serializeFlags = 0);
+
+std::string EncodeHexRef(const referral::Referral& ref);
 
 void ScriptPubKeyToUniv(
         const CScript& scriptPubKey,

@@ -92,7 +92,7 @@ void EnsureWalletIsUnlocked(CWallet * const pwallet)
     }
 
     if (!pwallet->IsReferred()) {
-        throw JSONRPCError(RPC_REFERRER_IS_NOT_SET, "Error: Wallet must is not beaconed. Use referral code to beacon first.");
+        throw JSONRPCError(RPC_WALLET_NOT_REFERRED, "Error: Wallet is not beaconed. Use referral code to beacon first.");
     }
 }
 

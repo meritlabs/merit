@@ -621,7 +621,8 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
     return true;
 }
 
-bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool,
+bool AcceptReferralToMemoryPool(
+    referral::ReferralTxMemPool& pool,
     CValidationState& state,
     const referral::ReferralRef& referral,
     bool& missingReferrer,
@@ -1409,9 +1410,44 @@ bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, const Consensus
     return false;
 }
 
+/** Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock */
+bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock)
+{
+    CBlockIndex *pindexSlow = nullptr;
 
+    LOCK(cs_main);
 
+    referral::ReferralRef mempoolref = mempoolReferral.get(hash);
+    if (mempoolref)
+    {
+        refOut = mempoolref;
+        return true;
+    }
 
+    if (fReferralIndex) {
+        CDiskTxPos posref;
+        if (pblocktree->ReadReferralIndex(hash, posref)) {
+            CAutoFile file(OpenBlockFile(posref, true), SER_DISK, CLIENT_VERSION);
+            if (file.IsNull())
+                return error("%s: OpenBlockFile failed", __func__);
+            CBlockHeader header;
+            try {
+                file >> header;
+                fseek(file.Get(), posref.nTxOffset, SEEK_CUR);
+                file >> refOut;
+            } catch (const std::exception& e) {
+                return error("%s: Deserialize or I/O error - %s", __func__, e.what());
+            }
+            hashBlock = header.GetHash();
+            if (refOut->GetHash() != hash)
+                return error("%s: txid mismatch", __func__);
+
+            return true;
+        }
+    }
+
+    return false;
+}
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -2458,7 +2494,7 @@ bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_
                 return p;
             });
 
-    return pblocktree->WriteReferralTxIndex(positions);
+    return pblocktree->WriteReferralIndex(positions);
 }
 
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins.

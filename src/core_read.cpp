@@ -105,7 +105,7 @@ bool CheckTxScriptsSanity(const CMutableTransaction& tx)
             return false;
         }
     }
-    
+
     return true;
 }
 
@@ -133,6 +133,28 @@ bool DecodeHexTx(CMutableTransaction& tx, const std::string& strHexTx, bool fTry
     CDataStream ssData(txData, SER_NETWORK, PROTOCOL_VERSION);
     try {
         ssData >> tx;
+        if (!ssData.empty()) {
+            return false;
+        }
+    }
+    catch (const std::exception&) {
+        return false;
+    }
+
+    return true;
+}
+
+bool DecodeHexRef(referral::MutableReferral& ref, const std::string& strHexRef)
+{
+    if (!IsHex(strHexRef)) {
+        return false;
+    }
+
+    std::vector<unsigned char> refData(ParseHex(strHexRef));
+
+    CDataStream ssData(refData, SER_NETWORK, PROTOCOL_VERSION);
+    try {
+        ssData >> ref;
         if (!ssData.empty()) {
             return false;
         }
