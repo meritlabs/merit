@@ -1439,7 +1439,7 @@ bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &ha
             if (refOut->GetHash() != hash)
                 return error("%s: txid mismatch: requested::actual %s::%s",
                 __func__,
-                hash.GetHex().c_str()),
+                hash.GetHex().c_str(),
                 refOut->GetHash().GetHex().c_str());
 
             return true;
