@@ -587,15 +587,16 @@ bool CCoinsViewDB::Upgrade() {
     return !ShutdownRequested();
 }
 
-bool CBlockTreeDB::ReadReferralTxIndex(const uint256 &txid, CDiskTxPos &pos)
+bool CBlockTreeDB::ReadReferralIndex(const uint256& refid, CDiskTxPos& pos)
 {
-    return Read(std::make_pair(DB_REFERRALSINDEX, txid), pos);
+    return Read(std::make_pair(DB_REFERRALSINDEX, refid), pos);
 }
 
-bool CBlockTreeDB::WriteReferralTxIndex(const std::vector<std::pair<uint256, CDiskTxPos> > &list)
+bool CBlockTreeDB::WriteReferralIndex(const std::vector<std::pair<uint256, CDiskTxPos>>& list)
 {
     CDBBatch batch(*this);
-    for (std::vector<std::pair<uint256,CDiskTxPos> >::const_iterator it=list.begin(); it!=list.end(); it++)
+    for (std::vector<std::pair<uint256, CDiskTxPos>>::const_iterator it = list.begin(); it != list.end(); it++)
         batch.Write(std::make_pair(DB_REFERRALSINDEX, it->first), it->second);
+
     return WriteBatch(batch);
 }

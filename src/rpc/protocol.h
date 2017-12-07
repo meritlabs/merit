@@ -54,9 +54,9 @@ enum RPCErrorCode
     RPC_INVALID_PARAMETER           = -8,  //!< Invalid, missing or duplicate parameter
     RPC_DATABASE_ERROR              = -20, //!< Database error
     RPC_DESERIALIZATION_ERROR       = -22, //!< Error parsing or validating structure in raw format
-    RPC_VERIFY_ERROR                = -25, //!< General error during transaction or block submission
-    RPC_VERIFY_REJECTED             = -26, //!< Transaction or block was rejected by network rules
-    RPC_VERIFY_ALREADY_IN_CHAIN     = -27, //!< Transaction already in chain
+    RPC_VERIFY_ERROR                = -25, //!< General error during transaction, referral or block submission
+    RPC_VERIFY_REJECTED             = -26, //!< Transaction, referral or block was rejected by network rules
+    RPC_VERIFY_ALREADY_IN_CHAIN     = -27, //!< Transaction or referral already in chain
     RPC_IN_WARMUP                   = -28, //!< Client still warming up
 
     //! Aliases for backward compatibility
@@ -85,12 +85,12 @@ enum RPCErrorCode
     RPC_WALLET_ALREADY_UNLOCKED     = -17, //!< Wallet is already unlocked
     RPC_WALLET_NOT_FOUND            = -18, //!< Invalid wallet specified
     RPC_WALLET_NOT_SPECIFIED        = -19, //!< No wallet specified (error when there are multiple wallets loaded)
+    RPC_WALLET_NOT_REFERRED         = -20, //!< Wallet is not yet unlocked with referrer address
 
     // Referral engine errors
-    RPC_REFERRER_IS_SET              = -100, //!< Wallet already has referal code and referrer set
-    RPC_REFERRER_IS_NOT_SET          = -101, //!< Wallet does not have referal code and referrer set
-    RPC_REFERRAL_REJECTED            = -102, //!< Referral is rejected in mempool
-    RPC_CODE_DOES_NOT_EXIST          = -103, //!< Wallet does not have referal code and referrer set
+    RPC_REFERRAL_ERROR               = RPC_VERIFY_ERROR,
+    RPC_REFERRAL_REJECTED            = RPC_VERIFY_REJECTED,
+    RPC_REFERRAL_ALREADY_IN_CHAIN    = RPC_VERIFY_ALREADY_IN_CHAIN
 };
 
 UniValue JSONRPCRequestObj(const std::string& strMethod, const UniValue& params, const UniValue& id);

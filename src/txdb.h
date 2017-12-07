@@ -149,8 +149,8 @@ public:
     bool LoadBlockIndexGuts(const Consensus::Params& consensusParams, std::function<CBlockIndex*(const uint256&)> insertBlockIndex);
 
     // Referrals
-    bool ReadReferralTxIndex(const uint256 &txid, CDiskTxPos &pos);
-    bool WriteReferralTxIndex(const std::vector<std::pair<uint256, CDiskTxPos> > &list);
+    bool ReadReferralIndex(const uint256 &txid, CDiskTxPos &pos);
+    bool WriteReferralIndex(const std::vector<std::pair<uint256, CDiskTxPos> > &list);
 };
 
 #endif // MERIT_TXDB_H

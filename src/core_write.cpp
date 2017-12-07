@@ -12,10 +12,11 @@
 #include "script/standard.h"
 #include "serialize.h"
 #include "streams.h"
-#include <univalue.h>
 #include "util.h"
 #include "utilmoneystr.h"
 #include "utilstrencodings.h"
+
+#include <univalue.h>
 
 UniValue ValueFromAmount(const CAmount& amount)
 {
@@ -108,6 +109,10 @@ std::string EncodeHexTx(const CTransaction& tx, const int serialize_flags) {
     return EncodeHex(tx, serialize_flags);
 }
 
+std::string EncodeHexRef(const referral::Referral& ref) {
+    return EncodeHex(ref, 0);
+}
+
 void ScriptPubKeyToUniv(const CScript& scriptPubKey,
                         UniValue& out, bool fIncludeHex)
 {
@@ -198,8 +203,10 @@ void RefToUniv(const referral::Referral& ref, const uint256& hashBlock, UniValue
     entry.pushKV("refd", ref.GetHash().GetHex());
     entry.pushKV("version", ref.version);
     entry.pushKV("parent", ref.parentAddress.GetHex());
-    entry.pushKV("address", EncodeDestination(CMeritAddress{ref.addressType, ref.address}.Get()));
+    entry.pushKV("address", ref.address.GetHex());
+    entry.pushKV("parentAddress", ref.parentAddress.GetHex());
     entry.pushKV("size", (int)::GetSerializeSize(ref, SER_NETWORK, PROTOCOL_VERSION));
+    entry.pushKV("vsize", GetReferralWeight(ref) / WITNESS_SCALE_FACTOR);
 
     if (!hashBlock.IsNull())
         entry.pushKV("blockhash", hashBlock.GetHex());
