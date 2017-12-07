@@ -368,7 +368,7 @@ CScript GetScriptForSimpleVault(const uint160& tag)
     script
         << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] <tag>|
         << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] |
-        << OP_NTOALTSTACK               // <out index> <sig> <mode> | [addresses]
+        << OP_NTOALTSTACK               // <sig> <mode> <spend key> <renew key> | [addresses]
         << OP_TOALTSTACK                // <sig> <mode> <spend key> | [addresses] <renew key>
         << OP_TOALTSTACK                // <sig> <mode> | [addresses] <renew key> <spend key>
         << 0                            // <sig> <mode> 0 | [addresses] <renew key> <spend key>

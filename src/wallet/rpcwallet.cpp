@@ -4431,41 +4431,33 @@ UniValue getanv(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp)
+    if (request.fHelp || request.params.size() != 0) {
         throw std::runtime_error(
-            "getanv ( key1, key2, ..., keyN )\n"
-            "\nIf keys are not specified , returns the wallet's available balance.\n"
+            "getanv\n"
+            "\nReturns the wallet's ANV.\n"
             "\nResult:\n"
-            "anv              (numeric) The total Aggregate Network Value in " + CURRENCY_UNIT + " received for the keys or wallet.\n"
+            "ANV              (numeric) The total Aggregate Network Value in " + CURRENCY_UNIT + " received for the keys or wallet.\n"
             "\nExamples:\n"
-            "\nThe total amount in the wallet with 1 or more confirmations\n"
-            + HelpExampleCli("getanv", "") +
-            "\nGet Aggregate Network Value for all keys listed"
-            + HelpExampleCli("getanv", "abc, xyz, ggg")
+            + HelpExampleCli("getanv", "")
         );
+    }
 
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
     std::vector<referral::Address> keys;
 
-    //If we don't specify any key ids, collect keys from wallet.
-    if(request.params.empty()) {
-        //TODO, use addressbook in CWallet to figure out keys.
-        //For HD chains, likely the approach will have to be filtering all
-        //keys to figure out which are the persons.
-    } else {
-        keys.reserve(request.params.size());
-        for(size_t i = 0; i < request.params.size(); i++) {
-            auto key_hex_str = request.params[i].get_str();
-            auto dest = DecodeDestination(key_hex_str);
+    auto addrs = pwallet->mapAddressBook;
+    for (const auto &addrEntry: addrs) {
+        CTxDestination dest = addrEntry.first;
+
+        if (IsMine(*pwallet, dest)) {
             uint160 key;
             if(GetUint160(dest, key)) {
                 keys.push_back(key);
             }
         }
     }
-
 
     auto anvs = pog::GetANVs(keys, *prefviewdb);
 
@@ -4681,7 +4673,7 @@ static const CRPCCommand commands[] =
 
     { "referral",           "validatereferraladdress",  &validatereferraladdress,  {"address"} },
     { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress"} },
-    { "referral",           "getanv",                   &getanv,                   {"address"} },
+    { "referral",           "getanv",                   &getanv,                   {} },
     { "wallet",             "getrewards",               &getrewards,               {} },
 #ifdef ENABLE_WALLET
     { "referral",           "unlockwalletwithaddress",  &unlockwalletwithaddress,  {"address", "parentaddress"} }
