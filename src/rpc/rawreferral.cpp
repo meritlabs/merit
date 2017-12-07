@@ -61,22 +61,24 @@ UniValue getrawreferral(const JSONRPCRequest& request)
 
             "\nResult (if verbose is set to true):\n"
             "{\n"
-            "  \"hex\" : \"data\",       (string) The serialized, hex-encoded data for 'refid'\n"
-            "  \"refid\" : \"id\",       (string) Referral id (same as provided)\n"
-            "  \"hash\" : \"id\",        (string) Referral hash (differs from refid for witness referrals)\n"
+            "  \"hex\" : \"data\",         (string) The serialized, hex-encoded data for 'refid'\n"
+            "  \"refid\" : \"id\",         (string) Referral id - hash (same as provided)\n"
             "  \"size\" : n,             (numeric) The serialized referral size\n"
             "  \"vsize\" : n,            (numeric) The virtual referral size\n"
             "  \"version\" : n,          (numeric) The version\n"
             "  \"address\" : n,          (string) Beaconed address\n"
             "  \"parentAddress\" : n,    (string) Parent address, that was used to unlock this referral\n"
-            "  \"blockhash\" : \"hash\", (string) Block hash\n"
+            "  \"blockhash\" : \"hash\",   (string) Block hash\n"
             "  \"height\" : n,           (numeric) Block height\n"
             "  \"confirmations\" : n,    (numeric) Confirmations count\n"
             "  \"blocktime\" : ttt       (numeric) Block time in seconds since epoch (Jan 1 1970 GMT)\n"
             "}\n"
 
             "\nExamples:\n" +
-            HelpExampleCli("getrawreferral", "\"myrefid\"") + HelpExampleCli("getrawreferral", "\"myrefid\" true") + HelpExampleRpc("getrawreferral", "\"myrefid\", true"));
+            HelpExampleCli("getrawreferral", "\"myrefid\"") +
+            HelpExampleCli("getrawreferral", "\"myrefid\" true") +
+            HelpExampleCli("getrawreferral", "\"myrefid\" 1") +
+            HelpExampleRpc("getrawreferral", "\"myrefid\", true"));
 
     uint256 hash = ParseHashV(request.params[0], "refid");
 
