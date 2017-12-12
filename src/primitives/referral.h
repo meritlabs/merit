@@ -9,7 +9,6 @@
 #include "script/script.h"
 #include "serialize.h"
 #include "uint256.h"
-#include "utilstrencodings.h"
 
 #include <boost/optional.hpp>
 #include <stdint.h>
@@ -38,7 +37,6 @@ inline void UnserializeReferral(TxType& ref, Stream& s)
     s >> ref.parentAddress;
     s >> ref.addressType;
     s >> ref.address;
-    ref.pubkey = CPubKey{};
     s >> ref.pubkey;
     s >> ref.signature;
 
