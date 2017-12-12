@@ -4336,25 +4336,6 @@ UniValue generate(const JSONRPCRequest& request)
     return generateBlocks(coinbase_script, num_generate, max_tries, true, nThreads);
 }
 
-UniValue validatereferraladdress(const JSONRPCRequest& request)
-{
-    if (request.fHelp || request.params.size() != 1) {
-        throw std::runtime_error(
-            "validatereferraladdress \"address\"\n"
-            + HelpExampleCli("validatereferraladdress", "code")
-        );
-    }
-
-    CMeritAddress address(request.params[0].get_str());
-    auto addressUint160 = address.GetUint160();
-    assert(addressUint160);
-
-    bool is_valid = prefviewcache->exists(*addressUint160);
-
-    UniValue result(is_valid);
-    return result;
-}
-
 UniValue unlockwallet(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
@@ -4480,98 +4461,6 @@ UniValue getanv(const JSONRPCRequest& request)
 }
 
 #ifdef ENABLE_WALLET
-UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
-{
-    if (request.fHelp || request.params.size() != 2 || request.params[0].get_str().empty() || request.params[1].get_str().empty()) {
-        throw std::runtime_error(
-            "unlockwalletwithaddress \"address\" \"parentaddress\"\n"
-            "Updates the wallet with referral address and beacons first key with associated referral.\n"
-            "Return information about the given merit address..\n"
-            "\nArguments:\n"
-            "1. address       (string, required) Address of the wallet to unlock.\n"
-            "2. parentaddress (string, required) Parent address needed to unlock the wallet.\n"
-            "\nResult:\n"
-            "{\n"
-            "  \"isvalid\":  true|false           (boolean) if address is a valid merit address\n"
-            "  \"address\":  \"<string>\"         (string) beaconed merit address\n"
-            "}\n"
-            "\nExamples:\n"
-            + HelpExampleCli("unlockwalletwithaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\" \"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWd\"")
-            + HelpExampleRpc("unlockwalletwithaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\", \"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWd\"")
-        );
-    }
-
-    if (!g_connman) {
-        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
-    }
-
-    LOCK(cs_main);
-
-    CMeritAddress address(request.params[0].get_str());
-    CMeritAddress parentAddress(request.params[1].get_str());
-    bool isValid = address.IsValid();
-
-    if (!address.IsValid()) {
-        throw std::runtime_error("Address is not valid or in wrong format.");
-    }
-
-    if (!parentAddress.IsValid()) {
-        throw std::runtime_error("Parent address is not valid or in wrong format.");
-    }
-
-    UniValue ret(UniValue::VOBJ);
-
-    auto addressUint160 = address.GetUint160();
-    assert(addressUint160);
-
-    auto parentAddressUint160 = parentAddress.GetUint160();
-    assert(parentAddressUint160);
-
-    // check if provided referral code hash is valid, i.e. exists in the blockchain
-    if (!prefviewcache->exists(*parentAddressUint160)
-        && !mempoolReferral.ExistsWithAddress(*parentAddressUint160)) {
-        throw std::runtime_error(std::string(__func__) + ": provided parent address does not exist in the chain (RPC)");
-    }
-
-    if (CheckAddressBeaconed(address)) {
-        throw std::runtime_error(std::string(__func__) + ": Address is already beaconed.");
-    }
-
-    // TODO: add real pubkey after LW updated with real pubkey instead address
-    CPubKey signPubKey;
-    referral::ReferralRef referral =
-        referral::MakeReferralRef(
-                referral::MutableReferral(
-                    address.GetType(), *addressUint160, signPubKey, *parentAddressUint160));
-
-    // check that new referral is not in the cache or in mempool
-    if (prefviewcache->exists(referral->address) || mempoolReferral.ExistsWithAddress(referral->address)) {
-        throw std::runtime_error(std::string(__func__) + ": new referral is already beaconed");
-    }
-
-    CValidationState state;
-    bool missingReferrer = false;
-
-    if (!AcceptReferralToMemoryPool(mempoolReferral, state, referral, missingReferrer)) {
-        if (missingReferrer) {
-            throw JSONRPCError(RPC_REFERRAL_REJECTED, "Missing referrer");
-        }
-
-        throw JSONRPCError(RPC_REFERRAL_REJECTED, strprintf("%i: %s", state.GetRejectCode(), state.GetRejectReason()));
-    }
-
-    CInv inv(MSG_REFERRAL, referral->GetHash());
-    g_connman->ForEachNode([&inv](CNode* pnode) {
-        pnode->PushInventory(inv);
-    });
-
-    ret.push_back(Pair("isvalid", isValid));
-    ret.push_back(Pair("address", address.ToString()));
-
-    return ret;
-}
-
-
 UniValue getrewards(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
@@ -4685,9 +4574,6 @@ static const CRPCCommand commands[] =
     { "referral",           "getanv",                   &getanv,                   {} },
 
     { "wallet",             "getrewards",               &getrewards,               {} },
-#ifdef ENABLE_WALLET
-    { "referral",           "unlockwalletwithaddress",  &unlockwalletwithaddress,  {"address", "parentaddress"} }
-#endif
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)
