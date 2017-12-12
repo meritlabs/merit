@@ -1649,14 +1649,14 @@ bool CWallet::IsHDEnabled() const
 referral::ReferralRef CWallet::GenerateNewReferral(
         char addressType,
         const referral::Address& address,
-        const referral::MaybePubKey& pubkey,
+        const CPubKey& signPubKey,
         const referral::Address& parentAddress)
 {
     // generate referral for given public key
     auto referral =
         referral::MakeReferralRef(
                 referral::MutableReferral(
-                    addressType, address, pubkey, parentAddress));
+                    addressType, address, signPubKey, parentAddress));
 
     referral::ReferralTx rtx{true};
 
@@ -1669,16 +1669,18 @@ referral::ReferralRef CWallet::GenerateNewReferral(
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CScriptID& id,
-        const referral::Address& parentAddress)
+        const referral::Address& parentAddress,
+        const CPubKey& signPubKey)
 {
-    return GenerateNewReferral(2, id, referral::MaybePubKey{}, parentAddress);
+    return GenerateNewReferral(2, id, signPubKey, parentAddress);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CParamScriptID& id,
-        const referral::Address& parentAddress)
+        const referral::Address& parentAddress,
+        const CPubKey& signPubKey)
 {
-    return GenerateNewReferral(3, id, referral::MaybePubKey{}, parentAddress);
+    return GenerateNewReferral(3, id, signPubKey, parentAddress);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
@@ -1716,6 +1718,11 @@ bool CWallet::IsReferred() const
 referral::Address CWallet::ReferralAddress() const
 {
     return IsReferred() ? m_unlockReferralTx.m_pReferral->address : referral::Address{};
+}
+
+CPubKey CWallet::ReferralPubKey() const
+{
+    return IsReferred() ? m_unlockReferralTx.m_pReferral->pubkey : CPubKey{};
 }
 
 int64_t CWalletTx::GetTxTime() const
