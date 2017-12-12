@@ -17,7 +17,7 @@ namespace referral
 MutableReferral::MutableReferral(
         char addressTypeIn,
         const Address& addressIn,
-        const MaybePubKey& pubkeyIn,
+        const CPubKey& pubkeyIn,
         const Address& parentAddressIn) :
     version{Referral::CURRENT_VERSION},
     parentAddress{parentAddressIn},
@@ -48,7 +48,7 @@ uint256 Referral::ComputeHash() const
 Referral::Referral(
         char addressTypeIn,
         const Address& addressIn,
-        const MaybePubKey& pubkeyIn,
+        const CPubKey& pubkeyIn,
         const Address& parentAddressIn) :
     version{Referral::CURRENT_VERSION},
     parentAddress{parentAddressIn},

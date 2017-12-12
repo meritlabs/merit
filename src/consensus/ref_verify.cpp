@@ -19,7 +19,7 @@ bool CheckReferral(const Referral& referral, CValidationState& state)
 
     // Check referral pubkey and signature in case pubkey is beaconed
     if (referral.addressType == 1) {
-        if (!(*referral.pubkey).IsValid()) {
+        if (!referral.pubkey.IsValid()) {
             return state.DoS(100, false, REJECT_INVALID, "bad-ref-invalid-pubkey");
         } else {
             if (referral.signature.empty()) {

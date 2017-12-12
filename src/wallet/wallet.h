@@ -1216,16 +1216,18 @@ public:
     referral::ReferralRef GenerateNewReferral(
             char addressType,
             const referral::Address& addr,
-            const referral::MaybePubKey& pubkey,
+            const CPubKey& signPubKey,
             const referral::Address& parentAddress);
 
     referral::ReferralRef GenerateNewReferral(
             const CScriptID& id,
-            const referral::Address& parentAddress);
+            const referral::Address& parentAddress,
+            const CPubKey& signPubKey);
 
     referral::ReferralRef GenerateNewReferral(
             const CParamScriptID& id,
-            const referral::Address& parentAddress);
+            const referral::Address& parentAddress,
+            const CPubKey& signPubKey);
 
     referral::ReferralRef GenerateNewReferral(
             const CPubKey& pubkey,
@@ -1233,6 +1235,7 @@ public:
 
     bool IsReferred() const;
     referral::Address ReferralAddress() const;
+    CPubKey ReferralPubKey() const;
 };
 
 /** A key allocated from the key pool. */

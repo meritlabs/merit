@@ -261,13 +261,13 @@ referral::MaybeReferral LookupReferral(
 
 bool CheckReferralSignature(const referral::Referral& ref, const std::vector<referral::ReferralRef>& extraReferrals)
 {
-    // if given referral beacons pubkey, check it
-    if (ref.addressType == 1) {
-        assert(ref.pubkey);
-        auto hash = (CHashWriter(SER_GETHASH, 0) << ref.parentAddress << ref.address).GetHash();
+    assert(ref.pubkey.IsValid());
 
-        return ref.pubkey->Verify(hash, ref.signature);
-    }
+    auto hash = (CHashWriter(SER_GETHASH, 0) << ref.parentAddress << ref.address).GetHash();
+
+    printf("======>>>> %s\n", hash.GetHex().c_str());
+
+    return ref.pubkey.Verify(hash, ref.signature);
 
     // otherwise look up the chain for parent referral with pubkey beaconed to check signature
     auto parentRef = LookupReferral(ref.parentAddress, *prefviewcache, extraReferrals);

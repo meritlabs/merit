@@ -9,6 +9,7 @@
 #include "script/script.h"
 #include "serialize.h"
 #include "uint256.h"
+#include "utilstrencodings.h"
 
 #include <stdint.h>
 #include <vector>
@@ -21,7 +22,6 @@ namespace referral
 using Address = uint160;
 
 using MaybeAddress = boost::optional<Address>;
-using MaybePubKey = boost::optional<CPubKey>;
 
 struct MutableReferral;
 
@@ -39,25 +39,23 @@ inline void UnserializeReferral(TxType& ref, Stream& s)
     s >> ref.parentAddress;
     s >> ref.addressType;
     s >> ref.address;
-    if (ref.addressType == 1) {
-        ref.pubkey = CPubKey{};
-        s >> (*ref.pubkey);
-        assert(ref.pubkey && (*ref.pubkey).IsValid());
-    }
+    ref.pubkey = CPubKey{};
+    s >> ref.pubkey;
     s >> ref.signature;
+
+    assert(ref.pubkey.IsValid());
 }
 
 template <typename Stream, typename TxType>
 inline void SerializeReferral(const TxType& ref, Stream& s)
 {
+    assert(ref.pubkey.IsValid());
+
     s << ref.version;
     s << ref.parentAddress;
     s << ref.addressType;
     s << ref.address;
-    if (ref.addressType == 1) {
-        assert(ref.pubkey && (*ref.pubkey).IsValid());
-        s << *ref.pubkey;
-    }
+    s << ref.pubkey;
     s << ref.signature;
 }
 
@@ -88,8 +86,10 @@ public:
     // address that this referral is related to
     Address address;
 
-    // pubky of beaconed address if available
-    MaybePubKey pubkey;
+    // pubky used to sign referral
+    // pubkey of beaconed address in case addressType = 1
+    // signer pubkey otherwise
+    CPubKey pubkey;
 
     // signature of parentAddress + address
     valtype signature;
@@ -104,7 +104,7 @@ public:
     Referral(
         char addressTypeIn,
         const Address& addressIn,
-        const MaybePubKey& pubkeyIn,
+        const CPubKey& pubkeyIn,
         const Address& parentAddressIn);
 
     /** Convert a MutableReferral into a Referral. */
@@ -156,7 +156,7 @@ struct MutableReferral {
     Address parentAddress;
     char addressType;
     Address address;
-    MaybePubKey pubkey;
+    CPubKey pubkey;
     valtype signature;
 
     MutableReferral() : version(Referral::CURRENT_VERSION), addressType{0} {}
@@ -166,7 +166,7 @@ struct MutableReferral {
     MutableReferral(
         char addressTypeIn,
         const Address& addressIn,
-        const MaybePubKey& pubkeyIn,
+        const CPubKey& pubkeyIn,
         const Address& parentAddressIn);
 
 
@@ -207,7 +207,7 @@ using ReferralRefs = std::vector<ReferralRef>;
 static inline ReferralRef MakeReferralRef(
     char addressTypeIn,
     Address& addressIn,
-    MaybePubKey& pubkeyIn,
+    CPubKey& pubkeyIn,
     Address& parentAddressIn)
 {
     return std::make_shared<const Referral>(

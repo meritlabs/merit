@@ -526,7 +526,7 @@ static UniValue EasySend(
                 "Unable to generate referral for receiver key");
     }
 
-    if(!pwallet.GenerateNewReferral(script_id, pwallet.ReferralAddress())) {
+    if(!pwallet.GenerateNewReferral(script_id, pwallet.ReferralAddress(), pwallet.ReferralPubKey())) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Unable to generate referral for easy send script");
@@ -1068,7 +1068,7 @@ UniValue createvault(const JSONRPCRequest& request)
                     ToByteVector(vault_tag),
                     0 /* simple is type 0 */);
 
-        if(!pwallet->GenerateNewReferral(script_id, pwallet->ReferralAddress())) {
+        if(!pwallet->GenerateNewReferral(script_id, pwallet->ReferralAddress(), pwallet->ReferralPubKey())) {
             throw JSONRPCError(
                     RPC_WALLET_ERROR,
                     "Unable to generate referral for the vault script");
@@ -4538,10 +4538,11 @@ UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
     }
 
     // TODO: add real pubkey after LW updated with real pubkey instead address
+    CPubKey signPubKey;
     referral::ReferralRef referral =
         referral::MakeReferralRef(
                 referral::MutableReferral(
-                    address.GetType(), *addressUint160, referral::MaybePubKey{}, *parentAddressUint160));
+                    address.GetType(), *addressUint160, signPubKey, *parentAddressUint160));
 
     // check that new referral is not in the cache or in mempool
     if (prefviewcache->exists(referral->address) || mempoolReferral.ExistsWithAddress(referral->address)) {
