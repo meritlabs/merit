@@ -7,7 +7,6 @@
 #include "base58.h"
 #include <limits>
 
-#include <boost/rational.hpp>
 #include <boost/multiprecision/float128.hpp> 
 
 namespace referral
@@ -19,8 +18,12 @@ const char DB_REFERRALS = 'r';
 const char DB_REFERRALS_BY_KEY_ID = 'k';
 const char DB_PARENT_KEY = 'p';
 const char DB_ANV = 'a';
+const char DB_LOT_SIZE = 's';
+const char DB_LOT_VAL = 'v';
+
 const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
 const double LOG_MAX_UINT64 = std::log(std::numeric_limits<uint64_t>::max());
+const size_t MAX_RESERVOIR_SIZE = 1000;
 }
 
 using ANVTuple = std::tuple<char, Address, CAmount>;
@@ -247,7 +250,8 @@ AddressANVs ReferralsViewDB::GetAllRewardableANVs() const
 
 /**
  * This function uses a modified version of the weighted random sampling algorithm
- * by Efraimidis and Spirakis (https://www.sciencedirect.com/science/article/pii/S002001900500298X).
+ * by Efraimidis and Spirakis 
+ * (https://www.sciencedirect.com/science/article/pii/S002001900500298X).
  *
  * Instead of computing R=rand^(1/W) where rand is some uniform random value
  * between [0,1] and W is the ANV, we will compute log(R). 
@@ -267,7 +271,7 @@ bool ReferralsViewDB::AddAddressToLottery(const uint256& rand_value, const Addre
      * Instead of computing the power above we will take the log as the weighted
      * key instead. log(rand^(1/W)) = log(rand) / W.
      *
-     * We can think of rand_uint64 as a random value betwen 0-1.0 if we take 
+     * We can think of rand_uint64 as a random value between 0-1.0 if we take 
      * rand_uint64 and divide it the max uint64_t. 
      *
      * rand = rand_uint64/max_uint64_t
@@ -275,7 +279,8 @@ bool ReferralsViewDB::AddAddressToLottery(const uint256& rand_value, const Addre
      * log(rand) = log(rand_uint64/max_uint64_t) 
      *           = log(rand_uint64) - log(max_uint64_t)
      */ 
-    const boost::multiprecision::float128 rand = std::log(rand_uint64) - LOG_MAX_UINT64;
+    const boost::multiprecision::float128 rand = 
+        std::log(rand_uint64) - LOG_MAX_UINT64;
 
     //We should get a negative number here.
     assert(rand <= 0);
@@ -283,6 +288,8 @@ bool ReferralsViewDB::AddAddressToLottery(const uint256& rand_value, const Addre
     const boost::multiprecision::float128 anv_f = maybe_anv->anv;
 
     const auto weighted_key = rand / anv_f;
+
+    auto heap_size = GetLotteryHeapSize();
 
     //TODO Implement a min heap on top of the DB. 
     //Store X amount of values. 
@@ -296,4 +303,62 @@ bool ReferralsViewDB::AddAddressToLottery(const uint256& rand_value, const Addre
     return true;
 }
 
+std::size_t ReferralsViewDB::GetLotteryHeapSize() const
+{
+    std::size_t size = 0;
+    m_db.Read(DB_LOT_SIZE, size);
+    return size;
+}
+
+using LotteryHeapValue = std::pair<WeightedKey, Address>;
+
+MaybeWeightedKey ReferralsViewDB::GetLotteryMinKey() const
+{
+    LotteryHeapValue v;
+    return m_db.Read(std::make_pair(DB_LOT_VAL, 0), v) ? 
+        MaybeWeightedKey{v.first} : 
+        MaybeWeightedKey{};
+}
+
+bool ReferralsViewDB::InsertLotteryAddress(
+        const WeightedKey& key,
+        const Address& address)
+{
+
+    auto pos = GetLotteryHeapSize();
+
+    if(pos >= MAX_RESERVOIR_SIZE) return false;
+
+    if(!m_db.Write(DB_LOT_SIZE, pos + 1))
+        return false;
+
+    while(pos != 0)
+    {
+        auto parent_pos = pos % 2 == 0 ? pos >> 2 : (pos - 1) >> 2;
+
+        LotteryHeapValue parent_value;
+        if(!m_db.Read(std::make_pair(DB_LOT_VAL, parent_pos), parent_value)) {
+            return false;
+        }
+
+        //We found out spot
+        if(key > parent_value.first) {
+            break;
+        }
+
+        //Push our parent down since we are moving up.
+        if(!m_db.Write(std::make_pair(DB_LOT_VAL, pos), parent_value)) {
+            return false;
+        }
+
+        pos = parent_pos;
+    }
+
+    //write final value
+    if(!m_db.Write(std::make_pair(DB_LOT_VAL, pos), std::make_pair(key, address))) {
+        return false;
+    }
+
+    return true;
+}
 }

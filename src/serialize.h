@@ -21,6 +21,7 @@
 #include <string.h>
 #include <utility>
 #include <vector>
+#include <boost/multiprecision/float128.hpp> 
 
 #include "prevector.h"
 
@@ -191,6 +192,27 @@ template<typename Stream> inline void Serialize(Stream& s, uint64_t a) { ser_wri
 template<typename Stream> inline void Serialize(Stream& s, float a   ) { ser_writedata32(s, ser_float_to_uint32(a)); }
 template<typename Stream> inline void Serialize(Stream& s, double a  ) { ser_writedata64(s, ser_double_to_uint64(a)); }
 
+struct split_float128
+{
+    uint64_t x;
+    uint64_t y;
+};
+
+union float128_access
+{
+    boost::multiprecision::float128 v;
+    split_float128 split;
+};
+
+template<typename Stream> inline void Serialize(Stream& s, boost::multiprecision::float128 a) 
+{
+    float128_access f;
+    f.v = a;
+
+    ser_writedata64(s, f.split.x); 
+    ser_writedata64(s, f.split.y); 
+}
+
 template<typename Stream> inline void Unserialize(Stream& s, char& a    ) { a = ser_readdata8(s); } // TODO Get rid of bare char
 template<typename Stream> inline void Unserialize(Stream& s, int8_t& a  ) { a = ser_readdata8(s); }
 template<typename Stream> inline void Unserialize(Stream& s, uint8_t& a ) { a = ser_readdata8(s); }
@@ -203,12 +225,18 @@ template<typename Stream> inline void Unserialize(Stream& s, uint64_t& a) { a = 
 template<typename Stream> inline void Unserialize(Stream& s, float& a   ) { a = ser_uint32_to_float(ser_readdata32(s)); }
 template<typename Stream> inline void Unserialize(Stream& s, double& a  ) { a = ser_uint64_to_double(ser_readdata64(s)); }
 
+template<typename Stream> inline void Unserialize(Stream& s, boost::multiprecision::float128& a) 
+{ 
+    float128_access f;
+
+    f.split.x = ser_readdata64(s);
+    f.split.y = ser_readdata64(s);
+
+    a = f.v;
+}
+
 template<typename Stream> inline void Serialize(Stream& s, bool a)    { char f=a; ser_writedata8(s, f); }
 template<typename Stream> inline void Unserialize(Stream& s, bool& a) { char f=ser_readdata8(s); a=f; }
-
-
-
-
 
 
 /**

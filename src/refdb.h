@@ -10,6 +10,7 @@
 #include "primitives/referral.h"
 
 #include <boost/optional.hpp>
+#include <boost/multiprecision/float128.hpp> 
 #include <vector>
 
 namespace referral
@@ -19,6 +20,8 @@ using MaybeReferral = boost::optional<Referral>;
 using MaybeAddress = boost::optional<Address>;
 using ChildAddresses = std::vector<Address>;
 using Addresses = std::vector<Address>;
+using WeightedKey = boost::multiprecision::float128;
+using MaybeWeightedKey = boost::optional<WeightedKey>;
 
 struct AddressANV
 {
@@ -52,6 +55,11 @@ public:
 
     AddressANVs GetAllRewardableANVs() const;
     bool AddAddressToLottery(const uint256&, const Address&);
+
+private:
+    std::size_t GetLotteryHeapSize() const;
+    MaybeWeightedKey GetLotteryMinKey() const;
+    bool InsertLotteryAddress(const WeightedKey& key, const Address& address);
 
 };
 
