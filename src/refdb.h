@@ -44,12 +44,15 @@ public:
     bool UpdateANV(char addressType, const Address&, CAmount);
     MaybeAddressANV GetANV(const Address&) const;
     AddressANVs GetAllANVs() const;
-    AddressANVs GetAllRewardableANVs() const;
 
     bool InsertReferral(const Referral&);
     bool RemoveReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;
     bool WalletIdExists(const Address&) const;
+
+    AddressANVs GetAllRewardableANVs() const;
+    bool AddAddressToLottery(const uint256&, const Address&);
+
 };
 
 } // namespace referral

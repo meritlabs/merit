@@ -5,6 +5,10 @@
 #include "refdb.h"
 
 #include "base58.h"
+#include <limits>
+
+#include <boost/rational.hpp>
+#include <boost/multiprecision/float128.hpp> 
 
 namespace referral
 {
@@ -16,6 +20,7 @@ const char DB_REFERRALS_BY_KEY_ID = 'k';
 const char DB_PARENT_KEY = 'p';
 const char DB_ANV = 'a';
 const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
+const double LOG_MAX_UINT64 = std::log(std::numeric_limits<uint64_t>::max());
 }
 
 using ANVTuple = std::tuple<char, Address, CAmount>;
@@ -238,4 +243,57 @@ AddressANVs ReferralsViewDB::GetAllRewardableANVs() const
     }
     return anvs;
 }
+
+
+/**
+ * This function uses a modified version of the weighted random sampling algorithm
+ * by Efraimidis and Spirakis (https://www.sciencedirect.com/science/article/pii/S002001900500298X).
+ *
+ * Instead of computing R=rand^(1/W) where rand is some uniform random value
+ * between [0,1] and W is the ANV, we will compute log(R). 
+ */
+bool ReferralsViewDB::AddAddressToLottery(const uint256& rand_value, const Address& address)
+{
+    auto maybe_anv = GetANV(address);
+    if(!maybe_anv) return false;
+
+    const auto rand_uint64 = rand_value.GetUint64(0);
+
+    /* 
+     * We need to compute the weighted key of the address which is originally
+     * computed in RES by rand^(1/W). where rand is a uniform random value between
+     * [0,1] and W is a weight. The weight in our case is the ANV of the address.
+     *
+     * Instead of computing the power above we will take the log as the weighted
+     * key instead. log(rand^(1/W)) = log(rand) / W.
+     *
+     * We can think of rand_uint64 as a random value betwen 0-1.0 if we take 
+     * rand_uint64 and divide it the max uint64_t. 
+     *
+     * rand = rand_uint64/max_uint64_t
+     *
+     * log(rand) = log(rand_uint64/max_uint64_t) 
+     *           = log(rand_uint64) - log(max_uint64_t)
+     */ 
+    const boost::multiprecision::float128 rand = std::log(rand_uint64) - LOG_MAX_UINT64;
+
+    //We should get a negative number here.
+    assert(rand <= 0);
+
+    const boost::multiprecision::float128 anv_f = maybe_anv->anv;
+
+    const auto weighted_key = rand / anv_f;
+
+    //TODO Implement a min heap on top of the DB. 
+    //Store X amount of values. 
+    //  IF heap.size < X THEN
+    //      heap.insert weighted_key, address
+    //  ELSE IF heap.min < weighted_key THEN
+    //      heap.pop_min
+    //      heap.insert weighted_key, address
+    //  ELSE      
+
+    return true;
+}
+
 }
