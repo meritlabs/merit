@@ -99,30 +99,12 @@ UniValue getrawreferral(const JSONRPCRequest& request)
     }
 
     ReferralRef ref;
-
     uint256 hashBlock;
-    int nHeight = 0;
-    int nConfirmations = 0;
-    int nBlockTime = 0;
     {
         LOCK(cs_main);
 
         if (!GetReferral(hash, ref, hashBlock)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about referral");
-        }
-
-        BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
-        if (mi != mapBlockIndex.end() && (*mi).second) {
-            CBlockIndex* pindex = (*mi).second;
-            if (chainActive.Contains(pindex)) {
-                nHeight = pindex->nHeight;
-                nConfirmations = 1 + chainActive.Height() - pindex->nHeight;
-                nBlockTime = pindex->GetBlockTime();
-            } else {
-                nHeight = -1;
-                nConfirmations = 0;
-                nBlockTime = pindex->GetBlockTime();
-            }
         }
     }
 

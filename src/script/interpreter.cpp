@@ -1146,12 +1146,26 @@ bool EvalScript(
                     case OP_SHA256:
                     case OP_HASH160:
                     case OP_HASH256:
+                    case OP_DUALHASH160:
                     {
                         // (in -- hash)
-                        if (stack.size() < 1)
+                        if (stack.size() < 1) {
                             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
-                        valtype& vch = stacktop(-1);
-                        valtype vchHash((opcode == OP_RIPEMD160 || opcode == OP_SHA1 || opcode == OP_HASH160) ? 20 : 32);
+                        }
+                        valtype vch = stacktop(-1);
+                        if (opcode == OP_DUALHASH160) {
+                            popstack(stack);
+                            if (stack.size() < 1) {
+                                return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+                            }
+                            vch.push_back(stacktop(-1));
+                        }
+
+                        valtype vchHash((opcode == OP_RIPEMD160 ||
+                                            opcode == OP_SHA1 ||
+                                            opcode == OP_HASH160 ||
+                                            opcode == OP_DUALHASH160) ?
+                                            20 : 32);
                         if (opcode == OP_RIPEMD160)
                             CRIPEMD160().Write(vch.data(), vch.size()).Finalize(vchHash.data());
                         else if (opcode == OP_SHA1)
