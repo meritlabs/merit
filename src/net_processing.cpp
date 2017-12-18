@@ -673,7 +673,6 @@ int static EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 
     mapOrphanReferrals.erase(it);
 
-    // TODO: look for parent referral and use it's hash
     auto itPrev = mapOrphanReferralsByPrev.find(it->second.ref->parentAddress);
 
     if (itPrev != mapOrphanReferralsByPrev.end()) {
@@ -853,10 +852,13 @@ void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pb
     // Erase orphan referrals include by this block
     {
         int nErased = 0;
-        for (uint256 &orphanHash : vOrphanErase) {
+        for (uint256 &orphanHash : vOrphanReferralsErase) {
             nErased += EraseOrphanReferral(orphanHash);
         }
-        if(nErased > 0) LogPrint(BCLog::REFMEMPOOL, "Erased %d orphan referrals included or conflicted by block\n", nErased);
+
+        if(nErased > 0) {
+            LogPrint(BCLog::REFMEMPOOL, "Erased %d orphan referrals included or conflicted by block\n", nErased);
+        }
     }
 }
 
