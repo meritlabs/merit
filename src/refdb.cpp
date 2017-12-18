@@ -7,8 +7,6 @@
 #include "base58.h"
 #include <limits>
 
-#include <boost/multiprecision/float128.hpp> 
-
 namespace referral
 {
 namespace
@@ -22,14 +20,17 @@ const char DB_LOT_SIZE = 's';
 const char DB_LOT_VAL = 'v';
 
 const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
-const double LOG_MAX_UINT64 = std::log(std::numeric_limits<uint64_t>::max());
 const size_t MAX_RESERVOIR_SIZE = 1000;
 }
 
 using ANVTuple = std::tuple<char, Address, CAmount>;
 
-ReferralsViewDB::ReferralsViewDB(size_t nCacheSize, bool fMemory, bool fWipe, const std::string& db_name) :
-    m_db(GetDataDir() / db_name, nCacheSize, fMemory, fWipe, true) {}
+ReferralsViewDB::ReferralsViewDB(
+        size_t cache_size,
+        bool memory,
+        bool wipe,
+        const std::string& db_name) :
+    m_db(GetDataDir() / db_name, cache_size, memory, wipe, true) {}
 
 MaybeReferral ReferralsViewDB::GetReferral(const uint256& code_hash) const {
      MutableReferral referral;
@@ -92,7 +93,10 @@ bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
     ChildAddresses children;
     m_db.Read(std::make_pair(DB_CHILDREN, parent_address), children);
 
-    children.erase(std::remove(std::begin(children), std::end(children), referral.pubKeyId), std::end(children));
+    children.erase(
+            std::remove(std::begin(children), std::end(children), referral.pubKeyId),
+            std::end(children));
+
     if(!m_db.Write(std::make_pair(DB_CHILDREN, parent_address), children))
         return false;
 
@@ -113,9 +117,13 @@ bool ReferralsViewDB::WalletIdExists(const Address& address) const
  * there was a debit.
  */
 
-bool ReferralsViewDB::UpdateANV(char addressType, const Address& start_address, CAmount change)
+bool ReferralsViewDB::UpdateANV(
+        char address_type,
+        const Address& start_address,
+        CAmount change)
 {
-    debug("\tUpdateANV: %s + %d", CMeritAddress(addressType, start_address).ToString(), change);
+    debug("\tUpdateANV: %s + %d",
+            CMeritAddress(address_type, start_address).ToString(), change);
     MaybeAddress address = start_address;
     size_t levels = 0;
 
@@ -127,7 +135,7 @@ bool ReferralsViewDB::UpdateANV(char addressType, const Address& start_address, 
         m_db.Read(std::make_pair(DB_ANV, *address), anv);
 
         if(levels == 0) {
-            std::get<0>(anv) = addressType;
+            std::get<0>(anv) = address_type;
             std::get<1>(anv) = start_address;
         }
 
@@ -206,47 +214,45 @@ AddressANVs ReferralsViewDB::GetAllANVs() const
 
 AddressANVs ReferralsViewDB::GetAllRewardableANVs() const
 {
-    std::unique_ptr<CDBIterator> iter{m_db.NewIterator()};
-    iter->SeekToFirst();
-
+    const auto heap_size = GetLotteryHeapSize();
     AddressANVs anvs;
-    auto address = std::make_pair(DB_ANV, Address{});
-    while(iter->Valid())
-    {
-        //filter non ANV addresss
-        if(!iter->GetKey(address)) {
-            iter->Next();
-            continue;
+    for(size_t i = 0; i < heap_size; i++) {
+
+        LotteryEntrant v;
+        if(!m_db.Read(std::make_pair(DB_LOT_VAL, i), v))  {
+            break;
         }
 
-        if(address.first != DB_ANV) {
-            iter->Next();
-            continue;
+        auto maybe_anv = GetANV(std::get<2>(v));
+        if(!maybe_anv) {
+            break;
         }
 
-        ANVTuple anv;
-        if(!iter->GetValue(anv)) {
-            iter->Next();
-            continue;
-        }
-
-        const auto addressType = std::get<0>(anv);
-        if(addressType != 1 && addressType != 2) {
-            iter->Next();
-            continue;
-        }
-
-        anvs.push_back({
-                addressType,
-                std::get<1>(anv),
-                std::get<2>(anv)
-                });
-
-        iter->Next();
+        anvs.push_back(*maybe_anv);
     }
     return anvs;
 }
 
+bool ReferralsViewDB::FindLotteryPos(const Address& address, size_t& pos) const
+{
+    const auto heap_size = GetLotteryHeapSize();
+    for(size_t i = 0; i < heap_size; i++) {
+
+        LotteryEntrant v;
+        if(!m_db.Read(std::make_pair(DB_LOT_VAL, i), v))  {
+            return false;
+        }
+
+        if(std::get<2>(v) == address) {
+            pos = i;
+            return true;
+        }
+
+    }
+
+    pos = heap_size;
+    return true;
+}
 
 /**
  * This function uses a modified version of the weighted random sampling algorithm
@@ -256,49 +262,91 @@ AddressANVs ReferralsViewDB::GetAllRewardableANVs() const
  * Instead of computing R=rand^(1/W) where rand is some uniform random value
  * between [0,1] and W is the ANV, we will compute log(R). 
  */
-bool ReferralsViewDB::AddAddressToLottery(const uint256& rand_value, const Address& address)
+bool ReferralsViewDB::AddAddressToLottery(
+        const uint256& rand_value,
+        char address_type,
+        const Address& address,
+        MaybeLotteryUndo& maybe_undo)
 {
-    auto maybe_anv = GetANV(address);
+    debug("Attempting to add %s to the lottery.", CMeritAddress(address_type, address).ToString());
+    const auto maybe_anv = GetANV(address);
     if(!maybe_anv) return false;
 
-    const auto rand_uint64 = rand_value.GetUint64(0);
+    const auto weighted_key = pog::WeightedKeyForSampling(rand_value, maybe_anv->anv);
+    const auto heap_size = GetLotteryHeapSize();
 
-    /* 
-     * We need to compute the weighted key of the address which is originally
-     * computed in RES by rand^(1/W). where rand is a uniform random value between
-     * [0,1] and W is a weight. The weight in our case is the ANV of the address.
-     *
-     * Instead of computing the power above we will take the log as the weighted
-     * key instead. log(rand^(1/W)) = log(rand) / W.
-     *
-     * We can think of rand_uint64 as a random value between 0-1.0 if we take 
-     * rand_uint64 and divide it the max uint64_t. 
-     *
-     * rand = rand_uint64/max_uint64_t
-     *
-     * log(rand) = log(rand_uint64/max_uint64_t) 
-     *           = log(rand_uint64) - log(max_uint64_t)
-     */ 
-    const boost::multiprecision::float128 rand = 
-        std::log(rand_uint64) - LOG_MAX_UINT64;
+    // Note we are duplicating FindLotterPos inside both if conditions because
+    // once the reservoir is full, we won't be attempting to add every time
+    // so it is silly to check for duplicates if we aren't going to add anyway.
 
-    //We should get a negative number here.
-    assert(rand <= 0);
+    if(heap_size < MAX_RESERVOIR_SIZE) {
+        debug("Lottery not full, Adding to Lottery: %s", CMeritAddress(address_type, address).ToString());
+        size_t pos;
+        if(!FindLotteryPos(address, pos)) {
+            return false;
+        }
 
-    const boost::multiprecision::float128 anv_f = maybe_anv->anv;
+        //Only add entrants that are not already participating.
+        if(pos == heap_size) {
+            if(!InsertLotteryEntrant(weighted_key, address_type, address)) {
+                return false;
+            }
+        }
+    } else {
+        debug("Lottery full, potentially replacing with: %s", CMeritAddress(address_type, address).ToString());
+        const auto maybe_min_entrant = GetMinLotteryEntrant();   
+        if(!maybe_min_entrant) { 
+            return false;
+        }
 
-    const auto weighted_key = rand / anv_f;
+        //Insert into reservoir only if the new key is bigger
+        //than the smallest key already there.
+        if(std::get<0>(*maybe_min_entrant) < weighted_key) {
+            size_t pos;
+            if(!FindLotteryPos(address, pos)) {
+                return false;
+            }
 
-    auto heap_size = GetLotteryHeapSize();
+            //Only add entrants that are not already participating.
+            if(pos == heap_size) {
 
-    //TODO Implement a min heap on top of the DB. 
-    //Store X amount of values. 
-    //  IF heap.size < X THEN
-    //      heap.insert weighted_key, address
-    //  ELSE IF heap.min < weighted_key THEN
-    //      heap.pop_min
-    //      heap.insert weighted_key, address
-    //  ELSE      
+                if(!PopMinFromLotteryHeap()) {
+                    return false;
+                }
+
+                if(!InsertLotteryEntrant(weighted_key, address_type, address)) {
+                    return false;
+                }
+
+                LotteryUndo undo{
+                    std::get<0>(*maybe_min_entrant),
+                    std::get<1>(*maybe_min_entrant),
+                    std::get<2>(*maybe_min_entrant),
+                    address
+                };
+
+                maybe_undo = undo;
+            }
+        }
+    }
+
+    //TODO: Walk up tree and add recursively
+
+    return true;
+}
+
+bool ReferralsViewDB::UndoLotteryEntrant(const LotteryUndo& undo)
+{
+    if(!RemoveFromLottery(undo.replaced_with)) {
+        return false;
+    } 
+
+    if(!InsertLotteryEntrant(
+                undo.replaced_key,
+                undo.replaced_address_type,
+                undo.replaced_address)) {
+        return false;
+    }
 
     return true;
 }
@@ -310,44 +358,48 @@ std::size_t ReferralsViewDB::GetLotteryHeapSize() const
     return size;
 }
 
-using LotteryHeapValue = std::pair<WeightedKey, Address>;
-
-MaybeWeightedKey ReferralsViewDB::GetLotteryMinKey() const
+MaybeLotteryEntrant ReferralsViewDB::GetMinLotteryEntrant() const
 {
-    LotteryHeapValue v;
+    LotteryEntrant v;
     return m_db.Read(std::make_pair(DB_LOT_VAL, 0), v) ? 
-        MaybeWeightedKey{v.first} : 
-        MaybeWeightedKey{};
+        MaybeLotteryEntrant{v} : 
+        MaybeLotteryEntrant{};
 }
 
-bool ReferralsViewDB::InsertLotteryAddress(
-        const WeightedKey& key,
+/**
+ * The addresses in a lottery are kept in a min-heap. This function inserts
+ * the address at the end and bubbles it up to the correct spot swapping with
+ * parents until the right spot is found. If this function returns false, then
+ * some bad things happened. You must not call this function when the heap is
+ * full. You first must pop an element off the heap using PopMinFromLotteryHeap
+ */
+bool ReferralsViewDB::InsertLotteryEntrant(
+        const pog::WeightedKey& key,
+        char address_type,
         const Address& address)
 {
 
-    auto pos = GetLotteryHeapSize();
+    auto heap_size = GetLotteryHeapSize();
+    auto pos = heap_size;
 
     if(pos >= MAX_RESERVOIR_SIZE) return false;
 
-    if(!m_db.Write(DB_LOT_SIZE, pos + 1))
-        return false;
-
     while(pos != 0)
     {
-        auto parent_pos = pos % 2 == 0 ? pos >> 2 : (pos - 1) >> 2;
+        const auto parent_pos = (pos - 1) / 2;
 
-        LotteryHeapValue parent_value;
+        LotteryEntrant parent_value;
         if(!m_db.Read(std::make_pair(DB_LOT_VAL, parent_pos), parent_value)) {
             return false;
         }
 
-        //We found out spot
-        if(key > parent_value.first) {
+        //We found our spot
+        if(key > std::get<0>(parent_value)) {
             break;
         }
 
         //Push our parent down since we are moving up.
-        if(!m_db.Write(std::make_pair(DB_LOT_VAL, pos), parent_value)) {
+        if(!m_db.Write(std::make_tuple(DB_LOT_VAL, pos), parent_value)) {
             return false;
         }
 
@@ -355,10 +407,97 @@ bool ReferralsViewDB::InsertLotteryAddress(
     }
 
     //write final value
-    if(!m_db.Write(std::make_pair(DB_LOT_VAL, pos), std::make_pair(key, address))) {
+    debug("\tAdding to Reservoir %s at pos %d", CMeritAddress(address_type, address).ToString(), pos);
+    if(!m_db.Write(std::make_pair(DB_LOT_VAL, pos), std::make_tuple(key, address_type, address))) {
         return false;
     }
 
+    if(!m_db.Write(DB_LOT_SIZE, heap_size + 1))
+        return false;
+
+    return true;
+}
+
+bool ReferralsViewDB::PopMinFromLotteryHeap()
+{
+    return RemoveFromLottery(0);
+}
+
+bool ReferralsViewDB::RemoveFromLottery(const Address& to_remove)
+{
+    size_t pos;
+    if(!FindLotteryPos(to_remove, pos)) {
+        return false;
+    }
+    return RemoveFromLottery(pos);
+}
+
+bool ReferralsViewDB::RemoveFromLottery(size_t current)
+{
+    debug("Popping from lottery reservoir position %d", current);
+    auto heap_size = GetLotteryHeapSize();
+    if(heap_size == 0) return false;
+
+    LotteryEntrant last;
+    if(!m_db.Read(std::make_pair(DB_LOT_VAL, heap_size-1), last)) {
+        return false;
+    }
+
+    LotteryEntrant smallest_val = last;
+
+    //Walk down heap and bubble down the last value until we find the correct spot.
+    while(true) {
+
+        size_t smallest = current;
+        size_t left = 2*current + 1;
+        size_t right = 2*current + 2;
+
+        if(left < heap_size) {
+            LotteryEntrant left_val;
+            if(!m_db.Read(std::make_pair(DB_LOT_VAL, left), left_val)) {
+                return false;
+            }
+
+            if(std::get<0>(left_val) < std::get<0>(smallest_val)) {
+                smallest = left;
+                smallest_val = left_val;
+            }
+        }
+
+        if(right < heap_size) {
+            LotteryEntrant right_val;
+            if(!m_db.Read(std::make_pair(DB_LOT_VAL, right), right_val)) {
+                return false;
+            }
+
+            if(std::get<0>(right_val) < std::get<0>(smallest_val)) {
+                smallest = right;
+                smallest_val = right_val;
+            }
+        }
+
+        if(smallest != current) {
+            //write the current element with the smallest
+            if(!m_db.Write(std::make_pair(DB_LOT_VAL, current), smallest_val)) {
+                return false;
+            }
+
+            //now go down the smallest path
+            current = smallest;
+        } else {
+            break;
+        }
+    }
+
+    //finally write the value in the correct spot and reduce the heap
+    //size by 1
+    if(!m_db.Write(std::make_pair(DB_LOT_VAL, current), last)) {
+        return false;
+    }
+
+    m_db.Write(DB_LOT_SIZE, heap_size - 1);
+
+    debug("\tPopped from lottery reservoir, last ended up at %d", current);
     return true;
 }
 }

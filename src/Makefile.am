@@ -5,7 +5,7 @@
 DIST_SUBDIRS = secp256k1 univalue
 
 AM_LDFLAGS = $(PTHREAD_CFLAGS) $(LIBTOOL_LDFLAGS) $(HARDENED_LDFLAGS)
-AM_CXXFLAGS = $(HARDENED_CXXFLAGS) $(ERROR_CXXFLAGS) -fext-numeric-literals
+AM_CXXFLAGS = $(HARDENED_CXXFLAGS) $(ERROR_CXXFLAGS)
 AM_CPPFLAGS = $(HARDENED_CPPFLAGS) -fext-numeric-literals
 EXTRA_LIBRARIES =
 
@@ -131,6 +131,7 @@ MERIT_CORE_H = \
   pow.h \
   pog/anv.h \
   pog/select.h \
+  pog/wrs.h \
   pog/reward.h \
   protocol.h \
   random.h \
@@ -224,6 +225,7 @@ libmerit_server_a_SOURCES = \
   pog/anv.cpp \
   pog/reward.cpp \
   pog/select.cpp \
+  pog/wrs.cpp \
   policy/fees.cpp \
   policy/policy.cpp \
   policy/rbf.cpp \

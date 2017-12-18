@@ -11,6 +11,7 @@
 #include "consensus/consensus.h"
 #include "primitives/transaction.h"
 #include "serialize.h"
+#include "refdb.h"
 
 /** Undo information for a CTxIn
  *
@@ -97,16 +98,17 @@ public:
 };
 
 /** Undo information for a CBlock */
-class CBlockUndo
+struct CBlockUndo
 {
-public:
     std::vector<CTxUndo> vtxundo; // for all but the coinbase
+    std::vector<referral::LotteryUndo> lottery;
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(vtxundo);
+        READWRITE(lottery);
     }
 };
 

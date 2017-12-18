@@ -1504,7 +1504,7 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
             std::back_inserter(tx.vout),
 
             [](const pog::AmbassadorReward& winner) {
-                CMeritAddress addr{winner.addressType, winner.address};
+                CMeritAddress addr{winner.address_type, winner.address};
                 const auto dest = addr.Get();
                 if (!addr.IsValid() || !IsValidAmbassadorDestination(dest)) {
                     throw std::runtime_error{"invalid ambassador"};
@@ -2174,9 +2174,63 @@ bool RemoveReferrals(const CBlock& block)
     return true;
 }
 
+bool UpdateLotteryEntrants(
+        const CBlock& block,
+        const DebitsAndCredits& debits_and_credits,
+        CBlockUndo& undo)
+{
+    assert(prefviewdb);
+    auto hash = block.GetHash();
+
+    assert(prefviewdb);
+    for (const auto& t : debits_and_credits) {
+        const auto address_type = std::get<0>(t);
+        const auto& address = std::get<1>(t);
+
+        //combine hashes and hash to get next sampling value
+        CHashWriter hasher{SER_DISK, CLIENT_VERSION};
+        hasher << hash << address;
+        hash = hasher.GetHash();
+
+        referral::MaybeLotteryUndo maybe_undo;
+        if(!prefviewdb->AddAddressToLottery(
+                    hash,
+                    address_type,
+                    address,
+                    maybe_undo)) {
+            return false;
+        }
+
+        if(maybe_undo) {
+            undo.lottery.push_back(*maybe_undo);
+        }
+    }
+
+    return true;
+}
+
+bool UndoLotteryEntrants(const CBlockUndo& undo)
+{
+    assert(prefviewdb);
+
+    auto itr = undo.lottery.rbegin();
+    const auto end = undo.lottery.rend();
+
+    for(; itr != end; itr++) {
+        if(!prefviewdb->UndoLotteryEntrant(*itr)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  When FAILED is returned, view is left in an indeterminate state. */
-static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view, bool memory_only)
+static DisconnectResult DisconnectBlock(
+        const CBlock& block,
+        const CBlockIndex* pindex,
+        CCoinsViewCache& view,
+        bool memory_only)
 {
     debug("DisconnectBlock: %s", block.GetHash().GetHex());
 
@@ -2286,6 +2340,11 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
 
         if(!RemoveReferrals(block)){
             error("DisconnectBlock(): unable to undo referrals");
+            return DISCONNECT_FAILED;
+        }
+
+        if(!UndoLotteryEntrants(blockUndo)) {
+            error("DisconnectBlock(): unable to undo lottery");
             return DISCONNECT_FAILED;
         }
     }
@@ -2755,6 +2814,21 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     if (fJustCheck)
         return true;
 
+    //The order is important here. We must insert the referrals so that
+    //the referral tree is updated to be correct before we debit/credit
+    //the ANV to the appropriate addresses.
+    if(!IndexReferrals(block)) {
+        return AbortNode(state, "Failed to write referral index");
+    }
+
+    if(!UpdateANV(debits_and_credits)) {
+        return AbortNode(state, "Failed to write referral ANV index");
+    }
+
+    if(!UpdateLotteryEntrants(block, debits_and_credits, blockundo)){
+        return AbortNode(state, "Failed to write lottery index");
+    }
+
     // Write undo information to disk
     if (pindex->GetUndoPos().IsNull() || !pindex->IsValid(BLOCK_VALID_SCRIPTS))
     {
@@ -2820,17 +2894,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
-
-    //The order is important here. We must insert the referrals so that
-    //the referral tree is updated to be correct before we debit/credit
-    //the ANV to the appropriate addresses.
-    if(!IndexReferrals(block)) {
-        return AbortNode(state, "Failed to write referral index");
-    }
-
-    if(!UpdateANV(debits_and_credits)) {
-        return AbortNode(state, "Failed to write referral ANV index");
-    }
 
     int64_t nTime6 = GetTimeMicros(); nTimeConnect += nTime6 - nTime5;
     LogPrint(BCLog::BENCH, "    - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n", (unsigned)block.m_vRef.size(), MILLI * (nTime6 - nTime5), MILLI * (nTime6 - nTime5) / block.m_vRef.size(), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);

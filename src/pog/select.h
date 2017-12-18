@@ -8,6 +8,7 @@
 #include "hash.h"
 #include "amount.h"
 #include "pog/anv.h"
+#include <boost/multiprecision/cpp_dec_float.hpp> 
 
 #include <map>
 
