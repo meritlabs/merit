@@ -11,6 +11,6 @@
 #include <vector>
 
 // Find proofsize-length cuckoo cycle in random graph
-bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle, uint8_t nThreads);
+bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle, uint8_t nThreads = 1);
 
 #endif // MERIT_CUCKOO_MEAN_CUCKOO_H
