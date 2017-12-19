@@ -1020,6 +1020,26 @@ UniValue setmining(const JSONRPCRequest& request)
     return NullUniValue;
 }
 
+UniValue getmining(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 0)
+        throw std::runtime_error(
+            "getmining\n"
+            "\nReturn if the server is set to mine coins or not. The default is false.\n"
+            "It is set with the command line argument -mine\n"
+            "It can also be set with the setmining call.\n"
+            "\nResult\n"
+            "true|false      (boolean) If the server is set to mine coins or not\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getmining", "")
+            + HelpExampleRpc("getmining", "")
+        );
+
+    LOCK(cs_main);
+
+    return gArgs.GetBoolArg("-mine", DEFAULT_MINING);
+}
+
 
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
@@ -1030,9 +1050,8 @@ static const CRPCCommand commands[] =
     { "mining",             "getblocktemplate",       &getblocktemplate,       {"template_request"} },
     { "mining",             "submitblock",            &submitblock,            {"hexdata","dummy"} },
     { "mining",             "setmining",              &setmining,              {"mine","mineproclimit"} },
-
-
-    { "generating",         "generatetoaddress",      &generatetoaddress,      {"nblocks","address","maxtries", "mineproclimit", "nthreads"} },
+    { "mining",             "getmining",              &getmining,              {} },
+    { "mining",             "generatetoaddress",      &generatetoaddress,      {"nblocks","address","maxtries", "mineproclimit", "nthreads"} },
 
     { "util",               "estimatefee",            &estimatefee,            {"nblocks"} },
     { "util",               "estimatesmartfee",       &estimatesmartfee,       {"nblocks", "estimate_mode"} },
