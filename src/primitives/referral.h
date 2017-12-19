@@ -5,6 +5,7 @@
 #ifndef MERIT_PRIMITIVES_REFERRAL_H
 #define MERIT_PRIMITIVES_REFERRAL_H
 
+#include "hash.h"
 #include "pubkey.h"
 #include "script/script.h"
 #include "serialize.h"
@@ -92,6 +93,7 @@ public:
     valtype signature;
 
 private:
+
     /** Memory only. */
     const uint256 hash;
 
@@ -125,6 +127,23 @@ public:
     const uint256& GetHash() const
     {
         return hash;
+    }
+
+    const Address GetAddress() const
+    {
+        if (addressType == 1) {
+            return address;
+        }
+
+        uint160 res;
+        uint160 pubkeyHash = Hash160(pubkey.begin(), pubkey.end());
+
+        CHash160()
+            .Write(address.begin(), address.size())
+            .Write(pubkeyHash.begin(), pubkeyHash.size())
+            .Finalize(res.begin());
+
+        return res;
     }
 
     /**

@@ -11,7 +11,9 @@
 #include "refdb.h"
 #include "sync.h"
 #include "uint256.h"
+#include "utilstrencodings.h"
 
+#include <boost/multi_index/global_fun.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/mem_fun.hpp>
 #include <boost/multi_index/member.hpp>
@@ -41,15 +43,17 @@ public:
 };
 
 // multi_index tags
-struct by_address { };
-struct by_hash { };
+struct by_address {
+};
+struct by_hash {
+};
 
 
 using ReferralIndex = multi_index_container<
     Referral,
     indexed_by<
         // sorted by beaconed address
-        hashed_unique<tag<by_address>, member<Referral, Address, &Referral::address>, SaltedHasher<160>>,
+        hashed_unique<tag<by_address>, const_mem_fun<Referral, const Address, &Referral::GetAddress>, SaltedHasher<160>>,
         // sorted by hash
         hashed_unique<tag<by_hash>, const_mem_fun<Referral, const uint256&, &Referral::GetHash>, SaltedHasher<256>>>>;
 
@@ -61,7 +65,6 @@ private:
     mutable ReferralIndex referrals_index;
 
     void InsertReferralIntoCache(const Referral&) const;
-    void InsertWalletRelationshipIntoCache(const Address& child, const Address& parent) const;
 
 public:
     ReferralsViewCache(ReferralsViewDB*);

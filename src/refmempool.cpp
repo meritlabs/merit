@@ -196,7 +196,7 @@ void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, re
         const auto it = std::find_if(
             mapRTx.begin(), mapRTx.end(),
             [&addr](const referral::RefMemPoolEntry& entry) {
-                return entry.GetEntryValue().address == addr;
+                return entry.GetEntryValue().GetAddress() == addr;
             });
 
         if (it != mapRTx.end()) {

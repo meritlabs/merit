@@ -72,7 +72,7 @@ void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 
 void ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
-    referrals_index.erase(ref.address);
+    referrals_index.erase(ref.GetAddress());
     m_db->RemoveReferral(ref);
 }
 

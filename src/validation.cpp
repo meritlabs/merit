@@ -263,7 +263,7 @@ bool CheckReferralSignature(const referral::Referral& ref, const std::vector<ref
 {
     assert(ref.pubkey.IsValid());
 
-    auto hash = (CHashWriter(SER_GETHASH, 0) << ref.parentAddress << ref.address).GetHash();
+    auto hash = (CHashWriter(SER_GETHASH, 0) << ref.parentAddress << ref.GetAddress()).GetHash();
 
     printf("======>>>> %s\n", hash.GetHex().c_str());
 

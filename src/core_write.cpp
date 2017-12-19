@@ -202,7 +202,7 @@ void RefToUniv(const referral::Referral& ref, const uint256& hashBlock, UniValue
 {
     entry.pushKV("refid", ref.GetHash().GetHex());
     entry.pushKV("version", ref.version);
-    entry.pushKV("address", EncodeDestination(CMeritAddress{ref.addressType, ref.address}.Get()));
+    // entry.pushKV("address", EncodeDestination(CMeritAddress{ref.addressType, ref.address}.Get()));
     entry.pushKV("parentAddress", EncodeDestination(CMeritAddress{1, ref.parentAddress}.Get()));
     entry.pushKV("size", (int)::GetSerializeSize(ref, SER_NETWORK, PROTOCOL_VERSION));
     entry.pushKV("vsize", GetReferralWeight(ref) / WITNESS_SCALE_FACTOR);

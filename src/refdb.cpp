@@ -59,17 +59,17 @@ ChildAddresses ReferralsViewDB::GetChildren(const Address& address) const
 
 bool ReferralsViewDB::InsertReferral(const Referral& referral) {
     // write referral by address
-    if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.address), referral))
+    if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.GetAddress()), referral))
         return false;
 
     // write referral address by hash
-    if(!m_db.Write(std::make_pair(DB_HASH, referral.GetHash()), referral.address))
+    if(!m_db.Write(std::make_pair(DB_HASH, referral.GetHash()), referral.GetAddress()))
         return false;
 
     // Typically because the referral should be written in order we should
     // be able to find the parent referral. We can then write the child->parent
     // mapping of public addresses
-    if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.address), referral.parentAddress))
+    if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.GetAddress()), referral.parentAddress))
         return false;
 
     // Now we update the children of the parent address by inserting into the
@@ -77,7 +77,7 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral) {
     ChildAddresses children;
     m_db.Read(std::make_pair(DB_CHILDREN, referral.parentAddress), children);
 
-    children.push_back(referral.address);
+    children.push_back(referral.GetAddress());
     if(!m_db.Write(std::make_pair(DB_CHILDREN, referral.parentAddress), children))
         return false;
 
@@ -85,19 +85,19 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral) {
 }
 
 bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
-    if(!m_db.Erase(std::make_pair(DB_REFERRALS, referral.address)))
+    if(!m_db.Erase(std::make_pair(DB_REFERRALS, referral.GetAddress())))
         return false;
 
     if(!m_db.Erase(std::make_pair(DB_HASH, referral.GetHash())))
         return false;
 
-    if(!m_db.Erase(std::make_pair(DB_PARENT_KEY, referral.address)))
+    if(!m_db.Erase(std::make_pair(DB_PARENT_KEY, referral.GetAddress())))
         return false;
 
     ChildAddresses children;
     m_db.Read(std::make_pair(DB_CHILDREN, referral.parentAddress), children);
 
-    children.erase(std::remove(std::begin(children), std::end(children), referral.address), std::end(children));
+    children.erase(std::remove(std::begin(children), std::end(children), referral.GetAddress()), std::end(children));
     if(!m_db.Write(std::make_pair(DB_CHILDREN, referral.parentAddress), children))
         return false;
 
