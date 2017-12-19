@@ -65,17 +65,17 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
             referral.previousReferral.GetHex());
 
     //write referral by code hash
-    if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.address), referral)) {
+    if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.GetAddress()), referral)) {
         return false;
     }
 
-    ANVTuple anv{referral.addressType, referral.pubKeyId, CAmount{0}};
-    if(!m_db.Write(std::make_pair(DB_ANV, referral.pubKeyId), anv)) {
+    ANVTuple anv{referral.addressType, referral.GetAddress(), CAmount{0}};
+    if(!m_db.Write(std::make_pair(DB_ANV, referral.GetAddress()), anv)) {
         return false;
     }
 
     // write referral address by hash
-    if(!m_db.Write(std::make_pair(DB_HASH, referral.GetHash()), referral.address))
+    if(!m_db.Write(std::make_pair(DB_HASH, referral.GetHash()), referral.GetAddress()))
         return false;
 
     // Typically because the referral should be written in order we should
@@ -83,12 +83,12 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
     // mapping of public addresses
     if(auto parent_referral = GetReferral(referral.parentAddress)) {
         debug("\tInserting parent reference %s parent %s paddress %s",
-                CMeritAddress(referral.addressType, referral.address).ToString(),
+                CMeritAddress(referral.addressType, referral.GetAddress()).ToString(),
                 parent_referral->address.GetHex(),
-                CMeritAddress(parent_referral->addressType, parent_referral->address).ToString()
+                CMeritAddress(parent_referral->addressType, parent_referral->GetAddress()).ToString()
                 );
 
-        if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.address), referral.parentAddress))
+        if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.GetAddress()), referral.parentAddress))
             return false;
 
         // Now we update the children of the parent address by inserting into the
@@ -96,7 +96,7 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
         ChildAddresses children;
         m_db.Read(std::make_pair(DB_CHILDREN, referral.parentAddress), children);
 
-        children.push_back(referral.address);
+        children.push_back(referral.GetAddress());
 
         if(!m_db.Write(std::make_pair(DB_CHILDREN, referral.parentAddress), children))
             return false;
@@ -114,19 +114,19 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
 bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
     debug("Removing Referral %d", CMeritAddress{referral.addressType, referral.address}.ToString());
 
-    if(!m_db.Erase(std::make_pair(DB_REFERRALS, referral.address)))
+    if(!m_db.Erase(std::make_pair(DB_REFERRALS, referral.GetAddress())))
         return false;
 
     if(!m_db.Erase(std::make_pair(DB_HASH, referral.GetHash())))
         return false;
 
-    if(!m_db.Erase(std::make_pair(DB_PARENT_KEY, referral.address)))
+    if(!m_db.Erase(std::make_pair(DB_PARENT_KEY, referral.GetAddress())))
         return false;
 
     ChildAddresses children;
     m_db.Read(std::make_pair(DB_CHILDREN, referral.parentAddress), children);
 
-    children.erase(std::remove(std::begin(children), std::end(children), referral.address), std::end(children));
+    children.erase(std::remove(std::begin(children), std::end(children), referral.GetAddress()), std::end(children));
     if(!m_db.Write(std::make_pair(DB_CHILDREN, referral.parentAddress), children))
         return false;
 
