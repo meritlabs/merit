@@ -10,6 +10,8 @@
 #include "serialize.h"
 #include "uint256.h"
 
+#include <vector>
+
 namespace referral
 {
 
@@ -169,7 +171,8 @@ struct MutableReferral
     }
 };
 
-typedef std::shared_ptr<const Referral> ReferralRef;
+using ReferralRef =  std::shared_ptr<const Referral>;
+using ReferralRefs = std::vector<ReferralRef>;
 
 static inline ReferralRef MakeReferralRef(
         char addressTypeIn,

@@ -2153,12 +2153,72 @@ bool UpdateANV(const CBlock& block, CCoinsViewCache& view) {
     return UpdateANV(debits_and_credits);
 }
 
-bool IndexReferrals(const CBlock& block)
+/*
+ * Orders referrals by constructing a dependency graph and doing a breath
+ * first walk through the forrest.
+ */
+bool OrderReferrals(const CBlock& block, referral::ReferralRefs& refs)
+{
+    assert(prefviewdb);
+
+    refs = block.m_vRef;
+    auto end_roots =
+        std::partition(refs.begin(), refs.end(),
+            [](const referral::ReferralRef& ref) {
+            return prefviewdb->GetReferral(ref->previousReferral);
+    });
+
+    //If we don't have any roots, we have an invalid block.
+    if(end_roots == refs.begin()) {
+        return false;
+    }
+
+    std::map<uint256, referral::ReferralRefs> graph;
+
+    //insert roots of trees into graph
+    std::for_each(
+            refs.begin(), end_roots,
+            [&graph](const referral::ReferralRef& ref) {
+                graph[ref->codeHash] =  referral::ReferralRefs{};
+            });
+
+    //Insert disconnected referrals
+    std::for_each(end_roots, refs.end(),
+            [&graph](const referral::ReferralRef& ref) {
+                graph[ref->previousReferral].push_back(ref);
+            });
+
+    //copy roots to work queue
+    std::deque<referral::ReferralRef> to_process(std::distance(refs.begin(), end_roots));
+    std::copy(refs.begin(), end_roots, to_process.begin());
+
+    //do breath first walk through the trees to create correct referral
+    //ordering
+    auto replace = refs.begin();
+    while(!to_process.empty() && replace != refs.end()) {
+        const auto& ref = to_process.front();
+        *replace = ref; 
+        to_process.pop_front();
+        replace++;
+
+        const auto& children = graph[ref->codeHash];
+        to_process.insert(to_process.end(), children.begin(), children.end());
+    }
+
+    //If any of these conditions are not met, it means we have an invalid block 
+    if(replace != refs.end() || !to_process.empty()) {
+        return false;
+    }
+
+    return true;
+}
+
+bool IndexReferrals(const referral::ReferralRefs ordered_referrals)
 {
     assert(prefviewdb);
 
     // Update offset and Record referrals into the referral DB
-    for (const auto& rtx : block.m_vRef) {
+    for (const auto& rtx : ordered_referrals) {
         if(!prefviewdb->InsertReferral(*rtx)) {
             return false;
         }
@@ -2514,7 +2574,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if(!IndexReferrals(block)) {
+            if(!IndexReferrals(block.m_vRef)) {
                 return AbortNode(state, "Failed to write referral index");
             }
 
@@ -2819,10 +2879,18 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     if (fJustCheck)
         return true;
 
+    //order referrals so they are inserted into database in correct order.
+    referral::ReferralRefs ordered_referrals;
+    if(!OrderReferrals(block, ordered_referrals)) {
+        return state.DoS(100,
+                error("ConnectBlock(): There are orphan referrals in the block"),
+                REJECT_INVALID, "bad-cb-orphan-referrals");
+    }
+
     //The order is important here. We must insert the referrals so that
     //the referral tree is updated to be correct before we debit/credit
     //the ANV to the appropriate addresses.
-    if(!IndexReferrals(block)) {
+    if(!IndexReferrals(ordered_referrals)) {
         return AbortNode(state, "Failed to write referral index");
     }
 
@@ -5067,7 +5135,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if(!IndexReferrals(block)) {
+            if(!IndexReferrals(block.m_vRef)) {
                 return error("%s: IndexReferrals failed", __func__);
             }
             if(!UpdateANV(block, *pcoinsTip)) {
