@@ -2192,18 +2192,16 @@ bool UpdateLotteryEntrants(
         hasher << hash << address;
         hash = hasher.GetHash();
 
-        referral::MaybeLotteryUndo maybe_undo;
+        referral::LotteryUndos undos;
         if(!prefviewdb->AddAddressToLottery(
                     hash,
                     address_type,
                     address,
-                    maybe_undo)) {
+                    undos)) {
             return false;
         }
 
-        if(maybe_undo) {
-            undo.lottery.push_back(*maybe_undo);
-        }
+        undo.lottery.insert(undo.lottery.end(), undos.begin(), undos.end());
     }
 
     return true;

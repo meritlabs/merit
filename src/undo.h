@@ -101,7 +101,7 @@ public:
 struct CBlockUndo
 {
     std::vector<CTxUndo> vtxundo; // for all but the coinbase
-    std::vector<referral::LotteryUndo> lottery;
+    referral::LotteryUndos lottery;
 
     ADD_SERIALIZE_METHODS;
 

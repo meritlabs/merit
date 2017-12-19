@@ -85,8 +85,8 @@ MaybeAddress ReferralsViewCache::GetReferrer(const Address& address) const
     }
 
     if (auto parent = m_db->GetReferrer(address)) {
-        InsertWalletRelationshipIntoCache(address, *parent);
-        return parent;
+        InsertWalletRelationshipIntoCache(address, parent->second);
+        return parent->second;
     }
     return {};
 }
@@ -102,7 +102,7 @@ bool ReferralsViewCache::WalletIdExists(const Address& address) const
         }
     }
     if (auto parent = m_db->GetReferrer(address)) {
-        InsertWalletRelationshipIntoCache(address, *parent);
+        InsertWalletRelationshipIntoCache(address, parent->second);
         return true;
     }
     return false;

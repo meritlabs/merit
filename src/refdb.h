@@ -24,6 +24,8 @@ using Addresses = std::vector<Address>;
 using MaybeWeightedKey = boost::optional<pog::WeightedKey>;
 using LotteryEntrant = std::tuple<pog::WeightedKey, char, Address>;
 using MaybeLotteryEntrant = boost::optional<LotteryEntrant>;
+using AddressPair = std::pair<char, Address>;
+using MaybeAddressPair = boost::optional<AddressPair>;
 
 struct AddressANV
 {
@@ -56,7 +58,7 @@ struct LotteryUndo
     }
 };
 
-using MaybeLotteryUndo = boost::optional<LotteryUndo>;
+using LotteryUndos = std::vector<LotteryUndo>;
 
 class ReferralsViewDB
 {
@@ -70,7 +72,7 @@ public:
             const std::string& name = "referrals");
 
     MaybeReferral GetReferral(const uint256&) const;
-    MaybeAddress GetReferrer(const Address&) const;
+    MaybeAddressPair GetReferrer(const Address&) const;
     ChildAddresses GetChildren(const Address&) const;
 
     bool UpdateANV(char address_type, const Address&, CAmount);
@@ -87,8 +89,8 @@ public:
     bool AddAddressToLottery(
             const uint256&,
             char address_type,
-            const Address&,
-            MaybeLotteryUndo&);
+            MaybeAddress,
+            LotteryUndos&);
 
     bool UndoLotteryEntrant(const LotteryUndo&);
 
