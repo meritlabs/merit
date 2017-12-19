@@ -228,10 +228,14 @@ UniValue getmininginfo(const JSONRPCRequest& request)
             "  \"currentblocktx\": nnn,     (numeric) The last block transaction\n"
             "  \"currentblockref\": nnn,    (numeric) The last block referrals\n"
             "  \"difficulty\": xxx.xxxxx    (numeric) The current difficulty\n"
+            "  \"difficultyedgebits\": xxx  (numeric) The current edgeBits difficulty\n"
             "  \"errors\": \"...\"          (string) Current errors\n"
+            "  \"mining\": true|false       (boolean) If the mining is on or off (see getmining or setmining calls)\n"
+            "  \"mineproclimit\": n         (numeric) The processor limit for mining. -1 if no generation. (see getmining or setmining calls)\n"
             "  \"networkhashps\": nnn,      (numeric) The network hashes per second\n"
             "  \"pooledtx\": n              (numeric) The size of the mempool\n"
-            "  \"chain\": \"xxxx\",           (string) current network name as defined in BIP70 (main, test, regtest)\n"
+            "  \"pooledref\": n             (numeric) The size of the referrals mempool\n"
+            "  \"chain\": \"xxxx\",         (string) current network name as defined in BIP70 (main, test, regtest)\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getmininginfo", "")
@@ -241,17 +245,23 @@ UniValue getmininginfo(const JSONRPCRequest& request)
 
     LOCK(cs_main);
 
+    CBlockIndex* const pindexPrev = chainActive.Tip();
+
     UniValue obj(UniValue::VOBJ);
-    obj.push_back(Pair("blocks",           (int)chainActive.Height()));
-    obj.push_back(Pair("currentblocksize", (uint64_t)nLastBlockSize));
+    obj.push_back(Pair("blocks",             (int)chainActive.Height()));
+    obj.push_back(Pair("currentblocksize",   (uint64_t)nLastBlockSize));
     obj.push_back(Pair("currentblockweight", (uint64_t)nLastBlockWeight));
-    obj.push_back(Pair("currentblocktx",   (uint64_t)nLastBlockTx));
-    obj.push_back(Pair("currentblockref",  (uint64_t)nLastBlockRef));
-    obj.push_back(Pair("difficulty",       (double)GetDifficulty()));
-    obj.push_back(Pair("errors",           GetWarnings("statusbar")));
-    obj.push_back(Pair("networkhashps",    getnetworkhashps(request)));
-    obj.push_back(Pair("pooledtx",         (uint64_t)mempool.size()));
-    obj.push_back(Pair("chain",            Params().NetworkIDString()));
+    obj.push_back(Pair("currentblocktx",     (uint64_t)nLastBlockTx));
+    obj.push_back(Pair("currentblockref",    (uint64_t)nLastBlockRef));
+    obj.push_back(Pair("difficulty",         (double)GetDifficulty()));
+    obj.push_back(Pair("difficultyedgebits", pindexPrev->nEdgeBits));
+    obj.push_back(Pair("mining",             gArgs.GetBoolArg("-mine", DEFAULT_MINING)));
+    obj.push_back(Pair("mineproclimit",      gArgs.GetArg("-mineproclimit", DEFAULT_MINING_THREADS)));
+    obj.push_back(Pair("errors",             GetWarnings("statusbar")));
+    obj.push_back(Pair("networkhashps",      getnetworkhashps(request)));
+    obj.push_back(Pair("pooledtx",           (uint64_t)mempool.size()));
+    obj.push_back(Pair("pooledref",          (uint64_t)mempoolReferral.size()));
+    obj.push_back(Pair("chain",              Params().NetworkIDString()));
     return obj;
 }
 
@@ -1039,7 +1049,6 @@ UniValue getmining(const JSONRPCRequest& request)
 
     return gArgs.GetBoolArg("-mine", DEFAULT_MINING);
 }
-
 
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
