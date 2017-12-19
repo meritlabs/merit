@@ -90,6 +90,7 @@ public:
             const uint256&,
             char address_type,
             MaybeAddress,
+            const size_t max_reservoir_size,
             LotteryUndos&);
 
     bool UndoLotteryEntrant(const LotteryUndo&);

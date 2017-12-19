@@ -1497,6 +1497,8 @@ bool IsValidAmbassadorDestination(const CTxDestination& dest)
 
 void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx)
 {
+    debug("Lottery Results");
+
     // Pay them by adding a txout to the coinbase transaction;
     std::transform(
             std::begin(lottery.winners),
@@ -1506,9 +1508,12 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
             [](const pog::AmbassadorReward& winner) {
                 CMeritAddress addr{winner.address_type, winner.address};
                 const auto dest = addr.Get();
+
                 if (!addr.IsValid() || !IsValidAmbassadorDestination(dest)) {
                     throw std::runtime_error{"invalid ambassador"};
                 }
+
+                debug("\tWinner: %s, %d", addr.ToString(), static_cast<int>(winner.address_type));
 
                 const auto script = GetScriptForDestination(dest);
                 return CTxOut{winner.amount, script};
@@ -2131,7 +2136,7 @@ void GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
 
     //credit recipients
     for (const auto& out : tx.vout) {
-        auto address = ExtractAddress(out);
+        const auto address = ExtractAddress(out);
         if(address.second == 0) continue;
 
         const CAmount amount = out.nValue * creditDir;
@@ -2177,6 +2182,7 @@ bool RemoveReferrals(const CBlock& block)
 bool UpdateLotteryEntrants(
         const CBlock& block,
         const DebitsAndCredits& debits_and_credits,
+        const Consensus::Params& consensus_params,
         CBlockUndo& undo)
 {
     assert(prefviewdb);
@@ -2197,6 +2203,7 @@ bool UpdateLotteryEntrants(
                     hash,
                     address_type,
                     address,
+                    consensus_params.max_lottery_reservoir_size,
                     undos)) {
             return false;
         }
@@ -2823,7 +2830,11 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         return AbortNode(state, "Failed to write referral ANV index");
     }
 
-    if(!UpdateLotteryEntrants(block, debits_and_credits, blockundo)){
+    if(!UpdateLotteryEntrants(
+                block,
+                debits_and_credits,
+                chainparams.GetConsensus(),
+                blockundo)){
         return AbortNode(state, "Failed to write lottery index");
     }
 

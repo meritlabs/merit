@@ -68,6 +68,7 @@ struct Params {
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
     int64_t ambassador_percent_cut;
     size_t total_winning_ambassadors;
+    size_t max_lottery_reservoir_size;
     uint256 nMinimumChainWork;
     uint256 defaultAssumeValid;
     /** Cuckoo cycle length */

@@ -20,7 +20,6 @@ const char DB_LOT_SIZE = 's';
 const char DB_LOT_VAL = 'v';
 
 const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
-const size_t MAX_RESERVOIR_SIZE = 1000;
 }
 
 using ANVTuple = std::tuple<char, Address, CAmount>;
@@ -277,6 +276,7 @@ bool ReferralsViewDB::AddAddressToLottery(
         const uint256& rand_value,
         char address_type,
         MaybeAddress address,
+        const size_t max_reservoir_size,
         LotteryUndos& undos)
 {
     const auto maybe_anv = GetANV(*address);
@@ -296,7 +296,7 @@ bool ReferralsViewDB::AddAddressToLottery(
         // once the reservoir is full, we won't be attempting to add every time
         // so it is silly to check for duplicates if we aren't going to add anyway.
 
-        if(heap_size < MAX_RESERVOIR_SIZE) {
+        if(heap_size < max_reservoir_size) {
             size_t pos;
             if(!FindLotteryPos(*address, pos)) {
                 return false;
@@ -316,6 +316,9 @@ bool ReferralsViewDB::AddAddressToLottery(
                 };
 
                 undos.emplace_back(undo);
+            } else {
+                debug("\tLottery: %s is already in the lottery.",
+                        CMeritAddress(address_type, *address).ToString());
             }
         } else {
             const auto maybe_min_entrant = GetMinLotteryEntrant();   
@@ -323,9 +326,10 @@ bool ReferralsViewDB::AddAddressToLottery(
                 return false;
             }
 
+            const auto min_weighted_key = std::get<0>(*maybe_min_entrant);
             //Insert into reservoir only if the new key is bigger
             //than the smallest key already there.
-            if(std::get<0>(*maybe_min_entrant) < weighted_key) {
+            if(min_weighted_key < weighted_key) {
                 size_t pos;
                 if(!FindLotteryPos(*address, pos)) {
                     return false;
@@ -350,11 +354,15 @@ bool ReferralsViewDB::AddAddressToLottery(
                     };
 
                     undos.emplace_back(undo);
+                } else {
+                    debug("\tLottery: %s is already in the lottery.",
+                            CMeritAddress(address_type, *address).ToString());
                 }
             } else {
-                debug("\tLottery: %s didn't make the cut with key %d",
+                debug("\tLottery: %s didn't make the cut with key %d, min %d",
                         CMeritAddress(address_type, *address).ToString(),
-                        static_cast<double>(weighted_key));
+                        static_cast<double>(weighted_key),
+                        static_cast<double>(min_weighted_key));
             }
         }
 
@@ -424,8 +432,6 @@ bool ReferralsViewDB::InsertLotteryEntrant(
 
     auto heap_size = GetLotteryHeapSize();
     auto pos = heap_size;
-
-    if(pos >= MAX_RESERVOIR_SIZE) return false;
 
     while(pos != 0)
     {
