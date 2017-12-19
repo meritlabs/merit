@@ -1305,8 +1305,6 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint
 
     Params<EDGEBITS, XBITS> params;
 
-    printf(">>>>>> Looging for cycle with %d threads\n", nThreads);
-
     solver_ctx<offset_t, EDGEBITS, XBITS> ctx(hashStr.c_str(), hashStr.size(), nThreads, nTrims, proofSize, params);
 
     bool found = ctx.solve();

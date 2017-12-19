@@ -975,11 +975,11 @@ UniValue estimaterawfee(const JSONRPCRequest& request)
     return result;
 }
 
-UniValue setmine(const JSONRPCRequest& request)
+UniValue setmining(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
         throw std::runtime_error(
-            "setmine mine ( mineproclimit )\n"
+            "setmining mine ( mineproclimit )\n"
             "\nSet 'generate' true or false to turn generation on or off.\n"
             "Generation is limited to 'mineproclimit' processors, -1 is unlimited.\n"
             "See the getgenerate call for the current setting.\n"
@@ -1029,7 +1029,7 @@ static const CRPCCommand commands[] =
     { "mining",             "prioritisetransaction",  &prioritisetransaction,  {"txid","dummy","fee_delta"} },
     { "mining",             "getblocktemplate",       &getblocktemplate,       {"template_request"} },
     { "mining",             "submitblock",            &submitblock,            {"hexdata","dummy"} },
-    { "mining",             "setmine",                &setmine,                {"mine","mineproclimit"} },
+    { "mining",             "setmining",              &setmining,              {"mine","mineproclimit"} },
 
 
     { "generating",         "generatetoaddress",      &generatetoaddress,      {"nblocks","address","maxtries", "mineproclimit", "nthreads"} },

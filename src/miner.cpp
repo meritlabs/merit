@@ -661,7 +661,7 @@ static bool ProcessBlockFound(const CBlock* pblock, const CChainParams& chainpar
 
 void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
 {
-    LogPrintf(">>>>>>>>>>>> MeritMiner started. nThreads: %d\n", nThreads);
+    LogPrintf("MeritMiner started. nThreads: %d\n", nThreads);
     RenameThread("merit-miner");
 
     unsigned int nExtraNonce = 0;
@@ -789,20 +789,20 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
     }
 }
 
-void GenerateMerit(bool fGenerate, int nThreads, const CChainParams& chainparams)
+void GenerateMerit(bool mine, int nThreads, const CChainParams& chainparams)
 {
-    static boost::thread* minerThread = NULL;
+    static boost::thread* minerThread = nullptr;
 
     if (nThreads < 0)
         nThreads = GetNumCores();
 
-    if (minerThread != NULL) {
+    if (minerThread != nullptr) {
         minerThread->interrupt();
         delete minerThread;
-        minerThread = NULL;
+        minerThread = nullptr;
     }
 
-    if (nThreads == 0 || !fGenerate)
+    if (nThreads == 0 || !mine)
         return;
 
     minerThread = new boost::thread(boost::bind(&MeritMiner, boost::cref(chainparams), nThreads));
