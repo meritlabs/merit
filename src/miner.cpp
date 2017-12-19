@@ -659,9 +659,9 @@ static bool ProcessBlockFound(const CBlock* pblock, const CChainParams& chainpar
     return true;
 }
 
-void static MeritMiner(const CChainParams& chainparams)
+void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
 {
-    LogPrintf("MeritMiner started\n");
+    LogPrintf(">>>>>>>>>>>> MeritMiner started. nThreads: %d\n", nThreads);
     RenameThread("merit-miner");
 
     unsigned int nExtraNonce = 0;
@@ -724,7 +724,7 @@ void static MeritMiner(const CChainParams& chainparams)
             while (true) {
                 // Check if something found
 
-                if (cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgeBits, cycle, chainparams.GetConsensus())) {
+                if (cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgeBits, cycle, chainparams.GetConsensus(), nThreads)) {
                     // Found a solution
                     pblock->sCycle = cycle;
 
@@ -791,21 +791,19 @@ void static MeritMiner(const CChainParams& chainparams)
 
 void GenerateMerit(bool fGenerate, int nThreads, const CChainParams& chainparams)
 {
-    static boost::thread_group* minerThreads = NULL;
+    static boost::thread* minerThread = NULL;
 
     if (nThreads < 0)
         nThreads = GetNumCores();
 
-    if (minerThreads != NULL) {
-        minerThreads->interrupt_all();
-        delete minerThreads;
-        minerThreads = NULL;
+    if (minerThread != NULL) {
+        minerThread->interrupt();
+        delete minerThread;
+        minerThread = NULL;
     }
 
     if (nThreads == 0 || !fGenerate)
         return;
 
-    minerThreads = new boost::thread_group();
-    for (int i = 0; i < nThreads; i++)
-        minerThreads->create_thread(boost::bind(&MeritMiner, boost::cref(chainparams)));
+    minerThread = new boost::thread(boost::bind(&MeritMiner, boost::cref(chainparams), nThreads));
 }

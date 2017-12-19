@@ -57,10 +57,16 @@ bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t edgeBits, const
     return false;
 }
 
-bool FindProofOfWorkAdvanced(const uint256 hash, unsigned int nBits, uint8_t edgeBits, std::set<uint32_t>& cycle, const Consensus::Params& params)
+bool FindProofOfWorkAdvanced(
+    const uint256 hash,
+    unsigned int nBits,
+    uint8_t edgeBits,
+    std::set<uint32_t>& cycle,
+    const Consensus::Params& params,
+    uint8_t nThreads)
 {
     assert(cycle.empty());
-    bool cycleFound = FindCycleAdvanced(hash, edgeBits, params.nCuckooProofSize, cycle);
+    bool cycleFound = FindCycleAdvanced(hash, edgeBits, params.nCuckooProofSize, cycle, nThreads);
 
     if (cycleFound && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
         return true;

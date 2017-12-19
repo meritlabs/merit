@@ -1293,18 +1293,19 @@ public:
 };
 
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
-bool run(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle)
+bool run(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle, uint8_t nThreads)
 {
     // TODO: modify checks in the algorith the way we would be able to generate more edges
     // should require changes of BUCKETSIZE values
     assert(edgeBits >= MIN_EDGE_BITS && edgeBits <= MAX_EDGE_BITS);
 
-    uint8_t nThreads = 8;
     uint32_t nTrims = edgeBits >= 30 ? 96 : 68;
 
     auto hashStr = hash.GetHex();
 
     Params<EDGEBITS, XBITS> params;
+
+    printf(">>>>>> Looging for cycle with %d threads\n", nThreads);
 
     solver_ctx<offset_t, EDGEBITS, XBITS> ctx(hashStr.c_str(), hashStr.size(), nThreads, nTrims, proofSize, params);
 
@@ -1317,41 +1318,41 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint
     return found;
 }
 
-bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle)
+bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle, uint8_t nThreads)
 {
     switch (edgeBits) {
     case 16:
-        return run<uint32_t, 16u, 0u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 16u, 0u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 17:
-        return run<uint32_t, 17u, 1u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 17u, 1u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 18:
-        return run<uint32_t, 18u, 1u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 18u, 1u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 19:
-        return run<uint32_t, 19u, 2u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 19u, 2u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 20:
-        return run<uint32_t, 20u, 2u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 20u, 2u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 21:
-        return run<uint32_t, 21u, 3u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 21u, 3u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 22:
-        return run<uint32_t, 22u, 3u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 22u, 3u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 23:
-        return run<uint32_t, 23u, 4u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 23u, 4u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 24:
-        return run<uint32_t, 24u, 4u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 24u, 4u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 25:
-        return run<uint32_t, 25u, 5u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 25u, 5u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 26:
-        return run<uint32_t, 26u, 5u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 26u, 5u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 27:
-        return run<uint32_t, 27u, 6u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 27u, 6u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 28:
-        return run<uint32_t, 28u, 6u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 28u, 6u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 29:
-        return run<uint32_t, 29u, 7u>(hash, edgeBits, proofSize, cycle);
+        return run<uint32_t, 29u, 7u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 30:
-        return run<uint64_t, 30u, 8u>(hash, edgeBits, proofSize, cycle);
+        return run<uint64_t, 30u, 8u>(hash, edgeBits, proofSize, cycle, nThreads);
     case 31:
-        return run<uint64_t, 31u, 8u>(hash, edgeBits, proofSize, cycle);
+        return run<uint64_t, 31u, 8u>(hash, edgeBits, proofSize, cycle, nThreads);
 
     default:
         throw std::runtime_error(strprintf("%s: EDGEBITS equal to %d is not suppoerted", __func__, edgeBits));

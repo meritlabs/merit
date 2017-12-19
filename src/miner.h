@@ -23,6 +23,9 @@ class CScript;
 namespace Consensus { struct Params; };
 
 static const bool DEFAULT_PRINTPRIORITY = false;
+static const bool DEFAULT_MINING = false;
+static const int DEFAULT_MINING_THREADS = 8;
+
 
 /** Run the miner threads */
 void GenerateMerit(bool fGenerate, int nThreads, const CChainParams& chainparams);
