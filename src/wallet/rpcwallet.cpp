@@ -4291,7 +4291,7 @@ UniValue generate(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() < 1 || request.params.size() > 2) {
+    if (request.fHelp || request.params.size() < 1 || request.params.size() > 3) {
         throw std::runtime_error(
             "generate nblocks ( maxtries )\n"
             "\nMine up to nblocks blocks immediately (before the RPC call returns) to an address in the wallet.\n"
@@ -4317,7 +4317,7 @@ UniValue generate(const JSONRPCRequest& request)
     int nThreads = DEFAULT_MINING_THREADS;
 
     if (!request.params[2].isNull()) {
-        nThreads = request.params[1].get_int();
+        nThreads = request.params[2].get_int();
     }
 
     std::shared_ptr<CReserveScript> coinbase_script;
