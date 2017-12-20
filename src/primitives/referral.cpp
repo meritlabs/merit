@@ -22,15 +22,28 @@ MutableReferral::MutableReferral(
     version{Referral::CURRENT_VERSION},
     parentAddress{parentAddressIn},
     addressType{addressTypeIn},
-    address{addressIn},
     pubkey{pubkeyIn},
-    signature{valtype()} {}
+    signature{valtype()}
+    {
+        if (addressType == 1) {
+            address = addressIn;
+        } else {
+            uint160 res;
+            uint160 pubkeyHash = Hash160(pubkey.begin(), pubkey.end());
+
+            CHash160()
+            .Write(addressIn.begin(), addressIn.size())
+            .Write(pubkeyHash.begin(), pubkeyHash.size())
+            .Finalize(address.begin());
+        }
+    }
+
 
 MutableReferral::MutableReferral(const Referral& ref) :
+    address{ref.address},
     version{ref.version},
     parentAddress{ref.parentAddress},
     addressType{ref.addressType},
-    address{ref.address},
     pubkey{ref.pubkey},
     signature{ref.signature} {}
 
@@ -44,36 +57,22 @@ uint256 Referral::ComputeHash() const
     return SerializeHash(*this, SER_GETHASH);
 }
 
-/* For backward compatibility, the hash is initialized to 0. TODO: remove the need for this default constructor entirely. */
-Referral::Referral(
-        char addressTypeIn,
-        const Address& addressIn,
-        const CPubKey& pubkeyIn,
-        const Address& parentAddressIn) :
-    version{Referral::CURRENT_VERSION},
-    parentAddress{parentAddressIn},
-    addressType{addressTypeIn},
-    address{addressIn},
-    pubkey{pubkeyIn},
-    signature{valtype()},
-    hash{} {}
-
 Referral::Referral(const MutableReferral &ref) :
     version{ref.version},
     parentAddress{ref.parentAddress},
     addressType{ref.addressType},
-    address{ref.address},
     pubkey{ref.pubkey},
     signature{ref.signature},
+    address{ref.address},
     hash{ComputeHash()} {}
 
 Referral::Referral(MutableReferral &&ref) :
     version{ref.version},
     parentAddress{std::move(ref.parentAddress)},
     addressType{ref.addressType},
-    address{std::move(ref.address)},
     pubkey{std::move(ref.pubkey)},
     signature{ref.signature},
+    address{std::move(ref.address)},
     hash{ComputeHash()} {}
 
 unsigned int Referral::GetTotalSize() const

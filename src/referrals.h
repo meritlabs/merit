@@ -53,7 +53,7 @@ using ReferralIndex = multi_index_container<
     Referral,
     indexed_by<
         // sorted by beaconed address
-        hashed_unique<tag<by_address>, const_mem_fun<Referral, const Address, &Referral::GetAddress>, SaltedHasher<160>>,
+        hashed_unique<tag<by_address>, const_mem_fun<Referral, const Address&, &Referral::GetAddress>, SaltedHasher<160>>,
         // sorted by hash
         hashed_unique<tag<by_hash>, const_mem_fun<Referral, const uint256&, &Referral::GetHash>, SaltedHasher<256>>>>;
 

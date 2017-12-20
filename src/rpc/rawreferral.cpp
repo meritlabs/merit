@@ -144,7 +144,7 @@ UniValue sendrawreferral(const JSONRPCRequest& request)
     ReferralRef ref(MakeReferralRef(std::move(mref)));
     const uint256& hashRef = ref->GetHash();
 
-    bool alreadyBeaconed = CheckAddressBeaconed(CMeritAddress{ref->addressType, ref->address}, true);
+    bool alreadyBeaconed = CheckAddressBeaconed(CMeritAddress{ref->addressType, ref->GetAddress()}, true);
 
     if (alreadyBeaconed) {
         throw JSONRPCError(RPC_REFERRAL_ALREADY_IN_CHAIN, "referral already in block chain");
