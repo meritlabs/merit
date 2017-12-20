@@ -2068,28 +2068,21 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
 
-using AddressPair = std::pair<uint160, int>;
+using AddressPair = std::pair<uint160, char>;
 
 AddressPair ExtractAddress(const CTxOut& tout)
 {
-    uint160 hashBytes;
-    int addressType = 0;
+    uint160 address;
+    char addressType = 0;
 
-    if (tout.scriptPubKey.IsParameterizedPayToScriptHash()) {
-        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
-        addressType = 3;
-    } else if (tout.scriptPubKey.IsPayToScriptHash()) {
-        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin()+2, tout.scriptPubKey.begin()+22));
-        addressType = 2;
-    } else if (tout.scriptPubKey.IsPayToPublicKey()) {
-        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin(), tout.scriptPubKey.begin()+20));
-        addressType = 1;
-    } else if (tout.scriptPubKey.IsPayToPublicKeyHash()) {
-        hashBytes = uint160(std::vector<unsigned char>(tout.scriptPubKey.begin()+3, tout.scriptPubKey.begin()+23));
-        addressType = 1;
+    CTxDestination dest;
+    txnouttype destType;
+    if(ExtractDestination(tout.scriptPubKey, dest, destType)) {
+        addressType = AddressTypeFromDestination(dest);
+        GetUint160(dest, address);
     }
 
-    return std::make_pair(hashBytes, addressType);
+    return std::make_pair(address, addressType);
 }
 
 using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
@@ -2148,13 +2141,15 @@ bool UpdateANV(const CBlock& block, CCoinsViewCache& view) {
     return UpdateANV(debits_and_credits);
 }
 
-bool IndexReferrals(const CBlock& block)
+bool IndexReferrals(
+        const referral::ReferralRefs ordered_referrals,
+        bool allow_no_parent = false)
 {
     assert(prefviewdb);
 
     // Update offset and Record referrals into the referral DB
-    for (const auto& rtx : block.m_vRef) {
-        if(!prefviewdb->InsertReferral(*rtx)) {
+    for (const auto& rtx : ordered_referrals) {
+        if(!prefviewdb->InsertReferral(*rtx, allow_no_parent)) {
             return false;
         }
     }
@@ -2450,7 +2445,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if(!IndexReferrals(block)) {
+            if(!IndexReferrals(block.m_vRef, true)) {
                 return AbortNode(state, "Failed to write referral index");
             }
 
@@ -2821,10 +2816,18 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
 
+    //order referrals so they are inserted into database in correct order.
+    referral::ReferralRefs ordered_referrals = block.m_vRef;
+    if(!prefviewdb->OrderReferrals(ordered_referrals)) {
+        return state.DoS(100,
+                error("ConnectBlock(): There are orphan referrals in the block"),
+                REJECT_INVALID, "bad-cb-orphan-referrals");
+    }
+
     //The order is important here. We must insert the referrals so that
     //the referral tree is updated to be correct before we debit/credit
     //the ANV to the appropriate addresses.
-    if(!IndexReferrals(block)) {
+    if(!IndexReferrals(ordered_referrals)) {
         return AbortNode(state, "Failed to write referral index");
     }
 
@@ -4995,7 +4998,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if(!IndexReferrals(block)) {
+            if(!IndexReferrals(block.m_vRef, true)) {
                 return error("%s: IndexReferrals failed", __func__);
             }
             if(!UpdateANV(block, *pcoinsTip)) {

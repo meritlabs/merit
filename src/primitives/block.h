@@ -79,13 +79,12 @@ public:
     }
 };
 
-
 class CBlock : public CBlockHeader
 {
 public:
     // network and disk
     std::vector<CTransactionRef> vtx;
-    std::vector<referral::ReferralRef> m_vRef;
+    referral::ReferralRefs m_vRef;
 
 
     // memory only
