@@ -230,7 +230,7 @@ bool Consensus::CheckTxOutputs(
                     vExtraReferrals.begin(), vExtraReferrals.end(),
                     [&addr](const referral::ReferralRef& ref) {
                         assert(ref);
-                        return ref->address == addr;
+                        return ref->GetAddress() == addr;
                     });
 
             addressBeaconed = it != vExtraReferrals.end();

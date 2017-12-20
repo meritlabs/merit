@@ -20,43 +20,14 @@ typedef std::vector<unsigned char> valtype;
 namespace referral
 {
 using Address = uint160;
-
-using MaybeAddress = boost::optional<Address>;
+using ReferralRef =  std::shared_ptr<const Referral>;
+using ReferralRefs = std::vector<ReferralRef>;
 
 struct MutableReferral;
 
 static const int SERIALIZE_REFERRAL = 0x40000000;
 
-/**
- * Basic referral serialization format:
- *
- * Extended referral serialization format:
- */
-template <typename Stream, typename TxType>
-inline void UnserializeReferral(TxType& ref, Stream& s)
-{
-    s >> ref.version;
-    s >> ref.parentAddress;
-    s >> ref.addressType;
-    s >> ref.address;
-    s >> ref.pubkey;
-    s >> ref.signature;
-
-    assert(ref.pubkey.IsValid());
-}
-
-template <typename Stream, typename TxType>
-inline void SerializeReferral(const TxType& ref, Stream& s)
-{
-    assert(ref.pubkey.IsValid());
-
-    s << ref.version;
-    s << ref.parentAddress;
-    s << ref.addressType;
-    s << ref.address;
-    s << ref.pubkey;
-    s << ref.signature;
-}
+struct MutableReferral;
 
 /** The basic referral that is broadcast on the network and contained in
  * blocks. A referral references a previous referral which helps construct the
@@ -64,6 +35,8 @@ inline void SerializeReferral(const TxType& ref, Stream& s)
  */
 class Referral
 {
+friend struct MutableReferral;
+
 public:
     // Default referral version.
     static const int32_t CURRENT_VERSION = 0;
@@ -82,9 +55,6 @@ public:
     // Type of address. 1 == Key ID, 2 = Script ID, 3 = Parameterized Script ID
     const char addressType;
 
-    // address that this referral is related to
-    Address address;
-
     // pubky used to sign referral
     // pubkey of beaconed address in case addressType = 1
     // signer pubkey otherwise
@@ -94,6 +64,8 @@ public:
     valtype signature;
 
 private:
+    // address that this referral is related to.
+    Address address;
 
     /** Memory only. */
     const uint256 hash;
@@ -101,12 +73,6 @@ private:
     uint256 ComputeHash() const;
 
 public:
-    Referral(
-        char addressTypeIn,
-        const Address& addressIn,
-        const CPubKey& pubkeyIn,
-        const Address& parentAddressIn);
-
     /** Convert a MutableReferral into a Referral. */
     Referral(const MutableReferral& ref);
 
@@ -121,30 +87,16 @@ public:
     /** This deserializing constructor is provided instead of an Unserialize method.
      *  Unserialize is not possible, since it would require overwriting const fields. */
     template <typename Stream>
-    Referral(deserialize_type, Stream& s) : Referral(MutableReferral(deserialize, s))
-    {
-    }
+    Referral(deserialize_type, Stream& s) : Referral(MutableReferral(deserialize, s)) { }
 
     const uint256& GetHash() const
     {
         return hash;
     }
 
-    const Address GetAddress() const
+    const Address& GetAddress() const
     {
-        if (addressType == 1) {
-            return address;
-        }
-
-        uint160 res;
-        uint160 pubkeyHash = Hash160(pubkey.begin(), pubkey.end());
-
-        CHash160()
-            .Write(address.begin(), address.size())
-            .Write(pubkeyHash.begin(), pubkeyHash.size())
-            .Finalize(res.begin());
-
-        return res;
+        return address;
     }
 
     /**
@@ -165,14 +117,25 @@ public:
     }
 
     std::string ToString() const;
+
+    template <typename Stream, typename RefType>
+    friend inline void SerializeReferral(const RefType& ref, Stream& s);
+
+    template <typename Stream, typename RefType>
+    friend void UnserializeReferral(RefType& ref, Stream& s);
 };
 
 /** A mutable version of Referral. */
 struct MutableReferral {
+friend class Referral;
+
+private:
+    Address address;
+
+public:
     int32_t version;
     Address parentAddress;
     char addressType;
-    Address address;
     CPubKey pubkey;
     valtype signature;
 
@@ -216,23 +179,46 @@ struct MutableReferral {
     {
         return a.GetHash() == b.GetHash();
     }
+
+    template <typename Stream, typename RefType>
+    friend inline void SerializeReferral(const RefType& ref, Stream& s);
+
+    template <typename Stream, typename RefType>
+    friend void UnserializeReferral(RefType& ref, Stream& s);
 };
 
-using ReferralRef =  std::shared_ptr<const Referral>;
-using ReferralRefs = std::vector<ReferralRef>;
-
-static inline ReferralRef MakeReferralRef(
-    char addressTypeIn,
-    Address& addressIn,
-    CPubKey& pubkeyIn,
-    Address& parentAddressIn)
+/**
+ * Basic referral serialization format:
+ *
+ * Extended referral serialization format:
+ */
+template <typename Stream, typename RefType>
+inline void UnserializeReferral(RefType& ref, Stream& s)
 {
-    return std::make_shared<const Referral>(
-        addressTypeIn,
-        addressIn,
-        pubkeyIn,
-        parentAddressIn);
+    s >> ref.version;
+    s >> ref.parentAddress;
+    s >> ref.addressType;
+    s >> ref.address;
+    s >> ref.pubkey;
+    s >> ref.signature;
+
+    assert(ref.pubkey.IsValid());
 }
+
+template <typename Stream, typename RefType>
+inline void SerializeReferral(const RefType& ref, Stream& s)
+{
+    assert(ref.pubkey.IsValid());
+
+    s << ref.version;
+    s << ref.parentAddress;
+    s << ref.addressType;
+    s << ref.address;
+    s << ref.pubkey;
+    s << ref.signature;
+}
+
+typedef std::shared_ptr<const Referral> ReferralRef;
 
 template <typename Ref>
 static inline ReferralRef MakeReferralRef(Ref&& referralIn)

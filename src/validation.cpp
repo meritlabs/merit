@@ -253,7 +253,7 @@ referral::MaybeReferral LookupReferral(
         extraReferrals.begin(), extraReferrals.end(),
         [&address](const referral::ReferralRef& ref) {
             assert(ref);
-            return ref->address == address;
+            return ref->GetAddress() == address;
         });
 
     return it != extraReferrals.end() ? **it : referral::MaybeReferral{};
@@ -264,8 +264,6 @@ bool CheckReferralSignature(const referral::Referral& ref, const std::vector<ref
     assert(ref.pubkey.IsValid());
 
     auto hash = (CHashWriter(SER_GETHASH, 0) << ref.parentAddress << ref.GetAddress()).GetHash();
-
-    printf("======>>>> %s\n", hash.GetHex().c_str());
 
     return ref.pubkey.Verify(hash, ref.signature);
 
@@ -3985,7 +3983,7 @@ bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
         const auto it =
             std::find_if(mempoolReferral.mapRTx.begin(), mempoolReferral.mapRTx.end(),
                 [&addr](const referral::RefMemPoolEntry& entry) {
-                    return entry.GetSharedEntryValue()->address == addr;
+                    return entry.GetSharedEntryValue()->GetAddress() == addr;
                 });
 
         beaconed = it != mempoolReferral.mapRTx.end();
@@ -5087,7 +5085,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
     try {
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
 
-        if (!prefviewdb->exists(block.m_vRef[0]->address)) {
+        if (!prefviewdb->exists(block.m_vRef[0]->GetAddress())) {
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.

@@ -327,6 +327,7 @@ libmerit_consensus_a_SOURCES = \
   primitives/transaction.cpp \
   primitives/transaction.h \
   primitives/referral.cpp \
+  primitives/referral.h \
   pubkey.cpp \
   pubkey.h \
   script/meritconsensus.cpp \

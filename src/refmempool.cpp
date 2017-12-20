@@ -49,7 +49,7 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry&
     auto parentit =
         std::find_if(mapRTx.begin(), mapRTx.end(),
             [entry](const referral::RefMemPoolEntry& parent) {
-                return parent.GetSharedEntryValue()->address == entry.GetEntryValue().parentAddress;
+                return parent.GetSharedEntryValue()->GetAddress() == entry.GetEntryValue().parentAddress;
             });
 
     if (parentit != mapRTx.end()) {
@@ -205,7 +205,7 @@ ReferralRef ReferralTxMemPool::GetWithAddress(const Address& address) const
     LOCK(cs);
     for (const auto& it : mapRTx) {
         const auto ref = it.GetSharedEntryValue();
-        if (ref->address == address) {
+        if (ref->GetAddress() == address) {
             return ref;
         }
     }

@@ -214,7 +214,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress)
     // generate new referral associated with new pubkey
     auto referral = GenerateNewReferral(pubkey, parentAddress);
 
-    LogPrintf("Generated new unlock referral. Address: %s\n", referral->address.ToString());
+    LogPrintf("Generated new unlock referral. Address: %s\n", referral->GetAddress().ToString());
 
     return referral;
 }
@@ -1717,7 +1717,7 @@ bool CWallet::IsReferred() const
 
 referral::Address CWallet::ReferralAddress() const
 {
-    return IsReferred() ? m_unlockReferralTx.m_pReferral->address : referral::Address{};
+    return IsReferred() ? m_unlockReferralTx.m_pReferral->GetAddress() : referral::Address{};
 }
 
 CPubKey CWallet::ReferralPubKey() const
@@ -3278,11 +3278,11 @@ bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef
 {
     // generate referral tx and bind it to this wallet
     rtx.BindWallet(this);
-    auto it = mapKeys.find(CKeyID(referral->address));
+    auto it = mapKeys.find(CKeyID(referral->GetAddress()));
     assert(it != mapKeys.end());
 
     valtype signature;
-    it->second.Sign((CHashWriter(SER_GETHASH, 0) << referral->parentAddress << referral->address).GetHash(), signature);
+    it->second.Sign((CHashWriter(SER_GETHASH, 0) << referral->parentAddress << referral->GetAddress()).GetHash(), signature);
 
     referral::MutableReferral newRef{*referral};
     newRef.signature = signature;
@@ -3606,7 +3606,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<referral::Addres
         } else if (IsReferred()) {
             LogPrintf("parentAddress not provided. Looking for unlock referral\n");
 
-            currentTopReferral = std::make_shared<referral::Address>(m_unlockReferralTx.GetReferral()->address);
+            currentTopReferral = std::make_shared<referral::Address>(m_unlockReferralTx.GetReferral()->GetAddress());
         } else {
             LogPrintf("parentAddress not found\n");
             return false;
@@ -3652,7 +3652,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<referral::Addres
                 throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
             }
 
-            LogPrintf("Generated new referral. Address: %s\n", referral->address.ToString());
+            LogPrintf("Generated new referral. Address: %s\n", referral->GetAddress().ToString());
 
             if (internal) {
                 setInternalKeyPool.insert(index);

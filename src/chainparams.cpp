@@ -53,11 +53,7 @@ static CBlock CreateGenesisBlock(
     auto rawKeyStr = ParseHex("0337d249c44b0327389a65687c7e9a823271a8c4355c74378d0b608b3339480e9a");
     CPubKey rawPubKey{rawKeyStr};
     CKeyID address = rawPubKey.GetID();
-    referral::MutableReferral refNew;
-    refNew.addressType = 1;
-    refNew.address = address;
-    refNew.pubkey = rawPubKey;
-    refNew.parentAddress.SetNull();
+    referral::MutableReferral refNew{1, address, rawPubKey, referral::Address{}};
     refNew.signature = ParseHex("3044022068fc88103f01cf0851616131c9c83ce37c45e0392aab983980c04afa0e603bcc022043319a4e8b62456b4121e960d1b4d5ba2f29c5523e55a65da968fff27a61a321");
 
     CBlock genesis;
