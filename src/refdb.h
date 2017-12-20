@@ -39,7 +39,8 @@ public:
 
     MaybeReferral GetReferral(const Address&) const;
     MaybeReferral GetReferral(const uint256&) const;
-    MaybeAddress GetReferrer(const Address&) const;
+    MaybeAddress GetParentAddress(const Address&) const;
+    MaybeAddress GetAddressByPubKey(const CPubKey&) const;
     ChildAddresses GetChildren(const Address&) const;
 
     bool UpdateANV(char addressType, const Address&, CAmount);

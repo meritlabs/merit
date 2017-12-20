@@ -2143,7 +2143,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             std::deque<referral::Address> vWorkQueue;
             std::vector<uint256> vEraseQueue;
 
-            vWorkQueue.emplace_back(pref->address);
+            vWorkQueue.emplace_back(pref->GetAddress());
 
             pfrom->nLastRefTime = GetTime();
 
@@ -2181,7 +2181,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                         LogPrint(BCLog::REFMEMPOOL, "   accepted orphan referral %s\n", orphanHash.GetHex());
                         RelayReferral(orphanRef, connman);
 
-                        vWorkQueue.emplace_back(orphanRef.address);
+                        vWorkQueue.emplace_back(orphanRef.GetAddress());
                         vEraseQueue.push_back(orphanHash);
 
                     } else if (!fMissingReferrer2) {
