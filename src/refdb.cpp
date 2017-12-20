@@ -13,8 +13,9 @@ namespace
 const char DB_CHILDREN = 'c';
 const char DB_REFERRALS = 'r';
 const char DB_HASH = 'h';
-const char DB_PARENT_KEY = 'p';
+const char DB_PARENT_ADDRESS = 'p';
 const char DB_ANV = 'a';
+const char DB_PUBKEY = 'k';
 const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
 }
 
@@ -39,14 +40,20 @@ MaybeReferral ReferralsViewDB::GetReferral(const uint256& hash) const
     return {};
 }
 
+MaybeAddress ReferralsViewDB::GetAddressByPubKey(const CPubKey& pubkey) const
+{
+    Address address;
+    return m_db.Read(std::make_pair(DB_PUBKEY, pubkey), address) ?  MaybeAddress{address} : MaybeAddress{};
+}
+
 bool ReferralsViewDB::exists(const referral::Address& address) const {
     return m_db.Exists(std::make_pair(DB_REFERRALS, address));
 }
 
-MaybeAddress ReferralsViewDB::GetReferrer(const Address& address) const
+MaybeAddress ReferralsViewDB::GetParentAddress(const Address& address) const
 {
     Address parent;
-    return m_db.Read(std::make_pair(DB_PARENT_KEY, address), parent) ?
+    return m_db.Read(std::make_pair(DB_PARENT_ADDRESS, address), parent) ?
         MaybeAddress{parent} : MaybeAddress{};
 }
 
@@ -76,6 +83,13 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
 
     // write referral address by hash
     if(!m_db.Write(std::make_pair(DB_HASH, referral.GetHash()), referral.GetAddress()))
+        return false;
+
+    // write referral address by pubkey
+    if(!m_db.Write(std::make_pair(DB_PUBKEY, referral.pubkey), referral.GetAddress()))
+        return false;
+
+    if(!m_db.Write(std::make_pair(DB_PARENT_ADDRESS, referral.GetAddress()), referral.parentAddress))
         return false;
 
     // Typically because the referral should be written in order we should
@@ -120,7 +134,10 @@ bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
     if(!m_db.Erase(std::make_pair(DB_HASH, referral.GetHash())))
         return false;
 
-    if(!m_db.Erase(std::make_pair(DB_PARENT_KEY, referral.GetAddress())))
+    if(!m_db.Erase(std::make_pair(DB_PUBKEY, referral.pubkey)))
+        return false;
+
+    if(!m_db.Erase(std::make_pair(DB_PARENT_ADDRESS, referral.GetAddress())))
         return false;
 
     ChildAddresses children;
@@ -176,8 +193,13 @@ bool ReferralsViewDB::UpdateANV(char addressType, const Address& start_address, 
             return false;
         }
 
+<<<<<<< HEAD
         address = GetReferrer(*address);
         level++;
+=======
+        address = GetParentAddress(*address);
+        levels++;
+>>>>>>> add pubkey -> address index
     }
 
     // We should never have cycles in the DB.
