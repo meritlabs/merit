@@ -45,8 +45,9 @@ public:
     MaybeAddressANV GetANV(const Address&) const;
     AddressANVs GetAllANVs() const;
     AddressANVs GetAllRewardableANVs() const;
+    bool OrderReferrals(referral::ReferralRefs& refs);
 
-    bool InsertReferral(const Referral&);
+    bool InsertReferral(const Referral&, bool allow_no_parent = false);
     bool RemoveReferral(const Referral&);
     bool ReferralCodeExists(const uint256&) const;
     bool WalletIdExists(const Address&) const;

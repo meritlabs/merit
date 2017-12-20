@@ -61,10 +61,20 @@ bool ReferralsViewCache::ReferralCodeExists(const uint256& code) const
 void ReferralsViewCache::Flush()
 {
     LOCK(m_cs_cache);
-    // todo: use batch insert
+
+    ReferralRefs ordered_referrals;
+    ordered_referrals.reserve(m_referral_cache.size());
+
     for (auto pr : m_referral_cache) {
-        m_db->InsertReferral(pr.second);
+        ordered_referrals.push_back(std::make_shared<Referral>(pr.second));
     }
+    
+    m_db->OrderReferrals(ordered_referrals);
+
+    for (auto ref : ordered_referrals) {
+        m_db->InsertReferral(*ref);
+    }
+
     m_referral_cache.clear();
 }
 
