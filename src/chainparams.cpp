@@ -8,6 +8,7 @@
 #include "consensus/consensus.h"
 #include "consensus/merkle.h"
 
+#include "miner.h"
 #include "tinyformat.h"
 #include "util.h"
 #include "utilstrencodings.h"
@@ -70,7 +71,7 @@ static CBlock CreateGenesisBlock(
         uint32_t nMaxTries = 10000000;
         genesis.nNonce = 0;
 
-        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgeBits, pow, params)) {
+        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgeBits, pow, params, DEFAULT_MINING_THREADS)) {
             ++genesis.nNonce;
             --nMaxTries;
         }
@@ -150,7 +151,7 @@ void runEdgeBitsGenerator(Consensus::Params& consensus)
         while (nMaxTries > 0 && !found) {
             auto start = std::chrono::system_clock::now();
 
-            found = cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgeBits, pow, consensus);
+            found = cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgeBits, pow, consensus, DEFAULT_MINING_THREADS);
 
             auto end = std::chrono::system_clock::now();
             std::chrono::duration<double> elapsed_seconds = end - start;

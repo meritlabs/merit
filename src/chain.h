@@ -244,7 +244,7 @@ public:
         nTime          = 0;
         nBits          = 0;
         nNonce         = 0;
-        nEdgeBits     = 0;
+        nEdgeBits      = 0;
         sCycle.clear();
     }
 
@@ -262,8 +262,8 @@ public:
         nTime          = block.nTime;
         nBits          = block.nBits;
         nNonce         = block.nNonce;
-        nEdgeBits     = block.nEdgeBits;
-        sCycle       = block.sCycle;
+        nEdgeBits      = block.nEdgeBits;
+        sCycle         = block.sCycle;
     }
 
     CDiskBlockPos GetBlockPos() const {
