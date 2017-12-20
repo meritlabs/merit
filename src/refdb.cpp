@@ -44,15 +44,34 @@ ChildAddresses ReferralsViewDB::GetChildren(const Address& address) const
 }
 
 bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_parent) {
+
+    debug("Inserting referral %s code %s parent %s",
+            CMeritAddress(referral.addressType, referral.pubKeyId).ToString(), 
+            referral.codeHash.GetHex(),
+            referral.previousReferral.GetHex());
+
     //write referral by code hash
-    if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.codeHash), referral))
+    if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.codeHash), referral)) {
         return false;
+    }
+
+    ANVTuple anv{referral.addressType, referral.pubKeyId, CAmount{0}};
+    if(!m_db.Write(std::make_pair(DB_ANV, referral.pubKeyId), anv)) {
+        return false;
+    }
 
     // Typically because the referral should be written in order we should
     // be able to find the parent referral. We can then write the child->parent
     // mapping of public addresses
     Address parent_address;
     if(auto parent_referral = GetReferral(referral.previousReferral)) {
+        debug("\tInserting parent reference %s code %s parent %s paddress %s",
+                CMeritAddress(referral.addressType, referral.pubKeyId).ToString(), 
+                referral.codeHash.GetHex(),
+                parent_referral->pubKeyId.GetHex(),
+                CMeritAddress(parent_referral->addressType, parent_referral->pubKeyId).ToString() 
+                );
+
         parent_address = parent_referral->pubKeyId;
         if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.pubKeyId), parent_address))
             return false;
@@ -63,18 +82,24 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
         m_db.Read(std::make_pair(DB_CHILDREN, parent_address), children);
 
         children.push_back(referral.pubKeyId);
+
         if(!m_db.Write(std::make_pair(DB_CHILDREN, parent_address), children))
             return false;
 
     } else if(!allow_no_parent) {
         assert(false && "parent referral missing");
         return false;
+    } else {
+        debug("\tWarning Parent missing for code %s", referral.previousReferral.GetHex());
     }
 
     return true;
 }
 
 bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
+
+    debug("Removing Referral %d", CMeritAddress{referral.addressType, referral.pubKeyId}.ToString());
+
     if(!m_db.Erase(std::make_pair(DB_REFERRALS, referral.codeHash)))
         return false;
 
@@ -121,14 +146,8 @@ bool ReferralsViewDB::UpdateANV(char addressType, const Address& start_address, 
     {
         //it's possible address didn't exist yet so an ANV of 0 is assumed.
         ANVTuple anv;
-        if(m_db.Exists(std::make_pair(DB_ANV, *address))) {
-            if(!m_db.Read(std::make_pair(DB_ANV, *address), anv)) {
-                return false;
-            }
-        } else if(level == 0) {
-            std::get<0>(anv) = addressType;
-            std::get<1>(anv) = start_address;
-        } else {
+        if(!m_db.Read(std::make_pair(DB_ANV, *address), anv)) {
+            debug("\tFailed to read ANV for %s", address->GetHex());
             return false;
         }
 
@@ -257,18 +276,14 @@ AddressANVs ReferralsViewDB::GetAllRewardableANVs() const
  */
 bool ReferralsViewDB::OrderReferrals(referral::ReferralRefs& refs)
 {
-    std::random_shuffle(refs.begin(), refs.end());
-
-    const auto old = refs;
-
     if(refs.empty()) {
         return true;
     }
 
     auto end_roots =
         std::partition(refs.begin(), refs.end(),
-            [this](const referral::ReferralRef& ref) {
-            return GetReferral(ref->previousReferral);
+            [this](const referral::ReferralRef& ref) -> bool {
+            return static_cast<bool>(GetReferral(ref->previousReferral));
     });
 
     //If we don't have any roots, we have an invalid block.
@@ -306,10 +321,6 @@ bool ReferralsViewDB::OrderReferrals(referral::ReferralRefs& refs)
 
         const auto& children = graph[ref->codeHash];
         to_process.insert(to_process.end(), children.begin(), children.end());
-    }
-
-    for(size_t i = 0; i < refs.size(); i++) {
-        debug("ORD %s %s %d", refs[i]->codeHash.GetHex(), old[i]->codeHash.GetHex(), (refs[i]->codeHash == old[i]->codeHash ? "same" : "diff"));
     }
 
     //If any of these conditions are not met, it means we have an invalid block 
