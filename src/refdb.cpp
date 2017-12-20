@@ -51,9 +51,20 @@ ChildAddresses ReferralsViewDB::GetChildren(const Address& address) const
     return children;
 }
 
-bool ReferralsViewDB::InsertReferral(const Referral& referral) {
+bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_parent) {
+
+    debug("Inserting referral %s code %s parent %s",
+            CMeritAddress(referral.addressType, referral.pubKeyId).ToString(), 
+            referral.codeHash.GetHex(),
+            referral.previousReferral.GetHex());
+
     //write referral by code hash
     if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.codeHash), referral)) {
+        return false;
+    }
+
+    ANVTuple anv{referral.addressType, referral.pubKeyId, CAmount{0}};
+    if(!m_db.Write(std::make_pair(DB_ANV, referral.pubKeyId), anv)) {
         return false;
     }
 
@@ -61,32 +72,42 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral) {
     // be able to find the parent referral. We can then write the child->parent
     // mapping of public addresses
     Address parent_address;
-    char parent_type = 0;
     if(auto parent_referral = GetReferral(referral.previousReferral)) {
+        debug("\tInserting parent reference %s code %s parent %s paddress %s",
+                CMeritAddress(referral.addressType, referral.pubKeyId).ToString(), 
+                referral.codeHash.GetHex(),
+                parent_referral->pubKeyId.GetHex(),
+                CMeritAddress(parent_referral->addressType, parent_referral->pubKeyId).ToString() 
+                );
+
         parent_address = parent_referral->pubKeyId;
-        parent_type = parent_referral->addressType;
-    }
+        if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.pubKeyId), parent_address))
+            return false;
 
-    if(!m_db.Write(
-                std::make_pair(DB_PARENT_KEY, referral.pubKeyId),
-                std::make_pair(parent_type, parent_address))) {
+        // Now we update the children of the parent address by inserting into the
+        // child address array for the parent.
+        ChildAddresses children;
+        m_db.Read(std::make_pair(DB_CHILDREN, parent_address), children);
+
+        children.push_back(referral.pubKeyId);
+
+        if(!m_db.Write(std::make_pair(DB_CHILDREN, parent_address), children))
+            return false;
+
+    } else if(!allow_no_parent) {
+        assert(false && "parent referral missing");
         return false;
-    }
-
-    // Now we update the children of the parent address by inserting into the
-    // child address array for the parent.
-    ChildAddresses children;
-    m_db.Read(std::make_pair(DB_CHILDREN, parent_address), children);
-
-    children.push_back(referral.pubKeyId);
-    if(!m_db.Write(std::make_pair(DB_CHILDREN, parent_address), children)) {
-        return false;
+    } else {
+        debug("\tWarning Parent missing for code %s", referral.previousReferral.GetHex());
     }
 
     return true;
 }
 
 bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
+
+    debug("Removing Referral %d", CMeritAddress{referral.addressType, referral.pubKeyId}.ToString());
+
     if(!m_db.Erase(std::make_pair(DB_REFERRALS, referral.codeHash)))
         return false;
 
@@ -131,24 +152,26 @@ bool ReferralsViewDB::UpdateANV(
 {
     debug("\tUpdateANV: %s + %d",
             CMeritAddress(address_type, start_address).ToString(), change);
+
     MaybeAddress address = start_address;
-    size_t levels = 0;
+    size_t level = 0;
 
     //MAX_LEVELS guards against cycles in DB
-    while(address && levels < MAX_LEVELS)
+    while(address && level < MAX_LEVELS)
     {
         //it's possible address didn't exist yet so an ANV of 0 is assumed.
         ANVTuple anv;
-        m_db.Read(std::make_pair(DB_ANV, *address), anv);
-
-        if(levels == 0) {
-            std::get<0>(anv) = address_type;
-            std::get<1>(anv) = start_address;
+        if(!m_db.Read(std::make_pair(DB_ANV, *address), anv)) {
+            debug("\tFailed to read ANV for %s", address->GetHex());
+            return false;
         }
+
+        assert(std::get<0>(anv) != 0);
+        assert(!std::get<1>(anv).IsNull());
 
         debug(
                 "\t\t %d %s %d + %d",
-                levels,
+                level,
                 CMeritAddress(std::get<0>(anv),std::get<1>(anv)).ToString(),
                 std::get<2>(anv),
                 change);
@@ -169,12 +192,12 @@ bool ReferralsViewDB::UpdateANV(
         } else {
             address.reset();
         }
-        levels++;
+        level++;
     }
 
     // We should never have cycles in the DB.
     // Hacked? Bug?
-    assert(levels < MAX_LEVELS && "reached max levels. Referral DB cycle detected");
+    assert(level < MAX_LEVELS && "reached max levels. Referral DB cycle detected");
     return true;
 }
 
@@ -549,4 +572,66 @@ bool ReferralsViewDB::RemoveFromLottery(size_t current)
     debug("\tPopped from lottery reservoir, last ended up at %d", current);
     return true;
 }
+
+/*
+ * Orders referrals by constructing a dependency graph and doing a breath
+ * first walk through the forrest.
+ */
+bool ReferralsViewDB::OrderReferrals(referral::ReferralRefs& refs)
+{
+    if(refs.empty()) {
+        return true;
+    }
+
+    auto end_roots =
+        std::partition(refs.begin(), refs.end(),
+            [this](const referral::ReferralRef& ref) -> bool {
+            return static_cast<bool>(GetReferral(ref->previousReferral));
+    });
+
+    //If we don't have any roots, we have an invalid block.
+    if(end_roots == refs.begin()) {
+        return false;
+    }
+
+    std::map<uint256, referral::ReferralRefs> graph;
+
+    //insert roots of trees into graph
+    std::for_each(
+            refs.begin(), end_roots,
+            [&graph](const referral::ReferralRef& ref) {
+                graph[ref->codeHash] =  referral::ReferralRefs{};
+            });
+
+    //Insert disconnected referrals
+    std::for_each(end_roots, refs.end(),
+            [&graph](const referral::ReferralRef& ref) {
+                graph[ref->previousReferral].push_back(ref);
+            });
+
+    //copy roots to work queue
+    std::deque<referral::ReferralRef> to_process(std::distance(refs.begin(), end_roots));
+    std::copy(refs.begin(), end_roots, to_process.begin());
+
+    //do breath first walk through the trees to create correct referral
+    //ordering
+    auto replace = refs.begin();
+    while(!to_process.empty() && replace != refs.end()) {
+        const auto& ref = to_process.front();
+        *replace = ref; 
+        to_process.pop_front();
+        replace++;
+
+        const auto& children = graph[ref->codeHash];
+        to_process.insert(to_process.end(), children.begin(), children.end());
+    }
+
+    //If any of these conditions are not met, it means we have an invalid block 
+    if(replace != refs.end() || !to_process.empty()) {
+        return false;
+    }
+
+    return true;
+}
+
 }
