@@ -122,7 +122,7 @@ static CBlock CreateGenesisBlock(
     bool findPoW = false)
 {
     const char* pszTimestamp = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
-    const CScript genesisOutputScript = CScript() << ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35") << OP_CHECKSIG;
+    const CScript genesisOutputScript = CScript() << ParseHex("0337d249c44b0327389a65687c7e9a823271a8c4355c74378d0b608b3339480e9a") << OP_CHECKSIG;
     return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nEdgeBits, nVersion, genesisReward, params, pkPrefix, findPoW);
 }
 
@@ -348,18 +348,18 @@ public:
 
         // genesis ref address: miB2255Vay5SGYsxrsbDq3WoVku4LJiFeG
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503444726, 136, 0x207fffff, 24, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
+        genesis = CreateGenesisBlock(1503444726, 20, 0x207fffff, 24, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0x64625, 0xbea75, 0xd1621, 0xda2e0, 0x18a1d7, 0x1f0a89, 0x27b01a, 0x34bf50, 0x36d0eb,
-            0x48456b, 0x48fe99, 0x5166ec, 0x527c53, 0x52a05f, 0x5ae690, 0x5fe675, 0x61aa69,
-            0x66b28a, 0x6a042a, 0x6c6dde, 0x72d941, 0x7711eb, 0x7bd505, 0x7f1695, 0x81ca1d,
-            0x863e65, 0x921e9d, 0x940913, 0xa1197c, 0xa20a21, 0xacb91e, 0xaf3cac, 0xafcbff,
-            0xb24be3, 0xbb9b6e, 0xd12fc2, 0xd7c9ef, 0xe2700a, 0xe2b5db, 0xeb81e8, 0xf6c7d4, 0xf8bb1c};
+            0xd2bd, 0x734f4, 0xa5523, 0xfd31c, 0x106bc2, 0x173a1d, 0x18370e, 0x1daf47, 0x1df00d, 0x22efa5,
+            0x31e2fd, 0x34b096, 0x35dd12, 0x3df255, 0x3f5a64, 0x429575, 0x52c9c4, 0x562cb2, 0x596cab,
+            0x5a0413, 0x5d4d86, 0x5de176, 0x620134, 0x704acf, 0x7d5e0a, 0x7e653d, 0x8d0e92, 0xa668a1,
+            0xab55ea, 0xafdb7e, 0xb36ebf, 0xb4e40b, 0xbbd2f0, 0xcd44c3, 0xd67b55, 0xdae53f, 0xed1231,
+            0xed4712, 0xf2b9a3, 0xf812d8, 0xf8cb2c, 0xfd2066};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("d22a75d84d3a827245c0fe96be6eb4b63807a4acb54a6bddfd7fb717c4c588a3"));
-        assert(genesis.hashMerkleRoot == uint256S("3a1633942793fb3e0ae37790ecd25d26a7229939c07125c67a9bdf992ef28ad9"));
+        assert(consensus.hashGenesisBlock == uint256S("04fb87a683b50b8d88b6e6a90568f63b896efe6335ffe0f816f37df3bd2b6c1e"));
+        assert(genesis.hashMerkleRoot == uint256S("7464a1ce95a025602f92c5584be0904c5d9211e87dd08811f7a7774ddcbdc565"));
 
         vFixedSeeds.clear();
         vSeeds.clear();

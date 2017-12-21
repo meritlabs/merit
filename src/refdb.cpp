@@ -88,9 +88,6 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
     if(!m_db.Write(std::make_pair(DB_PUBKEY, referral.pubkey), referral.GetAddress()))
         return false;
 
-    if(!m_db.Write(std::make_pair(DB_PARENT_ADDRESS, referral.GetAddress()), referral.parentAddress))
-        return false;
-
     // Typically because the referral should be written in order we should
     // be able to find the parent referral. We can then write the child->parent
     // mapping of public addresses
@@ -100,6 +97,9 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
                 parent_referral->GetAddress().GetHex(),
                 CMeritAddress(parent_referral->addressType, parent_referral->GetAddress()).ToString()
                 );
+
+        if(!m_db.Write(std::make_pair(DB_PARENT_ADDRESS, referral.GetAddress()), referral.parentAddress))
+            return false;
 
         // Now we update the children of the parent address by inserting into the
         // child address array for the parent.
