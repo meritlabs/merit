@@ -519,7 +519,7 @@ static UniValue EasySend(
     CScriptID script_id = easy_send_script;
     CScript script_pub_key = GetScriptForDestination(script_id);
 
-    if(!pwallet.GenerateNewReferral(receiver_pub, pwallet.ReferralAddress())) {
+    if(!pwallet.GenerateNewReferral(receiver_pub, pwallet.ReferralAddress(), receiver_key)) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Unable to generate referral for receiver key");
@@ -824,7 +824,7 @@ UniValue easysend(const JSONRPCRequest& request)
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
             "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
-            "2. \"password\"           (numeric) Optional password to further secure the transaction.\n"
+            "2. \"password\"           (string) Optional password to further secure the transaction.\n"
             "3. blocktimeout           (numeric) The amount of blocks the transaction can be buried until the receiver cannot accept funds\n"
             "4. subtractfeefromamount  (boolean, optional, default=false) The fee will be deducted from the amount being sent.\n"
             "                             The recipient will receive less merits than you enter in the amount field.\n"

@@ -1042,7 +1042,7 @@ public:
             const CCoinControl& coin_control,
             bool sign = true);
 
-    bool CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef& referral);
+    bool CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef& referral, CKey& key);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CConnman* connman, CValidationState& state);
     bool CommitTransaction(referral::ReferralTx& rtxNew, CConnman* connman, CValidationState& state);
 
@@ -1217,7 +1217,8 @@ public:
             char addressType,
             const referral::Address& addr,
             const CPubKey& signPubKey,
-            const referral::Address& parentAddress);
+            const referral::Address& parentAddress,
+            CKey key = CKey{});
 
     referral::ReferralRef GenerateNewReferral(
             const CScriptID& id,
@@ -1231,7 +1232,8 @@ public:
 
     referral::ReferralRef GenerateNewReferral(
             const CPubKey& pubkey,
-            const referral::Address& parentAddress);
+            const referral::Address& parentAddress,
+            CKey key = CKey{});
 
     bool IsReferred() const;
     referral::Address ReferralAddress() const;

@@ -93,6 +93,37 @@ bool CBasicKeyStore::GetParamScript(const CParamScriptID &hash, CScript& redeemS
     return false;
 }
 
+bool CBasicKeyStore::AddReferralAddressPubKey(const uint160& address, char address_type, const CPubKey& pubkey)
+{
+    LOCK(cs_KeyStore);
+    printf("%s: Adding new referral address -> pubkey mapping to the key store.\n", __func__);
+    mapReferralAddresses[std::make_pair(address, address_type)] = pubkey;
+
+    return true;
+}
+
+bool CBasicKeyStore::CBasicKeyStore::HaveReferralAddressPubKey(const uint160& address, char address_type) const
+{
+    LOCK(cs_KeyStore);
+
+    return mapReferralAddresses.count(std::make_pair(address, address_type)) > 0;
+}
+
+bool CBasicKeyStore::CBasicKeyStore::GetReferralAddressPubKey(const uint160& address, char address_type, CPubKey& pubkey_out) const
+{
+    LOCK(cs_KeyStore);
+    auto mi = mapReferralAddresses.find(std::make_pair(address, address_type));
+    if (mi != mapReferralAddresses.end())
+    {
+        pubkey_out = (*mi).second;
+
+        return true;
+    }
+
+    return false;
+}
+
+
 static bool ExtractPubKey(const CScript &dest, CPubKey& pubKeyOut)
 {
     //TODO: Use Solver to extract this?
