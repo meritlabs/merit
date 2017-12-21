@@ -93,11 +93,11 @@ bool CBasicKeyStore::GetParamScript(const CParamScriptID &hash, CScript& redeemS
     return false;
 }
 
-bool CBasicKeyStore::AddReferralAddressPubKey(const uint160& address, char address_type, const CPubKey& pubkey)
+bool CBasicKeyStore::AddReferralAddressPubKey(const uint160& address, char address_type, const CKeyID& pubkey_id)
 {
     LOCK(cs_KeyStore);
     printf("%s: Adding new referral address -> pubkey mapping to the key store.\n", __func__);
-    mapReferralAddresses[std::make_pair(address, address_type)] = pubkey;
+    mapReferralAddresses[std::make_pair(address, address_type)] = pubkey_id;
 
     return true;
 }
@@ -109,13 +109,13 @@ bool CBasicKeyStore::CBasicKeyStore::HaveReferralAddressPubKey(const uint160& ad
     return mapReferralAddresses.count(std::make_pair(address, address_type)) > 0;
 }
 
-bool CBasicKeyStore::CBasicKeyStore::GetReferralAddressPubKey(const uint160& address, char address_type, CPubKey& pubkey_out) const
+bool CBasicKeyStore::CBasicKeyStore::GetReferralAddressPubKey(const uint160& address, char address_type, CKeyID& pubkey_id_out) const
 {
     LOCK(cs_KeyStore);
     auto mi = mapReferralAddresses.find(std::make_pair(address, address_type));
     if (mi != mapReferralAddresses.end())
     {
-        pubkey_out = (*mi).second;
+        pubkey_id_out = (*mi).second;
 
         return true;
     }
