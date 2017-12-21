@@ -2826,11 +2826,15 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     //the referral tree is updated to be correct before we debit/credit
     //the ANV to the appropriate addresses.
     if(!IndexReferrals(ordered_referrals)) {
-        return AbortNode(state, "Failed to write referral index");
+        return state.DoS(100,
+                error("ConnectBlock(): Could not index referrals"),
+                REJECT_INVALID, "bad-cb-bad-referrals");
     }
 
     if(!UpdateANV(debits_and_credits)) {
-        return AbortNode(state, "Failed to write referral ANV index");
+        return state.DoS(100,
+                error("ConnectBlock(): Could update ANV"),
+                REJECT_INVALID, "bad-cb-bad-anv");
     }
 
     if(!UpdateLotteryEntrants(
@@ -2838,7 +2842,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 debits_and_credits,
                 chainparams.GetConsensus(),
                 blockundo)){
-        return AbortNode(state, "Failed to write lottery index");
+        return state.DoS(100,
+                error("ConnectBlock(): Could update lottery entrants"),
+                REJECT_INVALID, "bad-cb-bad-lottery-entrants");
     }
 
     // Write undo information to disk
@@ -3945,18 +3951,8 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 }
 
 // Check if an address is valid (beaconed)
-bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
+bool CheckAddressBeaconed(const uint160& addr, bool checkMempool)
 {
-    // if target is CNoDestination skip is beaconed validation
-    if(boost::get<CNoDestination>(&dest)) {
-        return true;
-    }
-
-    uint160 addr;
-    if(!GetUint160(dest, addr)) {
-        return false;
-    }
-
     bool beaconed = prefviewcache->WalletIdExists(addr);
 
     if (!beaconed && checkMempool) {
@@ -3975,7 +3971,8 @@ bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
 
 bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool)
 {
-    return CheckAddressBeaconed(addr.Get(), checkMempool);
+    const auto maybe_hash = addr.GetUint160();
+    return maybe_hash ? CheckAddressBeaconed(*maybe_hash, checkMempool) : false;
 }
 
 // Compute at which vout of the block's coinbase transaction the witness

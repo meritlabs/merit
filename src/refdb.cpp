@@ -53,10 +53,13 @@ ChildAddresses ReferralsViewDB::GetChildren(const Address& address) const
 
 bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_parent) {
 
-    debug("Inserting referral %s code %s parent %s",
+    debug("Attempting to insert referral %s code %s parent %s",
             CMeritAddress(referral.addressType, referral.pubKeyId).ToString(), 
             referral.codeHash.GetHex(),
             referral.previousReferral.GetHex());
+
+    if(WalletIdExists(referral.pubKeyId))
+        return false;
 
     //write referral by code hash
     if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.codeHash), referral)) {
@@ -81,7 +84,8 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
                 );
 
         parent_address = parent_referral->pubKeyId;
-        if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.pubKeyId), parent_address))
+        AddressPair parent_addr_pair{parent_referral->addressType, parent_address};
+        if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.pubKeyId), parent_addr_pair))
             return false;
 
         // Now we update the children of the parent address by inserting into the
@@ -100,6 +104,11 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
     } else {
         debug("\tWarning Parent missing for code %s", referral.previousReferral.GetHex());
     }
+
+    debug("Inserted referral %s code %s parent %s",
+            CMeritAddress(referral.addressType, referral.pubKeyId).ToString(), 
+            referral.codeHash.GetHex(),
+            referral.previousReferral.GetHex());
 
     return true;
 }

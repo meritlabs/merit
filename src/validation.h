@@ -517,7 +517,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
 
 /** Check that an address is valid and ready to use */
-bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool = true);
+bool CheckAddressBeaconed(const uint160&, bool checkMempool = true);
 
 /** Check that an address is valid and ready to use */
 bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool = true);
