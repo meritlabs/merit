@@ -1140,6 +1140,10 @@ bool CWallet::LoadToWallet(const referral::ReferralTx& rtxIn)
 
     uint256 hash = rtxIn.GetHash();
 
+    auto ref = rtxIn.m_pReferral;
+
+    AddReferralAddressPubKey(ref->GetAddress(), ref->addressType, ref->pubkey.GetID());
+
     mapWalletRTx[hash] = rtxIn;
     referral::ReferralTx& rtx = mapWalletRTx[hash];
     rtx.BindWallet(this);
@@ -1660,7 +1664,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
                 referral::MutableReferral(
                     addressType, address, signPubKey, parentAddress));
 
-    AddReferralAddressPubKey(referral->GetAddress(), referral->addressType, signPubKey);
+    AddReferralAddressPubKey(referral->GetAddress(), referral->addressType, signPubKey.GetID());
 
     referral::ReferralTx rtx{true};
 
@@ -3292,10 +3296,10 @@ bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef
             return false;
         }
 
-        CPubKey pubkey;
-        GetReferralAddressPubKey(referral->GetAddress(), referral->addressType, pubkey);
+        CKeyID pubkey_id;
+        GetReferralAddressPubKey(referral->GetAddress(), referral->addressType, pubkey_id);
 
-        auto it = mapKeys.find(pubkey.GetID());
+        auto it = mapKeys.find(pubkey_id);
         assert(it != mapKeys.end());
 
         key.Set(it->second.begin(), it->second.end(), it->second.IsCompressed());
