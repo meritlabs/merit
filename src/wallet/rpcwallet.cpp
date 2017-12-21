@@ -4569,7 +4569,6 @@ static const CRPCCommand commands[] =
     { "generating",         "generate",                 &generate,                 {"nblocks","maxtries"} },
 
     // merit specific commands
-    { "referral",           "validatereferraladdress",  &validatereferraladdress,  {"address"} },
     { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress"} },
     { "referral",           "getanv",                   &getanv,                   {} },
 

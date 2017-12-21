@@ -20,8 +20,6 @@ typedef std::vector<unsigned char> valtype;
 namespace referral
 {
 using Address = uint160;
-using ReferralRef =  std::shared_ptr<const Referral>;
-using ReferralRefs = std::vector<ReferralRef>;
 
 struct MutableReferral;
 
@@ -186,6 +184,9 @@ public:
     template <typename Stream, typename RefType>
     friend void UnserializeReferral(RefType& ref, Stream& s);
 };
+
+using ReferralRef =  std::shared_ptr<const Referral>;
+using ReferralRefs = std::vector<ReferralRef>;
 
 /**
  * Basic referral serialization format:

@@ -66,10 +66,9 @@ ChildAddresses ReferralsViewDB::GetChildren(const Address& address) const
 
 bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_parent) {
 
-    debug("Inserting referral %s code %s parent %s",
-            CMeritAddress(referral.addressType, referral.pubKeyId).ToString(),
-            referral.codeHash.GetHex(),
-            referral.previousReferral.GetHex());
+    debug("Inserting referral %s parent %s",
+            CMeritAddress(referral.addressType, referral.GetAddress()).ToString(),
+            referral.parentAddress.GetHex());
 
     //write referral by code hash
     if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.GetAddress()), referral)) {
@@ -98,12 +97,9 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
     if(auto parent_referral = GetReferral(referral.parentAddress)) {
         debug("\tInserting parent reference %s parent %s paddress %s",
                 CMeritAddress(referral.addressType, referral.GetAddress()).ToString(),
-                parent_referral->address.GetHex(),
+                parent_referral->GetAddress().GetHex(),
                 CMeritAddress(parent_referral->addressType, parent_referral->GetAddress()).ToString()
                 );
-
-        if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.GetAddress()), referral.parentAddress))
-            return false;
 
         // Now we update the children of the parent address by inserting into the
         // child address array for the parent.
@@ -119,14 +115,16 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
         assert(false && "parent referral missing");
         return false;
     } else {
-        debug("\tWarning Parent missing for code %s", referral.previousReferral.GetHex());
+        debug("\tWarning Parent missing for address %s. Parent: %s",
+            CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
+            referral.parentAddress.GetHex());
     }
 
     return true;
 }
 
 bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
-    debug("Removing Referral %d", CMeritAddress{referral.addressType, referral.address}.ToString());
+    debug("Removing Referral %d", CMeritAddress{referral.addressType, referral.GetAddress()}.ToString());
 
     if(!m_db.Erase(std::make_pair(DB_REFERRALS, referral.GetAddress())))
         return false;
@@ -193,13 +191,8 @@ bool ReferralsViewDB::UpdateANV(char addressType, const Address& start_address, 
             return false;
         }
 
-<<<<<<< HEAD
-        address = GetReferrer(*address);
-        level++;
-=======
         address = GetParentAddress(*address);
-        levels++;
->>>>>>> add pubkey -> address index
+        level++;
     }
 
     // We should never have cycles in the DB.
@@ -309,7 +302,7 @@ bool ReferralsViewDB::OrderReferrals(referral::ReferralRefs& refs)
     auto end_roots =
         std::partition(refs.begin(), refs.end(),
             [this](const referral::ReferralRef& ref) -> bool {
-            return static_cast<bool>(GetReferral(ref->previousReferral));
+            return static_cast<bool>(GetReferral(ref->parentAddress));
     });
 
     //If we don't have any roots, we have an invalid block.
@@ -317,19 +310,19 @@ bool ReferralsViewDB::OrderReferrals(referral::ReferralRefs& refs)
         return false;
     }
 
-    std::map<uint256, referral::ReferralRefs> graph;
+    std::map<uint160, referral::ReferralRefs> graph;
 
     //insert roots of trees into graph
     std::for_each(
             refs.begin(), end_roots,
             [&graph](const referral::ReferralRef& ref) {
-                graph[ref->codeHash] =  referral::ReferralRefs{};
+                graph[ref->GetAddress()] = referral::ReferralRefs{};
             });
 
     //Insert disconnected referrals
     std::for_each(end_roots, refs.end(),
             [&graph](const referral::ReferralRef& ref) {
-                graph[ref->previousReferral].push_back(ref);
+                graph[ref->parentAddress].push_back(ref);
             });
 
     //copy roots to work queue
@@ -345,7 +338,7 @@ bool ReferralsViewDB::OrderReferrals(referral::ReferralRefs& refs)
         to_process.pop_front();
         replace++;
 
-        const auto& children = graph[ref->codeHash];
+        const auto& children = graph[ref->GetAddress()];
         to_process.insert(to_process.end(), children.begin(), children.end());
     }
 

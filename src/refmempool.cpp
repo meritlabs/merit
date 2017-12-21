@@ -135,7 +135,7 @@ void ReferralTxMemPool::RemoveUnchecked(refiter it, MemPoolRemovalReason reason)
     auto parentit =
         std::find_if(mapRTx.begin(), mapRTx.end(),
             [it](const referral::RefMemPoolEntry& parent) {
-                return parent.GetSharedEntryValue()->codeHash == it->GetEntryValue().previousReferral;
+                return parent.GetSharedEntryValue()->GetAddress() == it->GetEntryValue().parentAddress;
             });
 
     if (parentit != mapRTx.end()) {
