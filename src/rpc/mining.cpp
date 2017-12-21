@@ -111,7 +111,7 @@ UniValue getnetworkhashps(const JSONRPCRequest& request)
     return GetNetworkHashPS(!request.params[0].isNull() ? request.params[0].get_int() : 120, !request.params[1].isNull() ? request.params[1].get_int() : -1);
 }
 
-UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGenerate, uint64_t nMaxTries, bool keepScript)
+UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGenerate, uint64_t nMaxTries, bool keepScript, uint8_t nThreads)
 {
     static const int nInnerLoopCount = 0x10000;
     int nHeightEnd = 0;
@@ -139,7 +139,8 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
         }
 
         std::set<uint32_t> cycle;
-        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount && !cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgeBits, cycle, consensusParams)) {
+        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount &&
+               !cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgeBits, cycle, consensusParams, nThreads)) {
             ++pblock->nNonce;
             --nMaxTries;
         }
@@ -173,7 +174,7 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
 
 UniValue generatetoaddress(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() < 2 || request.params.size() > 3)
+    if (request.fHelp || request.params.size() < 2 || request.params.size() > 4)
         throw std::runtime_error(
             "generatetoaddress nblocks address (maxtries)\n"
             "\nMine blocks immediately to a specified address (before the RPC call returns)\n"
@@ -181,6 +182,8 @@ UniValue generatetoaddress(const JSONRPCRequest& request)
             "1. nblocks      (numeric, required) How many blocks are generated immediately.\n"
             "2. address      (string, required) The address to send the newly generated merit to.\n"
             "3. maxtries     (numeric, optional) How many iterations to try (default = 1000000).\n"
+            "4. nthreads     (numeric, optional) Set the number of threads for mining. Can be -1 for unlimited.\n"
+
             "\nResult:\n"
             "[ blockhashes ]     (array) hashes of blocks generated\n"
             "\nExamples:\n"
@@ -194,6 +197,12 @@ UniValue generatetoaddress(const JSONRPCRequest& request)
         nMaxTries = request.params[2].get_int();
     }
 
+    int nThreads = DEFAULT_MINING_THREADS;
+
+    if (!request.params[3].isNull()) {
+        nThreads = request.params[3].get_int();
+    }
+
     CTxDestination destination = DecodeDestination(request.params[1].get_str());
     if (!IsValidDestination(destination)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Error: Invalid address");
@@ -202,7 +211,7 @@ UniValue generatetoaddress(const JSONRPCRequest& request)
     std::shared_ptr<CReserveScript> coinbaseScript = std::make_shared<CReserveScript>();
     coinbaseScript->reserveScript = GetScriptForDestination(destination);
 
-    return generateBlocks(coinbaseScript, nGenerate, nMaxTries, false);
+    return generateBlocks(coinbaseScript, nGenerate, nMaxTries, false, nThreads);
 }
 
 UniValue getmininginfo(const JSONRPCRequest& request)
@@ -219,10 +228,14 @@ UniValue getmininginfo(const JSONRPCRequest& request)
             "  \"currentblocktx\": nnn,     (numeric) The last block transaction\n"
             "  \"currentblockref\": nnn,    (numeric) The last block referrals\n"
             "  \"difficulty\": xxx.xxxxx    (numeric) The current difficulty\n"
+            "  \"difficultyedgebits\": xxx  (numeric) The current edgeBits difficulty\n"
             "  \"errors\": \"...\"          (string) Current errors\n"
+            "  \"mining\": true|false       (boolean) If the mining is on or off (see getmining or setmining calls)\n"
+            "  \"mineproclimit\": n         (numeric) The processor limit for mining. -1 if no generation. (see getmining or setmining calls)\n"
             "  \"networkhashps\": nnn,      (numeric) The network hashes per second\n"
             "  \"pooledtx\": n              (numeric) The size of the mempool\n"
-            "  \"chain\": \"xxxx\",           (string) current network name as defined in BIP70 (main, test, regtest)\n"
+            "  \"pooledref\": n             (numeric) The size of the referrals mempool\n"
+            "  \"chain\": \"xxxx\",         (string) current network name as defined in BIP70 (main, test, regtest)\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getmininginfo", "")
@@ -232,17 +245,23 @@ UniValue getmininginfo(const JSONRPCRequest& request)
 
     LOCK(cs_main);
 
+    CBlockIndex* const pindexPrev = chainActive.Tip();
+
     UniValue obj(UniValue::VOBJ);
-    obj.push_back(Pair("blocks",           (int)chainActive.Height()));
-    obj.push_back(Pair("currentblocksize", (uint64_t)nLastBlockSize));
+    obj.push_back(Pair("blocks",             (int)chainActive.Height()));
+    obj.push_back(Pair("currentblocksize",   (uint64_t)nLastBlockSize));
     obj.push_back(Pair("currentblockweight", (uint64_t)nLastBlockWeight));
-    obj.push_back(Pair("currentblocktx",   (uint64_t)nLastBlockTx));
-    obj.push_back(Pair("currentblockref",  (uint64_t)nLastBlockRef));
-    obj.push_back(Pair("difficulty",       (double)GetDifficulty()));
-    obj.push_back(Pair("errors",           GetWarnings("statusbar")));
-    obj.push_back(Pair("networkhashps",    getnetworkhashps(request)));
-    obj.push_back(Pair("pooledtx",         (uint64_t)mempool.size()));
-    obj.push_back(Pair("chain",            Params().NetworkIDString()));
+    obj.push_back(Pair("currentblocktx",     (uint64_t)nLastBlockTx));
+    obj.push_back(Pair("currentblockref",    (uint64_t)nLastBlockRef));
+    obj.push_back(Pair("difficulty",         (double)GetDifficulty()));
+    obj.push_back(Pair("difficultyedgebits", pindexPrev->nEdgeBits));
+    obj.push_back(Pair("mining",             gArgs.GetBoolArg("-mine", DEFAULT_MINING)));
+    obj.push_back(Pair("mineproclimit",      gArgs.GetArg("-mineproclimit", DEFAULT_MINING_THREADS)));
+    obj.push_back(Pair("errors",             GetWarnings("statusbar")));
+    obj.push_back(Pair("networkhashps",      getnetworkhashps(request)));
+    obj.push_back(Pair("pooledtx",           (uint64_t)mempool.size()));
+    obj.push_back(Pair("pooledref",          (uint64_t)mempoolReferral.size()));
+    obj.push_back(Pair("chain",              Params().NetworkIDString()));
     return obj;
 }
 
@@ -966,6 +985,71 @@ UniValue estimaterawfee(const JSONRPCRequest& request)
     return result;
 }
 
+UniValue setmining(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
+        throw std::runtime_error(
+            "setmining mine ( mineproclimit )\n"
+            "\nSet 'generate' true or false to turn generation on or off.\n"
+            "Generation is limited to 'mineproclimit' processors, -1 is unlimited.\n"
+            "See the getgenerate call for the current setting.\n"
+            "\nArguments:\n"
+            "1. mine           (boolean, required) Set to true to turn on mining, off to turn off.\n"
+            "2. mineproclimit  (numeric, optional) Set the processor limit for when mining is on. Can be -1 for unlimited.\n"
+            "\nExamples:\n"
+            "\nSet the generation on with a limit of one processor\n"
+            + HelpExampleCli("setgenerate", "true 1") +
+            "\nCheck the setting\n"
+            + HelpExampleCli("getgenerate", "") +
+            "\nTurn off generation\n"
+            + HelpExampleCli("setgenerate", "false") +
+            "\nUsing json rpc\n"
+            + HelpExampleRpc("setgenerate", "true, 1")
+        );
+
+    if (Params().MineBlocksOnDemand())
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Use the generate method instead of setgenerate on this network");
+
+    bool mine = true;
+    if (request.params.size() > 0)
+        mine = request.params[0].get_bool();
+
+    int nThreads = DEFAULT_MINING_THREADS;
+
+    if (request.params.size() > 1) {
+        nThreads = request.params[1].get_int();
+        if (nThreads == 0)
+            mine = false;
+    }
+
+    gArgs.ForceSetArg("-mine", (mine ? "1" : "0"));
+    gArgs.ForceSetArg("-mineproclimit", itostr(nThreads));
+
+    GenerateMerit(mine, nThreads, Params());
+
+    return NullUniValue;
+}
+
+UniValue getmining(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 0)
+        throw std::runtime_error(
+            "getmining\n"
+            "\nReturn if the server is set to mine coins or not. The default is false.\n"
+            "It is set with the command line argument -mine\n"
+            "It can also be set with the setmining call.\n"
+            "\nResult\n"
+            "true|false      (boolean) If the server is set to mine coins or not\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getmining", "")
+            + HelpExampleRpc("getmining", "")
+        );
+
+    LOCK(cs_main);
+
+    return gArgs.GetBoolArg("-mine", DEFAULT_MINING);
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
@@ -974,9 +1058,9 @@ static const CRPCCommand commands[] =
     { "mining",             "prioritisetransaction",  &prioritisetransaction,  {"txid","dummy","fee_delta"} },
     { "mining",             "getblocktemplate",       &getblocktemplate,       {"template_request"} },
     { "mining",             "submitblock",            &submitblock,            {"hexdata","dummy"} },
-
-
-    { "generating",         "generatetoaddress",      &generatetoaddress,      {"nblocks","address","maxtries"} },
+    { "mining",             "setmining",              &setmining,              {"mine","mineproclimit"} },
+    { "mining",             "getmining",              &getmining,              {} },
+    { "mining",             "generatetoaddress",      &generatetoaddress,      {"nblocks","address","maxtries", "mineproclimit", "nthreads"} },
 
     { "util",               "estimatefee",            &estimatefee,            {"nblocks"} },
     { "util",               "estimatesmartfee",       &estimatesmartfee,       {"nblocks", "estimate_mode"} },

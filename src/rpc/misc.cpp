@@ -1185,7 +1185,7 @@ CAmount GetAmount(const CMempoolAddressDelta& v) { return v.amount; }
 CAmount GetAmount(CAmount amount) { return amount; }
 
 template <class IndexPair>
-void DecorateEasySendTransactionInformation(UniValue& ret, const IndexPair& pair, bool fromMempool)
+void DecorateEasySendTransactionInformation(UniValue& ret, const IndexPair& pair, const size_t& confirmations)
 {
     const auto& key = pair.first;
     ret.push_back(Pair("found", true));
@@ -1193,10 +1193,11 @@ void DecorateEasySendTransactionInformation(UniValue& ret, const IndexPair& pair
     ret.push_back(Pair("index", static_cast<int>(key.index)));
     ret.push_back(Pair("amount", ValueFromAmount(GetAmount(pair.second))));
     ret.push_back(Pair("spending", key.spending));
+    ret.push_back(Pair("confirmations", static_cast<int>(confirmations)));
 
     CSpentIndexValue spent_value;
     bool spent = false;
-    if(fromMempool) {
+    if(confirmations == 0) {
         spent = mempool.getSpentIndex(
                 {key.txhash, static_cast<unsigned int>(key.index)},
                 spent_value);
@@ -1250,7 +1251,7 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VOBJ);
     if(!mempool_indexes.empty()) {
-        DecorateEasySendTransactionInformation(ret, mempool_indexes[0], true);
+        DecorateEasySendTransactionInformation(ret, mempool_indexes[0], 0);
         return ret;
 
     } else {
@@ -1259,7 +1260,8 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
         GetAddressIndex(*script_id, SCRIPT_TYPE, coins);
 
         if(!coins.empty()) {
-            DecorateEasySendTransactionInformation(ret, coins[0], false);
+            size_t confirmations = std::max(0, chainActive.Height() - coins[0].first.blockHeight);
+            DecorateEasySendTransactionInformation(ret, coins[0], confirmations);
             return ret;
         }
     }

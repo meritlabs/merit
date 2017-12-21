@@ -21,12 +21,19 @@ namespace referral
 RefMemPoolEntry::RefMemPoolEntry(const Referral& _entry, int64_t _nTime, unsigned int _entryHeight) : MemPoolEntry(_entry, _nTime, _entryHeight)
 {
     nWeight = GetReferralWeight(_entry);
-    nUsageSize = sizeof(RefMemPoolEntry);
+    nUsageSize = RecursiveDynamicUsage(entry);
+    nCountWithDescendants = 1;
 }
 
 size_t RefMemPoolEntry::GetSize() const
 {
     return GetVirtualReferralSize(nWeight);
+}
+
+void RefMemPoolEntry::UpdateDescendantsCount(int64_t modifyCount)
+{
+    nCountWithDescendants += modifyCount;
+    assert(int64_t(nCountWithDescendants) > 0);
 }
 
 bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry& entry)
@@ -36,7 +43,7 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry&
     LOCK(cs);
 
     refiter newit = mapRTx.insert(entry).first;
-    mapLinks.insert(std::make_pair(newit, RefLinks()));
+    mapChildren.insert(std::make_pair(newit, setEntries()));
 
     // check mempool referrals for a parent
     auto parentit =
@@ -46,8 +53,15 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry&
             });
 
     if (parentit != mapRTx.end()) {
-        mapLinks[parentit].children.insert(newit);
+        mapChildren[parentit].insert(newit);
+        mapRTx.modify(parentit, update_descendants_count(-1));
+
+        setEntries s;
+        cachedInnerUsage += memusage::IncrementalDynamicUsage(s);
     }
+
+    cachedInnerUsage += entry.DynamicMemoryUsage();
+    assert(cachedInnerUsage > 0);
 
     return true;
 }
@@ -79,9 +93,9 @@ void ReferralTxMemPool::CalculateDescendants(refiter entryit, setEntries& setDes
 const ReferralTxMemPool::setEntries& ReferralTxMemPool::GetMemPoolChildren(refiter entryit) const
 {
     assert(entryit != mapRTx.end());
-    reflinksMap::const_iterator it = mapLinks.find(entryit);
-    assert(it != mapLinks.end());
-    return it->second.children;
+    reflinksMap::const_iterator it = mapChildren.find(entryit);
+    assert(it != mapChildren.end());
+    return it->second;
 }
 
 void ReferralTxMemPool::RemoveRecursive(const Referral& origRef, MemPoolRemovalReason reason)
@@ -116,8 +130,29 @@ void ReferralTxMemPool::RemoveUnchecked(refiter it, MemPoolRemovalReason reason)
 {
     NotifyEntryRemoved(it->GetSharedEntryValue(), reason);
 
+
+    // check mempool referrals for a parent
+    auto parentit =
+        std::find_if(mapRTx.begin(), mapRTx.end(),
+            [it](const referral::RefMemPoolEntry& parent) {
+                return parent.GetSharedEntryValue()->codeHash == it->GetEntryValue().previousReferral;
+            });
+
+    if (parentit != mapRTx.end()) {
+        mapChildren[parentit].erase(it);
+        mapRTx.modify(parentit, update_descendants_count(-1));
+
+        setEntries s;
+        cachedInnerUsage -= memusage::IncrementalDynamicUsage(s);
+    }
+
+    cachedInnerUsage -= it->DynamicMemoryUsage();
+    cachedInnerUsage -= memusage::DynamicUsage(mapChildren[it]);
+
     mapRTx.erase(it);
-    mapLinks.erase(it);
+    mapChildren.erase(it);
+
+    assert(cachedInnerUsage >= 0);
 }
 
 void ReferralTxMemPool::RemoveStaged(setEntries& stage, MemPoolRemovalReason reason)
@@ -126,6 +161,17 @@ void ReferralTxMemPool::RemoveStaged(setEntries& stage, MemPoolRemovalReason rea
     // UpdateForRemoveFromMempool(stage, updateDescendants);
     for (const refiter& it : stage) {
         RemoveUnchecked(it, reason);
+    }
+}
+
+void ReferralTxMemPool::TrimToSize(size_t limit) {
+    LOCK(cs);
+
+    CFeeRate maxFeeRateRemoved(0);
+    while (!mapRTx.empty() && DynamicMemoryUsage() > limit) {
+        indexed_referrals_set::index<descendants_count>::type::iterator it = mapRTx.get<descendants_count>().begin();
+
+        RemoveRecursive(it->GetEntryValue(), MemPoolRemovalReason::SIZELIMIT);
     }
 }
 
@@ -222,14 +268,15 @@ std::vector<ReferralRef> ReferralTxMemPool::GetReferrals() const
 size_t ReferralTxMemPool::DynamicMemoryUsage() const
 {
     LOCK(cs);
-    return memusage::MallocUsage(sizeof(RefMemPoolEntry) + 15 * sizeof(void*)) * mapRTx.size() + memusage::DynamicUsage(mapLinks);
+    return memusage::MallocUsage(sizeof(RefMemPoolEntry) + 15 * sizeof(void*)) * mapRTx.size() + memusage::DynamicUsage(mapChildren) + cachedInnerUsage;
 }
 
 
 void ReferralTxMemPool::Clear()
 {
     LOCK(cs);
-    mapLinks.clear();
+    mapChildren.clear();
     mapRTx.clear();
+    cachedInnerUsage = 0;
 }
 }
