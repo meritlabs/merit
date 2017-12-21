@@ -43,6 +43,11 @@ public:
     virtual bool HaveParamScript(const CParamScriptID &hash) const =0;
     virtual bool GetParamScript(const CParamScriptID &hash, CScript& redeemScriptOut) const =0;
 
+    // Support for beaconed scripts addresses mixed with signer pubkey
+    virtual bool AddReferralAddressPubKey(const uint160& address, char address_type, const CPubKey& pubkey) =0;
+    virtual bool HaveReferralAddressPubKey(const uint160& address, char address_type) const =0;
+    virtual bool GetReferralAddressPubKey(const uint160& address, char address_type, CPubKey& pubkey_out) const =0;
+
     //! Support for Watch-only addresses
     virtual bool AddWatchOnly(const CScript &dest) =0;
     virtual bool RemoveWatchOnly(const CScript &dest) =0;
@@ -54,6 +59,8 @@ typedef std::map<CKeyID, CKey> KeyMap;
 typedef std::map<CKeyID, CPubKey> WatchKeyMap;
 typedef std::map<CScriptID, CScript > ScriptMap;
 typedef std::map<CParamScriptID, CScript > ParamScriptMap;
+typedef std::map<std::pair<uint160, char>, CPubKey> ReferralAddressMap;
+typedef std::map<uint160, CParamScriptID> AddressParamScriptMap;
 typedef std::set<CScript> WatchOnlySet;
 
 /** Basic key store, that keeps keys in an address->secret map */
@@ -64,6 +71,7 @@ protected:
     WatchKeyMap mapWatchKeys;
     ScriptMap mapScripts;
     ParamScriptMap mapParamScripts;
+    ReferralAddressMap mapReferralAddresses;
     WatchOnlySet setWatchOnly;
 
 public:
@@ -111,6 +119,10 @@ public:
     bool AddParamScript(const CScript& redeemScript) override;
     bool HaveParamScript(const CParamScriptID &hash) const override;
     bool GetParamScript(const CParamScriptID &hash, CScript& redeemScriptOut) const override;
+
+    bool AddReferralAddressPubKey(const uint160& address, char address_type, const CPubKey& pubkey) override;
+    bool HaveReferralAddressPubKey(const uint160& address, char address_type) const override;
+    bool GetReferralAddressPubKey(const uint160& address, char address_type, CPubKey& pubkey) const override;
 
     bool AddWatchOnly(const CScript &dest) override;
     bool RemoveWatchOnly(const CScript &dest) override;

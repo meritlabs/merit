@@ -1646,11 +1646,13 @@ bool CWallet::IsHDEnabled() const
     return !hdChain.masterKeyID.IsNull();
 }
 
+// TODO: add optional priv key to sign easysend reciever referral
 referral::ReferralRef CWallet::GenerateNewReferral(
         char addressType,
         const referral::Address& address,
         const CPubKey& signPubKey,
-        const referral::Address& parentAddress)
+        const referral::Address& parentAddress,
+        CKey key)
 {
     // generate referral for given public key
     auto referral =
@@ -1658,10 +1660,12 @@ referral::ReferralRef CWallet::GenerateNewReferral(
                 referral::MutableReferral(
                     addressType, address, signPubKey, parentAddress));
 
+    AddReferralAddressPubKey(referral->GetAddress(), referral->addressType, signPubKey);
+
     referral::ReferralTx rtx{true};
 
     CValidationState state;
-    CreateTransaction(rtx, referral);
+    CreateTransaction(rtx, referral, key);
     CommitTransaction(rtx, g_connman.get(), state);
 
     return referral;
@@ -1680,15 +1684,16 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const referral::Address& parentAddress,
         const CPubKey& signPubKey)
 {
-    return GenerateNewReferral(3, id, signPubKey, parentAddress);
+    return GenerateNewReferral(2, id, signPubKey, parentAddress);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CPubKey& pubkey,
-        const referral::Address& parentAddress)
+        const referral::Address& parentAddress,
+        CKey key)
 {
     const referral::Address key_id = pubkey.GetID();
-    return GenerateNewReferral(1, key_id, pubkey, parentAddress);
+    return GenerateNewReferral(1, key_id, pubkey, parentAddress, key);
 }
 
 bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool)
@@ -3274,15 +3279,32 @@ bool CWallet::CreateTransaction(
     return true;
 }
 
-bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef& referral)
+bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef& referral, CKey& key)
 {
     // generate referral tx and bind it to this wallet
     rtx.BindWallet(this);
-    auto it = mapKeys.find(CKeyID(referral->GetAddress()));
-    assert(it != mapKeys.end());
+
+    if (!key.IsValid()) {
+        printf("%s: Key is not provided. Looking for key in the wallet.\n", __func__);
+
+        if (!HaveReferralAddressPubKey(referral->GetAddress(), referral->addressType)) {
+            printf("%s: Public key for referral address not found.\n", __func__);
+            return false;
+        }
+
+        CPubKey pubkey;
+        GetReferralAddressPubKey(referral->GetAddress(), referral->addressType, pubkey);
+
+        auto it = mapKeys.find(pubkey.GetID());
+        assert(it != mapKeys.end());
+
+        key.Set(it->second.begin(), it->second.end(), it->second.IsCompressed());
+    } else {
+        printf("%s: Provided key is valid.\n", __func__);
+    }
 
     valtype signature;
-    it->second.Sign((CHashWriter(SER_GETHASH, 0) << referral->parentAddress << referral->GetAddress()).GetHash(), signature);
+    key.Sign((CHashWriter(SER_GETHASH, 0) << referral->parentAddress << referral->GetAddress()).GetHash(), signature);
 
     referral::MutableReferral newRef{*referral};
     newRef.signature = signature;
