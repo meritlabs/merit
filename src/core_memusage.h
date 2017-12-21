@@ -53,6 +53,11 @@ static inline size_t RecursiveDynamicUsage(const CMutableTransaction& tx) {
     return mem;
 }
 
+static inline size_t RecursiveDynamicUsage(const referral::Referral& ref)
+{
+    return 0;
+}
+
 static inline size_t RecursiveDynamicUsage(const CBlock& block) {
     size_t mem = memusage::DynamicUsage(block.vtx);
     for (const auto& tx : block.vtx) {
@@ -63,10 +68,6 @@ static inline size_t RecursiveDynamicUsage(const CBlock& block) {
 
 static inline size_t RecursiveDynamicUsage(const CBlockLocator& locator) {
     return memusage::DynamicUsage(locator.vHave);
-}
-
-static inline size_t RecursiveDynamicUsage(const referral::ReferralRef& ref) {
-    return memusage::DynamicUsage(ref);
 }
 
 template<typename X>
