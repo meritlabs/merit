@@ -131,12 +131,14 @@ static bool SignStep(
     case TX_PARAMETERIZED_SCRIPTHASH:
         if (creator.KeyStore().GetParamScript(CParamScriptID{uint160(vSolutions[0])}, scriptRet)) {
             ret.push_back(std::vector<unsigned char>(scriptRet.begin(), scriptRet.end()));
+            ret.push_back(vSolutions[0]);
             return true;
         }
         return false;
     case TX_SCRIPTHASH:
         if (creator.KeyStore().GetCScript(CScriptID(uint160(vSolutions[0])), scriptRet)) {
             ret.push_back(std::vector<unsigned char>(scriptRet.begin(), scriptRet.end()));
+            ret.push_back(vSolutions[0]);
             return true;
         }
         return false;
@@ -197,6 +199,7 @@ bool ProduceSignature(const BaseSignatureCreator& creator, const CScript& fromPu
     bool solved = SignStep(creator, script, result, whichType, SIGVERSION_BASE);
     bool P2SH = false;
     CScript subscript;
+    uint160 scriptAddress;
     sigdata.scriptWitness.stack.clear();
 
     if (solved && whichType == TX_SCRIPTHASH || whichType == TX_PARAMETERIZED_SCRIPTHASH)
@@ -205,6 +208,10 @@ bool ProduceSignature(const BaseSignatureCreator& creator, const CScript& fromPu
         // the final scriptSig is the signatures from that
         // and then the serialized subscript:
         script = subscript = CScript(result[0].begin(), result[0].end());
+
+        if(result[1].size() == 20) {
+            scriptAddress = uint160{result[1]};
+        }
 
         solved =
             solved &&
@@ -248,18 +255,14 @@ bool ProduceSignature(const BaseSignatureCreator& creator, const CScript& fromPu
     if (P2SH) {
         const auto& keystore = creator.KeyStore();
         char address_type = whichType == TX_SCRIPTHASH ? 2 : 3;
-        if(subscript.size() != 20) {
-            return false;
-        }
 
-        valtype subscript_bytes{subscript.begin(), subscript.end()};
         CKeyID pub_key_id;
-        if(!keystore.GetReferralAddressPubKey(uint160(subscript_bytes), address_type, pub_key_id)) {
+        if(!keystore.GetReferralAddressPubKey(scriptAddress, address_type, pub_key_id)) {
             return false;
         }
 
         result.push_back(valtype{pub_key_id.begin(), pub_key_id.end()});
-        result.push_back(subscript_bytes);
+        result.push_back(valtype{subscript.begin(), subscript.end()});
     }
     sigdata.scriptSig = PushAll(result);
 

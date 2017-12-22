@@ -389,28 +389,28 @@ void CWallet::UpdateTimeFirstKey(int64_t nCreateTime)
     }
 }
 
-bool CWallet::AddCScript(const CScript& redeemScript)
+bool CWallet::AddCScript(const CScript& redeemScript, const uint160& address)
 {
-    if (!CCryptoKeyStore::AddCScript(redeemScript))
+    if (!CCryptoKeyStore::AddCScript(redeemScript, address))
         return false;
-    return CWalletDB(*dbw).WriteCScript(Hash160(redeemScript), redeemScript);
+    return CWalletDB(*dbw).WriteCScript(address, redeemScript);
 }
 
-bool CWallet::AddParamScript(const CScript& redeemScript)
+bool CWallet::AddParamScript(const CScript& redeemScript, const uint160& address)
 {
-    if (!CCryptoKeyStore::AddParamScript(redeemScript))
+    if (!CCryptoKeyStore::AddParamScript(redeemScript, address))
         return false;
-    return CWalletDB(*dbw).WriteCScript(Hash160(redeemScript), redeemScript);
+    return CWalletDB(*dbw).WriteCScript(address, redeemScript);
 }
 
-bool CWallet::LoadCScript(const CScript& redeemScript)
+bool CWallet::LoadCScript(const CScript& redeemScript, const uint160& address)
 {
-    return CCryptoKeyStore::AddCScript(redeemScript);
+    return CCryptoKeyStore::AddCScript(redeemScript, address);
 }
 
-bool CWallet::LoadParamScript(const CScript& redeemScript)
+bool CWallet::LoadParamScript(const CScript& redeemScript, const uint160& address)
 {
-    return CCryptoKeyStore::AddParamScript(redeemScript);
+    return CCryptoKeyStore::AddParamScript(redeemScript, address);
 }
 
 bool CWallet::AddWatchOnly(const CScript& dest)
@@ -1688,7 +1688,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const referral::Address& parentAddress,
         const CPubKey& signPubKey)
 {
-    return GenerateNewReferral(2, id, signPubKey, parentAddress);
+    return GenerateNewReferral(3, id, signPubKey, parentAddress);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(

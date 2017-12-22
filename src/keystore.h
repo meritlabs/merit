@@ -35,11 +35,11 @@ public:
     virtual bool GetPubKey(const CKeyID &address, CPubKey& vchPubKeyOut) const =0;
 
     //! Support for BIP 0013 : see https://github.com/bitcoin/bips/blob/master/bip-0013.mediawiki
-    virtual bool AddCScript(const CScript& redeemScript) =0;
+    virtual bool AddCScript(const CScript& redeemScript, const uint160&) =0;
     virtual bool HaveCScript(const CScriptID &hash) const =0;
     virtual bool GetCScript(const CScriptID &hash, CScript& redeemScriptOut) const =0;
 
-    virtual bool AddParamScript(const CScript& redeemScript) =0;
+    virtual bool AddParamScript(const CScript& redeemScript, const uint160&) =0;
     virtual bool HaveParamScript(const CParamScriptID &hash) const =0;
     virtual bool GetParamScript(const CParamScriptID &hash, CScript& redeemScriptOut) const =0;
 
@@ -111,11 +111,11 @@ public:
         }
         return false;
     }
-    bool AddCScript(const CScript& redeemScript) override;
+    bool AddCScript(const CScript& redeemScript, const uint160&) override;
     bool HaveCScript(const CScriptID &hash) const override;
     bool GetCScript(const CScriptID &hash, CScript& redeemScriptOut) const override;
 
-    bool AddParamScript(const CScript& redeemScript) override;
+    bool AddParamScript(const CScript& redeemScript, const uint160&) override;
     bool HaveParamScript(const CParamScriptID &hash) const override;
     bool GetParamScript(const CParamScriptID &hash, CScript& redeemScriptOut) const override;
 

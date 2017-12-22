@@ -579,7 +579,7 @@ static UniValue EasySend(
     }
 
     //add script to wallet so we can redeem it later if needed.
-    pwallet.AddCScript(easy_send_script);
+    pwallet.AddCScript(easy_send_script, easy_send_address);
     pwallet.SetAddressBook(script_id, "", "easysend");
     pwallet.SetAddressBook(easy_send_address, "", "easysend");
 
@@ -713,7 +713,7 @@ static UniValue EasyReceive(
     //Make sure to add keys and CScript before we create the transaction
     //because CreateTransaction assumes things are in your wallet.
     pwallet.AddKeyPubKey(escrow_key, escrow_pub);
-    pwallet.AddCScript(easy_send_script);
+    pwallet.AddCScript(easy_send_script, easy_send_address);
     pwallet.SetAddressBook(easy_send_address, "", "easysend");
 
     if (!pwallet.CreateTransaction(
@@ -1108,8 +1108,7 @@ UniValue createvault(const JSONRPCRequest& request)
 
         const auto txid = wtx.GetHash().GetHex();
 
-        pwallet->AddParamScript(vault_script);
-        pwallet->AddParamScript(script_pub_key);
+        pwallet->AddParamScript(vault_script, vault_address);
 
         UniValue ret(UniValue::VOBJ);
         ret.push_back(Pair("vault_address", EncodeDestination(vault_address)));
@@ -1225,7 +1224,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     //Make sure to add keys and CScript before we create the transaction
     //because CreateTransaction assumes things are in your wallet.
-    pwallet->AddParamScript(vaults[0].script);
+    pwallet->AddParamScript(vaults[0].script, *script_id);
 
     bool subtract_fee_from_amount = true;
 
@@ -1461,7 +1460,7 @@ UniValue spendvault(const JSONRPCRequest& request)
 
     //Make sure to add keys and CScript before we create the transaction
     //because CreateTransaction assumes things are in your wallet.
-    pwallet->AddParamScript(vaults[0].script);
+    pwallet->AddParamScript(vaults[0].script, *script_id);
 
     //The two recipients are the spend key and the vault.
     //If there is change the change will go into the same vault.
@@ -2263,6 +2262,7 @@ UniValue addmultisigaddress(const JSONRPCRequest& request)
             "       \"address\"  (string) merit address or hex-encoded public key\n"
             "       ...,\n"
             "     ]\n"
+            "2. \"script referral pubkey id\" (string) Pub key Id used to refer the script\n"
             "3. \"account\"      (string, optional) DEPRECATED. An account to assign the addresses to.\n"
 
             "\nResult:\n"
@@ -2279,16 +2279,21 @@ UniValue addmultisigaddress(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
+    uint160 scriptAddress;
+    auto scriptDest = DecodeDestination(request.params[2].get_str());
+    GetUint160(scriptDest, scriptAddress);
+
     std::string strAccount;
-    if (!request.params[2].isNull())
-        strAccount = AccountFromValue(request.params[2]);
+    if (!request.params[3].isNull())
+        strAccount = AccountFromValue(request.params[3]);
 
     // Construct using pay-to-script-hash:
     CScript inner = _createmultisig_redeemScript(pwallet, request.params);
     CScriptID innerID = inner;
-    pwallet->AddCScript(inner);
+    pwallet->AddCScript(inner, scriptAddress);
 
     pwallet->SetAddressBook(innerID, strAccount, "send");
+    pwallet->SetAddressBook(scriptDest, strAccount, "send");
     return EncodeDestination(innerID);
 }
 
@@ -2314,8 +2319,8 @@ public:
                 !VerifyScript(sigs.scriptSig, witscript, &sigs.scriptWitness, MANDATORY_SCRIPT_VERIFY_FLAGS | SCRIPT_VERIFY_WITNESS_PUBKEYTYPE, DummySignatureCreator(pwallet).Checker())) {
                 return false;
             }
-            pwallet->AddCScript(witscript);
             result = CScriptID(witscript);
+            pwallet->AddCScript(witscript, result);
             return true;
         }
         return false;
@@ -2339,8 +2344,8 @@ public:
                 !VerifyScript(sigs.scriptSig, witscript, &sigs.scriptWitness, MANDATORY_SCRIPT_VERIFY_FLAGS | SCRIPT_VERIFY_WITNESS_PUBKEYTYPE, DummySignatureCreator(pwallet).Checker())) {
                 return false;
             }
-            pwallet->AddCScript(witscript);
             result = CScriptID(witscript);
+            pwallet->AddCScript(witscript, result);
             return true;
         }
         return false;
@@ -2364,8 +2369,8 @@ public:
                 !VerifyScript(sigs.scriptSig, witscript, &sigs.scriptWitness, MANDATORY_SCRIPT_VERIFY_FLAGS | SCRIPT_VERIFY_WITNESS_PUBKEYTYPE, DummySignatureCreator(pwallet).Checker())) {
                 return false;
             }
-            pwallet->AddCScript(witscript);
             result = CScriptID(witscript);
+            pwallet->AddCScript(witscript,  result);
             return true;
         }
         return false;

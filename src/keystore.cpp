@@ -37,13 +37,13 @@ bool CBasicKeyStore::AddKeyPubKey(const CKey& key, const CPubKey &pubkey)
     return true;
 }
 
-bool CBasicKeyStore::AddCScript(const CScript& redeemScript)
+bool CBasicKeyStore::AddCScript(const CScript& redeemScript, const uint160& address)
 {
     if (redeemScript.size() > MAX_SCRIPT_ELEMENT_SIZE)
         return error("CBasicKeyStore::AddCScript(): redeemScripts > %i bytes are invalid", MAX_SCRIPT_ELEMENT_SIZE);
 
     LOCK(cs_KeyStore);
-    mapScripts[CScriptID(redeemScript)] = redeemScript;
+    mapScripts[CScriptID(address)] = redeemScript;
     return true;
 }
 
@@ -65,13 +65,13 @@ bool CBasicKeyStore::GetCScript(const CScriptID &hash, CScript& redeemScriptOut)
     return false;
 }
 
-bool CBasicKeyStore::AddParamScript(const CScript& redeemScript)
+bool CBasicKeyStore::AddParamScript(const CScript& redeemScript, const uint160& address)
 {
     if (redeemScript.size() > MAX_SCRIPT_ELEMENT_SIZE)
         return error("CBasicKeyStore::AddCScript(): redeemScripts > %i bytes are invalid", MAX_SCRIPT_ELEMENT_SIZE);
 
     LOCK(cs_KeyStore);
-    mapParamScripts[CParamScriptID(redeemScript)] = redeemScript;
+    mapParamScripts[CParamScriptID(address)] = redeemScript;
     return true;
 }
 
@@ -96,7 +96,7 @@ bool CBasicKeyStore::GetParamScript(const CParamScriptID &hash, CScript& redeemS
 bool CBasicKeyStore::AddReferralAddressPubKey(const uint160& address, char address_type, const CKeyID& pubkey_id)
 {
     LOCK(cs_KeyStore);
-    debug("%s: Adding new referral address -> pubkey mapping to the key store.\n", __func__);
+    debug("%s: Adding new referral address -> pubkey mapping to the key store.\n", address.GetHex());
     mapReferralAddresses[std::make_pair(address, address_type)] = pubkey_id;
 
     return true;

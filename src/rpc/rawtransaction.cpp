@@ -981,8 +981,18 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
                 UniValue v = find_value(prevOut, "redeemScript");
                 if (!v.isNull()) {
                     std::vector<unsigned char> rsData(ParseHexV(v, "redeemScript"));
+                    std::vector<unsigned char> scriptPubKeyData(ParseHexV(v, "scriptPubKey"));
                     CScript redeemScript(rsData.begin(), rsData.end());
-                    tempKeystore.AddCScript(redeemScript);
+
+                    CScript scriptPubKey(scriptPubKeyData.begin(), scriptPubKeyData.end());
+                    CTxDestination dest;
+                    if(ExtractDestination(scriptPubKey, dest)) {
+                        uint160 addr;
+                        if(GetUint160(dest, addr)) {
+                            tempKeystore.AddCScript(redeemScript, addr);
+                        }
+                    }
+
                 }
             }
         }
