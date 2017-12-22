@@ -593,6 +593,104 @@ static UniValue EasySend(
     return ret;
 }
 
+struct EasySendCoin 
+{
+    Coin coin;
+    COutPoint out;
+};
+
+using EasySendCoins = std::vector<EasySendCoin>;
+
+
+void FindEasySendCoins(const CScriptID& easy_send_address, EasySendCoins& coins)
+{
+    CCoinsViewCache &view_chain = *pcoinsTip;
+    CCoinsViewMemPool viewMempool(&view_chain, mempool);
+    CCoinsViewCache view(&viewMempool);
+
+    const int SCRIPT_TYPE = 2;
+
+    using MempoolOutputs = std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>>;
+    MempoolOutputs mempool_outputs;
+    std::vector<std::pair<uint160, int> > addresses = {{easy_send_address, SCRIPT_TYPE}};
+    mempool.getAddressIndex(addresses, mempool_outputs);
+
+    for(const auto& m : mempool_outputs) {
+        COutPoint out{m.first.txhash, m.first.index};
+        auto coin = view.AccessCoin(out);
+        if(!coin.out.IsNull()) {
+            coins.push_back({coin, out});
+        }
+    }
+
+    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > chain_outputs;
+    if(!GetAddressUnspent(easy_send_address, SCRIPT_TYPE, chain_outputs)) {
+        throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Cannot find coin with address: " + EncodeDestination(easy_send_address));
+    }
+
+    for(const auto& c : chain_outputs) {
+        COutPoint out{c.first.txhash, c.first.index};
+        auto coin = view.AccessCoin(out);
+        if(!coin.out.IsNull()) {
+            coins.push_back({coin, out});
+        }
+    }
+
+    if(coins.empty()) {
+        throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Cannot find unspent coin with address: " + EncodeDestination(easy_send_address));
+    }
+
+}
+
+void SelectEasySendCoins(
+        CWallet&  pwallet,
+        CCoinControl& coin_control,
+        const EasySendCoins coins, 
+        CAmount& unspent_amount) { 
+
+    for(const auto& c : coins) {
+
+        CSpentIndexValue spent_value;
+        if(GetSpentIndex(
+                    {c.out.hash, static_cast<unsigned int>(c.out.n)},
+                    spent_value)) {
+
+            continue;
+        }
+
+        unspent_amount += c.coin.out.nValue;
+
+
+        //get the easy send transaction based on easy_send_address
+        CTransactionRef unspent_tx;
+        uint256 blockHash;
+        if(!GetTransaction(
+                    c.out.hash,
+                    unspent_tx,
+                    Params().GetConsensus(),
+                    blockHash, true)) {
+
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Unable to find transaction with id: " + HexStr(c.out.hash));
+        }
+
+        // Generate a transaction and add it to the wallet so that CreateTransaction
+        // can find and select it when getting and signing the transaction vin.
+        CWalletTx unspent_wtx{&pwallet, unspent_tx};
+        unspent_wtx.hashBlock = blockHash;
+        unspent_wtx.nIndex = 0; //hack to get around not having CBlockIndex
+
+        pwallet.AddToWallet(unspent_wtx);
+        coin_control.Select({c.out.hash, static_cast<unsigned int>(c.out.n)});
+        coin_control.fAllowWatchOnly = true;
+    }
+}
+
 static UniValue EasyReceive(
         CWallet&  pwallet,
         const std::string& secret,
@@ -631,53 +729,24 @@ static UniValue EasyReceive(
     MixAddresses(script_id, sender_pub.GetID(), mixed_address);
     CScriptID easy_send_address{mixed_address};
 
-    const int SCRIPT_TYPE = 2;
+    //Make sure to add keys and CScript before we create the transaction
+    //because CreateTransaction assumes things are in your wallet.
 
-    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > coins;
-    if(!GetAddressUnspent(easy_send_address, SCRIPT_TYPE, coins)) {
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Cannot find coin with address: " + EncodeDestination(easy_send_address));
-    }
+    pwallet.AddReferralAddressPubKey(easy_send_address, sender_pub.GetID());
+    pwallet.AddKeyPubKey(escrow_key, escrow_pub);
+    pwallet.AddCScript(easy_send_script, easy_send_address);
+    pwallet.SetAddressBook(easy_send_address, "", "easysend");
 
-    if(coins.empty()) {
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Cannot find unspent coin with address: " + EncodeDestination(easy_send_address));
-    }
+    EasySendCoins coins;
+    CAmount unspent_amount = 0;
 
-    if(coins.size() > 1) {
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Only expected 1 coin with the address: " + EncodeDestination(easy_send_address));
-    }
+    FindEasySendCoins(easy_send_address, coins);
+    SelectEasySendCoins(pwallet, coin_control, coins, unspent_amount);
 
-    const auto& coin = coins.at(0);
-    const auto& unspent_key = coin.first;
-    const auto& unspent_val = coin.second.satoshis;
-
-    CSpentIndexValue spent_value;
-    if(GetSpentIndex(
-            {unspent_key.txhash, static_cast<unsigned int>(unspent_key.index)},
-            spent_value)) {
-
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Coin has already been spent at address: " + EncodeDestination(easy_send_address));
-    }
-
-    //get the easy send transaction based on easy_send_address
-    CTransactionRef unspent_tx;
-    uint256 blockHash;
-    if(!GetTransaction(
-                unspent_key.txhash,
-                unspent_tx,
-                Params().GetConsensus(),
-                blockHash, true)) {
-
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Unable to find transaction with id: " + HexStr(unspent_key.txhash));
+    if(unspent_amount == 0) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Coin has already been spent at address: " + EncodeDestination(easy_send_address));
     }
 
     // Reserve a key to accept the funds into.
@@ -694,27 +763,12 @@ static UniValue EasyReceive(
 
     std::string error;
     std::vector<CRecipient> recipients = {
-        {script_pub_key, unspent_val, fSubtractFeeFromAmount}
+        {script_pub_key, unspent_amount, fSubtractFeeFromAmount}
     };
 
     int change_pos_ret = -1;
     CAmount fee_required = 0;
 
-    // Generate a transaction and add it to the wallet so that CreateTransaction
-    // can find and select it when getting and signing the transaction vin.
-    CWalletTx unspent_wtx{&pwallet, unspent_tx};
-    unspent_wtx.hashBlock = blockHash;
-    unspent_wtx.nIndex = 0; //hack to get around not having CBlockIndex
-
-    pwallet.AddToWallet(unspent_wtx);
-    coin_control.Select({unspent_key.txhash, static_cast<unsigned int>(unspent_key.index)});
-    coin_control.fAllowWatchOnly = true;
-
-    //Make sure to add keys and CScript before we create the transaction
-    //because CreateTransaction assumes things are in your wallet.
-    pwallet.AddKeyPubKey(escrow_key, escrow_pub);
-    pwallet.AddCScript(easy_send_script, easy_send_address);
-    pwallet.SetAddressBook(easy_send_address, "", "easysend");
 
     if (!pwallet.CreateTransaction(
                 recipients,
@@ -739,7 +793,7 @@ static UniValue EasyReceive(
     //add script to wallet so we can redeem it later if needed.
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
-    ret.push_back(Pair("amount", ValueFromAmount(unspent_val)));
+    ret.push_back(Pair("amount", ValueFromAmount(unspent_amount)));
 
     return ret;
 }

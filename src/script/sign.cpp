@@ -254,10 +254,9 @@ bool ProduceSignature(const BaseSignatureCreator& creator, const CScript& fromPu
 
     if (P2SH) {
         const auto& keystore = creator.KeyStore();
-        char address_type = whichType == TX_SCRIPTHASH ? 2 : 3;
 
         CKeyID pub_key_id;
-        if(!keystore.GetReferralAddressPubKey(scriptAddress, address_type, pub_key_id)) {
+        if(!keystore.GetReferralAddressPubKey(scriptAddress, pub_key_id)) {
             return false;
         }
 

@@ -20,6 +20,9 @@
 
 #include <type_traits>
 
+//remove
+#include "base58.h"
+
 namespace {
 
     // size of paramed pay-to-script-hash script before params
@@ -1886,8 +1889,8 @@ bool TransactionSignatureChecker::GetOutputAmount(int index, CAmount& amount) co
 bool TransactionSignatureChecker::CheckCoinHeight(const int maxHeight) const
 {
     assert(blockHeight >= 0);
-    assert(blockHeight >= coinHeight);
-    auto height = blockHeight - coinHeight;
+    const auto safeCoinHeight = std::min(coinHeight, blockHeight);
+    auto height = blockHeight - safeCoinHeight;
     return maxHeight >= 0 && height <= maxHeight;
 }
 
@@ -1987,10 +1990,11 @@ bool PushMixedAddress(Stack& stack, ScriptError* serror)
         //Compute the new mixed address and push it on the stack.
         //In both pay-to-script-hash and parameterized-pay-to-script-hash we
         //try to compare against a HASH160 which is considered the "address" of the script.
-        uint160 mixed_address;
-        MixAddresses(script_id, pub_key_id, mixed_address);
+        StackElement mixed_script(script_id.size() + pub_key_id.size());
+        std::copy(script_id.begin(), script_id.end(), mixed_script.begin());
+        std::copy(pub_key_id.begin(), pub_key_id.end(), mixed_script.begin() + script_id.size());
 
-        stack.push_back(StackElement{mixed_address.begin(), mixed_address.end()});
+        stack.push_back(mixed_script);
         return true;
 }
 

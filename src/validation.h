@@ -476,7 +476,7 @@ public:
         coinHeight{coinHeightIn},
         cacheStore{cacheIn},
         error{SCRIPT_ERR_UNKNOWN_ERROR},
-        txdata{txdataIn} { }
+        txdata{txdataIn} {}
 
     bool operator()();
 
