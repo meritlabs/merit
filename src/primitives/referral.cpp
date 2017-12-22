@@ -5,6 +5,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "primitives/referral.h"
+#include "script/standard.h"
 
 #include "hash.h"
 #include "tinyformat.h"
@@ -28,13 +29,8 @@ MutableReferral::MutableReferral(
         if (addressType == 1) {
             address = addressIn;
         } else {
-            uint160 res;
-            uint160 pubkeyHash = Hash160(pubkey.begin(), pubkey.end());
-
-            CHash160()
-            .Write(addressIn.begin(), addressIn.size())
-            .Write(pubkeyHash.begin(), pubkeyHash.size())
-            .Finalize(address.begin());
+            uint160 pubkeyHash = pubkey.GetID();
+            MixAddresses(addressIn, pubkeyHash, address);
         }
     }
 

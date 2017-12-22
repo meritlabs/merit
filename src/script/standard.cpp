@@ -496,3 +496,11 @@ bool GetUint160(const CTxDestination& dest, uint160& addr)
 
     return true;
 }
+
+void MixAddresses(const uint160& a, const uint160& b, uint160& res)
+{
+    CHash160()
+        .Write(a.begin(), a.size())
+        .Write(b.begin(), b.size())
+        .Finalize(res.begin());
+}

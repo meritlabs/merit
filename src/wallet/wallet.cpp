@@ -3289,10 +3289,10 @@ bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef
     rtx.BindWallet(this);
 
     if (!key.IsValid()) {
-        printf("%s: Key is not provided. Looking for key in the wallet.\n", __func__);
+        debug("%s: Key is not provided. Looking for key in the wallet.\n", __func__);
 
         if (!HaveReferralAddressPubKey(referral->GetAddress(), referral->addressType)) {
-            printf("%s: Public key for referral address not found.\n", __func__);
+            debug("%s: Public key for referral address not found.\n", __func__);
             return false;
         }
 
@@ -3303,8 +3303,6 @@ bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef
         assert(it != mapKeys.end());
 
         key.Set(it->second.begin(), it->second.end(), it->second.IsCompressed());
-    } else {
-        printf("%s: Provided key is valid.\n", __func__);
     }
 
     valtype signature;

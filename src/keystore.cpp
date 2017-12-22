@@ -96,7 +96,7 @@ bool CBasicKeyStore::GetParamScript(const CParamScriptID &hash, CScript& redeemS
 bool CBasicKeyStore::AddReferralAddressPubKey(const uint160& address, char address_type, const CKeyID& pubkey_id)
 {
     LOCK(cs_KeyStore);
-    printf("%s: Adding new referral address -> pubkey mapping to the key store.\n", __func__);
+    debug("%s: Adding new referral address -> pubkey mapping to the key store.\n", __func__);
     mapReferralAddresses[std::make_pair(address, address_type)] = pubkey_id;
 
     return true;

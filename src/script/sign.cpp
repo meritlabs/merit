@@ -246,7 +246,20 @@ bool ProduceSignature(const BaseSignatureCreator& creator, const CScript& fromPu
     }
 
     if (P2SH) {
-        result.push_back(std::vector<unsigned char>(subscript.begin(), subscript.end()));
+        const auto& keystore = creator.KeyStore();
+        char address_type = whichType == TX_SCRIPTHASH ? 2 : 3;
+        if(subscript.size() != 20) {
+            return false;
+        }
+
+        valtype subscript_bytes{subscript.begin(), subscript.end()};
+        CKeyID pub_key_id;
+        if(!keystore.GetReferralAddressPubKey(uint160(subscript_bytes), address_type, pub_key_id)) {
+            return false;
+        }
+
+        result.push_back(valtype{pub_key_id.begin(), pub_key_id.end()});
+        result.push_back(subscript_bytes);
     }
     sigdata.scriptSig = PushAll(result);
 

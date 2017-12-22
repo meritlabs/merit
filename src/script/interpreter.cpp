@@ -1966,6 +1966,34 @@ static bool VerifyWitnessProgram(
     return true;
 }
 
+bool PushMixedAddress(Stack& stack, ScriptError* serror)
+{ 
+        if(stack.size() < 2) {
+            return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
+        }
+
+        //Compute Script ID
+        const auto& serialized_script = stacktop(-1); 
+        CScriptID script_id = CScript{serialized_script.begin(), serialized_script.end()}; 
+
+        //Get the Pub Key ID
+        const auto& key_id_bytes = stacktop(-2);
+        if(key_id_bytes.size() != 20) {
+            return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
+        }
+
+        CKeyID pub_key_id(uint160{key_id_bytes});
+
+        //Compute the new mixed address and push it on the stack.
+        //In both pay-to-script-hash and parameterized-pay-to-script-hash we
+        //try to compare against a HASH160 which is considered the "address" of the script.
+        uint160 mixed_address;
+        MixAddresses(script_id, pub_key_id, mixed_address);
+
+        stack.push_back(StackElement{mixed_address.begin(), mixed_address.end()});
+        return true;
+}
+
 bool VerifyScript(
         const CScript& scriptSig,
         const CScript& scriptPubKey,
@@ -1987,18 +2015,43 @@ bool VerifyScript(
     }
 
     Stack stack, stackCopy;
-    if (!EvalPushOnlyScript(stack, scriptSig, flags, serror))
-        // serror is set
+    if (!EvalPushOnlyScript(stack, scriptSig, flags, serror)) {
+        assert(*serror != SCRIPT_ERR_OK);
         return false;
-    if (flags & SCRIPT_VERIFY_P2SH)
+    }
+
+    if (flags & SCRIPT_VERIFY_P2SH) { 
         stackCopy = stack;
-    if (!EvalScript(stack, scriptPubKey, flags, checker, SIGVERSION_BASE, serror))
+    }
+
+    /**
+     * For scripts we need to combine the hash of the serialized script and
+     * a pub key id to create a new hash which is the address of the script.
+     *
+     * This is both true for pay-to-script-hash and parameterized-pay-to-script-hash
+     */
+    if ((flags & SCRIPT_VERIFY_P2SH) && 
+            (scriptPubKey.IsPayToScriptHash() || 
+             scriptPubKey.IsParameterizedPayToScriptHash())) {
+
+        if(!PushMixedAddress(stack, serror)) {
+            assert(*serror != SCRIPT_ERR_OK);
+            return false;
+        }
+    }
+
+    if (!EvalScript(stack, scriptPubKey, flags, checker, SIGVERSION_BASE, serror)) {
         // serror is set
         return false;
-    if (stack.empty())
+    }
+
+    if (stack.empty()) { 
         return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
-    if (CastToBool(stack.back()) == false)
+    }
+
+    if (CastToBool(stack.back()) == false) {
         return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
+    }
 
     // Bare witness programs
     int witnessversion;
@@ -2032,6 +2085,10 @@ bool VerifyScript(
 
         const valtype& pubKeySerialized = stack.back();
         CScript pubKey2(pubKeySerialized.begin(), pubKeySerialized.end());
+
+        //Pop serialized script
+        popstack(stack);
+        //Pop pub key id
         popstack(stack);
 
         if (!EvalScript(stack, pubKey2, flags, checker, SIGVERSION_BASE, serror))
@@ -2071,6 +2128,10 @@ bool VerifyScript(
         //pop off the serialized script in the scriptSig
         const valtype& serialized_script = stack.back();
         CScript redeem_script(serialized_script.begin(), serialized_script.end());
+
+        //Pop serialized script
+        popstack(stack);
+        //Pop pub key id
         popstack(stack);
 
         //Even though we already have the params of the stack we need

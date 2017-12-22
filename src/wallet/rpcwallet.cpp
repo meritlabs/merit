@@ -518,19 +518,32 @@ static UniValue EasySend(
         GetScriptForEasySend(max_blocks, sender_pub, receiver_pub);
 
     CScriptID script_id = easy_send_script;
-    CScript script_pub_key = GetScriptForDestination(script_id);
 
-    if(!pwallet.GenerateNewReferral(receiver_pub, pwallet.ReferralAddress(), receiver_key)) {
+    if(!pwallet.GenerateNewReferral(
+                receiver_pub,
+                pwallet.ReferralAddress(),
+                receiver_key)) {
+
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Unable to generate referral for receiver key");
     }
 
-    if(!pwallet.GenerateNewReferral(script_id, pwallet.ReferralAddress(), pwallet.ReferralPubKey())) {
+    referral::ReferralRef script_referral=
+        pwallet.GenerateNewReferral(
+                    script_id,
+                    sender_pub.GetID(),
+                    sender_pub);
+
+    if(!script_referral) {
+
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Unable to generate referral for easy send script");
     }
+
+    CScriptID easy_send_address{script_referral->GetAddress()};
+    CScript script_pub_key = GetScriptForDestination(easy_send_address);
 
     std::string error;
     std::vector<CRecipient> recipients = {
@@ -568,11 +581,12 @@ static UniValue EasySend(
     //add script to wallet so we can redeem it later if needed.
     pwallet.AddCScript(easy_send_script);
     pwallet.SetAddressBook(script_id, "", "easysend");
+    pwallet.SetAddressBook(easy_send_address, "", "easysend");
 
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
     ret.push_back(Pair("secret", HexStr(secret.substr(0, RANDOM_BYTES_SIZE))));
-    ret.push_back(Pair("scriptid", EncodeDestination(script_id)));
+    ret.push_back(Pair("address", EncodeDestination(easy_send_address)));
     ret.push_back(Pair("senderpubkey", HexStr(sender_pub)));
     ret.push_back(Pair("maxblocks", max_blocks));
 
@@ -613,30 +627,34 @@ static UniValue EasyReceive(
     auto easy_send_script = GetScriptForEasySend(max_blocks, sender_pub, escrow_pub);
     CScriptID script_id = easy_send_script;
 
+    uint160 mixed_address;
+    MixAddresses(script_id, sender_pub.GetID(), mixed_address);
+    CScriptID easy_send_address{mixed_address};
+
     const int SCRIPT_TYPE = 2;
 
-    std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
-    if(!GetAddressIndex(script_id, SCRIPT_TYPE, coins)) {
+    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > coins;
+    if(!GetAddressUnspent(easy_send_address, SCRIPT_TYPE, coins)) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
-                "Cannot find coin with address: " + EncodeDestination(script_id));
+                "Cannot find coin with address: " + EncodeDestination(easy_send_address));
     }
 
     if(coins.empty()) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
-                "Cannot find unspent coin with address: " + EncodeDestination(script_id));
+                "Cannot find unspent coin with address: " + EncodeDestination(easy_send_address));
     }
 
     if(coins.size() > 1) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
-                "Only expected 1 coin with the address: " + EncodeDestination(script_id));
+                "Only expected 1 coin with the address: " + EncodeDestination(easy_send_address));
     }
 
     const auto& coin = coins.at(0);
     const auto& unspent_key = coin.first;
-    const auto& unspent_val = coin.second;
+    const auto& unspent_val = coin.second.satoshis;
 
     CSpentIndexValue spent_value;
     if(GetSpentIndex(
@@ -645,10 +663,10 @@ static UniValue EasyReceive(
 
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
-                "Coin has already been spent at address: " + EncodeDestination(script_id));
+                "Coin has already been spent at address: " + EncodeDestination(easy_send_address));
     }
 
-    //get the easy send transaction based on script_id
+    //get the easy send transaction based on easy_send_address
     CTransactionRef unspent_tx;
     uint256 blockHash;
     if(!GetTransaction(
@@ -696,7 +714,7 @@ static UniValue EasyReceive(
     //because CreateTransaction assumes things are in your wallet.
     pwallet.AddKeyPubKey(escrow_key, escrow_pub);
     pwallet.AddCScript(easy_send_script);
-    pwallet.SetAddressBook(script_id, "", "easysend");
+    pwallet.SetAddressBook(easy_send_address, "", "easysend");
 
     if (!pwallet.CreateTransaction(
                 recipients,
@@ -1058,9 +1076,24 @@ UniValue createvault(const JSONRPCRequest& request)
         }
 
         CParamScriptID script_id = vault_script;
+
+        referral::ReferralRef script_referral =
+            pwallet->GenerateNewReferral(
+                        script_id,
+                        pwallet->ReferralAddress(),
+                        pwallet->ReferralPubKey());
+
+        if(!script_referral) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Unable to generate referral for the vault script");
+        }
+
+        CParamScriptID vault_address{script_referral->GetAddress()};
+
         auto script_pub_key =
             GetParameterizedP2SH(
-                    script_id,
+                    vault_address,
                     ToByteVector(spend_pub_key),
                     ToByteVector(master_pub_key),
                     ExpandParam(whitelist),
@@ -1068,11 +1101,6 @@ UniValue createvault(const JSONRPCRequest& request)
                     ToByteVector(vault_tag),
                     0 /* simple is type 0 */);
 
-        if(!pwallet->GenerateNewReferral(script_id, pwallet->ReferralAddress(), pwallet->ReferralPubKey())) {
-            throw JSONRPCError(
-                    RPC_WALLET_ERROR,
-                    "Unable to generate referral for the vault script");
-        }
 
         CWalletTx wtx;
         CCoinControl no_coin_control; // This is a deprecated API
@@ -1084,7 +1112,7 @@ UniValue createvault(const JSONRPCRequest& request)
         pwallet->AddParamScript(script_pub_key);
 
         UniValue ret(UniValue::VOBJ);
-        ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
+        ret.push_back(Pair("vault_address", EncodeDestination(vault_address)));
         ret.push_back(Pair("txid", txid));
         ret.push_back(Pair("amount", ValueFromAmount(amount)));
         ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
@@ -4352,6 +4380,7 @@ UniValue unlockwallet(const JSONRPCRequest& request)
             "1. parentaddress   (string, required) Parent address needed to unlock the wallet.\n"
             "\nResult:\n"
             "{\n"
+            "  \"address\": xxxxx,                (string) the wallet's root address\n"
             "  \"walletname\": xxxxx,             (string) the wallet name\n"
             "  \"walletversion\": xxxxx,          (numeric) the wallet version\n"
             "  \"balance\": xxxxxxx,              (numeric) the total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
@@ -4388,6 +4417,7 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     UniValue obj(UniValue::VOBJ);
 
     size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
+    obj.push_back(Pair("address", EncodeDestination(CKeyID{referral->GetAddress()})));
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
     obj.push_back(Pair("balance", ValueFromAmount(pwallet->GetBalance())));
