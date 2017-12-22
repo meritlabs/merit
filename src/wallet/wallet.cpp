@@ -3289,8 +3289,6 @@ bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef
     rtx.BindWallet(this);
 
     if (!key.IsValid()) {
-        debug("%s: Key is not provided. Looking for key in the wallet.\n", __func__);
-
         if (!HaveReferralAddressPubKey(referral->GetAddress(), referral->addressType)) {
             debug("%s: Public key for referral address not found.\n", __func__);
             return false;
