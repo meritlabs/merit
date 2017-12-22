@@ -130,7 +130,6 @@ void ReferralTxMemPool::RemoveUnchecked(refiter it, MemPoolRemovalReason reason)
 {
     NotifyEntryRemoved(it->GetSharedEntryValue(), reason);
 
-
     // check mempool referrals for a parent
     auto parentit =
         std::find_if(mapRTx.begin(), mapRTx.end(),
@@ -146,11 +145,13 @@ void ReferralTxMemPool::RemoveUnchecked(refiter it, MemPoolRemovalReason reason)
         cachedInnerUsage -= memusage::IncrementalDynamicUsage(s);
     }
 
+    assert(mapChildren.count(it));
+
     cachedInnerUsage -= it->DynamicMemoryUsage();
     cachedInnerUsage -= memusage::DynamicUsage(mapChildren[it]);
 
-    mapRTx.erase(it);
     mapChildren.erase(it);
+    mapRTx.erase(it);
 
     assert(cachedInnerUsage >= 0);
 }
