@@ -1169,6 +1169,7 @@ UniValue createvault(const JSONRPCRequest& request)
         ret.push_back(Pair("txid", txid));
         ret.push_back(Pair("amount", ValueFromAmount(amount)));
         ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
+        ret.push_back(Pair("vault_script", ScriptToAsmStr(vault_script, true)));
         ret.push_back(Pair("tag", vault_tag.GetHex()));
         ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_pub_key_id)));
         ret.push_back(Pair("master_sk", HexStr(master_key.GetPrivKey())));
@@ -1376,6 +1377,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     assert(mtx.vin.size() == vaults.size());
 
+    const auto& referral_pub_key_id = pwallet->ReferralPubKey().GetID();
 
     for(size_t i = 0; i <  mtx.vin.size(); i++) {
         auto& in = mtx.vin[i];
@@ -1400,7 +1402,8 @@ UniValue renewvault(const JSONRPCRequest& request)
         in.scriptSig
             << sig
             << RENEW_MODE
-            << valtype(vault.script.begin(), vault.script.end());
+            << valtype{referral_pub_key_id.begin(), referral_pub_key_id.end()}
+            << valtype{vault.script.begin(), vault.script.end()};
     }
 
     wtx.SetTx(std::make_shared<CTransaction>(mtx));
@@ -1566,6 +1569,8 @@ UniValue spendvault(const JSONRPCRequest& request)
                 RPC_WALLET_ERROR, "Unable to find the spendkey in the keystore");
     }
 
+    const auto& referral_pub_key_id = pwallet->ReferralPubKey().GetID();
+
     for(size_t i = 0; i <  mtx.vin.size(); i++) {
         auto& in = mtx.vin[i];
         const auto& vault = vaults[i];
@@ -1589,7 +1594,8 @@ UniValue spendvault(const JSONRPCRequest& request)
         in.scriptSig
             << sig
             << SPEND_MODE
-            << valtype(vault.script.begin(), vault.script.end());
+            << valtype{referral_pub_key_id.begin(), referral_pub_key_id.end()}
+            << valtype{vault.script.begin(), vault.script.end()};
     }
 
     wtx.SetTx(std::make_shared<CTransaction>(mtx));
