@@ -19,14 +19,43 @@ bool Vault::SameKind(const Vault& o) const
     coin.out.scriptPubKey == o.coin.out.scriptPubKey;
 }
 
+using MempoolOutput = std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>;
+using MempoolOutputs = std::vector<MempoolOutput>;
+
+void FilterMempoolOutputs(const MempoolOutputs& outputs, MempoolOutputs& filtered)
+{
+    std::set<uint256> spending;
+
+    for(const auto& out : outputs) { 
+        if(!out.first.spending) continue;
+
+        spending.insert(out.second.prevhash);
+    }
+
+    filtered.reserve(outputs.size());
+
+    std::copy_if(outputs.begin(), outputs.end(), std::back_inserter(filtered),
+            [&spending](const MempoolOutput& out) { 
+                return !spending.count(out.first.txhash);
+            });
+}
+
 template <class Transactions>
 void ConvertToVaultOutputs(const Transactions& txns, VaultOutputs& outputs)
 {
-    using Pair = typename Transactions::value_type;
-    outputs.resize(outputs.size() + txns.size());
+    using Transaction = typename Transactions::value_type;
+    Transactions utxos;
+    utxos.reserve(txns.size());
 
-    std::transform(std::begin(txns), std::end(txns), std::begin(outputs),
-        [](const Pair& p) {
+    std::copy_if(txns.begin(), txns.end(), std::back_inserter(utxos), 
+            [](const Transaction& t) { 
+                return !t.first.spending;
+            });
+
+    outputs.resize(outputs.size() + utxos.size());
+
+    std::transform(utxos.begin(), utxos.end(), outputs.begin(),
+        [](const Transaction& p) {
             return COutPoint{
                 p.first.txhash,
                 static_cast<uint32_t>(p.first.index)};
@@ -82,10 +111,12 @@ VaultCoins FindUnspentVaultCoins(const uint160& address)
     //Get outputs from mempool
     const int PARAM_SCRIPT_TYPE = 3;
     std::vector<std::pair<uint160, int> > addresses = {{address, PARAM_SCRIPT_TYPE}};
-    using MempoolOutputs = std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>>;
     MempoolOutputs mempool_outputs;
     mempool.getAddressIndex(addresses, mempool_outputs);
-    ConvertToVaultOutputs(mempool_outputs, outputs);
+
+    MempoolOutputs filtered_mempool_outputs;
+    FilterMempoolOutputs(mempool_outputs, filtered_mempool_outputs);
+    ConvertToVaultOutputs(filtered_mempool_outputs, outputs);
 
     //Get outputs from chain
     using ChainOutputs = std::vector<std::pair<CAddressIndexKey, CAmount>>;
