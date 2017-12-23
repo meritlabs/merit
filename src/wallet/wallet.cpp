@@ -1658,6 +1658,10 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const referral::Address& parentAddress,
         CKey key)
 {
+    if(!signPubKey.IsValid()) { 
+        throw std::runtime_error("Cannot generate referral, the public key used is invalid");
+    }
+
     // generate referral for given public key
     auto referral =
         referral::MakeReferralRef(
