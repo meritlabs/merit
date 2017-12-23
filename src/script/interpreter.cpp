@@ -15,6 +15,7 @@
 #include "script/standard.h"
 #include "uint256.h"
 #include "util.h"
+#include "core_io.h"
 
 #include "utilstrencodings.h"
 
@@ -449,6 +450,25 @@ bool EvalScript(
         unsigned int flags,
         const BaseSignatureChecker& checker,
         SigVersion sigversion,
+        ScriptError* error)
+{
+    return EvalScript(
+        stack,
+        script,
+        flags,
+        checker,
+        sigversion,
+        Hash160(script.begin(), script.end()),
+        error);
+}
+
+bool EvalScript(
+        Stack& stack,
+        const CScript& script,
+        unsigned int flags,
+        const BaseSignatureChecker& checker,
+        SigVersion sigversion,
+        const uint160& self,
         ScriptError* serror)
 {
     static const CScriptNum bnZero(0);
@@ -1403,7 +1423,7 @@ bool EvalScript(
 
                         std::vector<uint160> possible_addresses(possible_address_count);
                         std::generate_n(std::begin(possible_addresses), possible_address_count,
-                                [&stack, &script, serror]() {
+                                [&stack, &script, serror, &self]() {
                                     valtype address;
                                     auto popped = Pop(stack, address, serror);
 
@@ -1413,7 +1433,7 @@ bool EvalScript(
                                     //the script coming into VerifyScript or a specific
                                     //address
                                     return address.size() != 20 ?
-                                            Hash160(script.begin(), script.end()) :
+                                            self :
                                             uint160{address};
                                 });
 
@@ -2010,22 +2030,22 @@ bool VerifyScript(
     if (witness == nullptr) {
         witness = &emptyWitness;
     }
+
     bool hadWitness = false;
 
     set_error(serror, SCRIPT_ERR_UNKNOWN_ERROR);
 
+    debug("Verifying ScriptSig: %s", ScriptToAsmStr(scriptSig));
     if (!scriptSig.IsPushOnly()) {
+        debug("ScriptSig is not push only: %s", ScriptToAsmStr(scriptSig));
         return set_error(serror, SCRIPT_ERR_SIG_PUSHONLY);
     }
 
     Stack stack, stackCopy;
     if (!EvalPushOnlyScript(stack, scriptSig, flags, serror)) {
         assert(*serror != SCRIPT_ERR_OK);
+        debug("Unable to push ScriptSig onto the stack: %s", ScriptToAsmStr(scriptSig));
         return false;
-    }
-
-    if (flags & SCRIPT_VERIFY_P2SH) { 
-        stackCopy = stack;
     }
 
     /**
@@ -2040,10 +2060,16 @@ bool VerifyScript(
 
         if(!PushMixedAddress(stack, serror)) {
             assert(*serror != SCRIPT_ERR_OK);
+            debug("Cannot mix the redeem script and the redeem pub key into an address: %s", ScriptToAsmStr(scriptSig));
             return false;
         }
     }
 
+    if (flags & SCRIPT_VERIFY_P2SH) { 
+        stackCopy = stack;
+    }
+
+    debug("Verifying PubScript: %s", ScriptToAsmStr(scriptPubKey));
     if (!EvalScript(stack, scriptPubKey, flags, checker, SIGVERSION_BASE, serror)) {
         // serror is set
         return false;
@@ -2087,21 +2113,42 @@ bool VerifyScript(
         // an empty stack and the EvalScript above would return false.
         assert(!stack.empty());
 
+        //Pop self address bytes and convert to an address. This is used
+        //by the interpreter to determiine the scripts address used by some
+        //opcodes.
+        auto self_address_bytes = stacktop(-1);
+        auto self_address = Hash160(self_address_bytes.begin(), self_address_bytes.end()); 
+        popstack(stack);
+
         const valtype& pubKeySerialized = stack.back();
         CScript pubKey2(pubKeySerialized.begin(), pubKeySerialized.end());
 
         //Pop serialized script
         popstack(stack);
-        //Pop pub key id
+
+        //Pop pub key used to beacon the script
         popstack(stack);
 
-        if (!EvalScript(stack, pubKey2, flags, checker, SIGVERSION_BASE, serror))
+        debug("Verifying Pay-To-ScriptHash: %s", ScriptToAsmStr(pubKey2));
+        if (!EvalScript(
+                    stack,
+                    pubKey2,
+                    flags,
+                    checker,
+                    SIGVERSION_BASE,
+                    self_address,
+                    serror)) {
             // serror is set
             return false;
-        if (stack.empty())
+        }
+
+        if (stack.empty()) {
             return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
-        if (!CastToBool(stack.back()))
+        }
+
+        if (!CastToBool(stack.back())) {
             return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
+        }
 
         // P2SH witness program
         if ((flags & SCRIPT_VERIFY_WITNESS) && pubKey2.IsWitnessProgram(witnessversion, witnessprogram)) {
@@ -2126,17 +2173,16 @@ bool VerifyScript(
 
         //swap stack back to what is was after evaluating scriptSig
         swap(stack, stackCopy);
-
         assert(!stack.empty());
+
+        //Pop self address
+        auto self_address_bytes = stacktop(-1);
+        auto self_address = Hash160(self_address_bytes.begin(), self_address_bytes.end()); 
+        popstack(stack);
 
         //pop off the serialized script in the scriptSig
         const valtype& serialized_script = stack.back();
         CScript redeem_script(serialized_script.begin(), serialized_script.end());
-
-        //Pop serialized script
-        popstack(stack);
-        //Pop pub key id
-        popstack(stack);
 
         //Even though we already have the params of the stack we need
         //We copy the params into a script and evaluate that they are push only
@@ -2145,8 +2191,9 @@ bool VerifyScript(
             return set_error(serror, SCRIPT_ERR_EXTRACT_PARAMS);
         }
 
-        if (!params_script.IsPushOnly())
+        if (!params_script.IsPushOnly()) {
             return set_error(serror, SCRIPT_ERR_SIG_PARAMS_PUSHONLY);
+        }
 
         Stack param_stack;
         if(!EvalPushOnlyScript(
@@ -2157,17 +2204,36 @@ bool VerifyScript(
             return set_error(serror, SCRIPT_ERR_SIG_PARAMS_PUSHONLY);
         }
 
+        //Pop serialized script
+        popstack(stack);
+
+        //Pop pub key used to beacon the script
+        popstack(stack);
+
         //make sure it only pushes data onto the stack
         stack.insert(stack.end(), param_stack.begin(), param_stack.end());
 
+        debug("Verifying Parameterized-Pay-To-ScriptHash: %s", ScriptToAsmStr(redeem_script));
         //execute the deserialized script with params at the top of the stack.
         //The script can then pop off params and use them in operands
-        if (!EvalScript(stack, redeem_script, flags, checker, SIGVERSION_BASE, serror))
+        if (!EvalScript(
+                    stack,
+                    redeem_script,
+                    flags,
+                    checker,
+                    SIGVERSION_BASE,
+                    self_address,
+                    serror)) {
             return false;
-        if (stack.empty())
+        }
+
+        if (stack.empty()) {
             return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
-        if (!CastToBool(stack.back()))
+        }
+
+        if (!CastToBool(stack.back())) {
             return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
+        }
 
         if ((flags & SCRIPT_VERIFY_WITNESS) && redeem_script.IsWitnessProgram(witnessversion, witnessprogram)) {
             hadWitness = true;

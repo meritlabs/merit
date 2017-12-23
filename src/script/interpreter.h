@@ -284,6 +284,15 @@ bool EvalScript(
         SigVersion sigversion,
         ScriptError* error = nullptr);
 
+bool EvalScript(
+        Stack& stack,
+        const CScript& script,
+        unsigned int flags,
+        const BaseSignatureChecker& checker,
+        SigVersion sigversion,
+        const uint160& self,
+        ScriptError* error = nullptr);
+
 bool VerifyScript(
         const CScript& scriptSig,
         const CScript& scriptPubKey,
