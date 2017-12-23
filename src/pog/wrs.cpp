@@ -25,7 +25,16 @@ namespace pog
             const uint256& rand_value,
             CAmount anv)
     {
-        const auto rand_uint64 = rand_value.GetUint64(0);
+        if(anv == 0) { 
+            return -LOG_MAX_UINT64;
+        }
+
+        //overflow here is intentional.
+        const auto rand_uint64 = SipHashUint256(0, 0, rand_value);
+
+        if(rand_uint64 == 0) {
+            return -LOG_MAX_UINT64;
+        }
 
         /*
          * We can think of rand_uint64 as a random value between 0-1.0 if we take 
@@ -43,7 +52,6 @@ namespace pog
         assert(log_rand <= 0);
 
         const BigFloat anv_f = anv;
-
         const WeightedKey weighted_key = log_rand / anv_f;
 
         return weighted_key;

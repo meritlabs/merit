@@ -336,7 +336,11 @@ bool ReferralsViewDB::AddAddressToLottery(
 
             //Only add entrants that are not already participating.
             if(pos == heap_size) {
-                if(!InsertLotteryEntrant(weighted_key, address_type, *address)) {
+                if(!InsertLotteryEntrant(
+                            weighted_key,
+                            address_type,
+                            *address,
+                            max_reservoir_size)) {
                     return false;
                 }
 
@@ -374,7 +378,11 @@ bool ReferralsViewDB::AddAddressToLottery(
                         return false;
                     }
 
-                    if(!InsertLotteryEntrant(weighted_key, address_type, *address)) {
+                    if(!InsertLotteryEntrant(
+                                weighted_key,
+                                address_type,
+                                *address,
+                                max_reservoir_size)) {
                         return false;
                     }
 
@@ -410,7 +418,9 @@ bool ReferralsViewDB::AddAddressToLottery(
     return true;
 }
 
-bool ReferralsViewDB::UndoLotteryEntrant(const LotteryUndo& undo)
+bool ReferralsViewDB::UndoLotteryEntrant(
+        const LotteryUndo& undo,
+        const size_t max_reservoir_size)
 {
     if(!RemoveFromLottery(undo.replaced_with)) {
         return false;
@@ -425,7 +435,8 @@ bool ReferralsViewDB::UndoLotteryEntrant(const LotteryUndo& undo)
     if(!InsertLotteryEntrant(
                 undo.replaced_key,
                 undo.replaced_address_type,
-                undo.replaced_address)) {
+                undo.replaced_address,
+                max_reservoir_size)) {
         return false;
     }
 
@@ -459,10 +470,12 @@ MaybeLotteryEntrant ReferralsViewDB::GetMinLotteryEntrant() const
 bool ReferralsViewDB::InsertLotteryEntrant(
         const pog::WeightedKey& key,
         char address_type,
-        const Address& address)
+        const Address& address,
+        const size_t max_reservoir_size)
 {
-
     auto heap_size = GetLotteryHeapSize();
+    assert(heap_size < max_reservoir_size);
+
     auto pos = heap_size;
 
     while(pos != 0)
@@ -493,9 +506,11 @@ bool ReferralsViewDB::InsertLotteryEntrant(
         return false;
     }
 
-    if(!m_db.Write(DB_LOT_SIZE, heap_size + 1))
+    size_t new_size = heap_size + 1;
+    if(!m_db.Write(DB_LOT_SIZE, new_size))
         return false;
 
+    assert(new_size <= max_reservoir_size);
     return true;
 }
 

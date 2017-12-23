@@ -94,7 +94,9 @@ public:
             const size_t max_reservoir_size,
             LotteryUndos&);
 
-    bool UndoLotteryEntrant(const LotteryUndo&);
+    bool UndoLotteryEntrant(
+            const LotteryUndo&,
+            const size_t max_reservoir_size);
 
 private:
     std::size_t GetLotteryHeapSize() const;
@@ -104,7 +106,8 @@ private:
     bool InsertLotteryEntrant(
             const pog::WeightedKey& key,
             char address_type,
-            const Address& address);
+            const Address& address,
+            const size_t max_reservoir_size);
 
     bool PopMinFromLotteryHeap();
     bool RemoveFromLottery(const Address&);

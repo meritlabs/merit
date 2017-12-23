@@ -2215,7 +2215,7 @@ bool UpdateLotteryEntrants(
     return true;
 }
 
-bool UndoLotteryEntrants(const CBlockUndo& undo)
+bool UndoLotteryEntrants(const CBlockUndo& undo, const size_t max_reservoir_size)
 {
     assert(prefviewdb);
 
@@ -2223,7 +2223,7 @@ bool UndoLotteryEntrants(const CBlockUndo& undo)
     const auto end = undo.lottery.rend();
 
     for(; itr != end; itr++) {
-        if(!prefviewdb->UndoLotteryEntrant(*itr)) {
+        if(!prefviewdb->UndoLotteryEntrant(*itr, max_reservoir_size)) {
             return false;
         }
     }
@@ -2236,7 +2236,8 @@ static DisconnectResult DisconnectBlock(
         const CBlock& block,
         const CBlockIndex* pindex,
         CCoinsViewCache& view,
-        bool memory_only)
+        bool memory_only,
+        const Consensus::Params& consensus_params)
 {
     debug("DisconnectBlock: %s", block.GetHash().GetHex());
 
@@ -2349,7 +2350,10 @@ static DisconnectResult DisconnectBlock(
             return DISCONNECT_FAILED;
         }
 
-        if(!UndoLotteryEntrants(blockUndo)) {
+        if(!UndoLotteryEntrants(
+                    blockUndo,
+                    consensus_params.max_lottery_reservoir_size)) {
+
             error("DisconnectBlock(): unable to undo lottery");
             return DISCONNECT_FAILED;
         }
@@ -3157,8 +3161,16 @@ bool static DisconnectTip(CValidationState& state,
         CCoinsViewCache view(pcoinsTip);
         assert(view.GetBestBlock() == pindexDelete->GetBlockHash());
         debug("DisconnectTip DisconnectBlock %s", block.GetHash().GetHex());
-        if (DisconnectBlock(block, pindexDelete, view, false) != DISCONNECT_OK)
+
+        if (DisconnectBlock(
+                    block,
+                    pindexDelete,
+                    view,
+                    false,
+                    chainparams.GetConsensus()) != DISCONNECT_OK) {
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
+        }
+
         bool flushed = view.Flush();
         assert(flushed);
     }
@@ -4776,7 +4788,14 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
         if (nCheckLevel >= 3 && pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage) {
             assert(coins.GetBestBlock() == pindex->GetBlockHash());
             debug("VerifyDB DisconnectBlock: %s", block.GetHash().GetHex());
-            DisconnectResult res = DisconnectBlock(block, pindex, coins, true);
+
+            DisconnectResult res = DisconnectBlock(
+                    block,
+                    pindex,
+                    coins,
+                    true,
+                    chainparams.GetConsensus());
+
             if (res == DISCONNECT_FAILED) {
                 return error("VerifyDB(): *** irrecoverable inconsistency in block data at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
             }
@@ -4877,7 +4896,14 @@ bool ReplayBlocks(const CChainParams& params, CCoinsView* view)
                 return error("RollbackBlock(): ReadBlockFromDisk() failed at %d, hash=%s", pindexOld->nHeight, pindexOld->GetBlockHash().ToString());
             }
             LogPrintf("Rolling back %s (%i)\n", pindexOld->GetBlockHash().ToString(), pindexOld->nHeight);
-            DisconnectResult res = DisconnectBlock(block, pindexOld, cache, false);
+
+            DisconnectResult res = DisconnectBlock(
+                    block,
+                    pindexOld,
+                    cache,
+                    false,
+                    params.GetConsensus());
+
             if (res == DISCONNECT_FAILED) {
                 return error("RollbackBlock(): DisconnectBlock failed at %d, hash=%s", pindexOld->nHeight, pindexOld->GetBlockHash().ToString());
             }
