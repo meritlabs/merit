@@ -4291,6 +4291,8 @@ UniValue generate(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
+    EnsureWalletIsUnlocked(pwallet);
+
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 3) {
         throw std::runtime_error(
             "generate nblocks ( maxtries )\n"
