@@ -28,10 +28,6 @@ namespace referral
 // core_read.cpp
 CScript ParseScript(const std::string& s);
 
-std::string ScriptToAsmStr(
-        const CScript& script,
-        const bool fAttemptSighashDecode = false);
-
 bool DecodeHexTx(
         CMutableTransaction& tx,
         const std::string& strHexTx,

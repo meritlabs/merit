@@ -119,6 +119,9 @@ std::string OpcodeToStr(
         const bool attempt_sighash_decode = false,
         const bool is_unspendable = false);
 
+std::string ScriptToAsmStr(
+        const CScript& script,
+        const bool fAttemptSighashDecode = false);
 
 bool CheckSignatureEncoding(
         const std::vector<unsigned char> &vchSig,

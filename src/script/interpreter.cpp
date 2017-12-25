@@ -107,6 +107,40 @@ std::string OpcodeToStr(
 }
 
 /**
+ * Create the assembly string representation of a CScript object.
+ * @param[in] script    CScript object to convert into the asm string representation.
+ * @param[in] fAttemptSighashDecode    Whether to attempt to decode sighash types on data within the script that matches the format
+ *                                     of a signature. Only pass true for scripts you believe could contain signatures. For example,
+ *                                     pass false, or omit the this argument (defaults to false), for scriptPubKeys.
+ */
+std::string ScriptToAsmStr(
+        const CScript& script,
+        const bool attempt_sighash_decode)
+{
+    std::string str;
+    opcodetype opcode;
+    std::vector<unsigned char> vch;
+    CScript::const_iterator pc = script.begin();
+    while (pc < script.end()) {
+        if (!str.empty()) {
+            str += " ";
+        }
+
+        if (!script.GetOp(pc, opcode, vch)) {
+            str += "[error]";
+            return str;
+        }
+
+        str += OpcodeToStr(
+                opcode,
+                vch,
+                attempt_sighash_decode,
+                script.IsUnspendable());
+    }
+    return str;
+}
+
+/**
  * Script is a stack machine (like Forth) that evaluates a predicate
  * returning a bool indicating valid or not.  There are no loops.
  */
@@ -1990,14 +2024,14 @@ static bool VerifyWitnessProgram(
 }
 
 bool PushMixedAddress(Stack& stack, ScriptError* serror)
-{ 
+{
         if(stack.size() < 2) {
             return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
         }
 
         //Compute Script ID
-        const auto& serialized_script = stacktop(-1); 
-        CScriptID script_id = CScript{serialized_script.begin(), serialized_script.end()}; 
+        const auto& serialized_script = stacktop(-1);
+        CScriptID script_id = CScript{serialized_script.begin(), serialized_script.end()};
 
         //Get the Pub Key ID
         const auto& key_id_bytes = stacktop(-2);
@@ -2054,8 +2088,8 @@ bool VerifyScript(
      *
      * This is both true for pay-to-script-hash and parameterized-pay-to-script-hash
      */
-    if ((flags & SCRIPT_VERIFY_P2SH) && 
-            (scriptPubKey.IsPayToScriptHash() || 
+    if ((flags & SCRIPT_VERIFY_P2SH) &&
+            (scriptPubKey.IsPayToScriptHash() ||
              scriptPubKey.IsParameterizedPayToScriptHash())) {
 
         if(!PushMixedAddress(stack, serror)) {
@@ -2065,7 +2099,7 @@ bool VerifyScript(
         }
     }
 
-    if (flags & SCRIPT_VERIFY_P2SH) { 
+    if (flags & SCRIPT_VERIFY_P2SH) {
         stackCopy = stack;
     }
 
@@ -2075,7 +2109,7 @@ bool VerifyScript(
         return false;
     }
 
-    if (stack.empty()) { 
+    if (stack.empty()) {
         return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
     }
 
@@ -2117,7 +2151,7 @@ bool VerifyScript(
         //by the interpreter to determiine the scripts address used by some
         //opcodes.
         auto self_address_bytes = stacktop(-1);
-        auto self_address = Hash160(self_address_bytes.begin(), self_address_bytes.end()); 
+        auto self_address = Hash160(self_address_bytes.begin(), self_address_bytes.end());
         popstack(stack);
 
         const valtype& pubKeySerialized = stack.back();
@@ -2177,7 +2211,7 @@ bool VerifyScript(
 
         //Pop self address
         auto self_address_bytes = stacktop(-1);
-        auto self_address = Hash160(self_address_bytes.begin(), self_address_bytes.end()); 
+        auto self_address = Hash160(self_address_bytes.begin(), self_address_bytes.end());
         popstack(stack);
 
         //pop off the serialized script in the scriptSig

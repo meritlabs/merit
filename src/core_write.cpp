@@ -63,40 +63,6 @@ std::string FormatScript(const CScript& script)
     return ret.substr(0, ret.size() - 1);
 }
 
-/**
- * Create the assembly string representation of a CScript object.
- * @param[in] script    CScript object to convert into the asm string representation.
- * @param[in] fAttemptSighashDecode    Whether to attempt to decode sighash types on data within the script that matches the format
- *                                     of a signature. Only pass true for scripts you believe could contain signatures. For example,
- *                                     pass false, or omit the this argument (defaults to false), for scriptPubKeys.
- */
-std::string ScriptToAsmStr(
-        const CScript& script,
-        const bool attempt_sighash_decode)
-{
-    std::string str;
-    opcodetype opcode;
-    std::vector<unsigned char> vch;
-    CScript::const_iterator pc = script.begin();
-    while (pc < script.end()) {
-        if (!str.empty()) {
-            str += " ";
-        }
-
-        if (!script.GetOp(pc, opcode, vch)) {
-            str += "[error]";
-            return str;
-        }
-
-        str += OpcodeToStr(
-                opcode,
-                vch,
-                attempt_sighash_decode,
-                script.IsUnspendable());
-    }
-    return str;
-}
-
 template<typename T>
 std::string EncodeHex(const T& tx, const int serialize_flags)
 {
