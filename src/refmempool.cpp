@@ -54,7 +54,7 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry&
 
     if (parentit != mapRTx.end()) {
         mapChildren[parentit].insert(newit);
-        mapRTx.modify(parentit, update_descendants_count(-1));
+        mapRTx.modify(parentit, update_descendants_count(1));
 
         setEntries s;
         cachedInnerUsage += memusage::IncrementalDynamicUsage(s);
