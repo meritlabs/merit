@@ -59,7 +59,7 @@ private:
 class CompareRefMemPoolEntryByDescendantsCount
 {
 public:
-    bool operator()(const RefMemPoolEntry& a, const RefMemPoolEntry& b)
+    bool operator()(const RefMemPoolEntry& a, const RefMemPoolEntry& b) const
     {
         double f1 = (double)a.GetCountWithDescendants();
         double f2 = (double)b.GetCountWithDescendants();
