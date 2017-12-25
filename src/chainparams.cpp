@@ -296,7 +296,7 @@ public:
         strNetworkID = "test";
         consensus.nBlocksToMaturity = 5;
         consensus.nSubsidyHalvingInterval = 210000;
-        consensus.sEdgeBitsAllowed = {20, 21, 22, 23, 24, 25, 26};
+        consensus.sEdgeBitsAllowed = {16, 20, 21, 22, 23, 24, 25, 26};
         consensus.powLimit = Consensus::PoWLimit{
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
             *consensus.sEdgeBitsAllowed.begin()};
@@ -337,17 +337,16 @@ public:
         }
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503444726, 16, 0x207fffff, 24, 1, 50 * COIN, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(1503444726, 61, 0x207fffff, 16, 1, 50 * COIN, consensus, generateGenesis);
 
         genesis.sCycle = {
-            0x2e65e, 0x2ef31, 0xe8ca8, 0xe9443, 0x1cca67, 0x1dae0f, 0x1e4e40, 0x20496c, 0x265b10, 0x28a207,
-            0x31afc5, 0x40e747, 0x4f28a2, 0x5118af, 0x58988d, 0x5928df, 0x5f3c30, 0x6357bb, 0x682380,
-            0x712045, 0x715d03, 0x797191, 0x8460e8, 0x97416d, 0x982c36, 0x9940e9, 0x9fe403, 0xa13dfa,
-            0xa3ba51, 0xa4b570, 0xa77e52, 0xabbbb7, 0xae519d, 0xbbc128, 0xc4116c, 0xcf822d, 0xd5c7ee,
-            0xdef513, 0xe5c07a, 0xf0e870, 0xf266c6, 0xf3c0a9};
+            0x199, 0x22a, 0xa68, 0xd21, 0x1364, 0x1798, 0x1a33, 0x1b3d, 0x1f2a, 0x2c11, 0x2eeb, 0x2f3e,
+            0x3309, 0x3469, 0x368e, 0x39db, 0x4c79, 0x4f67, 0x5165, 0x612c, 0x625a, 0x6318, 0x6d66, 0x7472,
+            0x7a45, 0x7f0c, 0x8bf6, 0x9368, 0x99f6, 0xa0df, 0xa1ac, 0xb7ba, 0xc5d5, 0xc962, 0xd413, 0xd69a,
+            0xd908, 0xe031, 0xecb9, 0xedd6, 0xf600, 0xfbbc};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("3ebaabc77fe92523326e0d2de5c3f3cac3969690896451aed4a9683aa8c89fb5"));
+        assert(consensus.hashGenesisBlock == uint256S("ba4c043d4831253ef3155dc5ddec05ff6ae105383ada26cd67a96b23bd736787"));
         assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
 
         vFixedSeeds.clear();
