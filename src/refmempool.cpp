@@ -194,7 +194,7 @@ int ReferralTxMemPool::Expire(int64_t time) {
     return stage.size();
 }
 
-ReferralRef ReferralTxMemPool::get(const uint256& hash) const
+ReferralRef ReferralTxMemPool::Get(const uint256& hash) const
 {
     LOCK(cs);
     auto it = mapRTx.find(hash);
@@ -232,7 +232,7 @@ void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, re
 
         assert(GetUint160(dest, addr));
 
-        bool addressBeaconed = prefviewcache->exists(addr);
+        bool addressBeaconed = prefviewcache->Exists(addr);
 
         // check cache for beaconed address
         if (addressBeaconed) {

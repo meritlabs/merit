@@ -1010,9 +1010,9 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         return mapBlockIndex.count(inv.hash);
     case MSG_REFERRAL:
         return recentRejects->contains(inv.hash) ||
-            mempoolReferral.exists(inv.hash) ||
+            mempoolReferral.Exists(inv.hash) ||
             mapOrphanReferrals.count(inv.hash);
-            prefviewcache->exists(inv.hash);
+            prefviewcache->Exists(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -2150,7 +2150,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             LogPrint(BCLog::REFMEMPOOL, "AcceptToMemoryPool: peer=%d: accepted %s (poolsz %u refs)\n",
                 pfrom->GetId(),
                 hash.ToString(),
-                mempoolReferral.size());
+                mempoolReferral.Size());
 
             // Recursively process any orphan referral that depended on this one
             std::set<NodeId> setMisbehaving;

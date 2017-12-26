@@ -59,7 +59,7 @@ private:
 class CompareRefMemPoolEntryByDescendantsCount
 {
 public:
-    bool operator()(const RefMemPoolEntry& a, const RefMemPoolEntry& b)
+    bool operator()(const RefMemPoolEntry& a, const RefMemPoolEntry& b) const
     {
         double f1 = (double)a.GetCountWithDescendants();
         double f2 = (double)b.GetCountWithDescendants();
@@ -175,15 +175,15 @@ public:
      *
      * TODO: update referral model to use one hash for referral id and unlock code
      */
-    bool exists(const uint256& hash) const
+    bool Exists(const uint256& hash) const
     {
         LOCK(cs);
         return (mapRTx.count(hash) != 0);
     }
 
-    ReferralRef get(const uint256& hash) const;
+    ReferralRef Get(const uint256& hash) const;
 
-    unsigned long size()
+    unsigned long Size()
     {
         LOCK(cs);
         return mapRTx.size();

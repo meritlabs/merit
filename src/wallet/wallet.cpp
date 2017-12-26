@@ -153,7 +153,7 @@ bool ReferralTx::RelayWalletTransaction(CConnman *connman)
 bool ReferralTx::InMempool() const
 {
     LOCK(mempoolReferral.cs);
-    return mempoolReferral.exists(GetHash());
+    return mempoolReferral.Exists(GetHash());
 }
 
 bool ReferralTx::AcceptToMemoryPool(CValidationState& state) {
@@ -189,7 +189,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress)
     }
 
     // check if provided referral address is valid, i.e. exists in the blockchain or mempool
-    if (!prefviewcache->exists(parentAddress) && !mempoolReferral.ExistsWithAddress(parentAddress)) {
+    if (!prefviewcache->Exists(parentAddress) && !mempoolReferral.ExistsWithAddress(parentAddress)) {
         throw std::runtime_error(std::string(__func__) + ": provided address does not exist in the chain");
     }
 

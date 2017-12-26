@@ -107,7 +107,7 @@ template <typename T>
 class CompareMemPoolEntryByEntryTime
 {
 public:
-    bool operator()(const MemPoolEntry<T>& a, const MemPoolEntry<T>& b)
+    bool operator()(const MemPoolEntry<T>& a, const MemPoolEntry<T>& b) const
     {
         return a.GetTime() < b.GetTime();
     }

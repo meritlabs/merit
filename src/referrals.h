@@ -73,10 +73,10 @@ public:
     MaybeReferral GetReferral(const Address&) const;
 
     /** Check if referral exists by beaconed address */
-    bool exists(const Address&) const;
+    bool Exists(const Address&) const;
 
     /** Check if referral exists by hash */
-    bool exists(const uint256&) const;
+    bool Exists(const uint256&) const;
 
     /** Remove referral from cache */
     void RemoveReferral(const Referral&) const;

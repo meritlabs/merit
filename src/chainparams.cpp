@@ -214,6 +214,7 @@ public:
         consensus.nMinerConfirmationWindow = 1440;       // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35;           //35%
         consensus.total_winning_ambassadors = 5;
+        consensus.max_lottery_reservoir_size = 10000;
         consensus.nCuckooProofSize = 42;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
@@ -221,7 +222,7 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000723d3581fe1bd55373540a");
+        consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000002");
 
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("0x0000000000000000003b9ce759c2a087d52abc4266f8f4ebd6d768b89defa50a"); //477890
@@ -313,6 +314,7 @@ public:
         consensus.nMinerConfirmationWindow = 1440;       // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35;           // 35%
         consensus.total_winning_ambassadors = 5;
+        consensus.max_lottery_reservoir_size = 100;
         consensus.nCuckooProofSize = 42;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
@@ -413,6 +415,7 @@ public:
         consensus.nMinerConfirmationWindow = 144;       // Faster than normal for regtest (144 instead of 2016)
         consensus.ambassador_percent_cut = 35;          // 35%
         consensus.total_winning_ambassadors = 5;
+        consensus.max_lottery_reservoir_size = 100;
         consensus.nCuckooProofSize = 42;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;

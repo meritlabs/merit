@@ -288,7 +288,7 @@ CTxDestination CMeritAddress::Get() const
     if (!IsValid())
         return CNoDestination();
     uint160 id;
-    memcpy(&id, vchData.data(), 20);
+    std::copy(vchData.begin(), vchData.begin() + 20, id.begin());
     if (vchVersion == Params().Base58Prefix(CChainParams::PUBKEY_ADDRESS))
         return CKeyID(id);
     else if (vchVersion == Params().Base58Prefix(CChainParams::SCRIPT_ADDRESS))

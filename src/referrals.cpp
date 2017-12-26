@@ -31,7 +31,7 @@ MaybeReferral ReferralsViewCache::GetReferral(const Address& address) const
     return {};
 }
 
-bool ReferralsViewCache::exists(const uint256& hash) const
+bool ReferralsViewCache::Exists(const uint256& hash) const
 {
     {
         LOCK(m_cs_cache);
@@ -48,7 +48,7 @@ bool ReferralsViewCache::exists(const uint256& hash) const
     return false;
 }
 
-bool ReferralsViewCache::exists(const Address& address) const
+bool ReferralsViewCache::Exists(const Address& address) const
 {
     {
         LOCK(m_cs_cache);

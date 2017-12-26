@@ -21,14 +21,8 @@
 
 #include <type_traits>
 
-//remove
-#include "base58.h"
-
-namespace {
-
-    // size of paramed pay-to-script-hash script before params
-    const size_t P2SH_SIZE = 23;
-
+namespace
+{
     inline bool set_success(ScriptError* ret)
     {
         if (ret)
