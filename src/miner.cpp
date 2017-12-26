@@ -714,7 +714,9 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
             CBlock* pblock = &pblocktemplate->block;
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
-            LogPrintf("Running MeritMiner with %u transactions in block (%u bytes)\n", pblock->vtx.size(),
+            LogPrintf("Running MeritMiner with %u transactions and %u referrals in block (%u bytes)\n",
+                pblock->vtx.size(),
+                pblock->m_vRef.size(),
                 ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION));
 
             //
