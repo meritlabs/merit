@@ -149,8 +149,8 @@ void ReferralTxMemPool::RemoveUnchecked(refiter it, MemPoolRemovalReason reason)
     cachedInnerUsage -= it->DynamicMemoryUsage();
     cachedInnerUsage -= memusage::DynamicUsage(mapChildren[it]);
 
-    mapRTx.erase(it);
     mapChildren.erase(it);
+    mapRTx.erase(it);
 
     assert(cachedInnerUsage >= 0);
 }

@@ -210,6 +210,7 @@ public:
         consensus.nMinerConfirmationWindow = 1440;       // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35;           //35%
         consensus.total_winning_ambassadors = 5;
+        consensus.max_lottery_reservoir_size = 10000;
         consensus.nCuckooProofSize = 42;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
@@ -310,6 +311,7 @@ public:
         consensus.nMinerConfirmationWindow = 1440;         // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35;           // 35%
         consensus.total_winning_ambassadors = 5;
+        consensus.max_lottery_reservoir_size = 100;
         consensus.nCuckooProofSize = 42;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
@@ -408,6 +410,7 @@ public:
         consensus.nMinerConfirmationWindow = 144;       // Faster than normal for regtest (144 instead of 2016)
         consensus.ambassador_percent_cut = 35;          // 35%
         consensus.total_winning_ambassadors = 5;
+        consensus.max_lottery_reservoir_size = 100;
         consensus.nCuckooProofSize = 42;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;

@@ -17,7 +17,7 @@
 class CAddrManSerializationMock : public CAddrMan
 {
 public:
-    virtual void Serialize(CDataStream& s) const = 0;
+    virtual void Serialize(CDataStream& s) const {};
 
     //! Ensure that bucket placement is always the same for testing purposes.
     void MakeDeterministic()

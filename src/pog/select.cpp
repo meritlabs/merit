@@ -66,7 +66,7 @@ namespace pog
         assert(m_inverted.empty() == false);
 
         //TODO: Should we loop over whole hash?
-        auto selected_anv = hash.GetUint64(0) % m_max_anv;
+        const auto selected_anv = SipHashUint256(0, 0, hash) % m_max_anv;
 
         //find first inverted Wallet Anv that is greater or equal to the selected value.
         auto pos = std::lower_bound(std::begin(m_inverted), std::end(m_inverted),

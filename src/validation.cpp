@@ -1503,6 +1503,8 @@ bool IsValidAmbassadorDestination(const CTxDestination& dest)
 
 void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx)
 {
+    debug("Lottery Results");
+
     // Pay them by adding a txout to the coinbase transaction;
     std::transform(
             std::begin(lottery.winners),
@@ -1510,11 +1512,14 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
             std::back_inserter(tx.vout),
 
             [](const pog::AmbassadorReward& winner) {
-                CMeritAddress addr{winner.addressType, winner.address};
+                CMeritAddress addr{winner.address_type, winner.address};
                 const auto dest = addr.Get();
+
                 if (!addr.IsValid() || !IsValidAmbassadorDestination(dest)) {
                     throw std::runtime_error{"invalid ambassador"};
                 }
+
+                debug("\tWinner: %s, %d", addr.ToString(), static_cast<int>(winner.address_type));
 
                 const auto script = GetScriptForDestination(dest);
                 return CTxOut{winner.amount, script};
@@ -2130,7 +2135,7 @@ void GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
 
     //credit recipients
     for (const auto& out : tx.vout) {
-        auto address = ExtractAddress(out);
+        const auto address = ExtractAddress(out);
         if(address.second == 0) continue;
 
         const CAmount amount = out.nValue * creditDir;
@@ -2175,9 +2180,64 @@ bool RemoveReferrals(const CBlock& block)
     return true;
 }
 
+bool UpdateLotteryEntrants(
+        const CBlock& block,
+        const DebitsAndCredits& debits_and_credits,
+        const Consensus::Params& consensus_params,
+        CBlockUndo& undo)
+{
+    assert(prefviewdb);
+    auto hash = block.GetHash();
+
+    assert(prefviewdb);
+    for (const auto& t : debits_and_credits) {
+        const auto address_type = std::get<0>(t);
+        const auto& address = std::get<1>(t);
+
+        //combine hashes and hash to get next sampling value
+        CHashWriter hasher{SER_DISK, CLIENT_VERSION};
+        hasher << hash << address;
+        hash = hasher.GetHash();
+
+        referral::LotteryUndos undos;
+        if(!prefviewdb->AddAddressToLottery(
+                    hash,
+                    address_type,
+                    address,
+                    consensus_params.max_lottery_reservoir_size,
+                    undos)) {
+            return false;
+        }
+
+        undo.lottery.insert(undo.lottery.end(), undos.begin(), undos.end());
+    }
+
+    return true;
+}
+
+bool UndoLotteryEntrants(const CBlockUndo& undo, const size_t max_reservoir_size)
+{
+    assert(prefviewdb);
+
+    auto itr = undo.lottery.rbegin();
+    const auto end = undo.lottery.rend();
+
+    for(; itr != end; itr++) {
+        if(!prefviewdb->UndoLotteryEntrant(*itr, max_reservoir_size)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  When FAILED is returned, view is left in an indeterminate state. */
-static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* pindex, CCoinsViewCache& view, bool memory_only)
+static DisconnectResult DisconnectBlock(
+        const CBlock& block,
+        const CBlockIndex* pindex,
+        CCoinsViewCache& view,
+        bool memory_only,
+        const Consensus::Params& consensus_params)
 {
     debug("DisconnectBlock: %s", block.GetHash().GetHex());
 
@@ -2287,6 +2347,14 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
 
         if(!RemoveReferrals(block)){
             error("DisconnectBlock(): unable to undo referrals");
+            return DISCONNECT_FAILED;
+        }
+
+        if(!UndoLotteryEntrants(
+                    blockUndo,
+                    consensus_params.max_lottery_reservoir_size)) {
+
+            error("DisconnectBlock(): unable to undo lottery");
             return DISCONNECT_FAILED;
         }
     }
@@ -2756,6 +2824,39 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     if (fJustCheck)
         return true;
 
+    //order referrals so they are inserted into database in correct order.
+    referral::ReferralRefs ordered_referrals = block.m_vRef;
+    if(!prefviewdb->OrderReferrals(ordered_referrals)) {
+        return state.DoS(100,
+                error("ConnectBlock(): There are orphan referrals in the block"),
+                REJECT_INVALID, "bad-cb-orphan-referrals");
+    }
+
+    //The order is important here. We must insert the referrals so that
+    //the referral tree is updated to be correct before we debit/credit
+    //the ANV to the appropriate addresses.
+    if(!IndexReferrals(ordered_referrals)) {
+        return state.DoS(100,
+                error("ConnectBlock(): Could not index referrals"),
+                REJECT_INVALID, "bad-cb-bad-referrals");
+    }
+
+    if(!UpdateANV(debits_and_credits)) {
+        return state.DoS(100,
+                error("ConnectBlock(): Could update ANV"),
+                REJECT_INVALID, "bad-cb-bad-anv");
+    }
+
+    if(!UpdateLotteryEntrants(
+                block,
+                debits_and_credits,
+                chainparams.GetConsensus(),
+                blockundo)){
+        return state.DoS(100,
+                error("ConnectBlock(): Could update lottery entrants"),
+                REJECT_INVALID, "bad-cb-bad-lottery-entrants");
+    }
+
     // Write undo information to disk
     if (pindex->GetUndoPos().IsNull() || !pindex->IsValid(BLOCK_VALID_SCRIPTS))
     {
@@ -2821,25 +2922,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
-
-    //order referrals so they are inserted into database in correct order.
-    referral::ReferralRefs ordered_referrals = block.m_vRef;
-    if(!prefviewdb->OrderReferrals(ordered_referrals)) {
-        return state.DoS(100,
-                error("ConnectBlock(): There are orphan referrals in the block"),
-                REJECT_INVALID, "bad-cb-orphan-referrals");
-    }
-
-    //The order is important here. We must insert the referrals so that
-    //the referral tree is updated to be correct before we debit/credit
-    //the ANV to the appropriate addresses.
-    if(!IndexReferrals(ordered_referrals)) {
-        return AbortNode(state, "Failed to write referral index");
-    }
-
-    if(!UpdateANV(debits_and_credits)) {
-        return AbortNode(state, "Failed to write referral ANV index");
-    }
 
     int64_t nTime6 = GetTimeMicros(); nTimeConnect += nTime6 - nTime5;
     LogPrint(BCLog::BENCH, "    - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n", (unsigned)block.m_vRef.size(), MILLI * (nTime6 - nTime5), MILLI * (nTime6 - nTime5) / block.m_vRef.size(), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
@@ -3079,8 +3161,16 @@ bool static DisconnectTip(CValidationState& state,
         CCoinsViewCache view(pcoinsTip);
         assert(view.GetBestBlock() == pindexDelete->GetBlockHash());
         debug("DisconnectTip DisconnectBlock %s", block.GetHash().GetHex());
-        if (DisconnectBlock(block, pindexDelete, view, false) != DISCONNECT_OK)
+
+        if (DisconnectBlock(
+                    block,
+                    pindexDelete,
+                    view,
+                    false,
+                    chainparams.GetConsensus()) != DISCONNECT_OK) {
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
+        }
+
         bool flushed = view.Flush();
         assert(flushed);
     }
@@ -3879,18 +3969,8 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 }
 
 // Check if an address is valid (beaconed)
-bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
+bool CheckAddressBeaconed(const uint160& addr, bool checkMempool)
 {
-    // if target is CNoDestination skip is beaconed validation
-    if(boost::get<CNoDestination>(&dest)) {
-        return true;
-    }
-
-    uint160 addr;
-    if(!GetUint160(dest, addr)) {
-        return false;
-    }
-
     bool beaconed = prefviewcache->WalletIdExists(addr);
 
     if (!beaconed && checkMempool) {
@@ -3909,7 +3989,8 @@ bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool)
 
 bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool)
 {
-    return CheckAddressBeaconed(addr.Get(), checkMempool);
+    const auto maybe_hash = addr.GetUint160();
+    return maybe_hash ? CheckAddressBeaconed(*maybe_hash, checkMempool) : false;
 }
 
 // Compute at which vout of the block's coinbase transaction the witness
@@ -4707,7 +4788,14 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
         if (nCheckLevel >= 3 && pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage) {
             assert(coins.GetBestBlock() == pindex->GetBlockHash());
             debug("VerifyDB DisconnectBlock: %s", block.GetHash().GetHex());
-            DisconnectResult res = DisconnectBlock(block, pindex, coins, true);
+
+            DisconnectResult res = DisconnectBlock(
+                    block,
+                    pindex,
+                    coins,
+                    true,
+                    chainparams.GetConsensus());
+
             if (res == DISCONNECT_FAILED) {
                 return error("VerifyDB(): *** irrecoverable inconsistency in block data at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
             }
@@ -4808,7 +4896,14 @@ bool ReplayBlocks(const CChainParams& params, CCoinsView* view)
                 return error("RollbackBlock(): ReadBlockFromDisk() failed at %d, hash=%s", pindexOld->nHeight, pindexOld->GetBlockHash().ToString());
             }
             LogPrintf("Rolling back %s (%i)\n", pindexOld->GetBlockHash().ToString(), pindexOld->nHeight);
-            DisconnectResult res = DisconnectBlock(block, pindexOld, cache, false);
+
+            DisconnectResult res = DisconnectBlock(
+                    block,
+                    pindexOld,
+                    cache,
+                    false,
+                    params.GetConsensus());
+
             if (res == DISCONNECT_FAILED) {
                 return error("RollbackBlock(): DisconnectBlock failed at %d, hash=%s", pindexOld->nHeight, pindexOld->GetBlockHash().ToString());
             }

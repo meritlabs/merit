@@ -17,7 +17,7 @@ namespace pog
 
     struct AmbassadorReward
     {
-        char addressType;
+        char address_type;
         referral::Address address;
         CAmount amount;
     };
