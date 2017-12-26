@@ -196,7 +196,8 @@ public:
     {
         strNetworkID = "main";
         consensus.nBlocksToMaturity = 100;
-        consensus.nSubsidyHalvingInterval = 210000;
+        consensus.initial_block_reward = ; //NEEDS TO BE LESS THAN 1 merit
+        consensus.nSubsidyHalvingInterval = 126000000;
         consensus.sEdgeBitsAllowed = {26, 27, 28, 29, 30, 31};
         consensus.powLimit = Consensus::PoWLimit{
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
