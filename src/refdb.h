@@ -86,7 +86,6 @@ public:
     bool RemoveReferral(const Referral&);
 
     bool Exists(const Address&) const;
-    bool ReferralCodeExists(const uint256&) const;
 
     AddressANVs GetAllRewardableANVs() const;
 

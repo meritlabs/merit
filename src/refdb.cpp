@@ -78,8 +78,9 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
             CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
             referral.parentAddress.GetHex());
 
-    if(Exists(referral.GetAddress()))
-        return false;
+    if (Exists(referral.GetAddress())) {
+        return true;
+    }
 
     //write referral by code hash
     if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.GetAddress()), referral)) {
@@ -123,7 +124,7 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
             return false;
 
         debug("Inserted referral %s parent %s",
-                CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(), 
+                CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
                 CMeritAddress{parent_referral->addressType, referral.parentAddress}.ToString());
 
     } else if(!allow_no_parent) {
@@ -314,11 +315,11 @@ bool ReferralsViewDB::FindLotteryPos(const Address& address, uint64_t& pos) cons
 
 /**
  * This function uses a modified version of the weighted random sampling algorithm
- * by Efraimidis and Spirakis 
+ * by Efraimidis and Spirakis
  * (https://www.sciencedirect.com/science/article/pii/S002001900500298X).
  *
  * Instead of computing R=rand^(1/W) where rand is some uniform random value
- * between [0,1] and W is the ANV, we will compute log(R). 
+ * between [0,1] and W is the ANV, we will compute log(R).
  */
 bool ReferralsViewDB::AddAddressToLottery(
         const uint256& rand_value,
@@ -373,8 +374,8 @@ bool ReferralsViewDB::AddAddressToLottery(
                         CMeritAddress(address_type, *address).ToString());
             }
         } else {
-            const auto maybe_min_entrant = GetMinLotteryEntrant();   
-            if(!maybe_min_entrant) { 
+            const auto maybe_min_entrant = GetMinLotteryEntrant();
+            if(!maybe_min_entrant) {
                 return false;
             }
 
@@ -440,7 +441,7 @@ bool ReferralsViewDB::UndoLotteryEntrant(
 {
     if(!RemoveFromLottery(undo.replaced_with)) {
         return false;
-    } 
+    }
 
     //Undo where the replaced address is the same as replaced_with are considered
     //add only and we just remove the entry and not try to add it.
@@ -471,8 +472,8 @@ MaybeLotteryEntrant ReferralsViewDB::GetMinLotteryEntrant() const
     LotteryEntrant v;
 
     const uint64_t first = 0;
-    return m_db.Read(std::make_pair(DB_LOT_VAL, first), v) ? 
-        MaybeLotteryEntrant{v} : 
+    return m_db.Read(std::make_pair(DB_LOT_VAL, first), v) ?
+        MaybeLotteryEntrant{v} :
         MaybeLotteryEntrant{};
 }
 
