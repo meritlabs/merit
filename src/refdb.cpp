@@ -259,7 +259,7 @@ AddressANVs ReferralsViewDB::GetAllRewardableANVs() const
 {
     const auto heap_size = GetLotteryHeapSize();
     AddressANVs anvs;
-    for(size_t i = 0; i < heap_size; i++) {
+    for(uint64_t i = 0; i < heap_size; i++) {
 
         LotteryEntrant v;
         if(!m_db.Read(std::make_pair(DB_LOT_VAL, i), v))  {
@@ -276,10 +276,10 @@ AddressANVs ReferralsViewDB::GetAllRewardableANVs() const
     return anvs;
 }
 
-bool ReferralsViewDB::FindLotteryPos(const Address& address, size_t& pos) const
+bool ReferralsViewDB::FindLotteryPos(const Address& address, uint64_t& pos) const
 {
     const auto heap_size = GetLotteryHeapSize();
-    for(size_t i = 0; i < heap_size; i++) {
+    for(uint64_t i = 0; i < heap_size; i++) {
 
         LotteryEntrant v;
         if(!m_db.Read(std::make_pair(DB_LOT_VAL, i), v))  {
@@ -308,7 +308,7 @@ bool ReferralsViewDB::AddAddressToLottery(
         const uint256& rand_value,
         char address_type,
         MaybeAddress address,
-        const size_t max_reservoir_size,
+        const uint64_t max_reservoir_size,
         LotteryUndos& undos)
 {
     const auto maybe_anv = GetANV(*address);
@@ -329,7 +329,7 @@ bool ReferralsViewDB::AddAddressToLottery(
         // so it is silly to check for duplicates if we aren't going to add anyway.
 
         if(heap_size < max_reservoir_size) {
-            size_t pos;
+            uint64_t pos;
             if(!FindLotteryPos(*address, pos)) {
                 return false;
             }
@@ -366,7 +366,7 @@ bool ReferralsViewDB::AddAddressToLottery(
             //Insert into reservoir only if the new key is bigger
             //than the smallest key already there.
             if(min_weighted_key < weighted_key) {
-                size_t pos;
+                uint64_t pos;
                 if(!FindLotteryPos(*address, pos)) {
                     return false;
                 }
@@ -420,7 +420,7 @@ bool ReferralsViewDB::AddAddressToLottery(
 
 bool ReferralsViewDB::UndoLotteryEntrant(
         const LotteryUndo& undo,
-        const size_t max_reservoir_size)
+        const uint64_t max_reservoir_size)
 {
     if(!RemoveFromLottery(undo.replaced_with)) {
         return false;
@@ -443,9 +443,9 @@ bool ReferralsViewDB::UndoLotteryEntrant(
     return true;
 }
 
-std::size_t ReferralsViewDB::GetLotteryHeapSize() const
+uint64_t ReferralsViewDB::GetLotteryHeapSize() const
 {
-    std::size_t size = 0;
+    uint64_t size = 0;
     m_db.Read(DB_LOT_SIZE, size);
     return size;
 }
@@ -454,7 +454,7 @@ MaybeLotteryEntrant ReferralsViewDB::GetMinLotteryEntrant() const
 {
     LotteryEntrant v;
 
-    const size_t first = 0;
+    const uint64_t first = 0;
     return m_db.Read(std::make_pair(DB_LOT_VAL, first), v) ? 
         MaybeLotteryEntrant{v} : 
         MaybeLotteryEntrant{};
@@ -471,7 +471,7 @@ bool ReferralsViewDB::InsertLotteryEntrant(
         const pog::WeightedKey& key,
         char address_type,
         const Address& address,
-        const size_t max_reservoir_size)
+        const uint64_t max_reservoir_size)
 {
     auto heap_size = GetLotteryHeapSize();
     assert(heap_size < max_reservoir_size);
@@ -506,7 +506,7 @@ bool ReferralsViewDB::InsertLotteryEntrant(
         return false;
     }
 
-    size_t new_size = heap_size + 1;
+    uint64_t new_size = heap_size + 1;
     if(!m_db.Write(DB_LOT_SIZE, new_size))
         return false;
 
@@ -521,14 +521,14 @@ bool ReferralsViewDB::PopMinFromLotteryHeap()
 
 bool ReferralsViewDB::RemoveFromLottery(const Address& to_remove)
 {
-    size_t pos;
+    uint64_t pos;
     if(!FindLotteryPos(to_remove, pos)) {
         return false;
     }
     return RemoveFromLottery(pos);
 }
 
-bool ReferralsViewDB::RemoveFromLottery(size_t current)
+bool ReferralsViewDB::RemoveFromLottery(uint64_t current)
 {
     debug("\tPopping from lottery reservoir position %d", current);
     auto heap_size = GetLotteryHeapSize();
@@ -544,9 +544,9 @@ bool ReferralsViewDB::RemoveFromLottery(size_t current)
     //Walk down heap and bubble down the last value until we find the correct spot.
     while(true) {
 
-        size_t smallest = current;
-        size_t left = 2*current + 1;
-        size_t right = 2*current + 2;
+        uint64_t smallest = current;
+        uint64_t left = 2*current + 1;
+        uint64_t right = 2*current + 2;
 
         if(left < heap_size) {
             LotteryEntrant left_val;
@@ -591,7 +591,8 @@ bool ReferralsViewDB::RemoveFromLottery(size_t current)
         return false;
     }
 
-    m_db.Write(DB_LOT_SIZE, heap_size - 1);
+    uint64_t new_size = heap_size - 1;
+    m_db.Write(DB_LOT_SIZE, new_size);
 
     debug("\tPopped from lottery reservoir, last ended up at %d", current);
     return true;

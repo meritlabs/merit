@@ -91,27 +91,27 @@ public:
             const uint256&,
             char address_type,
             MaybeAddress,
-            const size_t max_reservoir_size,
+            const uint64_t max_reservoir_size,
             LotteryUndos&);
 
     bool UndoLotteryEntrant(
             const LotteryUndo&,
-            const size_t max_reservoir_size);
+            const uint64_t max_reservoir_size);
 
 private:
-    std::size_t GetLotteryHeapSize() const;
+    uint64_t GetLotteryHeapSize() const;
     MaybeLotteryEntrant GetMinLotteryEntrant() const;
-    bool FindLotteryPos(const Address& address, size_t& pos) const;
+    bool FindLotteryPos(const Address& address, uint64_t& pos) const;
 
     bool InsertLotteryEntrant(
             const pog::WeightedKey& key,
             char address_type,
             const Address& address,
-            const size_t max_reservoir_size);
+            const uint64_t max_reservoir_size);
 
     bool PopMinFromLotteryHeap();
     bool RemoveFromLottery(const Address&);
-    bool RemoveFromLottery(size_t pos);
+    bool RemoveFromLottery(uint64_t pos);
 };
 
 } // namespace referral
