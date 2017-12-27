@@ -67,7 +67,8 @@ struct Params {
     int64_t nEdgeBitsTargetThreshold; // threshold for nEdgeBits adjustments
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
     int64_t ambassador_percent_cut;
-    size_t total_winning_ambassadors;
+    uint64_t total_winning_ambassadors;
+    uint64_t initial_block_reward;
     uint256 nMinimumChainWork;
     uint256 defaultAssumeValid;
     /** Cuckoo cycle length */

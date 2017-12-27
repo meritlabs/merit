@@ -196,8 +196,8 @@ public:
     {
         strNetworkID = "main";
         consensus.nBlocksToMaturity = 100;
-        consensus.initial_block_reward = ; //NEEDS TO BE LESS THAN 1 merit
-        consensus.nSubsidyHalvingInterval = 126000000;
+        consensus.initial_block_reward = 20;
+        consensus.nSubsidyHalvingInterval = 2102400;
         consensus.sEdgeBitsAllowed = {26, 27, 28, 29, 30, 31};
         consensus.powLimit = Consensus::PoWLimit{
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
@@ -224,7 +224,7 @@ public:
         consensus.defaultAssumeValid = uint256S("0x0000000000000000003b9ce759c2a087d52abc4266f8f4ebd6d768b89defa50a"); //477890
 
         // Genesis reward 
-        CAmount genesisReward = 20000000_merit;
+        CAmount genesisReward = 16000000_merit;
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -300,7 +300,8 @@ public:
     {
         strNetworkID = "test";
         consensus.nBlocksToMaturity = 5;
-        consensus.nSubsidyHalvingInterval = 210000;
+        consensus.initial_block_reward = 20;
+        consensus.nSubsidyHalvingInterval = 2102400;
         consensus.sEdgeBitsAllowed = {20, 21, 22, 23, 24, 25, 26};
         consensus.powLimit = Consensus::PoWLimit{
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
@@ -341,8 +342,10 @@ public:
             exit(0);
         }
 
+        CAmount genesisReward = 16000000_merit;
+
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503444726, 16, 0x207fffff, 24, 1, 50 * COIN, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(1503444726, 16, 0x207fffff, 24, 1, genesisReward, consensus, generateGenesis);
 
         genesis.sCycle = {
             0x2e65e, 0x2ef31, 0xe8ca8, 0xe9443, 0x1cca67, 0x1dae0f, 0x1e4e40, 0x20496c, 0x265b10, 0x28a207,
@@ -399,7 +402,8 @@ public:
     {
         strNetworkID = "regtest";
         consensus.nBlocksToMaturity = 5;
-        consensus.nSubsidyHalvingInterval = 15000;
+        consensus.initial_block_reward = 20;
+        consensus.nSubsidyHalvingInterval = 2102400;
         consensus.sEdgeBitsAllowed = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26};
         consensus.powLimit = Consensus::PoWLimit{
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
@@ -435,7 +439,8 @@ public:
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
-        genesis = CreateGenesisBlock(1503670484, 2, 0x207fffff, 18, 1, 50 * COIN, consensus, generateGenesis);
+        CAmount genesisReward = 16000000_merit;
+        genesis = CreateGenesisBlock(1503670484, 2, 0x207fffff, 18, 1, genesisReward, consensus, generateGenesis);
 
         genesis.sCycle = {0xff, 0x3b5, 0x8e5, 0xa39, 0xf5b, 0xfd2, 0x15ad, 0x1a85, 0x2964, 0x2b43, 0x356f, 0x4f10,
             0x5c0e, 0x5ef9, 0x686f, 0x6e9a, 0x749e, 0x7708, 0x7f2a, 0x8a6d, 0x8e09, 0x902c, 0x9278, 0x94c3, 0x9d99,
