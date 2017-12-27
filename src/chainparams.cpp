@@ -5,6 +5,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "chainparams.h"
+#include "base58.h"
 #include "consensus/consensus.h"
 #include "consensus/merkle.h"
 
@@ -25,6 +26,8 @@
 #include <time.h>
 #include <vector>
 
+using addressPrefix = std::vector<unsigned char>;
+
 static CBlock CreateGenesisBlock(
     const char* pszTimestamp,
     const CScript& genesisOutputScript,
@@ -35,6 +38,7 @@ static CBlock CreateGenesisBlock(
     int32_t nVersion,
     const CAmount& genesisReward,
     Consensus::Params& params,
+    addressPrefix pkPrefix,
     bool findPoW)
 {
     CMutableTransaction txNew;
@@ -45,14 +49,12 @@ static CBlock CreateGenesisBlock(
     txNew.vout[0].nValue = genesisReward;
     txNew.vout[0].scriptPubKey = genesisOutputScript;
 
-    auto rawKeyStr = ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35");
+    // compressed pubkey
+    auto rawKeyStr = ParseHex("0337d249c44b0327389a65687c7e9a823271a8c4355c74378d0b608b3339480e9a");
     CPubKey rawPubKey{rawKeyStr};
     CKeyID address = rawPubKey.GetID();
-    referral::MutableReferral refNew;
-    refNew.codeHash.SetHex("73a50383c1e58f5f215cdb40508b584bfd9f8d0e46cc3d0f17c79c6774a5dafd");
-    refNew.addressType = 1;
-    refNew.pubKeyId = address;
-    refNew.previousReferral.SetNull();
+    referral::MutableReferral refNew{1, address, rawPubKey, referral::Address{}};
+    refNew.signature = ParseHex("3044022068fc88103f01cf0851616131c9c83ce37c45e0392aab983980c04afa0e603bcc022043319a4e8b62456b4121e960d1b4d5ba2f29c5523e55a65da968fff27a61a321");
 
     CBlock genesis;
     genesis.nTime = nTime;
@@ -80,11 +82,12 @@ static CBlock CreateGenesisBlock(
             printf("Could not find cycle for genesis block");
         } else {
             printf("Genesis block generated!!!\n");
-            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\nnodes:\n",
+            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\naddress: %s\nnodes:\n",
                 genesis.GetHash().GetHex().c_str(),
                 genesis.hashMerkleRoot.GetHex().c_str(),
                 genesis.nNonce,
-                genesis.nEdgeBits);
+                genesis.nEdgeBits,
+                CMeritAddress(address, pkPrefix).ToString().c_str()); // use pkPrefix here as it differs for different nets
             for (const auto& node : pow) {
                 printf("0x%x, ", node);
             }
@@ -115,11 +118,12 @@ static CBlock CreateGenesisBlock(
     int32_t nVersion,
     const CAmount& genesisReward,
     Consensus::Params& params,
+    addressPrefix pkPrefix,
     bool findPoW = false)
 {
     const char* pszTimestamp = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
-    const CScript genesisOutputScript = CScript() << ParseHex("04a7ebdbbf69ac3ea75425b9569ebb5ce22a7c277fd958044d4a185ca39077042bab520f31017d1de5c230f425cc369d5b57b66a77b983433b9b651c107aef4e35") << OP_CHECKSIG;
-    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nEdgeBits, nVersion, genesisReward, params, findPoW);
+    const CScript genesisOutputScript = CScript() << ParseHex("0337d249c44b0327389a65687c7e9a823271a8c4355c74378d0b608b3339480e9a") << OP_CHECKSIG;
+    return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nEdgeBits, nVersion, genesisReward, params, pkPrefix, findPoW);
 }
 
 void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout)
@@ -129,7 +133,7 @@ void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64
 }
 
 // TODO: remove befor launch
-void runEdgeBitsGenerator(Consensus::Params& consensus)
+void runEdgeBitsGenerator(Consensus::Params& consensus, addressPrefix pkPrefix)
 {
     std::vector<uint8_t> bits(16);
     std::iota(std::begin(bits), std::end(bits), 16);
@@ -140,7 +144,7 @@ void runEdgeBitsGenerator(Consensus::Params& consensus)
     std::vector<double> times;
 
     for (const auto& edgeBits : bits) {
-        auto genesis = CreateGenesisBlock(1503444726, 0, 0x207fffff, edgeBits, 1, 50 * COIN, consensus);
+        auto genesis = CreateGenesisBlock(1503444726, 0, 0x207fffff, edgeBits, 1, 50 * COIN, consensus, pkPrefix);
         std::set<uint32_t> pow;
 
         uint32_t nMaxTries = 10000000;
@@ -236,21 +240,27 @@ public:
         nPruneAfterHeight = 100000;
         nMiningBlockStaleTime = 60;
 
+        base58Prefixes[PUBKEY_ADDRESS] = addressPrefix(1, 0);
+        base58Prefixes[SCRIPT_ADDRESS] = addressPrefix(1, 5);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = addressPrefix(1, 8);
+        base58Prefixes[SECRET_KEY] = addressPrefix(1, 128);
+        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};
+        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};
+
+        // genesis ref address: 13f4j1zWmweBVSQM9Jcr18JUdmJMR6kGSY
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503515697, 222, 0x207fffff, 27, 1, 50 * COIN, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(1503515697, 17, 0x207fffff, 27, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0x1653d2, 0x1aa66d, 0x4384b9, 0x5a7e1c, 0x74cac8, 0x903db4, 0x93f75e, 0x97762d,
-            0x112cfc2, 0x1a38e7f, 0x25460b6, 0x258daed, 0x26bae6d, 0x3334127, 0x34d6778,
-            0x35d38a7, 0x3a69340, 0x41ba626, 0x41c8874, 0x41fa4c3, 0x42d49a8, 0x42f33ae,
-            0x43f65a7, 0x4556706, 0x456bfb5, 0x5111825, 0x54b6eee, 0x5556e58, 0x5c2b69d,
-            0x60f5391, 0x64ad69c, 0x64d99ac, 0x6533e34, 0x678bbfe, 0x6a5c50d, 0x6d4853f,
-            0x6e2686f, 0x7066225, 0x7678208, 0x76ba183, 0x7ac12d4, 0x7e5f23a
-        };
+            0x13297d, 0x2d2486, 0x58bbb7, 0xe735b1, 0x12b9fbe, 0x1efe3f7, 0x207cbc1, 0x293afb5, 0x2a14b2b,
+            0x2fbca6c, 0x328abac, 0x34854e7, 0x3579a00, 0x40be381, 0x43319b5, 0x45b79ae, 0x488a33f, 0x4a0876a,
+            0x4a577b9, 0x4a8d4c2, 0x4bbb34b, 0x4de1555, 0x505710e, 0x53f19bc, 0x544e889, 0x5aa884f, 0x5b1b095,
+            0x5d73be9, 0x650305a, 0x6589ecc, 0x66759a9, 0x673fe32, 0x6740938, 0x6765f4b, 0x6e062b7, 0x6e5bbdb,
+            0x6e5f96b, 0x74b7970, 0x7537036, 0x7b7ca61, 0x7e11d42, 0x7f9d19a};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("b359b0d650f6295756a2a1ce5cb5e8255211d89617354f67d5249d0ae898dd3a"));
-        assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
+        assert(consensus.hashGenesisBlock == uint256S("f8404dc84d98a1d6ea90dba88c72be91f245a585c68fe676a32c212e8cb72c44"));
+        assert(genesis.hashMerkleRoot == uint256S("3a1633942793fb3e0ae37790ecd25d26a7229939c07125c67a9bdf992ef28ad9"));
 
         // Note that of those with the service bits flag, most only support a subset of possible options
         /*vSeeds.emplace_back("seed.merit.sipa.be", true); // Pieter Wuille, only supports x1, x5, x9, and xd
@@ -259,13 +269,6 @@ public:
         vSeeds.emplace_back("seed.meritstats.com", true); // Christian Decker, supports x1 - xf
         vSeeds.emplace_back("seed.merit.jonasschnelli.ch", true); // Jonas Schnelli, only supports x1, x5, x9, and xd
         vSeeds.emplace_back("seed.MRT.petertodd.org", true); // Peter Todd, only supports x1, x5, x9, and xd*/
-
-        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 0);
-        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 5);
-        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 8);
-        base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 128);
-        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};
-        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
 
@@ -303,12 +306,12 @@ public:
             *consensus.sEdgeBitsAllowed.begin()};
         // TODO: reset after testing
         consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
-        consensus.nEdgeBitsTargetThreshold = 4; // adjust nEdgeBits if block time is twice more/less than expected
-        consensus.nPowTargetSpacing = 1 * 60;   // one minute for a block
+        consensus.nEdgeBitsTargetThreshold = 4;      // adjust nEdgeBits if block time is twice more/less than expected
+        consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1080; // 75% for testchains
-        consensus.nMinerConfirmationWindow = 1440;         // nPowTargetTimespan / nPowTargetSpacing
+        consensus.nMinerConfirmationWindow = 1440;       // nPowTargetTimespan / nPowTargetSpacing
         consensus.ambassador_percent_cut = 35;           // 35%
         consensus.total_winning_ambassadors = 5;
         consensus.max_lottery_reservoir_size = 100;
@@ -332,25 +335,33 @@ public:
         nPruneAfterHeight = 1000;
         nMiningBlockStaleTime = 60;
 
+        base58Prefixes[PUBKEY_ADDRESS] = addressPrefix(1, 111);
+        base58Prefixes[SCRIPT_ADDRESS] = addressPrefix(1, 196);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = addressPrefix(1, 150);
+        base58Prefixes[SECRET_KEY] = addressPrefix(1, 239);
+        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
+        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
+
         // TODO: remove after miner is stable
         if (gArgs.GetBoolArg("-testedgebits", false)) {
-            runEdgeBitsGenerator(consensus);
+            runEdgeBitsGenerator(consensus, base58Prefixes[PUBKEY_ADDRESS] = addressPrefix(1, 111));
             exit(0);
         }
 
+        // genesis ref address: miB2255Vay5SGYsxrsbDq3WoVku4LJiFeG
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503444726, 16, 0x207fffff, 24, 1, 50 * COIN, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(1503444726, 20, 0x207fffff, 24, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0x2e65e, 0x2ef31, 0xe8ca8, 0xe9443, 0x1cca67, 0x1dae0f, 0x1e4e40, 0x20496c, 0x265b10, 0x28a207,
-            0x31afc5, 0x40e747, 0x4f28a2, 0x5118af, 0x58988d, 0x5928df, 0x5f3c30, 0x6357bb, 0x682380,
-            0x712045, 0x715d03, 0x797191, 0x8460e8, 0x97416d, 0x982c36, 0x9940e9, 0x9fe403, 0xa13dfa,
-            0xa3ba51, 0xa4b570, 0xa77e52, 0xabbbb7, 0xae519d, 0xbbc128, 0xc4116c, 0xcf822d, 0xd5c7ee,
-            0xdef513, 0xe5c07a, 0xf0e870, 0xf266c6, 0xf3c0a9};
+            0xd2bd, 0x734f4, 0xa5523, 0xfd31c, 0x106bc2, 0x173a1d, 0x18370e, 0x1daf47, 0x1df00d, 0x22efa5,
+            0x31e2fd, 0x34b096, 0x35dd12, 0x3df255, 0x3f5a64, 0x429575, 0x52c9c4, 0x562cb2, 0x596cab,
+            0x5a0413, 0x5d4d86, 0x5de176, 0x620134, 0x704acf, 0x7d5e0a, 0x7e653d, 0x8d0e92, 0xa668a1,
+            0xab55ea, 0xafdb7e, 0xb36ebf, 0xb4e40b, 0xbbd2f0, 0xcd44c3, 0xd67b55, 0xdae53f, 0xed1231,
+            0xed4712, 0xf2b9a3, 0xf812d8, 0xf8cb2c, 0xfd2066};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("3ebaabc77fe92523326e0d2de5c3f3cac3969690896451aed4a9683aa8c89fb5"));
-        assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
+        assert(consensus.hashGenesisBlock == uint256S("04fb87a683b50b8d88b6e6a90568f63b896efe6335ffe0f816f37df3bd2b6c1e"));
+        assert(genesis.hashMerkleRoot == uint256S("7464a1ce95a025602f92c5584be0904c5d9211e87dd08811f7a7774ddcbdc565"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -359,12 +370,6 @@ public:
         vSeeds.emplace_back("seed.tMRT.petertodd.org", true);
         vSeeds.emplace_back("testnet-seed.bluematt.me", false);
         vSeeds.emplace_back("testnet-seed.merit.schildbach.de", false);*/
-        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
-        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 196);
-        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 150);
-        base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 239);
-        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
-        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_test, pnSeed6_test + ARRAYLEN(pnSeed6_test));
 
@@ -431,18 +436,29 @@ public:
         nPruneAfterHeight = 1000;
         nMiningBlockStaleTime = 60;
 
+        base58Prefixes[PUBKEY_ADDRESS] = addressPrefix(1, 111);
+        base58Prefixes[SCRIPT_ADDRESS] = addressPrefix(1, 196);
+        base58Prefixes[PARAM_SCRIPT_ADDRESS] = addressPrefix(1, 150);
+        base58Prefixes[SECRET_KEY] = addressPrefix(1, 239);
+        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
+        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
+
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
-        genesis = CreateGenesisBlock(1503670484, 2, 0x207fffff, 18, 1, 50 * COIN, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(1503670484, 132, 0x207fffff, 18, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
-        genesis.sCycle = {0xff, 0x3b5, 0x8e5, 0xa39, 0xf5b, 0xfd2, 0x15ad, 0x1a85, 0x2964, 0x2b43, 0x356f, 0x4f10,
-            0x5c0e, 0x5ef9, 0x686f, 0x6e9a, 0x749e, 0x7708, 0x7f2a, 0x8a6d, 0x8e09, 0x902c, 0x9278, 0x94c3, 0x9d99,
-            0xa1a8, 0xa2e0, 0xab0b, 0xafb4, 0xb440, 0xd302, 0xd604, 0xdc5e, 0xe6cd, 0xea2b, 0xefda, 0xf094, 0xf451,
-            0x10550, 0x106f6, 0x108c0, 0x113a3};
+        genesis.sCycle = {
+            0x12c2, 0x18c1, 0x67c7, 0x7dc6, 0x8fc0, 0x981b, 0x9fb6, 0xcc92, 0xcffe,
+            0xf0f4, 0x11a50, 0x12e19, 0x16f4e, 0x19457, 0x1a6e7, 0x1e844, 0x20938,
+            0x2106f, 0x244b9, 0x251eb, 0x26421, 0x268b1, 0x29219, 0x2a429, 0x2ae7e,
+            0x2bd64, 0x2cf5c, 0x2d2b4, 0x2d9fa, 0x2eb9b, 0x30d6f, 0x3131b, 0x31cdb,
+            0x32615, 0x32903, 0x34356, 0x3690f, 0x3839c, 0x383c7, 0x3844a, 0x3b59b,
+            0x3bcb2
+        };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("1b406b3f7eba08bc4dbe66b00eb8c96cff485c8074f67408923f952a2115c6a3"));
-        assert(genesis.hashMerkleRoot == uint256S("cfee6b4b3d9bf62a5c6762468879a66ab1c2038b59eaebf14db51a2e17ac8414"));
+        assert(consensus.hashGenesisBlock == uint256S("90b7c7335a900467754bd7cfef641d8148ed893674f7b9d34b7046ac0eb3cde3"));
+        assert(genesis.hashMerkleRoot == uint256S("3a1633942793fb3e0ae37790ecd25d26a7229939c07125c67a9bdf992ef28ad9"));
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
@@ -461,13 +477,6 @@ public:
             0,
             0,
             0};
-
-        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 111);
-        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 196);
-        base58Prefixes[PARAM_SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 150);
-        base58Prefixes[SECRET_KEY] = std::vector<unsigned char>(1, 239);
-        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
-        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
     }
 };
 

@@ -304,8 +304,12 @@ void ThreadScriptCheck();
 bool IsInitialBlockDownload();
 /** Retrieve a transaction (from memory pool, or from disk, if possible) */
 bool GetTransaction(const uint256 &hash, CTransactionRef &tx, const Consensus::Params& params, uint256 &hashBlock, bool fAllowSlow = false);
+/** Retrieve a referral (from memory pool, or from disk, if possible) */
+bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock);
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
+/** Check whether referral signature is valid */
+bool CheckReferralSignature(const referral::Referral& ref, const std::vector<referral::ReferralRef>& extraReferrals);
 
 CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params);
 
@@ -472,7 +476,7 @@ public:
         coinHeight{coinHeightIn},
         cacheStore{cacheIn},
         error{SCRIPT_ERR_UNKNOWN_ERROR},
-        txdata{txdataIn} { }
+        txdata{txdataIn} {}
 
     bool operator()();
 

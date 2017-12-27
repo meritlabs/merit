@@ -71,8 +71,10 @@ public:
             bool wipe = false,
             const std::string& name = "referrals");
 
+    MaybeReferral GetReferral(const Address&) const;
     MaybeReferral GetReferral(const uint256&) const;
-    MaybeAddressPair GetReferrer(const Address&) const;
+    MaybeAddressPair GetParentAddress(const Address&) const;
+    MaybeAddress GetAddressByPubKey(const CPubKey&) const;
     ChildAddresses GetChildren(const Address&) const;
 
     bool UpdateANV(char address_type, const Address&, CAmount);
@@ -82,8 +84,8 @@ public:
 
     bool InsertReferral(const Referral&, bool allow_no_parent = false);
     bool RemoveReferral(const Referral&);
-    bool ReferralCodeExists(const uint256&) const;
-    bool WalletIdExists(const Address&) const;
+
+    bool Exists(const Address&) const;
 
     AddressANVs GetAllRewardableANVs() const;
 

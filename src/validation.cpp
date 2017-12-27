@@ -236,6 +236,44 @@ bool CheckInputs(const CTransaction& tx,
 
 static FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 
+referral::MaybeReferral LookupReferral(
+    const referral::Address& address,
+    const referral::ReferralsViewCache& referralsCache,
+    const std::vector<referral::ReferralRef>& extraReferrals)
+{
+    // lookup cache for referral
+    referral::MaybeReferral referral = referralsCache.GetReferral(address);
+
+    if (referral) {
+        return referral;
+    }
+
+    // otherwise lookupt extraReferrals vector for the needle
+    auto it = std::find_if(
+        extraReferrals.begin(), extraReferrals.end(),
+        [&address](const referral::ReferralRef& ref) {
+            assert(ref);
+            return ref->GetAddress() == address;
+        });
+
+    return it != extraReferrals.end() ? **it : referral::MaybeReferral{};
+}
+
+bool CheckReferralSignature(const referral::Referral& ref, const std::vector<referral::ReferralRef>& extraReferrals)
+{
+    assert(ref.pubkey.IsValid());
+
+    auto hash = (CHashWriter(SER_GETHASH, 0) << ref.parentAddress << ref.GetAddress()).GetHash();
+
+    return ref.pubkey.Verify(hash, ref.signature);
+
+    // otherwise look up the chain for parent referral with pubkey beaconed to check signature
+    auto parentRef = LookupReferral(ref.parentAddress, *prefviewcache, extraReferrals);
+    assert(parentRef);
+
+    return CheckReferralSignature(*parentRef, extraReferrals);
+}
+
 bool CheckFinalTx(const CTransaction &tx, int flags)
 {
     AssertLockHeld(cs_main);
@@ -466,7 +504,7 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTra
         bool missingDummy;
         if (!fAddToMempool || !AcceptReferralToMemoryPool(mempoolReferral, stateDummy, *rit, missingDummy, true)) {
             mempoolReferral.RemoveRecursive(**rit, MemPoolRemovalReason::REORG);
-        } else if (mempoolReferral.exists((*it)->GetHash())) {
+        } else if (mempoolReferral.Exists((*it)->GetHash())) {
             vRefHashUpdate.push_back((*it)->GetHash());
         }
         ++rit;
@@ -554,14 +592,18 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
         LOCK(pool.cs);
 
         // is it already in the memory pool?
-        if (pool.exists(hash)) {
+        if (pool.Exists(hash)) {
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
 
-        if (!(prefviewcache->ReferralCodeExists(referral->previousReferral) ||
-            pool.ExistsWithCodeHash(referral->previousReferral))) {
+        if (!(prefviewcache->Exists(referral->parentAddress) ||
+            pool.ExistsWithAddress(referral->parentAddress))) {
             missingReferrer = true;
             return false;
+        }
+
+        if (!CheckReferralSignature(*referral, pool.GetReferrals())) {
+            return state.Invalid(false, REJECT_INVALID, "ref-bad-sig");
         }
 
         pool.AddUnchecked(referral->GetHash(), entry);
@@ -573,7 +615,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             pool,
             gArgs.GetArg("-maxrefmempool", DEFAULT_MAX_REFERRALS_MEMPOOL_SIZE) * 1000000,
             gArgs.GetArg("-refmempoolexpiry", DEFAULT_REFERRALS_MEMPOOL_EXPIRY) * 60 * 60);
-        if (!pool.exists(hash)) {
+        if (!pool.Exists(hash)) {
             return state.DoS(0, false, REJECT_MEMPOOL_FULL, "referrals mempool full");
         }
     }
@@ -583,7 +625,8 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
     return true;
 }
 
-bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool,
+bool AcceptReferralToMemoryPool(
+    referral::ReferralTxMemPool& pool,
     CValidationState& state,
     const referral::ReferralRef& referral,
     bool& missingReferrer,
@@ -1371,9 +1414,44 @@ bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, const Consensus
     return false;
 }
 
+/** Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock */
+bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock)
+{
+    LOCK(cs_main);
 
+    referral::ReferralRef mempoolref = mempoolReferral.Get(hash);
+    if (mempoolref) {
+        refOut = mempoolref;
+        return true;
+    }
 
+    if (fReferralIndex) {
+        CDiskTxPos posref;
+        if (pblocktree->ReadReferralIndex(hash, posref)) {
+            CAutoFile file(OpenBlockFile(posref, true), SER_DISK, CLIENT_VERSION);
+            if (file.IsNull())
+                return error("%s: OpenBlockFile failed", __func__);
+            CBlockHeader header;
+            try {
+                file >> header;
+                fseek(file.Get(), posref.nTxOffset, SEEK_CUR);
+                file >> refOut;
+            } catch (const std::exception& e) {
+                return error("%s: Deserialize or I/O error - %s", __func__, e.what());
+            }
+            hashBlock = header.GetHash();
+            if (refOut->GetHash() != hash)
+                return error("%s: txid mismatch: requested::actual %s::%s",
+                __func__,
+                hash.GetHex().c_str(),
+                refOut->GetHash().GetHex().c_str());
 
+            return true;
+        }
+    }
+
+    return false;
+}
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -2460,8 +2538,6 @@ static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consens
     return flags;
 }
 
-
-
 static int64_t nTimeCheck = 0;
 static int64_t nTimeForks = 0;
 static int64_t nTimeVerify = 0;
@@ -2471,10 +2547,10 @@ static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
 
-bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos)
+bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos, uint pos_offset)
 {
     // Update offsets for referrals so they can be recorded.
-    CDiskTxPos pos{cur_block_pos, GetSizeOfCompactSize(block.m_vRef.size())};
+    CDiskTxPos pos{cur_block_pos, GetSizeOfCompactSize(block.m_vRef.size()) + pos_offset};
     RefPositions positions(block.m_vRef.size());
 
     std::transform(std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(positions),
@@ -2485,7 +2561,7 @@ bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_
                 return p;
             });
 
-    return pblocktree->WriteReferralTxIndex(positions);
+    return pblocktree->WriteReferralIndex(positions);
 }
 
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins.
@@ -2915,8 +2991,14 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             return AbortNode(state, "Failed to write blockhash index");
     }
 
+    for (const auto& ref: block.m_vRef) {
+        if (!CheckReferralSignature(*ref, block.m_vRef)) {
+            return error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex());
+        }
+    }
+
     if (fReferralIndex) {
-        if (!UpdateAndIndexReferralOffset(block, curBlockPos))
+        if (!UpdateAndIndexReferralOffset(block, curBlockPos, pos.nTxOffset))
             return AbortNode(state, "Failed to write referral transaction index");
     }
 
@@ -3950,7 +4032,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
     for (const auto& ref : block.m_vRef) {
         if (!CheckReferral(*ref, state)) {
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
-                strprintf("Referral check failed (ref hash %s) %s", ref->codeHash.GetHex(), state.GetDebugMessage()));
+                strprintf("Referral check failed (ref hash %s) %s", ref->GetHash().GetHex(), state.GetDebugMessage()));
         }
     }
 
@@ -3971,14 +4053,14 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 // Check if an address is valid (beaconed)
 bool CheckAddressBeaconed(const uint160& addr, bool checkMempool)
 {
-    bool beaconed = prefviewcache->WalletIdExists(addr);
+    bool beaconed = prefviewcache->Exists(addr);
 
     if (!beaconed && checkMempool) {
         // check mempool referrals for beaconed address
         const auto it =
             std::find_if(mempoolReferral.mapRTx.begin(), mempoolReferral.mapRTx.end(),
                 [&addr](const referral::RefMemPoolEntry& entry) {
-                    return entry.GetSharedEntryValue()->pubKeyId == addr;
+                    return entry.GetSharedEntryValue()->GetAddress() == addr;
                 });
 
         beaconed = it != mempoolReferral.mapRTx.end();
@@ -5095,7 +5177,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
     try {
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
 
-        if (!prefviewdb->ReferralCodeExists(block.m_vRef[0]->codeHash)) {
+        if (!prefviewdb->Exists(block.m_vRef[0]->GetAddress())) {
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.

@@ -35,13 +35,18 @@ public:
     virtual bool GetPubKey(const CKeyID &address, CPubKey& vchPubKeyOut) const =0;
 
     //! Support for BIP 0013 : see https://github.com/bitcoin/bips/blob/master/bip-0013.mediawiki
-    virtual bool AddCScript(const CScript& redeemScript) =0;
+    virtual bool AddCScript(const CScript& redeemScript, const uint160&) =0;
     virtual bool HaveCScript(const CScriptID &hash) const =0;
     virtual bool GetCScript(const CScriptID &hash, CScript& redeemScriptOut) const =0;
 
-    virtual bool AddParamScript(const CScript& redeemScript) =0;
+    virtual bool AddParamScript(const CScript& redeemScript, const uint160&) =0;
     virtual bool HaveParamScript(const CParamScriptID &hash) const =0;
     virtual bool GetParamScript(const CParamScriptID &hash, CScript& redeemScriptOut) const =0;
+
+    // Support for beaconed scripts addresses mixed with signer pubkey
+    virtual bool AddReferralAddressPubKey(const uint160& address, const CKeyID& pubkey_id) =0;
+    virtual bool HaveReferralAddressPubKey(const uint160& address) const =0;
+    virtual bool GetReferralAddressPubKey(const uint160& address, CKeyID& pubkey_id_out) const =0;
 
     //! Support for Watch-only addresses
     virtual bool AddWatchOnly(const CScript &dest) =0;
@@ -54,6 +59,7 @@ typedef std::map<CKeyID, CKey> KeyMap;
 typedef std::map<CKeyID, CPubKey> WatchKeyMap;
 typedef std::map<CScriptID, CScript > ScriptMap;
 typedef std::map<CParamScriptID, CScript > ParamScriptMap;
+typedef std::map<uint160, CKeyID> ReferralAddressMap;
 typedef std::set<CScript> WatchOnlySet;
 
 /** Basic key store, that keeps keys in an address->secret map */
@@ -64,6 +70,7 @@ protected:
     WatchKeyMap mapWatchKeys;
     ScriptMap mapScripts;
     ParamScriptMap mapParamScripts;
+    ReferralAddressMap mapReferralAddresses;
     WatchOnlySet setWatchOnly;
 
 public:
@@ -104,13 +111,17 @@ public:
         }
         return false;
     }
-    bool AddCScript(const CScript& redeemScript) override;
+    bool AddCScript(const CScript& redeemScript, const uint160&) override;
     bool HaveCScript(const CScriptID &hash) const override;
     bool GetCScript(const CScriptID &hash, CScript& redeemScriptOut) const override;
 
-    bool AddParamScript(const CScript& redeemScript) override;
+    bool AddParamScript(const CScript& redeemScript, const uint160&) override;
     bool HaveParamScript(const CParamScriptID &hash) const override;
     bool GetParamScript(const CParamScriptID &hash, CScript& redeemScriptOut) const override;
+
+    bool AddReferralAddressPubKey(const uint160& address, const CKeyID& pubkey_id) override;
+    bool HaveReferralAddressPubKey(const uint160& address) const override;
+    bool GetReferralAddressPubKey(const uint160& address, CKeyID& pubkey_id_out) const override;
 
     bool AddWatchOnly(const CScript &dest) override;
     bool RemoveWatchOnly(const CScript &dest) override;

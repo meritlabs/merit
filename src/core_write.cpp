@@ -12,10 +12,11 @@
 #include "script/standard.h"
 #include "serialize.h"
 #include "streams.h"
-#include <univalue.h>
 #include "util.h"
 #include "utilmoneystr.h"
 #include "utilstrencodings.h"
+
+#include <univalue.h>
 
 UniValue ValueFromAmount(const CAmount& amount)
 {
@@ -62,40 +63,6 @@ std::string FormatScript(const CScript& script)
     return ret.substr(0, ret.size() - 1);
 }
 
-/**
- * Create the assembly string representation of a CScript object.
- * @param[in] script    CScript object to convert into the asm string representation.
- * @param[in] fAttemptSighashDecode    Whether to attempt to decode sighash types on data within the script that matches the format
- *                                     of a signature. Only pass true for scripts you believe could contain signatures. For example,
- *                                     pass false, or omit the this argument (defaults to false), for scriptPubKeys.
- */
-std::string ScriptToAsmStr(
-        const CScript& script,
-        const bool attempt_sighash_decode)
-{
-    std::string str;
-    opcodetype opcode;
-    std::vector<unsigned char> vch;
-    CScript::const_iterator pc = script.begin();
-    while (pc < script.end()) {
-        if (!str.empty()) {
-            str += " ";
-        }
-
-        if (!script.GetOp(pc, opcode, vch)) {
-            str += "[error]";
-            return str;
-        }
-
-        str += OpcodeToStr(
-                opcode,
-                vch,
-                attempt_sighash_decode,
-                script.IsUnspendable());
-    }
-    return str;
-}
-
 template<typename T>
 std::string EncodeHex(const T& tx, const int serialize_flags)
 {
@@ -106,6 +73,10 @@ std::string EncodeHex(const T& tx, const int serialize_flags)
 
 std::string EncodeHexTx(const CTransaction& tx, const int serialize_flags) {
     return EncodeHex(tx, serialize_flags);
+}
+
+std::string EncodeHexRef(const referral::Referral& ref) {
+    return EncodeHex(ref, 0);
 }
 
 void ScriptPubKeyToUniv(const CScript& scriptPubKey,
@@ -195,12 +166,12 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry,
 
 void RefToUniv(const referral::Referral& ref, const uint256& hashBlock, UniValue& entry, bool include_hex, int serialize_flags)
 {
-    entry.pushKV("refd", ref.GetHash().GetHex());
+    entry.pushKV("refid", ref.GetHash().GetHex());
     entry.pushKV("version", ref.version);
-    entry.pushKV("codeHash", ref.codeHash.GetHex());
-    entry.pushKV("parent", ref.previousReferral.GetHex());
-    entry.pushKV("key", EncodeDestination(CMeritAddress{ref.addressType, ref.pubKeyId}.Get()));
+    // entry.pushKV("address", EncodeDestination(CMeritAddress{ref.addressType, ref.address}.Get()));
+    entry.pushKV("parentAddress", EncodeDestination(CMeritAddress{1, ref.parentAddress}.Get()));
     entry.pushKV("size", (int)::GetSerializeSize(ref, SER_NETWORK, PROTOCOL_VERSION));
+    entry.pushKV("vsize", GetReferralWeight(ref) / WITNESS_SCALE_FACTOR);
 
     if (!hashBlock.IsNull())
         entry.pushKV("blockhash", hashBlock.GetHex());

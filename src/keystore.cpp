@@ -37,13 +37,13 @@ bool CBasicKeyStore::AddKeyPubKey(const CKey& key, const CPubKey &pubkey)
     return true;
 }
 
-bool CBasicKeyStore::AddCScript(const CScript& redeemScript)
+bool CBasicKeyStore::AddCScript(const CScript& redeemScript, const uint160& address)
 {
     if (redeemScript.size() > MAX_SCRIPT_ELEMENT_SIZE)
         return error("CBasicKeyStore::AddCScript(): redeemScripts > %i bytes are invalid", MAX_SCRIPT_ELEMENT_SIZE);
 
     LOCK(cs_KeyStore);
-    mapScripts[CScriptID(redeemScript)] = redeemScript;
+    mapScripts[CScriptID(address)] = redeemScript;
     return true;
 }
 
@@ -57,21 +57,21 @@ bool CBasicKeyStore::GetCScript(const CScriptID &hash, CScript& redeemScriptOut)
 {
     LOCK(cs_KeyStore);
     ScriptMap::const_iterator mi = mapScripts.find(hash);
-    if (mi != mapScripts.end())
-    {
-        redeemScriptOut = (*mi).second;
-        return true;
+    if (mi == mapScripts.end()) {
+        return false;
     }
-    return false;
+
+    redeemScriptOut = mi->second;
+    return true;
 }
 
-bool CBasicKeyStore::AddParamScript(const CScript& redeemScript)
+bool CBasicKeyStore::AddParamScript(const CScript& redeemScript, const uint160& address)
 {
     if (redeemScript.size() > MAX_SCRIPT_ELEMENT_SIZE)
         return error("CBasicKeyStore::AddCScript(): redeemScripts > %i bytes are invalid", MAX_SCRIPT_ELEMENT_SIZE);
 
     LOCK(cs_KeyStore);
-    mapParamScripts[CParamScriptID(redeemScript)] = redeemScript;
+    mapParamScripts[CParamScriptID(address)] = redeemScript;
     return true;
 }
 
@@ -85,12 +85,39 @@ bool CBasicKeyStore::GetParamScript(const CParamScriptID &hash, CScript& redeemS
 {
     LOCK(cs_KeyStore);
     ParamScriptMap::const_iterator mi = mapParamScripts.find(hash);
-    if (mi != mapParamScripts.end())
-    {
-        redeemScriptOut = (*mi).second;
-        return true;
+    if (mi == mapParamScripts.end()) {
+        return false;
     }
-    return false;
+
+    redeemScriptOut = mi->second;
+    return true;
+}
+
+bool CBasicKeyStore::AddReferralAddressPubKey(const uint160& address, const CKeyID& pubkey_id)
+{
+    LOCK(cs_KeyStore);
+    mapReferralAddresses[address] = pubkey_id;
+
+    return true;
+}
+
+bool CBasicKeyStore::CBasicKeyStore::HaveReferralAddressPubKey(const uint160& address) const
+{
+    LOCK(cs_KeyStore);
+
+    return mapReferralAddresses.count(address) > 0;
+}
+
+bool CBasicKeyStore::CBasicKeyStore::GetReferralAddressPubKey(const uint160& address, CKeyID& pubkey_id_out) const
+{
+    LOCK(cs_KeyStore);
+    auto mi = mapReferralAddresses.find(address);
+    if (mi == mapReferralAddresses.end()) {
+        return false;
+    }
+
+    pubkey_id_out = mi->second;
+    return true;
 }
 
 static bool ExtractPubKey(const CScript &dest, CPubKey& pubKeyOut)

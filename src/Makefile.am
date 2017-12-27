@@ -238,6 +238,7 @@ libmerit_server_a_SOURCES = \
   rpc/misc.cpp \
   rpc/net.cpp \
   rpc/rawtransaction.cpp \
+  rpc/rawreferral.cpp \
   rpc/safemode.cpp \
   rpc/server.cpp \
   script/ismine.cpp \
@@ -328,6 +329,7 @@ libmerit_consensus_a_SOURCES = \
   primitives/transaction.cpp \
   primitives/transaction.h \
   primitives/referral.cpp \
+  primitives/referral.h \
   pubkey.cpp \
   pubkey.h \
   script/meritconsensus.cpp \

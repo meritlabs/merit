@@ -8,119 +8,72 @@
 
 namespace referral
 {
-
-ReferralsViewCache::ReferralsViewCache(ReferralsViewDB *db) : m_db{db}
+ReferralsViewCache::ReferralsViewCache(ReferralsViewDB* db) : m_db{db}
 {
     assert(db);
 };
 
-ReferralMap::iterator ReferralsViewCache::Fetch(const uint256& code) const
-{
-    return m_referral_cache.find(code);
-}
-
-MaybeReferral ReferralsViewCache::GetReferral(const uint256& code) const
+MaybeReferral ReferralsViewCache::GetReferral(const Address& address) const
 {
     {
         LOCK(m_cs_cache);
-        auto it = Fetch(code);
-        if (it != m_referral_cache.end()) {
-            return it->second;
+        auto it = referrals_index.find(address);
+        if (it != referrals_index.end()) {
+            return *it;
         }
     }
 
-    if (auto ref = m_db->GetReferral(code)) {
+    if (auto ref = m_db->GetReferral(address)) {
         InsertReferralIntoCache(*ref);
         return ref;
     }
+
     return {};
+}
+
+bool ReferralsViewCache::Exists(const uint256& hash) const
+{
+    {
+        LOCK(m_cs_cache);
+        if (referrals_index.get<by_hash>().count(hash) > 0) {
+            return true;
+        }
+    }
+
+    if (auto ref = m_db->GetReferral(hash)) {
+        InsertReferralIntoCache(*ref);
+        return true;
+    }
+
+    return false;
+}
+
+bool ReferralsViewCache::Exists(const Address& address) const
+{
+    {
+        LOCK(m_cs_cache);
+        if (referrals_index.count(address) > 0) {
+            return true;
+        }
+    }
+    if (auto ref = m_db->GetReferral(address)) {
+        InsertReferralIntoCache(*ref);
+        return true;
+    }
+    return false;
 }
 
 void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
-    //insert into referral cache
-    m_referral_cache.insert(std::make_pair(ref.codeHash, ref));
-}
 
-bool ReferralsViewCache::ReferralCodeExists(const uint256& code) const
-{
-    {
-        LOCK(m_cs_cache);
-        if (m_referral_cache.count(code) > 0) {
-            return true;
-        }
-    }
-    if (auto ref = m_db->GetReferral(code)) {
-        InsertReferralIntoCache(*ref);
-        return true;
-    }
-    return false;
-}
-
-void ReferralsViewCache::Flush()
-{
-    LOCK(m_cs_cache);
-
-    ReferralRefs ordered_referrals;
-    ordered_referrals.reserve(m_referral_cache.size());
-
-    for (auto pr : m_referral_cache) {
-        ordered_referrals.push_back(std::make_shared<Referral>(pr.second));
-    }
-    
-    m_db->OrderReferrals(ordered_referrals);
-
-    for (auto ref : ordered_referrals) {
-        m_db->InsertReferral(*ref);
-    }
-
-    m_referral_cache.clear();
-}
-
-void ReferralsViewCache::InsertWalletRelationshipIntoCache(const Address& child, const Address& parent) const
-{
-    LOCK(m_cs_cache);
-    m_wallet_to_referrer.insert(std::make_pair(child, parent));
-}
-
-MaybeAddress ReferralsViewCache::GetReferrer(const Address& address) const
-{
-    {
-        LOCK(m_cs_cache);
-        auto it = m_wallet_to_referrer.find(address);
-        if (it != std::end(m_wallet_to_referrer)) {
-            return it->second;
-        }
-    }
-
-    if (auto parent = m_db->GetReferrer(address)) {
-        InsertWalletRelationshipIntoCache(address, parent->second);
-        return parent->second;
-    }
-    return {};
-}
-
-// TODO: Consider naming here.
-bool ReferralsViewCache::WalletIdExists(const Address& address) const
-{
-    {
-        LOCK(m_cs_cache);
-        auto it = m_wallet_to_referrer.find(address);
-        if (it != std::end(m_wallet_to_referrer)) {
-            return true;
-        }
-    }
-    if (auto parent = m_db->GetReferrer(address)) {
-        InsertWalletRelationshipIntoCache(address, parent->second);
-        return true;
-    }
-    return false;
+    referrals_index.insert(ref);
 }
 
 void ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
-    m_referral_cache.erase(ref.codeHash);
+    referrals_index.erase(ref.GetAddress());
     m_db->RemoveReferral(ref);
 }
+
 }

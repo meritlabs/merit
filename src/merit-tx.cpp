@@ -608,9 +608,19 @@ static void MutateTxSign(CMutableTransaction& tx, const std::string& flagStr)
                     && prevOut.exists("redeemScript")) {
 
                 UniValue v = prevOut["redeemScript"];
+                UniValue z = prevOut["scriptPubKey"];
                 std::vector<unsigned char> rsData(ParseHexUV(v, "redeemScript"));
+                std::vector<unsigned char> scriptPubKeyData(ParseHexUV(z, "scriptPubKey"));
+
                 CScript redeemScript(rsData.begin(), rsData.end());
-                tempKeystore.AddCScript(redeemScript);
+                CScript scriptPubKey(scriptPubKeyData.begin(), scriptPubKeyData.end());
+
+                CTxDestination scriptDest;
+                ExtractDestination(scriptPubKey, scriptDest);
+                uint160 scriptAddress;
+                GetUint160(scriptDest, scriptAddress);
+
+                tempKeystore.AddCScript(redeemScript, scriptAddress);
             }
         }
     }

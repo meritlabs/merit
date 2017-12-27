@@ -13,9 +13,10 @@ namespace
 {
 const char DB_CHILDREN = 'c';
 const char DB_REFERRALS = 'r';
-const char DB_REFERRALS_BY_KEY_ID = 'k';
-const char DB_PARENT_KEY = 'p';
+const char DB_HASH = 'h';
+const char DB_PARENT_ADDRESS = 'p';
 const char DB_ANV = 'a';
+const char DB_PUBKEY = 'k';
 const char DB_LOT_SIZE = 's';
 const char DB_LOT_VAL = 'v';
 
@@ -31,16 +32,36 @@ ReferralsViewDB::ReferralsViewDB(
         const std::string& db_name) :
     m_db(GetDataDir() / db_name, cache_size, memory, wipe, true) {}
 
-MaybeReferral ReferralsViewDB::GetReferral(const uint256& code_hash) const {
+MaybeReferral ReferralsViewDB::GetReferral(const Address& address) const {
      MutableReferral referral;
-     return m_db.Read(std::make_pair(DB_REFERRALS,code_hash), referral) ?
+     return m_db.Read(std::make_pair(DB_REFERRALS, address), referral) ?
          MaybeReferral{referral} : MaybeReferral{};
 }
 
-MaybeAddressPair ReferralsViewDB::GetReferrer(const Address& address) const
+MaybeReferral ReferralsViewDB::GetReferral(const uint256& hash) const
+{
+    Address address;
+    if (m_db.Read(std::make_pair(DB_HASH, hash), address)) {
+        return GetReferral(address);
+    }
+
+    return {};
+}
+
+MaybeAddress ReferralsViewDB::GetAddressByPubKey(const CPubKey& pubkey) const
+{
+    Address address;
+    return m_db.Read(std::make_pair(DB_PUBKEY, pubkey), address) ?  MaybeAddress{address} : MaybeAddress{};
+}
+
+bool ReferralsViewDB::Exists(const referral::Address& address) const {
+    return m_db.Exists(std::make_pair(DB_REFERRALS, address));
+}
+
+MaybeAddressPair ReferralsViewDB::GetParentAddress(const Address& address) const
 {
     AddressPair parent;
-    return m_db.Read(std::make_pair(DB_PARENT_KEY, address), parent) ?
+    return m_db.Read(std::make_pair(DB_PARENT_ADDRESS, address), parent) ?
         MaybeAddressPair{parent} : MaybeAddressPair{};
 }
 
@@ -53,100 +74,96 @@ ChildAddresses ReferralsViewDB::GetChildren(const Address& address) const
 
 bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_parent) {
 
-    debug("Attempting to insert referral %s code %s parent %s",
-            CMeritAddress(referral.addressType, referral.pubKeyId).ToString(), 
-            referral.codeHash.GetHex(),
-            referral.previousReferral.GetHex());
+    debug("Inserting referral %s parent %s",
+            CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
+            referral.parentAddress.GetHex());
 
-    if(WalletIdExists(referral.pubKeyId))
-        return false;
+    if (Exists(referral.GetAddress())) {
+        return true;
+    }
 
     //write referral by code hash
-    if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.codeHash), referral)) {
+    if(!m_db.Write(std::make_pair(DB_REFERRALS, referral.GetAddress()), referral)) {
         return false;
     }
 
-    ANVTuple anv{referral.addressType, referral.pubKeyId, CAmount{0}};
-    if(!m_db.Write(std::make_pair(DB_ANV, referral.pubKeyId), anv)) {
+    ANVTuple anv{referral.addressType, referral.GetAddress(), CAmount{0}};
+    if(!m_db.Write(std::make_pair(DB_ANV, referral.GetAddress()), anv)) {
         return false;
     }
+
+    // write referral address by hash
+    if(!m_db.Write(std::make_pair(DB_HASH, referral.GetHash()), referral.GetAddress()))
+        return false;
+
+    // write referral address by pubkey
+    if(!m_db.Write(std::make_pair(DB_PUBKEY, referral.pubkey), referral.GetAddress()))
+        return false;
 
     // Typically because the referral should be written in order we should
     // be able to find the parent referral. We can then write the child->parent
     // mapping of public addresses
-    Address parent_address;
-    if(auto parent_referral = GetReferral(referral.previousReferral)) {
-        debug("\tInserting parent reference %s code %s parent %s paddress %s",
-                CMeritAddress(referral.addressType, referral.pubKeyId).ToString(), 
-                referral.codeHash.GetHex(),
-                parent_referral->pubKeyId.GetHex(),
-                CMeritAddress(parent_referral->addressType, parent_referral->pubKeyId).ToString() 
-                );
+    if(auto parent_referral = GetReferral(referral.parentAddress)) {
+        debug("\tInserting parent reference %s parent %s",
+                CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
+                CMeritAddress{parent_referral->addressType, parent_referral->GetAddress()}.ToString());
 
-        parent_address = parent_referral->pubKeyId;
+        const auto parent_address = parent_referral->GetAddress();
         AddressPair parent_addr_pair{parent_referral->addressType, parent_address};
-        if(!m_db.Write(std::make_pair(DB_PARENT_KEY, referral.pubKeyId), parent_addr_pair))
+        if(!m_db.Write(std::make_pair(DB_PARENT_ADDRESS, referral.GetAddress()), parent_addr_pair))
             return false;
 
         // Now we update the children of the parent address by inserting into the
         // child address array for the parent.
         ChildAddresses children;
-        m_db.Read(std::make_pair(DB_CHILDREN, parent_address), children);
+        m_db.Read(std::make_pair(DB_CHILDREN, referral.parentAddress), children);
 
-        children.push_back(referral.pubKeyId);
+        children.push_back(referral.GetAddress());
 
-        if(!m_db.Write(std::make_pair(DB_CHILDREN, parent_address), children))
+        if(!m_db.Write(std::make_pair(DB_CHILDREN, referral.parentAddress), children))
             return false;
+
+        debug("Inserted referral %s parent %s",
+                CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
+                CMeritAddress{parent_referral->addressType, referral.parentAddress}.ToString());
 
     } else if(!allow_no_parent) {
         assert(false && "parent referral missing");
         return false;
     } else {
-        debug("\tWarning Parent missing for code %s", referral.previousReferral.GetHex());
+        debug("\tWarning Parent missing for address %s. Parent: %s",
+            CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
+            referral.parentAddress.GetHex());
     }
-
-    debug("Inserted referral %s code %s parent %s",
-            CMeritAddress(referral.addressType, referral.pubKeyId).ToString(), 
-            referral.codeHash.GetHex(),
-            referral.previousReferral.GetHex());
 
     return true;
 }
 
 bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
+    debug("Removing Referral %d", CMeritAddress{referral.addressType, referral.GetAddress()}.ToString());
 
-    debug("Removing Referral %d", CMeritAddress{referral.addressType, referral.pubKeyId}.ToString());
-
-    if(!m_db.Erase(std::make_pair(DB_REFERRALS, referral.codeHash)))
+    if(!m_db.Erase(std::make_pair(DB_REFERRALS, referral.GetAddress())))
         return false;
 
-    Address parent_address;
-    if(auto parent_referral = GetReferral(referral.previousReferral))
-        parent_address = parent_referral->pubKeyId;
+    if(!m_db.Erase(std::make_pair(DB_HASH, referral.GetHash())))
+        return false;
 
-    if(!m_db.Erase(std::make_pair(DB_PARENT_KEY, referral.pubKeyId)))
+    if(!m_db.Erase(std::make_pair(DB_PUBKEY, referral.pubkey)))
+        return false;
+
+    if(!m_db.Erase(std::make_pair(DB_PARENT_ADDRESS, referral.GetAddress())))
         return false;
 
     ChildAddresses children;
-    m_db.Read(std::make_pair(DB_CHILDREN, parent_address), children);
+    m_db.Read(std::make_pair(DB_CHILDREN, referral.parentAddress), children);
 
-    children.erase(
-            std::remove(std::begin(children), std::end(children), referral.pubKeyId),
-            std::end(children));
+    children.erase(std::remove(std::begin(children), std::end(children),
+                referral.GetAddress()), std::end(children));
 
-    if(!m_db.Write(std::make_pair(DB_CHILDREN, parent_address), children))
+    if(!m_db.Write(std::make_pair(DB_CHILDREN, referral.parentAddress), children))
         return false;
 
     return true;
-}
-
-bool ReferralsViewDB::ReferralCodeExists(const uint256& code_hash) const {
-    return m_db.Exists(std::make_pair(DB_REFERRALS, code_hash));
-}
-
-bool ReferralsViewDB::WalletIdExists(const Address& address) const
-{
-    return m_db.Exists(std::make_pair(DB_PARENT_KEY, address));
 }
 
 /**
@@ -194,7 +211,7 @@ bool ReferralsViewDB::UpdateANV(
             return false;
         }
 
-        const auto parent = GetReferrer(*address);
+        const auto parent = GetParentAddress(*address);
         if(parent) {
             address_type = parent->first;
             address = parent->second;
@@ -213,8 +230,8 @@ bool ReferralsViewDB::UpdateANV(
 MaybeAddressANV ReferralsViewDB::GetANV(const Address& address) const
 {
     ANVTuple anv;
-    return m_db.Read(std::make_pair(DB_ANV, address), anv) ? 
-        MaybeAddressANV{{ std::get<0>(anv), std::get<1>(anv), std::get<2>(anv) }} : 
+    return m_db.Read(std::make_pair(DB_ANV, address), anv) ?
+        MaybeAddressANV{{ std::get<0>(anv), std::get<1>(anv), std::get<2>(anv) }} :
         MaybeAddressANV{};
 }
 
@@ -298,11 +315,11 @@ bool ReferralsViewDB::FindLotteryPos(const Address& address, uint64_t& pos) cons
 
 /**
  * This function uses a modified version of the weighted random sampling algorithm
- * by Efraimidis and Spirakis 
+ * by Efraimidis and Spirakis
  * (https://www.sciencedirect.com/science/article/pii/S002001900500298X).
  *
  * Instead of computing R=rand^(1/W) where rand is some uniform random value
- * between [0,1] and W is the ANV, we will compute log(R). 
+ * between [0,1] and W is the ANV, we will compute log(R).
  */
 bool ReferralsViewDB::AddAddressToLottery(
         const uint256& rand_value,
@@ -357,8 +374,8 @@ bool ReferralsViewDB::AddAddressToLottery(
                         CMeritAddress(address_type, *address).ToString());
             }
         } else {
-            const auto maybe_min_entrant = GetMinLotteryEntrant();   
-            if(!maybe_min_entrant) { 
+            const auto maybe_min_entrant = GetMinLotteryEntrant();
+            if(!maybe_min_entrant) {
                 return false;
             }
 
@@ -406,7 +423,7 @@ bool ReferralsViewDB::AddAddressToLottery(
             }
         }
 
-        const auto parent = GetReferrer(*address);
+        const auto parent = GetParentAddress(*address);
         if(parent) {
             address = parent->second;
         } else {
@@ -424,7 +441,7 @@ bool ReferralsViewDB::UndoLotteryEntrant(
 {
     if(!RemoveFromLottery(undo.replaced_with)) {
         return false;
-    } 
+    }
 
     //Undo where the replaced address is the same as replaced_with are considered
     //add only and we just remove the entry and not try to add it.
@@ -455,8 +472,8 @@ MaybeLotteryEntrant ReferralsViewDB::GetMinLotteryEntrant() const
     LotteryEntrant v;
 
     const uint64_t first = 0;
-    return m_db.Read(std::make_pair(DB_LOT_VAL, first), v) ? 
-        MaybeLotteryEntrant{v} : 
+    return m_db.Read(std::make_pair(DB_LOT_VAL, first), v) ?
+        MaybeLotteryEntrant{v} :
         MaybeLotteryEntrant{};
 }
 
@@ -611,7 +628,7 @@ bool ReferralsViewDB::OrderReferrals(referral::ReferralRefs& refs)
     auto end_roots =
         std::partition(refs.begin(), refs.end(),
             [this](const referral::ReferralRef& ref) -> bool {
-            return static_cast<bool>(GetReferral(ref->previousReferral));
+            return static_cast<bool>(GetReferral(ref->parentAddress));
     });
 
     //If we don't have any roots, we have an invalid block.
@@ -619,19 +636,19 @@ bool ReferralsViewDB::OrderReferrals(referral::ReferralRefs& refs)
         return false;
     }
 
-    std::map<uint256, referral::ReferralRefs> graph;
+    std::map<uint160, referral::ReferralRefs> graph;
 
     //insert roots of trees into graph
     std::for_each(
             refs.begin(), end_roots,
             [&graph](const referral::ReferralRef& ref) {
-                graph[ref->codeHash] =  referral::ReferralRefs{};
+                graph[ref->GetAddress()] = referral::ReferralRefs{};
             });
 
     //Insert disconnected referrals
     std::for_each(end_roots, refs.end(),
             [&graph](const referral::ReferralRef& ref) {
-                graph[ref->previousReferral].push_back(ref);
+                graph[ref->parentAddress].push_back(ref);
             });
 
     //copy roots to work queue
@@ -643,15 +660,15 @@ bool ReferralsViewDB::OrderReferrals(referral::ReferralRefs& refs)
     auto replace = refs.begin();
     while(!to_process.empty() && replace != refs.end()) {
         const auto& ref = to_process.front();
-        *replace = ref; 
+        *replace = ref;
         to_process.pop_front();
         replace++;
 
-        const auto& children = graph[ref->codeHash];
+        const auto& children = graph[ref->GetAddress()];
         to_process.insert(to_process.end(), children.begin(), children.end());
     }
 
-    //If any of these conditions are not met, it means we have an invalid block 
+    //If any of these conditions are not met, it means we have an invalid block
     if(replace != refs.end() || !to_process.empty()) {
         return false;
     }

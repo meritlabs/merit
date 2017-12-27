@@ -251,6 +251,13 @@ bool CMeritAddress::Set(const CTxDestination& dest)
     return boost::apply_visitor(CMeritAddressVisitor(this), dest);
 }
 
+bool CMeritAddress::Set(const uint160& addr, const std::vector<unsigned char>& vchVersion)
+{
+    SetData(vchVersion, &addr, 20);
+
+    return true;
+}
+
 bool CMeritAddress::Set(char type, const uint160& id)
 {
     switch(type) {

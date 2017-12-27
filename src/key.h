@@ -155,7 +155,7 @@ public:
     //! Load private key and check that public key matches.
     bool Load(const CPrivKey& privkey, const CPubKey& vchPubKey, bool fSkipCheck);
 
-    //! Load private key. 
+    //! Load private key.
     bool Load(const CPrivKey& privkey, bool compressed);
 };
 

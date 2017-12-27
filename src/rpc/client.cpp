@@ -84,6 +84,10 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "createmultisig", 0, "nrequired" },
     { "createmultisig", 1, "keys" },
     { "createvault", 1, "options" },
+    { "easysend", 0, "amount" },
+    { "easysend", 2, "blocktimeout" },
+    { "easysend", 3, "subtractfeefromamount" },
+    { "easyreceive", 3, "blocktime" },
     { "listunspent", 0, "minconf" },
     { "listunspent", 1, "maxconf" },
     { "listunspent", 2, "addresses" },
@@ -147,6 +151,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "logging", 0, "include" },
     { "logging", 1, "exclude" },
     { "disconnectnode", 1, "nodeid" },
+    { "getrawreferral", 1, "verbose" },
     // Echo with conversion (For testing only)
     { "echojson", 0, "arg0" },
     { "echojson", 1, "arg1" },

@@ -119,6 +119,9 @@ std::string OpcodeToStr(
         const bool attempt_sighash_decode = false,
         const bool is_unspendable = false);
 
+std::string ScriptToAsmStr(
+        const CScript& script,
+        const bool fAttemptSighashDecode = false);
 
 bool CheckSignatureEncoding(
         const std::vector<unsigned char> &vchSig,
@@ -282,6 +285,15 @@ bool EvalScript(
         unsigned int flags,
         const BaseSignatureChecker& checker,
         SigVersion sigversion,
+        ScriptError* error = nullptr);
+
+bool EvalScript(
+        Stack& stack,
+        const CScript& script,
+        unsigned int flags,
+        const BaseSignatureChecker& checker,
+        SigVersion sigversion,
+        const uint160& self,
         ScriptError* error = nullptr);
 
 bool VerifyScript(

@@ -496,7 +496,7 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             ssKey >> hash;
             CScript script;
             ssValue >> script;
-            if (!pwallet->LoadCScript(script))
+            if (!pwallet->LoadCScript(script, hash))
             {
                 strErr = "Error reading wallet database: LoadCScript failed";
                 return false;

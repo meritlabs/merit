@@ -4,22 +4,26 @@
 
 #include "ref_verify.h"
 
-#include "referrals.h"
 #include "primitives/referral.h"
+#include "referrals.h"
 #include "validation.h"
 
 namespace referral
 {
-
-bool CheckReferral(const Referral& referral, CValidationState &state)
+bool CheckReferral(const Referral& referral, CValidationState& state)
 {
     // Basic checks that don't depend on any context
-    if (referral.pubKeyId.IsNull()) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-pubkey");
+    if (referral.GetAddress().IsNull()) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-address");
     }
 
-    if (referral.codeHash.IsNull()) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-ref-code-empty");
+    // Check referral pubkey and signature
+    if (!referral.pubkey.IsValid()) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-ref-invalid-pubkey");
+    } else {
+        if (referral.signature.empty()) {
+            return state.DoS(100, false, REJECT_INVALID, "bad-ref-sig-empty");
+        }
     }
 
     return true;

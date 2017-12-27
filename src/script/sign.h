@@ -59,7 +59,7 @@ public:
             const CMutableTransaction* txToIn,
             unsigned int nInIn,
             const CAmount& amountIn,
-            int nHashTypeIn) : 
+            int nHashTypeIn) :
         TransactionSignatureCreator(
                 keystoreIn,
                 &tx,
