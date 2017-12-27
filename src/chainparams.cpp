@@ -224,7 +224,7 @@ public:
         consensus.defaultAssumeValid = uint256S("0x0000000000000000003b9ce759c2a087d52abc4266f8f4ebd6d768b89defa50a"); //477890
 
         // Genesis reward 
-        CAmount genesisReward = 16000000_merit;
+        CAmount genesisReward = 20000000_merit;
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -342,7 +342,7 @@ public:
             exit(0);
         }
 
-        CAmount genesisReward = 16000000_merit;
+        CAmount genesisReward = 20000000_merit;
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
         genesis = CreateGenesisBlock(1503444726, 16, 0x207fffff, 24, 1, genesisReward, consensus, generateGenesis);
@@ -439,7 +439,7 @@ public:
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
-        CAmount genesisReward = 16000000_merit;
+        CAmount genesisReward = 20000000_merit;
         genesis = CreateGenesisBlock(1503670484, 2, 0x207fffff, 18, 1, genesisReward, consensus, generateGenesis);
 
         genesis.sCycle = {0xff, 0x3b5, 0x8e5, 0xa39, 0xf5b, 0xfd2, 0x15ad, 0x1a85, 0x2964, 0x2b43, 0x356f, 0x4f10,

@@ -49,6 +49,7 @@ struct Params {
     uint256 hashGenesisBlock;
     int nSubsidyHalvingInterval;
     uint32_t nBlocksToMaturity;
+
     /**
      * Minimum blocks including miner confirmation of the total of 2016 blocks in a retargeting period,
      * (nPowTargetTimespan / nPowTargetSpacing) which is also used for BIP9 deployments.
