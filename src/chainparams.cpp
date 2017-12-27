@@ -249,18 +249,19 @@ public:
 
         // genesis ref address: 13f4j1zWmweBVSQM9Jcr18JUdmJMR6kGSY
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503515697, 17, 0x207fffff, 27, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
+        genesis = CreateGenesisBlock(1514332800, 86, 0x207fffff, 27, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0x13297d, 0x2d2486, 0x58bbb7, 0xe735b1, 0x12b9fbe, 0x1efe3f7, 0x207cbc1, 0x293afb5, 0x2a14b2b,
-            0x2fbca6c, 0x328abac, 0x34854e7, 0x3579a00, 0x40be381, 0x43319b5, 0x45b79ae, 0x488a33f, 0x4a0876a,
-            0x4a577b9, 0x4a8d4c2, 0x4bbb34b, 0x4de1555, 0x505710e, 0x53f19bc, 0x544e889, 0x5aa884f, 0x5b1b095,
-            0x5d73be9, 0x650305a, 0x6589ecc, 0x66759a9, 0x673fe32, 0x6740938, 0x6765f4b, 0x6e062b7, 0x6e5bbdb,
-            0x6e5f96b, 0x74b7970, 0x7537036, 0x7b7ca61, 0x7e11d42, 0x7f9d19a};
+            0x655d62, 0xed3ff7, 0x1547118, 0x17e18e9, 0x1951b67, 0x1a62f65, 0x1d198ae, 0x1e0ba85, 0x1e62486,
+            0x2089288, 0x2375a91, 0x24062c5, 0x2cbaa5b, 0x2de47f4, 0x311bf15, 0x316a6bc, 0x35d5304, 0x3c0d00a,
+            0x3c886d9, 0x4083f0a, 0x4764c00, 0x4ba602d, 0x4cb39a4, 0x4e787d4, 0x502ac74, 0x53e184a, 0x55d0a7e,
+            0x587c138, 0x5b048b7, 0x5b45c38, 0x5b9d7a4, 0x5f2911f, 0x629008a, 0x65320c5, 0x677d335, 0x68d242b,
+            0x6af63ab, 0x6b8d144, 0x6e76030, 0x6f53051, 0x6f75c4e, 0x75d6a77};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("f8404dc84d98a1d6ea90dba88c72be91f245a585c68fe676a32c212e8cb72c44"));
-        assert(genesis.hashMerkleRoot == uint256S("3a1633942793fb3e0ae37790ecd25d26a7229939c07125c67a9bdf992ef28ad9"));
+        assert(consensus.hashGenesisBlock == uint256S("7d90f80b61a7b3a343194f2ff9e2f78e0230768e49e8df383ee690162ba347a8"));
+        assert(genesis.hashMerkleRoot == uint256S("7464a1ce95a025602f92c5584be0904c5d9211e87dd08811f7a7774ddcbdc565"));
+
 
         // Note that of those with the service bits flag, most only support a subset of possible options
         /*vSeeds.emplace_back("seed.merit.sipa.be", true); // Pieter Wuille, only supports x1, x5, x9, and xd
@@ -350,18 +351,20 @@ public:
 
         // genesis ref address: miB2255Vay5SGYsxrsbDq3WoVku4LJiFeG
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1503444726, 20, 0x207fffff, 24, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
+        genesis = CreateGenesisBlock(1514332800, 96, 0x207fffff, 24, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0xd2bd, 0x734f4, 0xa5523, 0xfd31c, 0x106bc2, 0x173a1d, 0x18370e, 0x1daf47, 0x1df00d, 0x22efa5,
-            0x31e2fd, 0x34b096, 0x35dd12, 0x3df255, 0x3f5a64, 0x429575, 0x52c9c4, 0x562cb2, 0x596cab,
-            0x5a0413, 0x5d4d86, 0x5de176, 0x620134, 0x704acf, 0x7d5e0a, 0x7e653d, 0x8d0e92, 0xa668a1,
-            0xab55ea, 0xafdb7e, 0xb36ebf, 0xb4e40b, 0xbbd2f0, 0xcd44c3, 0xd67b55, 0xdae53f, 0xed1231,
-            0xed4712, 0xf2b9a3, 0xf812d8, 0xf8cb2c, 0xfd2066};
+            0x6a34, 0xa9f33, 0xaef47, 0xcab32, 0x17b5a5, 0x1b10f8, 0x1e2d11, 0x2358bb, 0x2432c5,
+            0x2aea48, 0x2e1a1e, 0x376b30, 0x376f1a, 0x3c1e94, 0x3f1a3d, 0x4a7b5d, 0x5205c4,
+            0x55859e, 0x599c1a, 0x5b8ca9, 0x5f78e0, 0x6ed41e, 0x771733, 0x96e970, 0x9f4171,
+            0x9f5497, 0xa0cd41, 0xa16a53, 0xa24199, 0xa42687, 0xa7c282, 0xb36f11, 0xb45c67,
+            0xbf0600, 0xbf2c25, 0xc342b1, 0xc70509, 0xdc18e6, 0xe4e564, 0xf147e0, 0xf6bde5,
+            0xfcc8ee};
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("04fb87a683b50b8d88b6e6a90568f63b896efe6335ffe0f816f37df3bd2b6c1e"));
+        assert(consensus.hashGenesisBlock == uint256S("8689bfaaebb6d43bf6a5316bcc1f3ccb41aa067d842ed24587adb91ef0df8bd5"));
         assert(genesis.hashMerkleRoot == uint256S("7464a1ce95a025602f92c5584be0904c5d9211e87dd08811f7a7774ddcbdc565"));
+
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -445,20 +448,18 @@ public:
 
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
-        genesis = CreateGenesisBlock(1503670484, 132, 0x207fffff, 18, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
+        genesis = CreateGenesisBlock(1514332800, 13, 0x207fffff, 18, 1, 50 * COIN, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0x12c2, 0x18c1, 0x67c7, 0x7dc6, 0x8fc0, 0x981b, 0x9fb6, 0xcc92, 0xcffe,
-            0xf0f4, 0x11a50, 0x12e19, 0x16f4e, 0x19457, 0x1a6e7, 0x1e844, 0x20938,
-            0x2106f, 0x244b9, 0x251eb, 0x26421, 0x268b1, 0x29219, 0x2a429, 0x2ae7e,
-            0x2bd64, 0x2cf5c, 0x2d2b4, 0x2d9fa, 0x2eb9b, 0x30d6f, 0x3131b, 0x31cdb,
-            0x32615, 0x32903, 0x34356, 0x3690f, 0x3839c, 0x383c7, 0x3844a, 0x3b59b,
-            0x3bcb2
+            0x2be5, 0x30b9, 0x36d1, 0x5f03, 0x8abd, 0xc678, 0x10d8c, 0x11727, 0x11728, 0x12518, 0x127f2, 0x15b8e,
+            0x16bb7, 0x17c6f, 0x18282, 0x184a0, 0x187df, 0x19aa0, 0x1aa07, 0x1aaf1, 0x1bdda, 0x1d49f, 0x1dd18,
+            0x21c64, 0x23436, 0x23e39, 0x24a06, 0x25d98, 0x28687, 0x2d58e, 0x2e9a8, 0x2f202,0x2f412, 0x2fc95,
+            0x31d70, 0x3265a, 0x32b6e, 0x37500, 0x3a8b5, 0x3e37a, 0x3f2ef, 0x3f908
         };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("90b7c7335a900467754bd7cfef641d8148ed893674f7b9d34b7046ac0eb3cde3"));
-        assert(genesis.hashMerkleRoot == uint256S("3a1633942793fb3e0ae37790ecd25d26a7229939c07125c67a9bdf992ef28ad9"));
+        assert(consensus.hashGenesisBlock == uint256S("d32c0f46ee271b361562a1f24f6e852dc4fe66493ae5acf58cd8db3415061339"));
+        assert(genesis.hashMerkleRoot == uint256S("7464a1ce95a025602f92c5584be0904c5d9211e87dd08811f7a7774ddcbdc565"));
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.

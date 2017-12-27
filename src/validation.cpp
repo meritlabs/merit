@@ -2570,7 +2570,7 @@ bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_
 static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex,
                   CCoinsViewCache& view, const CChainParams& chainparams, bool fJustCheck = false)
 {
-    debug("ConnectBlock: %s", block.GetHash().GetHex());
+    debug("ConnectBlock%s: %s", fJustCheck ? " (check)" : "", block.GetHash().GetHex());
     AssertLockHeld(cs_main);
     assert(pindex);
     // pindex->phashBlock can be null if called by CreateNewBlock/TestBlockValidity
