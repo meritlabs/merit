@@ -381,6 +381,11 @@ void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 
 void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::refiter iter)
 {
+    if (refsInBlock.count(iter)) {
+        debug("\t%s: Referral %s is already in block\n", __func__, iter->GetSharedEntryValue()->GetHash().GetHex());
+        return;
+    }
+
     pblock->m_vRef.push_back(iter->GetSharedEntryValue());
     if (fNeedSizeAccounting) {
         nBlockSize += iter->GetSize();
@@ -454,6 +459,7 @@ void BlockAssembler::AddReferrals()
         const auto ref = it->GetSharedEntryValue();
 
         if (refsInBlock.count(it)) {
+            debug("\t%s: Referral %s is already in block\n", __func__, ref->GetHash().GetHex());
             continue;
         }
 

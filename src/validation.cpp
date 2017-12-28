@@ -51,6 +51,7 @@
 
 #include "core_io.h"
 
+#include <algorithm>
 #include <atomic>
 #include <sstream>
 
@@ -2902,6 +2903,34 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             nTimeConnect * MICRO,
             nTimeConnect * MILLI / nBlocksTotal);
 
+    for (const auto& ref: block.m_vRef) {
+        if (CheckAddressBeaconed(ref->GetAddress(), false)) {
+            return error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex());
+        }
+
+        if (!CheckReferralSignature(*ref, block.m_vRef)) {
+            return error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex());
+        }
+    }
+
+    std::set<uint256> referral_hashes{};
+
+    for (const auto& ref: block.m_vRef) {
+        referral_hashes.insert(ref->GetHash());
+    }
+
+    if (referral_hashes.size() != block.m_vRef.size()) {
+        return error("ConnectBlock(): Referrals are not unique");
+    }
+
+    int64_t nTime4 = GetTimeMicros(); nTimeConnect += nTime4 - nTime3;
+    LogPrint(BCLog::BENCH, "      - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n",
+            block.m_vRef.size(),
+            MILLI * (nTime4 - nTime3),
+            MILLI * (nTime4 - nTime3) / block.m_vRef.size(),
+            nTimeConnect * MICRO,
+            nTimeConnect * MILLI / nBlocksTotal);
+
     //Figure out split subsidy and make sure the coinbase pays the expceted amount.
     const auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
     assert(subsidy.miner > 0);
@@ -2918,11 +2947,11 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                coinbase_tx.GetValueOut(), block_reward),
                                REJECT_INVALID, "bad-cb-amount");
 
-    int64_t nTime4 = GetTimeMicros(); nTimeVerify += nTime4 - nTime3;
+    int64_t nTime5 = GetTimeMicros(); nTimeVerify += nTime5 - nTime4;
     LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n",
             nInputs - 1,
-            MILLI * (nTime4 - nTime3),
-            nInputs <= 1 ? 0 : MILLI * (nTime4 - nTime3) / (nInputs-1),
+            MILLI * (nTime5 - nTime4),
+            nInputs <= 1 ? 0 : MILLI * (nTime5 - nTime4) / (nInputs-1),
             nTimeVerify * MICRO,
             nTimeVerify * MILLI / nBlocksTotal);
 
@@ -2942,8 +2971,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     if (!control.Wait())
         return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
 
-    int64_t nTime5 = GetTimeMicros(); nTimeVerify += nTime5 - nTime4;
-    LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime5 - nTime4), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
+    int64_t nTime6 = GetTimeMicros(); nTimeVerify += nTime6 - nTime5;
+    LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime6 - nTime5), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
 
     //order referrals so they are inserted into database in correct order.
     referral::ReferralRefs ordered_referrals = block.m_vRef;
@@ -3046,12 +3075,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             return AbortNode(state, "Failed to write blockhash index");
     }
 
-    for (const auto& ref: block.m_vRef) {
-        if (!CheckReferralSignature(*ref, block.m_vRef)) {
-            return error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex());
-        }
-    }
-
     if (fReferralIndex) {
         if (!UpdateAndIndexReferralOffset(block, curBlockPos, pos.nTxOffset))
             return AbortNode(state, "Failed to write referral transaction index");
@@ -3059,9 +3082,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
-
-    int64_t nTime6 = GetTimeMicros(); nTimeConnect += nTime6 - nTime5;
-    LogPrint(BCLog::BENCH, "    - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n", (unsigned)block.m_vRef.size(), MILLI * (nTime6 - nTime5), MILLI * (nTime6 - nTime5) / block.m_vRef.size(), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
     int64_t nTime7 = GetTimeMicros(); nTimeIndex += nTime7 - nTime6;
     LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime7 - nTime6), nTimeIndex * MICRO, nTimeIndex * MILLI / nBlocksTotal);
