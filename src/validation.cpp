@@ -2178,6 +2178,44 @@ AddressPair ExtractAddress(const CTxOut& tout)
 using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 
+using DebitsAndCredits = std::vector<std::tuple<char, referral::Address, CAmount>>;
+
+bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransaction& tx, CCoinsViewCache& view, bool undo = false)
+{
+    int64_t debitDir = !undo ? -1 : 1;
+    int64_t creditDir = !undo ? 1 : -1;
+
+    //debit senders
+    if (!tx.IsCoinBase()) {
+        for (const auto& in :  tx.vin) {
+            const auto &in_out = view.AccessCoin(in.prevout).out;
+            const auto address = ExtractAddress(in_out);
+            if(address.second == 0) {
+                if(in_out.nValue == 0) continue;
+                else return false;
+            }
+
+            const CAmount amount = in_out.nValue * debitDir;
+            debits_and_credits.push_back(std::make_tuple(address.second, address.first, amount));
+        }
+    }
+
+    //credit recipients
+    for (const auto& out : tx.vout) {
+        const auto address = ExtractAddress(out);
+        if(address.second == 0) {
+            if(out.nValue == 0) continue;
+            else return false;
+        }
+
+        const CAmount amount = out.nValue * creditDir;
+        debits_and_credits.push_back(std::make_tuple(address.second, address.first, amount));
+    }
+
+    return true;
+}
+
+
 bool UpdateANV(const DebitsAndCredits& debits_and_credits)
 {
     //apply the debit and credits to the addresses in the block transactions.
@@ -2193,40 +2231,13 @@ bool UpdateANV(const DebitsAndCredits& debits_and_credits)
     return true;
 }
 
-void GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransaction& tx, CCoinsViewCache& view, bool undo)
-{
-    int64_t debitDir = !undo ? -1 : 1;
-    int64_t creditDir = !undo ? 1 : -1;
-
-    //debit senders
-    if (!tx.IsCoinBase()) {
-        for (const auto& in :  tx.vin) {
-            const auto &in_out = view.AccessCoin(in.prevout).out;
-            assert(in_out.nValue >= 0);
-
-            const auto address = ExtractAddress(in_out);
-            if(address.second == 0) continue;
-
-            const CAmount amount = in_out.nValue * debitDir;
-            debits_and_credits.push_back(std::make_tuple(address.second, address.first, amount));
-        }
-    }
-
-    //credit recipients
-    for (const auto& out : tx.vout) {
-        const auto address = ExtractAddress(out);
-        if(address.second == 0) continue;
-
-        const CAmount amount = out.nValue * creditDir;
-        debits_and_credits.push_back(std::make_tuple(address.second, address.first, amount));
-    }
-}
-
 bool UpdateANV(const CBlock& block, CCoinsViewCache& view) {
     DebitsAndCredits debits_and_credits;
     for(const auto& tx: block.vtx) {
         assert(tx);
-        GetDebitsAndCredits(debits_and_credits, *tx, view);
+        if(!GetDebitsAndCredits(debits_and_credits, *tx, view)) {
+            return false;
+        }
     }
     return UpdateANV(debits_and_credits);
 }
@@ -2256,6 +2267,41 @@ bool RemoveReferrals(const CBlock& block)
         if(!prefviewdb->RemoveReferral(*rtx))
             return false;
     }
+    return true;
+}
+
+bool TransactionsAreBeaconed(const CBlock& block)
+{
+    assert(prefviewdb);
+
+    std::set<uint160> referrals_in_block;
+    std::transform(block.m_vRef.begin(), block.m_vRef.end(),
+            std::inserter(referrals_in_block, referrals_in_block.end()), 
+            [](const referral::ReferralRef& ref) {
+                return ref->GetAddress();
+            });
+
+    //Check and make sure each transaction outputs are sending merit
+    //to beaconed currencies.
+    for (const auto& tx : block.vtx) {
+        for(const auto& out : tx->vout) {
+
+            const auto address = ExtractAddress(out);
+
+            //Cannot send merit to a non-standard address.
+            if(address.second == 0) {
+                if(out.nValue == 0) continue;
+                else return false;
+            }
+
+            //Must be in either the block or blockchain.
+            if(!referrals_in_block.count(address.first) && 
+               !prefviewdb->Exists(address.first)) {
+                return false;
+            }
+        }
+    }
+
     return true;
 }
 
@@ -2298,11 +2344,8 @@ bool UndoLotteryEntrants(const CBlockUndo& undo, const size_t max_reservoir_size
 {
     assert(prefviewdb);
 
-    auto itr = undo.lottery.rbegin();
-    const auto end = undo.lottery.rend();
-
-    for(; itr != end; itr++) {
-        if(!prefviewdb->UndoLotteryEntrant(*itr, max_reservoir_size)) {
+    for(const auto& entrant : reverse_iterate(undo.lottery)) {
+        if(!prefviewdb->UndoLotteryEntrant(entrant, max_reservoir_size)) {
             return false;
         }
     }
@@ -2408,7 +2451,7 @@ static DisconnectResult DisconnectBlock(
             }
             // At this point, all of txundo.vprevout should have been moved out.
         }
-        GetDebitsAndCredits(debits_and_credits, tx, view, true);
+        fClean &= GetDebitsAndCredits(debits_and_credits, tx, view, true);
     }
 
     // move best block pointer to prevout block
@@ -2839,8 +2882,15 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             blockundo.vtxundo.push_back(CTxUndo());
         }
 
-        GetDebitsAndCredits(debits_and_credits, tx, view);
-        UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
+        if(!GetDebitsAndCredits(debits_and_credits, tx, view)) {
+            return state.DoS(100,
+                    error("ConnectBlock(): merit was sent to addresses that are non standard"),
+                    REJECT_INVALID, "bad-cb-bad-outputs");
+        }
+
+        if(!fJustCheck) {
+            UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
+        }
 
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
@@ -2926,9 +2976,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int64_t nTime6 = GetTimeMicros(); nTimeVerify += nTime6 - nTime5;
     LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime6 - nTime5), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
 
-    if (fJustCheck)
-        return true;
-
     //order referrals so they are inserted into database in correct order.
     referral::ReferralRefs ordered_referrals = block.m_vRef;
     if(!prefviewdb->OrderReferrals(ordered_referrals)) {
@@ -2937,19 +2984,24 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 REJECT_INVALID, "bad-cb-orphan-referrals");
     }
 
+    if(!TransactionsAreBeaconed(block)) { 
+        return state.DoS(100,
+                error("ConnectBlock(): There are transactions that are not beaconed"),
+                REJECT_INVALID, "bad-cb-orphan-transactions");
+    }
+
+    if (fJustCheck)
+        return true;
+
     //The order is important here. We must insert the referrals so that
     //the referral tree is updated to be correct before we debit/credit
     //the ANV to the appropriate addresses.
     if(!IndexReferrals(ordered_referrals)) {
-        return state.DoS(100,
-                error("ConnectBlock(): Could not index referrals"),
-                REJECT_INVALID, "bad-cb-bad-referrals");
+        return AbortNode(state, "Failed to write referrals");
     }
 
     if(!UpdateANV(debits_and_credits)) {
-        return state.DoS(100,
-                error("ConnectBlock(): Could update ANV"),
-                REJECT_INVALID, "bad-cb-bad-anv");
+        return AbortNode(state, "Failed to write ANV");
     }
 
     if(!UpdateLotteryEntrants(
@@ -2957,9 +3009,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 debits_and_credits,
                 chainparams.GetConsensus(),
                 blockundo)){
-        return state.DoS(100,
-                error("ConnectBlock(): Could update lottery entrants"),
-                REJECT_INVALID, "bad-cb-bad-lottery-entrants");
+        return AbortNode(state, "Failed to write lottery entrants");
     }
 
     // Write undo information to disk
@@ -3283,9 +3333,10 @@ bool static DisconnectTip(CValidationState& state,
 
     if (disconnectTransactions) {
         // Save transactions to re-add to mempool at end of reorg
-        for (auto it = block.vtx.rbegin(); it != block.vtx.rend(); ++it) {
-            disconnectTransactions->addEntry(*it);
+        for (const auto& tx : reverse_iterate(block.vtx)) {
+            disconnectTransactions->addEntry(tx);
         }
+
         while (disconnectTransactions->DynamicMemoryUsage() > MAX_DISCONNECTED_TX_POOL_SIZE * 1000) {
             // Drop the earliest entry, and remove its children from the mempool.
             auto it = disconnectTransactions->queued.get<insertion_order>().begin();
@@ -3295,8 +3346,8 @@ bool static DisconnectTip(CValidationState& state,
     }
     if (disconnectReferrals) {
         // Save transactions to re-add to mempool at end of reorg
-        for (auto it = block.m_vRef.rbegin(); it != block.m_vRef.rend(); ++it) {
-            disconnectReferrals->addEntry(*it);
+        for (const auto& ref : reverse_iterate(block.m_vRef)) {
+            disconnectReferrals->addEntry(ref);
         }
         // TODO: check size of disconnectReferrals and remove referrals from it and mempool
         // in case it does not fit

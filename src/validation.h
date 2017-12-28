@@ -366,14 +366,6 @@ void PruneAndFlush();
 /** Prune block files up to a given height */
 void PruneBlockFilesManual(int nManualPruneHeight);
 
-/** Update ANV using given transaction */
-using DebitsAndCredits = std::vector<std::tuple<char, referral::Address, CAmount>>;
-void GetDebitsAndCredits(
-        DebitsAndCredits& debits_and_credits,
-        const CTransaction& tx,
-        CCoinsViewCache& view,
-        bool undo = false);
-
 bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationState& state,
         const referral::ReferralRef& referral, bool& pfMissingReferrer, bool fOverrideMempoolLimit = false);
 
