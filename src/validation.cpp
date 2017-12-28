@@ -2180,7 +2180,7 @@ using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 
 using DebitsAndCredits = std::vector<std::tuple<char, referral::Address, CAmount>>;
 
-bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransaction& tx, CCoinsViewCache& view, bool undo = true)
+bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransaction& tx, CCoinsViewCache& view, bool undo = false)
 {
     int64_t debitDir = !undo ? -1 : 1;
     int64_t creditDir = !undo ? 1 : -1;
@@ -2995,16 +2995,11 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     //the referral tree is updated to be correct before we debit/credit
     //the ANV to the appropriate addresses.
     if(!IndexReferrals(ordered_referrals)) {
-
-        return state.DoS(100,
-                error("ConnectBlock(): Could not index referrals"),
-                REJECT_INVALID, "bad-cb-bad-referrals");
+        return AbortNode(state, "Failed to write referrals");
     }
 
     if(!UpdateANV(debits_and_credits)) {
-        return state.DoS(100,
-                error("ConnectBlock(): Could update ANV"),
-                REJECT_INVALID, "bad-cb-bad-anv");
+        return AbortNode(state, "Failed to write ANV");
     }
 
     if(!UpdateLotteryEntrants(
@@ -3012,9 +3007,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 debits_and_credits,
                 chainparams.GetConsensus(),
                 blockundo)){
-        return state.DoS(100,
-                error("ConnectBlock(): Could update lottery entrants"),
-                REJECT_INVALID, "bad-cb-bad-lottery-entrants");
+        return AbortNode(state, "Failed to write lottery entrants");
     }
 
     // Write undo information to disk
