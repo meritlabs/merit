@@ -2888,7 +2888,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                     REJECT_INVALID, "bad-cb-bad-outputs");
         }
 
-        UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
+        if(!fJustCheck) {
+            UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
+        }
 
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
