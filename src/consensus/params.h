@@ -70,6 +70,7 @@ struct Params {
     int64_t ambassador_percent_cut;
     uint64_t total_winning_ambassadors;
     uint64_t initial_block_reward;
+    uint64_t max_lottery_reservoir_size;
     uint256 nMinimumChainWork;
     uint256 defaultAssumeValid;
     /** Cuckoo cycle length */

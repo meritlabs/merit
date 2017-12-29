@@ -74,7 +74,7 @@ using OrphanedTransactionIterSet = std::set<OrphanedTransactionMap::iterator, It
 std::map<COutPoint, OrphanedTransactionIterSet> mapOrphanTransactionsByPrev GUARDED_BY(cs_main);
 
 using OrphanedReferralIterSet = std::set<OrphanedReferralMap::iterator, IteratorComparator>;
-std::map<uint256, OrphanedReferralIterSet> mapOrphanReferralsByPrev GUARDED_BY(cs_main);
+std::map<referral::Address, OrphanedReferralIterSet> mapOrphanReferralsByPrev GUARDED_BY(cs_main);
 void EraseOrphansFor(NodeId peer) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 static size_t vExtraTxnForCompactIt = 0;
@@ -624,7 +624,7 @@ bool AddOrphanReferral(const referral::ReferralRef& ref, NodeId peer) EXCLUSIVE_
     auto ret = mapOrphanReferrals.emplace(hash, OrphanReferral{ref, peer, GetTime() + ORPHAN_TX_EXPIRE_TIME});
     assert(ret.second);
 
-    mapOrphanReferralsByPrev[ref->previousReferral].insert(ret.first);
+    mapOrphanReferralsByPrev[ref->parentAddress].insert(ret.first);
 
     LogPrint(BCLog::REFMEMPOOL, "stored orphan referral %s (mapsz %u prevsz)\n", hash.ToString(), mapOrphanReferrals.size());
 
@@ -673,7 +673,7 @@ int static EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 
     mapOrphanReferrals.erase(it);
 
-    auto itPrev = mapOrphanReferralsByPrev.find(it->second.ref->previousReferral);
+    auto itPrev = mapOrphanReferralsByPrev.find(it->second.ref->parentAddress);
 
     if (itPrev != mapOrphanReferralsByPrev.end()) {
         itPrev->second.erase(it);
@@ -837,7 +837,7 @@ void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pb
     for (const auto& ref: pblock->m_vRef) {
         assert(ref);
 
-        auto itByPrev = mapOrphanReferralsByPrev.find(ref->GetHash());
+        auto itByPrev = mapOrphanReferralsByPrev.find(ref->parentAddress);
         if (itByPrev == mapOrphanReferralsByPrev.end()) continue;
 
         std::transform(
@@ -852,10 +852,13 @@ void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pb
     // Erase orphan referrals include by this block
     {
         int nErased = 0;
-        for (uint256 &orphanHash : vOrphanErase) {
+        for (uint256 &orphanHash : vOrphanReferralsErase) {
             nErased += EraseOrphanReferral(orphanHash);
         }
-        if(nErased > 0) LogPrint(BCLog::REFMEMPOOL, "Erased %d orphan referrals included or conflicted by block\n", nErased);
+
+        if(nErased > 0) {
+            LogPrint(BCLog::REFMEMPOOL, "Erased %d orphan referrals included or conflicted by block\n", nErased);
+        }
     }
 }
 
@@ -1006,11 +1009,10 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_WITNESS_BLOCK:
         return mapBlockIndex.count(inv.hash);
     case MSG_REFERRAL:
-        // TODO: add to recentRejects if referral code is not valid
         return recentRejects->contains(inv.hash) ||
-            mempoolReferral.exists(inv.hash) ||
-            mapOrphanReferrals.count(inv.hash) ||
-            prefviewcache->ReferralCodeExists(inv.hash);
+            mempoolReferral.Exists(inv.hash) ||
+            mapOrphanReferrals.count(inv.hash);
+            prefviewcache->Exists(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -2138,17 +2140,17 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         if (!AlreadyHave(inv) && AcceptReferralToMemoryPool(mempoolReferral, state, pref, fMissingReferrer)) {
             RelayReferral(*pref, connman);
 
-            std::deque<uint256> vWorkQueue;
+            std::deque<referral::Address> vWorkQueue;
             std::vector<uint256> vEraseQueue;
 
-            vWorkQueue.emplace_back(inv.hash);
+            vWorkQueue.emplace_back(pref->GetAddress());
 
             pfrom->nLastRefTime = GetTime();
 
             LogPrint(BCLog::REFMEMPOOL, "AcceptToMemoryPool: peer=%d: accepted %s (poolsz %u refs)\n",
                 pfrom->GetId(),
                 hash.ToString(),
-                mempoolReferral.size());
+                mempoolReferral.Size());
 
             // Recursively process any orphan referral that depended on this one
             std::set<NodeId> setMisbehaving;
@@ -2176,10 +2178,10 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                     bool fMissingReferrer2 = false;
 
                     if (AcceptReferralToMemoryPool(mempoolReferral, stateDummy, porphanRef, fMissingReferrer2)) {
-                        LogPrint(BCLog::REFMEMPOOL, "   accepted orphan referral %s\n", orphanHash.ToString());
+                        LogPrint(BCLog::REFMEMPOOL, "   accepted orphan referral %s\n", orphanHash.GetHex());
                         RelayReferral(orphanRef, connman);
 
-                        vWorkQueue.emplace_back(orphanHash);
+                        vWorkQueue.emplace_back(orphanRef.GetAddress());
                         vEraseQueue.push_back(orphanHash);
 
                     } else if (!fMissingReferrer2) {
@@ -2188,11 +2190,11 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                         {
                             Misbehaving(fromPeerId, nDos);
                             setMisbehaving.insert(fromPeerId);
-                            LogPrint(BCLog::REFMEMPOOL, "   invalid orphan referral %s\n", orphanHash.ToString());
+                            LogPrint(BCLog::REFMEMPOOL, "   invalid orphan referral %s\n", orphanHash.GetHex());
                         }
 
                         // Has inputs but not accepted to mempool
-                        LogPrint(BCLog::REFMEMPOOL, "   removed orphan referral %s\n", orphanHash.ToString());
+                        LogPrint(BCLog::REFMEMPOOL, "   removed orphan referral %s\n", orphanHash.GetHex());
                         vEraseQueue.push_back(orphanHash);
                     }
                 }
@@ -2218,8 +2220,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 }
 
                 AddOrphanReferral(pref, pfrom->GetId());
-
-                // TODO: add orphan referral tx to map
             } else {
                 LogPrint(BCLog::REFMEMPOOL, "not keeping orphan with rejected parents %s\n", hash.ToString());
                 // We will continue to reject this tx since it has rejected

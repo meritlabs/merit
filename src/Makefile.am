@@ -131,6 +131,7 @@ MERIT_CORE_H = \
   pow.h \
   pog/anv.h \
   pog/select.h \
+  pog/wrs.h \
   pog/reward.h \
   protocol.h \
   random.h \
@@ -224,6 +225,7 @@ libmerit_server_a_SOURCES = \
   pog/anv.cpp \
   pog/reward.cpp \
   pog/select.cpp \
+  pog/wrs.cpp \
   policy/fees.cpp \
   policy/policy.cpp \
   policy/rbf.cpp \
@@ -236,6 +238,7 @@ libmerit_server_a_SOURCES = \
   rpc/misc.cpp \
   rpc/net.cpp \
   rpc/rawtransaction.cpp \
+  rpc/rawreferral.cpp \
   rpc/safemode.cpp \
   rpc/server.cpp \
   script/ismine.cpp \
@@ -326,6 +329,7 @@ libmerit_consensus_a_SOURCES = \
   primitives/transaction.cpp \
   primitives/transaction.h \
   primitives/referral.cpp \
+  primitives/referral.h \
   pubkey.cpp \
   pubkey.h \
   script/meritconsensus.cpp \

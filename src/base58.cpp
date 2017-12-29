@@ -251,6 +251,13 @@ bool CMeritAddress::Set(const CTxDestination& dest)
     return boost::apply_visitor(CMeritAddressVisitor(this), dest);
 }
 
+bool CMeritAddress::Set(const uint160& addr, const std::vector<unsigned char>& vchVersion)
+{
+    SetData(vchVersion, &addr, 20);
+
+    return true;
+}
+
 bool CMeritAddress::Set(char type, const uint160& id)
 {
     switch(type) {
@@ -281,7 +288,7 @@ CTxDestination CMeritAddress::Get() const
     if (!IsValid())
         return CNoDestination();
     uint160 id;
-    memcpy(&id, vchData.data(), 20);
+    std::copy(vchData.begin(), vchData.begin() + 20, id.begin());
     if (vchVersion == Params().Base58Prefix(CChainParams::PUBKEY_ADDRESS))
         return CKeyID(id);
     else if (vchVersion == Params().Base58Prefix(CChainParams::SCRIPT_ADDRESS))

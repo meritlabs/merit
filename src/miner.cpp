@@ -291,6 +291,12 @@ bool BlockAssembler::CheckReferrals(CTxMemPool::setEntries& testSet, referral::R
             return entryit->GetSharedEntryValue();
         });
 
+    // test all referrals are signed
+    for (const auto& entryit: candidateReferrals) {
+        CheckReferralSignature(entryit->GetEntryValue(), vRefs);
+    }
+
+    // test all tx's outputs are beaconed
     for (const CTxMemPool::txiter it : testSet) {
         CValidationState dummy;
         if (!Consensus::CheckTxOutputs(it->GetEntryValue(), dummy, *prefviewcache, vRefs)) {
@@ -375,6 +381,11 @@ void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 
 void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::refiter iter)
 {
+    if (refsInBlock.count(iter)) {
+        debug("\t%s: Referral %s is already in block\n", __func__, iter->GetSharedEntryValue()->GetHash().GetHex());
+        return;
+    }
+
     pblock->m_vRef.push_back(iter->GetSharedEntryValue());
     if (fNeedSizeAccounting) {
         nBlockSize += iter->GetSize();
@@ -448,6 +459,7 @@ void BlockAssembler::AddReferrals()
         const auto ref = it->GetSharedEntryValue();
 
         if (refsInBlock.count(it)) {
+            debug("\t%s: Referral %s is already in block\n", __func__, ref->GetHash().GetHex());
             continue;
         }
 
@@ -708,7 +720,9 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
             CBlock* pblock = &pblocktemplate->block;
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
-            LogPrintf("Running MeritMiner with %u transactions in block (%u bytes)\n", pblock->vtx.size(),
+            LogPrintf("Running MeritMiner with %u transactions and %u referrals in block (%u bytes)\n",
+                pblock->vtx.size(),
+                pblock->m_vRef.size(),
                 ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION));
 
             //

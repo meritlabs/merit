@@ -5,6 +5,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "primitives/referral.h"
+#include "script/standard.h"
 
 #include "hash.h"
 #include "tinyformat.h"
@@ -14,31 +15,33 @@
 namespace referral
 {
 
-static inline std::string GenerateReferralCode()
-{
-    auto randomHash = GetRandHash();
-
-    return randomHash.ToString().substr(0, 10);
-}
-
 MutableReferral::MutableReferral(
         char addressTypeIn,
         const Address& addressIn,
-        const uint256& referralIn) :
+        const CPubKey& pubkeyIn,
+        const Address& parentAddressIn) :
     version{Referral::CURRENT_VERSION},
-    previousReferral{referralIn},
+    parentAddress{parentAddressIn},
     addressType{addressTypeIn},
-    pubKeyId{addressIn},
-    code{GenerateReferralCode()},
-    codeHash{Hash(code.begin(), code.end())} {}
+    pubkey{pubkeyIn},
+    signature{valtype()}
+    {
+        if (addressType == 1) {
+            address = addressIn;
+        } else {
+            uint160 pubkeyHash = pubkey.GetID();
+            MixAddresses(addressIn, pubkeyHash, address);
+        }
+    }
+
 
 MutableReferral::MutableReferral(const Referral& ref) :
+    address{ref.address},
     version{ref.version},
-    previousReferral{ref.previousReferral},
+    parentAddress{ref.parentAddress},
     addressType{ref.addressType},
-    pubKeyId{ref.pubKeyId},
-    code{ref.code},
-    codeHash{ref.codeHash} {}
+    pubkey{ref.pubkey},
+    signature{ref.signature} {}
 
 uint256 MutableReferral::GetHash() const
 {
@@ -50,36 +53,23 @@ uint256 Referral::ComputeHash() const
     return SerializeHash(*this, SER_GETHASH);
 }
 
-/* For backward compatibility, the hash is initialized to 0. TODO: remove the need for this default constructor entirely. */
-Referral::Referral(
-        char addressTypeIn,
-        const Address& addressIn,
-        const uint256& referralIn) :
-    version{Referral::CURRENT_VERSION},
-    previousReferral{referralIn},
-    addressType{addressTypeIn},
-    pubKeyId{addressIn},
-    code{GenerateReferralCode()},
-    codeHash{Hash(code.begin(), code.end())},
-    m_hash{} {}
-
 Referral::Referral(const MutableReferral &ref) :
     version{ref.version},
-    previousReferral{ref.previousReferral},
+    parentAddress{ref.parentAddress},
     addressType{ref.addressType},
-    pubKeyId{ref.pubKeyId},
-    code{ref.code},
-    codeHash{ref.codeHash},
-    m_hash{ComputeHash()} {}
+    pubkey{ref.pubkey},
+    signature{ref.signature},
+    address{ref.address},
+    hash{ComputeHash()} {}
 
 Referral::Referral(MutableReferral &&ref) :
     version{ref.version},
-    previousReferral{std::move(ref.previousReferral)},
+    parentAddress{std::move(ref.parentAddress)},
     addressType{ref.addressType},
-    pubKeyId{std::move(ref.pubKeyId)},
-    code{ref.code},
-    codeHash{ref.codeHash},
-    m_hash{ComputeHash()} {}
+    pubkey{std::move(ref.pubkey)},
+    signature{ref.signature},
+    address{std::move(ref.address)},
+    hash{ComputeHash()} {}
 
 unsigned int Referral::GetTotalSize() const
 {
@@ -89,13 +79,12 @@ unsigned int Referral::GetTotalSize() const
 std::string Referral::ToString() const
 {
     std::string str;
-    str += strprintf("Referral(hash=%s, ver=%d, codeHash=%s, previousReferral=%s, addressType%d, pubKeyId=%s)\n",
-        GetHash().GetHex().substr(0,10),
+    str += strprintf("Referral(hash=%s, ver=%d, parentAddress=%s, address=%s, addressType=%d)\n",
+        GetHash().GetHex(),
         version,
-        codeHash.GetHex(),
-        previousReferral.GetHex(),
-        static_cast<int>(addressType),
-        pubKeyId.GetHex());
+        parentAddress.GetHex(),
+        address.GetHex(),
+        static_cast<int>(addressType));
     return str;
 }
 

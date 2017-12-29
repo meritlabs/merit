@@ -49,12 +49,12 @@ bool ReferralTxMemPool::AddUnchecked(const uint256& hash, const RefMemPoolEntry&
     auto parentit =
         std::find_if(mapRTx.begin(), mapRTx.end(),
             [entry](const referral::RefMemPoolEntry& parent) {
-                return parent.GetSharedEntryValue()->codeHash == entry.GetEntryValue().previousReferral;
+                return parent.GetSharedEntryValue()->GetAddress() == entry.GetEntryValue().parentAddress;
             });
 
     if (parentit != mapRTx.end()) {
         mapChildren[parentit].insert(newit);
-        mapRTx.modify(parentit, update_descendants_count(-1));
+        mapRTx.modify(parentit, update_descendants_count(1));
 
         setEntries s;
         cachedInnerUsage += memusage::IncrementalDynamicUsage(s);
@@ -130,12 +130,11 @@ void ReferralTxMemPool::RemoveUnchecked(refiter it, MemPoolRemovalReason reason)
 {
     NotifyEntryRemoved(it->GetSharedEntryValue(), reason);
 
-
     // check mempool referrals for a parent
     auto parentit =
         std::find_if(mapRTx.begin(), mapRTx.end(),
             [it](const referral::RefMemPoolEntry& parent) {
-                return parent.GetSharedEntryValue()->codeHash == it->GetEntryValue().previousReferral;
+                return parent.GetSharedEntryValue()->GetAddress() == it->GetEntryValue().parentAddress;
             });
 
     if (parentit != mapRTx.end()) {
@@ -146,11 +145,13 @@ void ReferralTxMemPool::RemoveUnchecked(refiter it, MemPoolRemovalReason reason)
         cachedInnerUsage -= memusage::IncrementalDynamicUsage(s);
     }
 
+    assert(mapChildren.count(it));
+
     cachedInnerUsage -= it->DynamicMemoryUsage();
     cachedInnerUsage -= memusage::DynamicUsage(mapChildren[it]);
 
-    mapRTx.erase(it);
     mapChildren.erase(it);
+    mapRTx.erase(it);
 
     assert(cachedInnerUsage >= 0);
 }
@@ -193,19 +194,19 @@ int ReferralTxMemPool::Expire(int64_t time) {
     return stage.size();
 }
 
-ReferralRef ReferralTxMemPool::get(const uint256& hash) const
+ReferralRef ReferralTxMemPool::Get(const uint256& hash) const
 {
     LOCK(cs);
     auto it = mapRTx.find(hash);
     return it != mapRTx.end() ? it->GetSharedEntryValue() : nullptr;
 }
 
-ReferralRef ReferralTxMemPool::GetWithCodeHash(const uint256& codeHash) const
+ReferralRef ReferralTxMemPool::GetWithAddress(const Address& address) const
 {
     LOCK(cs);
     for (const auto& it : mapRTx) {
         const auto ref = it.GetSharedEntryValue();
-        if (ref->codeHash == codeHash) {
+        if (ref->GetAddress() == address) {
             return ref;
         }
     }
@@ -213,9 +214,9 @@ ReferralRef ReferralTxMemPool::GetWithCodeHash(const uint256& codeHash) const
     return nullptr;
 }
 
-bool ReferralTxMemPool::ExistsWithCodeHash(const uint256& codeHash) const
+bool ReferralTxMemPool::ExistsWithAddress(const Address& address) const
 {
-    return GetWithCodeHash(codeHash) != nullptr;
+    return GetWithAddress(address) != nullptr;
 }
 
 void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, referral::ReferralTxMemPool::setEntries& txReferrals)
@@ -231,7 +232,7 @@ void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, re
 
         assert(GetUint160(dest, addr));
 
-        bool addressBeaconed = prefviewcache->WalletIdExists(addr);
+        bool addressBeaconed = prefviewcache->Exists(addr);
 
         // check cache for beaconed address
         if (addressBeaconed) {
@@ -242,7 +243,7 @@ void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, re
         const auto it = std::find_if(
             mapRTx.begin(), mapRTx.end(),
             [&addr](const referral::RefMemPoolEntry& entry) {
-                return entry.GetEntryValue().pubKeyId == addr;
+                return entry.GetEntryValue().GetAddress() == addr;
             });
 
         if (it != mapRTx.end()) {

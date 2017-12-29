@@ -163,13 +163,16 @@ bool error(const char* fmt, const Args&... args)
     return false;
 }
 
+#ifdef DEBUG
 template<typename... Args>
 void debug(const char* fmt, const Args&... args)
 {
-#ifdef DEBUG
     LogPrintStr("DEBUG: " + tfm::format(fmt, args...) + "\n");
-#endif
 }
+#else
+#define debug(...) 
+#endif 
+
 
 void PrintExceptionContinue(const std::exception *pex, const char* pszThread);
 void FileCommit(FILE *file);

@@ -273,4 +273,9 @@ CScript GetScriptForMultisig(int nRequired, const std::vector<CPubKey>& keys);
  */
 CScript GetScriptForWitness(const CScript& redeemscript);
 
+/**
+ * Combines the hashes and then hashes them.
+ */
+void MixAddresses(const uint160& a, const uint160& b, uint160& res);
+
 #endif // MERIT_SCRIPT_STANDARD_H

@@ -183,7 +183,13 @@ UniValue abortrescan(const JSONRPCRequest& request)
 }
 
 void ImportAddress(CWallet*, const CTxDestination& dest, const std::string& strLabel);
-void ImportScript(CWallet* const pwallet, const CScript& script, const std::string& strLabel, bool isRedeemScript)
+
+void ImportScript(
+        CWallet* const pwallet,
+        const CScript& script,
+        const uint160& scriptAddress,
+        const std::string& strLabel,
+        bool isRedeemScript)
 {
     if (!isRedeemScript && ::IsMine(*pwallet, script) == ISMINE_SPENDABLE) {
         throw JSONRPCError(RPC_WALLET_ERROR, "The wallet already contains the private key for this address or script");
@@ -196,10 +202,10 @@ void ImportScript(CWallet* const pwallet, const CScript& script, const std::stri
     }
 
     if (isRedeemScript) {
-        if (!pwallet->HaveCScript(script) && !pwallet->AddCScript(script)) {
+        if (!pwallet->HaveCScript(CScriptID(scriptAddress)) && !pwallet->AddCScript(script, scriptAddress)) {
             throw JSONRPCError(RPC_WALLET_ERROR, "Error adding p2sh redeemScript to wallet");
         }
-        ImportAddress(pwallet, CScriptID(script), strLabel);
+        ImportAddress(pwallet, CScriptID(scriptAddress), strLabel);
     } else {
         CTxDestination destination;
         if (ExtractDestination(script, destination)) {
@@ -211,7 +217,9 @@ void ImportScript(CWallet* const pwallet, const CScript& script, const std::stri
 void ImportAddress(CWallet* const pwallet, const CTxDestination& dest, const std::string& strLabel)
 {
     CScript script = GetScriptForDestination(dest);
-    ImportScript(pwallet, script, strLabel, false);
+    uint160 addr;
+    GetUint160(dest, addr);
+    ImportScript(pwallet, script, addr, strLabel, false);
     // add to address book or update label
     if (IsValidDestination(dest))
         pwallet->SetAddressBook(dest, strLabel, "receive");
@@ -274,7 +282,10 @@ UniValue importaddress(const JSONRPCRequest& request)
         ImportAddress(pwallet, dest, strLabel);
     } else if (IsHex(request.params[0].get_str())) {
         std::vector<unsigned char> data(ParseHex(request.params[0].get_str()));
-        ImportScript(pwallet, CScript(data.begin(), data.end()), strLabel, fP2SH);
+        auto dest = DecodeDestination(request.params[1].get_str());
+        uint160 addr;
+        GetUint160(dest, addr);
+        ImportScript(pwallet, CScript(data.begin(), data.end()), addr, strLabel, fP2SH);
     } else {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Merit address or script");
     }
@@ -435,7 +446,7 @@ UniValue importpubkey(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
 
     ImportAddress(pwallet, pubKey.GetID(), strLabel);
-    ImportScript(pwallet, GetScriptForRawPubKey(pubKey), strLabel, false);
+    ImportScript(pwallet, GetScriptForRawPubKey(pubKey), pubKey.GetID(), strLabel, false);
 
     if (fRescan)
     {
@@ -775,12 +786,15 @@ UniValue ProcessImport(CWallet * const pwallet, const UniValue& data, const int6
                 throw JSONRPCError(RPC_WALLET_ERROR, "Error adding address to wallet");
             }
 
+            uint160 scriptPubKeyID;
+            GetUint160(dest, scriptPubKeyID);
+
             if(script.IsPayToScriptHash()) {
-                if (!pwallet->HaveCScript(redeemScript) && !pwallet->AddCScript(redeemScript)) {
+                if (!pwallet->HaveCScript(CScriptID{scriptPubKeyID}) && !pwallet->AddCScript(redeemScript, scriptPubKeyID)) {
                     throw JSONRPCError(RPC_WALLET_ERROR, "Error adding p2sh redeemScript to wallet");
                 }
             } else if (script.IsParameterizedPayToScriptHash()){
-                if (!pwallet->HaveParamScript(redeemScript) && !pwallet->AddParamScript(redeemScript)) {
+                if (!pwallet->HaveParamScript(CParamScriptID{scriptPubKeyID}) && !pwallet->AddParamScript(redeemScript, scriptPubKeyID)) {
                     throw JSONRPCError(RPC_WALLET_ERROR, "Error adding pp2sh redeemScript to wallet");
                 }
             }

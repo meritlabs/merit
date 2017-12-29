@@ -888,8 +888,8 @@ public:
 
     const CWalletTx* GetWalletTx(const uint256& hash) const;
 
-    // Sets the referral code to unlock the wallet and sends referral tx to the network
-    referral::ReferralRef Unlock(const uint256& referralCodeIn);
+    // Sets the referral address to unlock the wallet and sends referral tx to the network
+    referral::ReferralRef Unlock(const referral::Address& parentAddress);
 
     //! check whether we are allowed to upgrade (or already support) to the named feature
     bool CanSupportFeature(enum WalletFeature wf) const { AssertLockHeld(cs_wallet); return nWalletMaxVersion >= wf; }
@@ -952,10 +952,10 @@ public:
     bool AddCryptedKey(const CPubKey &vchPubKey, const std::vector<unsigned char> &vchCryptedSecret) override;
     //! Adds an encrypted key to the store, without saving it to disk (used by LoadWallet)
     bool LoadCryptedKey(const CPubKey &vchPubKey, const std::vector<unsigned char> &vchCryptedSecret);
-    bool AddCScript(const CScript& redeemScript) override;
-    bool AddParamScript(const CScript& redeemScript) override;
-    bool LoadCScript(const CScript& redeemScript);
-    bool LoadParamScript(const CScript& redeemScript);
+    bool AddCScript(const CScript& redeemScript, const uint160&) override;
+    bool AddParamScript(const CScript& redeemScript, const uint160&) override;
+    bool LoadCScript(const CScript& redeemScript, const uint160&);
+    bool LoadParamScript(const CScript& redeemScript, const uint160&);
 
     //! Adds a destination data tuple to the store, and saves it to disk
     bool AddDestData(const CTxDestination &dest, const std::string &key, const std::string &value);
@@ -1042,7 +1042,7 @@ public:
             const CCoinControl& coin_control,
             bool sign = true);
 
-    bool CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef& referral);
+    bool CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef& referral, CKey& key);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CConnman* connman, CValidationState& state);
     bool CommitTransaction(referral::ReferralTx& rtxNew, CConnman* connman, CValidationState& state);
 
@@ -1058,7 +1058,7 @@ public:
 
     bool NewKeyPool();
     size_t KeypoolCountExternalKeys();
-    bool TopUpKeyPool(unsigned int kpSize = 0, std::shared_ptr<uint256> referredBy = nullptr, bool outReferral = false);
+    bool TopUpKeyPool(unsigned int kpSize = 0, std::shared_ptr<referral::Address> referredBy = nullptr, bool outReferral = false);
     void ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRequestedInternal);
     void KeepKey(int64_t nIndex);
     void ReturnKey(int64_t nIndex, bool fInternal, const CPubKey& pubkey);
@@ -1216,22 +1216,28 @@ public:
     referral::ReferralRef GenerateNewReferral(
             char addressType,
             const referral::Address& addr,
-            const uint256& referredBy);
+            const CPubKey& signPubKey,
+            const referral::Address& parentAddress,
+            CKey key = CKey{});
 
     referral::ReferralRef GenerateNewReferral(
             const CScriptID& id,
-            const uint256& referredBy);
+            const referral::Address& parentAddress,
+            const CPubKey& signPubKey);
 
     referral::ReferralRef GenerateNewReferral(
             const CParamScriptID& id,
-            const uint256& referredBy);
+            const referral::Address& parentAddress,
+            const CPubKey& signPubKey);
 
     referral::ReferralRef GenerateNewReferral(
             const CPubKey& pubkey,
-            const uint256& referredBy);
+            const referral::Address& parentAddress,
+            CKey key = CKey{});
 
     bool IsReferred() const;
-    uint256 ReferralCodeHash() const;
+    referral::Address ReferralAddress() const;
+    CPubKey ReferralPubKey() const;
 };
 
 /** A key allocated from the key pool. */

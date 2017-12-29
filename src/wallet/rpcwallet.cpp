@@ -93,7 +93,7 @@ void EnsureWalletIsUnlocked(CWallet * const pwallet)
     }
 
     if (!pwallet->IsReferred()) {
-        throw JSONRPCError(RPC_REFERRER_IS_NOT_SET, "Error: Wallet must is not beaconed. Use referral code to beacon first.");
+        throw JSONRPCError(RPC_WALLET_NOT_REFERRED, "Error: Wallet is not beaconed. Use referral code to beacon first.");
     }
 }
 
@@ -518,19 +518,32 @@ static UniValue EasySend(
         GetScriptForEasySend(max_blocks, sender_pub, receiver_pub);
 
     CScriptID script_id = easy_send_script;
-    CScript script_pub_key = GetScriptForDestination(script_id);
 
-    if(!pwallet.GenerateNewReferral(receiver_pub, pwallet.ReferralCodeHash())) {
+    if(!pwallet.GenerateNewReferral(
+                receiver_pub,
+                pwallet.ReferralAddress(),
+                receiver_key)) {
+
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Unable to generate referral for receiver key");
     }
 
-    if(!pwallet.GenerateNewReferral(script_id, pwallet.ReferralCodeHash())) {
+    referral::ReferralRef script_referral=
+        pwallet.GenerateNewReferral(
+                    script_id,
+                    sender_pub.GetID(),
+                    sender_pub);
+
+    if(!script_referral) {
+
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Unable to generate referral for easy send script");
     }
+
+    CScriptID easy_send_address{script_referral->GetAddress()};
+    CScript script_pub_key = GetScriptForDestination(easy_send_address);
 
     std::string error;
     std::vector<CRecipient> recipients = {
@@ -566,17 +579,116 @@ static UniValue EasySend(
     }
 
     //add script to wallet so we can redeem it later if needed.
-    pwallet.AddCScript(easy_send_script);
+    pwallet.AddCScript(easy_send_script, easy_send_address);
     pwallet.SetAddressBook(script_id, "", "easysend");
+    pwallet.SetAddressBook(easy_send_address, "", "easysend");
 
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
     ret.push_back(Pair("secret", HexStr(secret.substr(0, RANDOM_BYTES_SIZE))));
-    ret.push_back(Pair("scriptid", EncodeDestination(script_id)));
+    ret.push_back(Pair("address", EncodeDestination(easy_send_address)));
     ret.push_back(Pair("senderpubkey", HexStr(sender_pub)));
     ret.push_back(Pair("maxblocks", max_blocks));
 
     return ret;
+}
+
+struct EasySendCoin 
+{
+    Coin coin;
+    COutPoint out;
+};
+
+using EasySendCoins = std::vector<EasySendCoin>;
+
+
+void FindEasySendCoins(const CScriptID& easy_send_address, EasySendCoins& coins)
+{
+    CCoinsViewCache &view_chain = *pcoinsTip;
+    CCoinsViewMemPool viewMempool(&view_chain, mempool);
+    CCoinsViewCache view(&viewMempool);
+
+    const int SCRIPT_TYPE = 2;
+
+    using MempoolOutputs = std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>>;
+    MempoolOutputs mempool_outputs;
+    std::vector<std::pair<uint160, int> > addresses = {{easy_send_address, SCRIPT_TYPE}};
+    mempool.getAddressIndex(addresses, mempool_outputs);
+
+    for(const auto& m : mempool_outputs) {
+        COutPoint out{m.first.txhash, m.first.index};
+        auto coin = view.AccessCoin(out);
+        if(!coin.out.IsNull()) {
+            coins.push_back({coin, out});
+        }
+    }
+
+    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > chain_outputs;
+    if(!GetAddressUnspent(easy_send_address, SCRIPT_TYPE, chain_outputs)) {
+        throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Cannot find coin with address: " + EncodeDestination(easy_send_address));
+    }
+
+    for(const auto& c : chain_outputs) {
+        COutPoint out{c.first.txhash, c.first.index};
+        auto coin = view.AccessCoin(out);
+        if(!coin.out.IsNull()) {
+            coins.push_back({coin, out});
+        }
+    }
+
+    if(coins.empty()) {
+        throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Cannot find unspent coin with address: " + EncodeDestination(easy_send_address));
+    }
+
+}
+
+void SelectEasySendCoins(
+        CWallet&  pwallet,
+        CCoinControl& coin_control,
+        const EasySendCoins coins, 
+        CAmount& unspent_amount) { 
+
+    for(const auto& c : coins) {
+
+        CSpentIndexValue spent_value;
+        if(GetSpentIndex(
+                    {c.out.hash, static_cast<unsigned int>(c.out.n)},
+                    spent_value)) {
+
+            continue;
+        }
+
+        unspent_amount += c.coin.out.nValue;
+
+
+        //get the easy send transaction based on easy_send_address
+        CTransactionRef unspent_tx;
+        uint256 blockHash;
+        if(!GetTransaction(
+                    c.out.hash,
+                    unspent_tx,
+                    Params().GetConsensus(),
+                    blockHash, true)) {
+
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Unable to find transaction with id: " + HexStr(c.out.hash));
+        }
+
+        // Generate a transaction and add it to the wallet so that CreateTransaction
+        // can find and select it when getting and signing the transaction vin.
+        CWalletTx unspent_wtx{&pwallet, unspent_tx};
+        unspent_wtx.hashBlock = blockHash;
+        unspent_wtx.nIndex = 0; //hack to get around not having CBlockIndex
+
+        pwallet.AddToWallet(unspent_wtx);
+        coin_control.Select({c.out.hash, static_cast<unsigned int>(c.out.n)});
+        coin_control.fAllowWatchOnly = true;
+    }
 }
 
 static UniValue EasyReceive(
@@ -613,53 +725,28 @@ static UniValue EasyReceive(
     auto easy_send_script = GetScriptForEasySend(max_blocks, sender_pub, escrow_pub);
     CScriptID script_id = easy_send_script;
 
-    const int SCRIPT_TYPE = 2;
+    uint160 mixed_address;
+    MixAddresses(script_id, sender_pub.GetID(), mixed_address);
+    CScriptID easy_send_address{mixed_address};
 
-    std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
-    if(!GetAddressIndex(script_id, SCRIPT_TYPE, coins)) {
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Cannot find coin with address: " + EncodeDestination(script_id));
-    }
+    //Make sure to add keys and CScript before we create the transaction
+    //because CreateTransaction assumes things are in your wallet.
 
-    if(coins.empty()) {
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Cannot find unspent coin with address: " + EncodeDestination(script_id));
-    }
+    pwallet.AddReferralAddressPubKey(easy_send_address, sender_pub.GetID());
+    pwallet.AddKeyPubKey(escrow_key, escrow_pub);
+    pwallet.AddCScript(easy_send_script, easy_send_address);
+    pwallet.SetAddressBook(easy_send_address, "", "easysend");
 
-    if(coins.size() > 1) {
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Only expected 1 coin with the address: " + EncodeDestination(script_id));
-    }
+    EasySendCoins coins;
+    CAmount unspent_amount = 0;
 
-    const auto& coin = coins.at(0);
-    const auto& unspent_key = coin.first;
-    const auto& unspent_val = coin.second;
+    FindEasySendCoins(easy_send_address, coins);
+    SelectEasySendCoins(pwallet, coin_control, coins, unspent_amount);
 
-    CSpentIndexValue spent_value;
-    if(GetSpentIndex(
-            {unspent_key.txhash, static_cast<unsigned int>(unspent_key.index)},
-            spent_value)) {
-
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Coin has already been spent at address: " + EncodeDestination(script_id));
-    }
-
-    //get the easy send transaction based on script_id
-    CTransactionRef unspent_tx;
-    uint256 blockHash;
-    if(!GetTransaction(
-                unspent_key.txhash,
-                unspent_tx,
-                Params().GetConsensus(),
-                blockHash, true)) {
-
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Unable to find transaction with id: " + HexStr(unspent_key.txhash));
+    if(unspent_amount == 0) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Coin has already been spent at address: " + EncodeDestination(easy_send_address));
     }
 
     // Reserve a key to accept the funds into.
@@ -676,27 +763,12 @@ static UniValue EasyReceive(
 
     std::string error;
     std::vector<CRecipient> recipients = {
-        {script_pub_key, unspent_val, fSubtractFeeFromAmount}
+        {script_pub_key, unspent_amount, fSubtractFeeFromAmount}
     };
 
     int change_pos_ret = -1;
     CAmount fee_required = 0;
 
-    // Generate a transaction and add it to the wallet so that CreateTransaction
-    // can find and select it when getting and signing the transaction vin.
-    CWalletTx unspent_wtx{&pwallet, unspent_tx};
-    unspent_wtx.hashBlock = blockHash;
-    unspent_wtx.nIndex = 0; //hack to get around not having CBlockIndex
-
-    pwallet.AddToWallet(unspent_wtx);
-    coin_control.Select({unspent_key.txhash, static_cast<unsigned int>(unspent_key.index)});
-    coin_control.fAllowWatchOnly = true;
-
-    //Make sure to add keys and CScript before we create the transaction
-    //because CreateTransaction assumes things are in your wallet.
-    pwallet.AddKeyPubKey(escrow_key, escrow_pub);
-    pwallet.AddCScript(easy_send_script);
-    pwallet.SetAddressBook(script_id, "", "easysend");
 
     if (!pwallet.CreateTransaction(
                 recipients,
@@ -721,7 +793,7 @@ static UniValue EasyReceive(
     //add script to wallet so we can redeem it later if needed.
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
-    ret.push_back(Pair("amount", ValueFromAmount(unspent_val)));
+    ret.push_back(Pair("amount", ValueFromAmount(unspent_amount)));
 
     return ret;
 }
@@ -825,7 +897,7 @@ UniValue easysend(const JSONRPCRequest& request)
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
             "1. \"amount\"             (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
-            "2. \"password\"           (numeric) Optional password to further secure the transaction.\n"
+            "2. \"password\"           (string) Optional password to further secure the transaction.\n"
             "3. blocktimeout           (numeric) The amount of blocks the transaction can be buried until the receiver cannot accept funds\n"
             "4. subtractfeefromamount  (boolean, optional, default=false) The fee will be deducted from the amount being sent.\n"
             "                             The recipient will receive less merits than you enter in the amount field.\n"
@@ -1058,9 +1130,24 @@ UniValue createvault(const JSONRPCRequest& request)
         }
 
         CParamScriptID script_id = vault_script;
+
+        referral::ReferralRef script_referral =
+            pwallet->GenerateNewReferral(
+                        script_id,
+                        pwallet->ReferralAddress(),
+                        pwallet->ReferralPubKey());
+
+        if(!script_referral) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Unable to generate referral for the vault script");
+        }
+
+        CParamScriptID vault_address{script_referral->GetAddress()};
+
         auto script_pub_key =
             GetParameterizedP2SH(
-                    script_id,
+                    vault_address,
                     ToByteVector(spend_pub_key),
                     ToByteVector(master_pub_key),
                     ExpandParam(whitelist),
@@ -1068,11 +1155,6 @@ UniValue createvault(const JSONRPCRequest& request)
                     ToByteVector(vault_tag),
                     0 /* simple is type 0 */);
 
-        if(!pwallet->GenerateNewReferral(script_id, pwallet->ReferralCodeHash())) {
-            throw JSONRPCError(
-                    RPC_WALLET_ERROR,
-                    "Unable to generate referral for the vault script");
-        }
 
         CWalletTx wtx;
         CCoinControl no_coin_control; // This is a deprecated API
@@ -1080,14 +1162,14 @@ UniValue createvault(const JSONRPCRequest& request)
 
         const auto txid = wtx.GetHash().GetHex();
 
-        pwallet->AddParamScript(vault_script);
-        pwallet->AddParamScript(script_pub_key);
+        pwallet->AddParamScript(vault_script, vault_address);
 
         UniValue ret(UniValue::VOBJ);
-        ret.push_back(Pair("vault_address", EncodeDestination(script_id)));
+        ret.push_back(Pair("vault_address", EncodeDestination(vault_address)));
         ret.push_back(Pair("txid", txid));
         ret.push_back(Pair("amount", ValueFromAmount(amount)));
         ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
+        ret.push_back(Pair("vault_script", ScriptToAsmStr(vault_script, true)));
         ret.push_back(Pair("tag", vault_tag.GetHex()));
         ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_pub_key_id)));
         ret.push_back(Pair("master_sk", HexStr(master_key.GetPrivKey())));
@@ -1197,7 +1279,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     //Make sure to add keys and CScript before we create the transaction
     //because CreateTransaction assumes things are in your wallet.
-    pwallet->AddParamScript(vaults[0].script);
+    pwallet->AddParamScript(vaults[0].script, *script_id);
 
     bool subtract_fee_from_amount = true;
 
@@ -1295,6 +1377,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     assert(mtx.vin.size() == vaults.size());
 
+    const auto& referral_pub_key_id = pwallet->ReferralPubKey().GetID();
 
     for(size_t i = 0; i <  mtx.vin.size(); i++) {
         auto& in = mtx.vin[i];
@@ -1319,7 +1402,8 @@ UniValue renewvault(const JSONRPCRequest& request)
         in.scriptSig
             << sig
             << RENEW_MODE
-            << valtype(vault.script.begin(), vault.script.end());
+            << valtype{referral_pub_key_id.begin(), referral_pub_key_id.end()}
+            << valtype{vault.script.begin(), vault.script.end()};
     }
 
     wtx.SetTx(std::make_shared<CTransaction>(mtx));
@@ -1433,7 +1517,7 @@ UniValue spendvault(const JSONRPCRequest& request)
 
     //Make sure to add keys and CScript before we create the transaction
     //because CreateTransaction assumes things are in your wallet.
-    pwallet->AddParamScript(vaults[0].script);
+    pwallet->AddParamScript(vaults[0].script, *script_id);
 
     //The two recipients are the spend key and the vault.
     //If there is change the change will go into the same vault.
@@ -1485,6 +1569,8 @@ UniValue spendvault(const JSONRPCRequest& request)
                 RPC_WALLET_ERROR, "Unable to find the spendkey in the keystore");
     }
 
+    const auto& referral_pub_key_id = pwallet->ReferralPubKey().GetID();
+
     for(size_t i = 0; i <  mtx.vin.size(); i++) {
         auto& in = mtx.vin[i];
         const auto& vault = vaults[i];
@@ -1508,7 +1594,8 @@ UniValue spendvault(const JSONRPCRequest& request)
         in.scriptSig
             << sig
             << SPEND_MODE
-            << valtype(vault.script.begin(), vault.script.end());
+            << valtype{referral_pub_key_id.begin(), referral_pub_key_id.end()}
+            << valtype{vault.script.begin(), vault.script.end()};
     }
 
     wtx.SetTx(std::make_shared<CTransaction>(mtx));
@@ -2235,6 +2322,7 @@ UniValue addmultisigaddress(const JSONRPCRequest& request)
             "       \"address\"  (string) merit address or hex-encoded public key\n"
             "       ...,\n"
             "     ]\n"
+            "2. \"script referral pubkey id\" (string) Pub key Id used to refer the script\n"
             "3. \"account\"      (string, optional) DEPRECATED. An account to assign the addresses to.\n"
 
             "\nResult:\n"
@@ -2251,16 +2339,21 @@ UniValue addmultisigaddress(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
+    uint160 scriptAddress;
+    auto scriptDest = DecodeDestination(request.params[2].get_str());
+    GetUint160(scriptDest, scriptAddress);
+
     std::string strAccount;
-    if (!request.params[2].isNull())
-        strAccount = AccountFromValue(request.params[2]);
+    if (!request.params[3].isNull())
+        strAccount = AccountFromValue(request.params[3]);
 
     // Construct using pay-to-script-hash:
     CScript inner = _createmultisig_redeemScript(pwallet, request.params);
     CScriptID innerID = inner;
-    pwallet->AddCScript(inner);
+    pwallet->AddCScript(inner, scriptAddress);
 
     pwallet->SetAddressBook(innerID, strAccount, "send");
+    pwallet->SetAddressBook(scriptDest, strAccount, "send");
     return EncodeDestination(innerID);
 }
 
@@ -2286,8 +2379,8 @@ public:
                 !VerifyScript(sigs.scriptSig, witscript, &sigs.scriptWitness, MANDATORY_SCRIPT_VERIFY_FLAGS | SCRIPT_VERIFY_WITNESS_PUBKEYTYPE, DummySignatureCreator(pwallet).Checker())) {
                 return false;
             }
-            pwallet->AddCScript(witscript);
             result = CScriptID(witscript);
+            pwallet->AddCScript(witscript, result);
             return true;
         }
         return false;
@@ -2311,8 +2404,8 @@ public:
                 !VerifyScript(sigs.scriptSig, witscript, &sigs.scriptWitness, MANDATORY_SCRIPT_VERIFY_FLAGS | SCRIPT_VERIFY_WITNESS_PUBKEYTYPE, DummySignatureCreator(pwallet).Checker())) {
                 return false;
             }
-            pwallet->AddCScript(witscript);
             result = CScriptID(witscript);
+            pwallet->AddCScript(witscript, result);
             return true;
         }
         return false;
@@ -2336,8 +2429,8 @@ public:
                 !VerifyScript(sigs.scriptSig, witscript, &sigs.scriptWitness, MANDATORY_SCRIPT_VERIFY_FLAGS | SCRIPT_VERIFY_WITNESS_PUBKEYTYPE, DummySignatureCreator(pwallet).Checker())) {
                 return false;
             }
-            pwallet->AddCScript(witscript);
             result = CScriptID(witscript);
+            pwallet->AddCScript(witscript,  result);
             return true;
         }
         return false;
@@ -4291,6 +4384,8 @@ UniValue generate(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
+    EnsureWalletIsUnlocked(pwallet);
+
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 3) {
         throw std::runtime_error(
             "generate nblocks ( maxtries )\n"
@@ -4336,23 +4431,6 @@ UniValue generate(const JSONRPCRequest& request)
     return generateBlocks(coinbase_script, num_generate, max_tries, true, nThreads);
 }
 
-UniValue validatereferralcode(const JSONRPCRequest& request)
-{
-    if (request.fHelp || request.params.size() != 1) {
-        throw std::runtime_error(
-            "validatereferralcode \"code\"\n"
-            + HelpExampleCli("validatereferralcode", "code")
-        );
-    }
-
-    const std::string unlockCode = request.params[0].get_str();
-    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
-    bool is_valid = prefviewcache->ReferralCodeExists(codeHash);
-
-    UniValue result(is_valid);
-    return result;
-}
-
 UniValue unlockwallet(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
@@ -4362,13 +4440,14 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() != 1 || request.params[0].get_str().empty()) {
         throw std::runtime_error(
-            "unlockwallet \"code\"\n"
+            "unlockwallet \"parentaddress\"\n"
             "Updates the wallet with referral code and beacons first key with associated referral.\n"
             "Returns an object containing various wallet state info.\n"
             "\nArguments:\n"
-            "1. code      (string, required) Referral code needed to unlock the wallet.\n"
+            "1. parentaddress   (string, required) Parent address needed to unlock the wallet.\n"
             "\nResult:\n"
             "{\n"
+            "  \"address\": xxxxx,                (string) the wallet's root address\n"
             "  \"walletname\": xxxxx,             (string) the wallet name\n"
             "  \"walletversion\": xxxxx,          (numeric) the wallet version\n"
             "  \"balance\": xxxxxxx,              (numeric) the total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
@@ -4381,26 +4460,31 @@ UniValue unlockwallet(const JSONRPCRequest& request)
             "  \"unlocked_until\": ttt,           (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
             "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
             "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
-            "  \"referralcode\":  \"<string>\"    (string) the referral code generated that can be shared with other users\n"
-            "  \"codehash\":  \"<string>\"        (string) the referral code hash generated that is stored on blockchain\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("unlockwallet", "\"referralcode\"")
-            + HelpExampleRpc("unlockwallet", "\"referralcode\"")
+            + HelpExampleCli("unlockwallet", "\"parentaddress\"")
+            + HelpExampleRpc("unlockwallet", "\"parentaddress\"")
         );
     }
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    std::string unlockCode = request.params[0].get_str();
-    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
+    CMeritAddress parentAddress{request.params[0].get_str()};
 
-    referral::ReferralRef referral = pwallet->Unlock(codeHash);
+    if (!parentAddress.IsValid()) {
+        throw std::runtime_error(strprintf("Parent address \"%s\" is not valid or in wrong format.", parentAddress.ToString().c_str()));
+    }
+
+    auto parentAddressUint160 = parentAddress.GetUint160();
+    assert(parentAddressUint160);
+
+    referral::ReferralRef referral = pwallet->Unlock(*parentAddressUint160);
 
     // TODO: Make this check more robust.
     UniValue obj(UniValue::VOBJ);
 
     size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
+    obj.push_back(Pair("address", EncodeDestination(CKeyID{referral->GetAddress()})));
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
     obj.push_back(Pair("balance", ValueFromAmount(pwallet->GetBalance())));
@@ -4421,9 +4505,6 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     if (!masterKeyID.IsNull())
         obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
-
-    obj.push_back(Pair("referralcode", referral->code));
-    obj.push_back(Pair("codehash", referral->codeHash.GetHex()));
 
     return obj;
 }
@@ -4477,96 +4558,6 @@ UniValue getanv(const JSONRPCRequest& request)
 }
 
 #ifdef ENABLE_WALLET
-UniValue unlockwalletwithaddress(const JSONRPCRequest& request)
-{
-    if (request.fHelp || request.params.size() != 2 || request.params[0].get_str().empty() || request.params[1].get_str().empty()) {
-        throw std::runtime_error(
-            "unlockwalletwithaddress \"address\" \"code\"\n"
-            "Updates the wallet with referral code and beacons first key with associated referral.\n"
-            "Return information about the given merit address..\n"
-            "\nArguments:\n"
-            "1. address      (string, required) Address of the wallet to unlock.\n"
-            "2. code         (string, required) Referral code needed to unlock the wallet.\n"
-            "\nResult:\n"
-            "{\n"
-            "  \"isvalid\":  true|false           (boolean) if address is a valid merit address\n"
-            "  \"address\":  \"<string>\"         (string) merit address\n"
-            "  \"referralcode\":  \"<string>\"    (string) the referral code generated that can be shared with other users\n"
-            "  \"codehash\":  \"<string>\"        (string) the referral code hash generated that is stored on blockchain\n"
-            "}\n"
-            "\nExamples:\n"
-            + HelpExampleCli("unlockwalletwithaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\" \"referralcode\"")
-            + HelpExampleRpc("unlockwalletwithaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\", \"referralcode\"")
-        );
-    }
-
-    if (!g_connman) {
-        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
-    }
-
-
-    LOCK(cs_main);
-
-    CMeritAddress address(request.params[0].get_str());
-    bool isValid = address.IsValid();
-
-    UniValue ret(UniValue::VOBJ);
-    if (!isValid) {
-        throw std::runtime_error("Address is not valid or in wrong format.");
-    }
-
-    std::string currentAddress = address.ToString();
-
-    // Create referral trasnaction
-    std::string unlockCode = request.params[1].get_str();
-    uint256 codeHash = Hash(unlockCode.begin(), unlockCode.end());
-
-    // check if provided referral code hash is valid, i.e. exists in the blockchain
-    if (!prefviewcache->ReferralCodeExists(codeHash) && !mempoolReferral.ExistsWithCodeHash(codeHash)) {
-        throw std::runtime_error(std::string(__func__) + ": provided code does not exist in the chain (RPC)");
-    }
-
-    if (CheckAddressBeaconed(address)) {
-        throw std::runtime_error(std::string(__func__) + ": Address is already beaconed.");
-    }
-
-    auto addressUint160 = address.GetUint160();
-    assert(addressUint160);
-
-    referral::ReferralRef referral =
-        referral::MakeReferralRef(
-                referral::MutableReferral(
-                    address.GetType(), *addressUint160, codeHash));
-
-    // check that new referral is not in the cache or in mempool
-    if (prefviewcache->ReferralCodeExists(referral->GetHash()) || mempoolReferral.ExistsWithCodeHash(referral->GetHash())) {
-        throw std::runtime_error(std::string(__func__) + ": new referral is already beaconed");
-    }
-
-    CValidationState state;
-    bool missingReferrer = false;
-    if (!AcceptReferralToMemoryPool(mempoolReferral, state, referral, missingReferrer)) {
-        if (missingReferrer) {
-            throw JSONRPCError(RPC_REFERRAL_REJECTED, "Missing referrer");
-        }
-
-        throw JSONRPCError(RPC_REFERRAL_REJECTED, strprintf("%i: %s", state.GetRejectCode(), state.GetRejectReason()));
-    }
-
-    CInv inv(MSG_REFERRAL, referral->GetHash());
-    g_connman->ForEachNode([&inv](CNode* pnode) {
-        pnode->PushInventory(inv);
-    });
-
-    ret.push_back(Pair("isvalid", isValid));
-    ret.push_back(Pair("address", currentAddress));
-    ret.push_back(Pair("referralcode", referral->code)); // referral->code
-    ret.push_back(Pair("codehash", referral->codeHash.GetHex()));
-
-    return ret;
-}
-
-
 UniValue getrewards(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
@@ -4675,14 +4666,10 @@ static const CRPCCommand commands[] =
     { "generating",         "generate",                 &generate,                 {"nblocks","maxtries"} },
 
     // merit specific commands
-
-    { "referral",           "validatereferralcode",     &validatereferralcode,     {"code"} },
-    { "referral",           "unlockwallet",             &unlockwallet,             {"code"} },
+    { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress"} },
     { "referral",           "getanv",                   &getanv,                   {} },
+
     { "wallet",             "getrewards",               &getrewards,               {} },
-#ifdef ENABLE_WALLET
-    { "referral",           "unlockwalletwithaddress",  &unlockwalletwithaddress,  {"address", "referralcode"} }
-#endif
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)

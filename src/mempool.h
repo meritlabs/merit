@@ -51,8 +51,8 @@ public:
                                                                                nTime(_nTime),
                                                                                entryHeight(_entryHeight) { }
 
-    const T& GetEntryValue() const { return *this->entry; }
-    const std::shared_ptr<const T> GetSharedEntryValue() const { return this->entry; }
+    const T& GetEntryValue() const { assert(entry); return *entry; }
+    const std::shared_ptr<const T> GetSharedEntryValue() const { return entry; }
 
     virtual size_t GetSize() const = 0;
 
@@ -97,7 +97,9 @@ template <typename iter>
 struct CompareIteratorByHash {
     bool operator()(const iter& a, const iter& b) const
     {
-        return a->GetEntryValue().GetHash() < b->GetEntryValue().GetHash();
+        assert(a->GetSharedEntryValue());
+        assert(b->GetSharedEntryValue());
+        return a->GetSharedEntryValue()->GetHash() < b->GetSharedEntryValue()->GetHash();
     }
 };
 
@@ -105,7 +107,7 @@ template <typename T>
 class CompareMemPoolEntryByEntryTime
 {
 public:
-    bool operator()(const MemPoolEntry<T>& a, const MemPoolEntry<T>& b)
+    bool operator()(const MemPoolEntry<T>& a, const MemPoolEntry<T>& b) const
     {
         return a.GetTime() < b.GetTime();
     }

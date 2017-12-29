@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 #include <memory>
+#include <thread>
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/ordered_index.hpp>
 
@@ -22,9 +23,9 @@ class CScript;
 
 namespace Consensus { struct Params; };
 
-static const bool DEFAULT_PRINTPRIORITY = false;
-static const bool DEFAULT_MINING = false;
-static const int DEFAULT_MINING_THREADS = 8;
+const bool DEFAULT_PRINTPRIORITY = false;
+const bool DEFAULT_MINING = false;
+const int DEFAULT_MINING_THREADS = std::thread::hardware_concurrency();
 
 
 /** Run the miner threads */
@@ -81,7 +82,7 @@ struct modifiedentry_iter {
 // except operating on CTxMemPoolModifiedEntry.
 // TODO: refactor to avoid duplication of this logic.
 struct CompareModifiedEntry {
-    bool operator()(const CTxMemPoolModifiedEntry &a, const CTxMemPoolModifiedEntry &b)
+    bool operator()(const CTxMemPoolModifiedEntry &a, const CTxMemPoolModifiedEntry &b) const
     {
         double f1 = (double)a.nModFeesWithAncestors * b.nSizeWithAncestors;
         double f2 = (double)b.nModFeesWithAncestors * a.nSizeWithAncestors;
@@ -96,7 +97,7 @@ struct CompareModifiedEntry {
 // This is sufficient to sort an ancestor package in an order that is valid
 // to appear in a block.
 struct CompareTxIterByAncestorCount {
-    bool operator()(const CTxMemPool::txiter &a, const CTxMemPool::txiter &b)
+    bool operator()(const CTxMemPool::txiter &a, const CTxMemPool::txiter &b) const
     {
         if (a->GetCountWithAncestors() != b->GetCountWithAncestors())
             return a->GetCountWithAncestors() < b->GetCountWithAncestors();

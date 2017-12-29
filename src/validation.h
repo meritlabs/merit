@@ -304,8 +304,12 @@ void ThreadScriptCheck();
 bool IsInitialBlockDownload();
 /** Retrieve a transaction (from memory pool, or from disk, if possible) */
 bool GetTransaction(const uint256 &hash, CTransactionRef &tx, const Consensus::Params& params, uint256 &hashBlock, bool fAllowSlow = false);
+/** Retrieve a referral (from memory pool, or from disk, if possible) */
+bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock);
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
+/** Check whether referral signature is valid */
+bool CheckReferralSignature(const referral::Referral& ref, const std::vector<referral::ReferralRef>& extraReferrals);
 
 CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params);
 
@@ -361,14 +365,6 @@ void FlushStateToDisk();
 void PruneAndFlush();
 /** Prune block files up to a given height */
 void PruneBlockFilesManual(int nManualPruneHeight);
-
-/** Update ANV using given transaction */
-using DebitsAndCredits = std::vector<std::tuple<char, referral::Address, CAmount>>;
-void GetDebitsAndCredits(
-        DebitsAndCredits& debits_and_credits,
-        const CTransaction& tx,
-        CCoinsViewCache& view,
-        bool undo = false);
 
 bool AcceptReferralToMemoryPool(referral::ReferralTxMemPool& pool, CValidationState& state,
         const referral::ReferralRef& referral, bool& pfMissingReferrer, bool fOverrideMempoolLimit = false);
@@ -472,7 +468,7 @@ public:
         coinHeight{coinHeightIn},
         cacheStore{cacheIn},
         error{SCRIPT_ERR_UNKNOWN_ERROR},
-        txdata{txdataIn} { }
+        txdata{txdataIn} {}
 
     bool operator()();
 
@@ -517,7 +513,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
 
 /** Check that an address is valid and ready to use */
-bool CheckAddressBeaconed(const CTxDestination& dest, bool checkMempool = true);
+bool CheckAddressBeaconed(const uint160&, bool checkMempool = true);
 
 /** Check that an address is valid and ready to use */
 bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool = true);

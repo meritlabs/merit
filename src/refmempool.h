@@ -59,7 +59,7 @@ private:
 class CompareRefMemPoolEntryByDescendantsCount
 {
 public:
-    bool operator()(const RefMemPoolEntry& a, const RefMemPoolEntry& b)
+    bool operator()(const RefMemPoolEntry& a, const RefMemPoolEntry& b) const
     {
         double f1 = (double)a.GetCountWithDescendants();
         double f2 = (double)b.GetCountWithDescendants();
@@ -160,31 +160,30 @@ public:
      */
     const setEntries& GetMemPoolChildren(refiter entry) const;
 
+    /**
+     *  Check if referral with a given address exists in mempool
+     */
+    bool ExistsWithAddress(const Address& address) const;
 
     /**
-     *  Check if referral with a given code hash (hash of unlock code) exists in mempool
+     *  Get referral with a given address from mempool
      */
-    bool ExistsWithCodeHash(const uint256& hash) const;
-
-    /**
-     *  Get referral with a given code hash (hash of unlock code) from mempool
-     */
-    ReferralRef GetWithCodeHash(const uint256& codeHash) const;
+    ReferralRef GetWithAddress(const Address& address) const;
 
     /**
      * Check if referral with a given hash exists in mempoll
      *
      * TODO: update referral model to use one hash for referral id and unlock code
      */
-    bool exists(const uint256& hash) const
+    bool Exists(const uint256& hash) const
     {
         LOCK(cs);
         return (mapRTx.count(hash) != 0);
     }
 
-    ReferralRef get(const uint256& hash) const;
+    ReferralRef Get(const uint256& hash) const;
 
-    unsigned long size()
+    unsigned long Size()
     {
         LOCK(cs);
         return mapRTx.size();
