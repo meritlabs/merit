@@ -362,58 +362,65 @@ CScript GetScriptForEasySend(
 
 CScript GetScriptForSimpleVault(const uint160& tag)
 {
-    // params <spend key> <renew key> [addresses: <addr1> <addr2> <...> <num addresses>] <tag> <vault type>
+    // params <spend key> <renew key> <spendlimit> [addresses: <addr1> <addr2> <...> <num addresses>] <tag> <vault type>
     // stack on start0:  <sig> <mode> <spend key> <renew key> [addresses] <tag> |
     CScript script;
     script
-        << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] <tag>|
-        << OP_DROP                      // <sig> <mode> <spend key> <renew key> [addresses] |
-        << OP_NTOALTSTACK               // <sig> <mode> <spend key> <renew key> | [addresses]
-        << OP_TOALTSTACK                // <sig> <mode> <spend key> | [addresses] <renew key>
-        << OP_TOALTSTACK                // <sig> <mode> | [addresses] <renew key> <spend key>
-        << 0                            // <sig> <mode> 0 | [addresses] <renew key> <spend key>
-        << OP_EQUAL                     // <sig> <bool> | [addresses] <renew key> <spend key>
-        << OP_IF                        // <sig> | [addresses] <renew key> <spend key>
-        <<      OP_FROMALTSTACK         // <sig> <spend key> | [addresses] <renew key>
-        <<      OP_DUP                  // <sig> <spend key> <spend key> | [addresses] <renew key>
-        <<      OP_TOALTSTACK           // <sig> <spend key> | [addresses] <renew key> <spend key>
-        <<      OP_CHECKSIGVERIFY       // | [addresses] <renew key> <spend key>
-        <<      OP_FROMALTSTACK         // <spend key> | [addresses] <renew key>
-        <<      OP_FROMALTSTACK         // <spend key> <renew key> | [addresses]
-        <<      0                       // <spend key> <renew key> <0 args> | [addresses]
-        <<      0                       // <spend key> <renew key> <0 args> <out index>| [addresses]
-        <<      OP_NFROMALTSTACK        // <spend key> <renew key> <0 args> <out index> [addresses] |
-        <<      OP_NDUP                 // <spend key> <renew key> <0 args> <out index> [addresses] [addresses] |
-        <<      OP_NTOALTSTACK          // <spend key> <renew key> <0 args> <out index> [addresses] | [addresses]
-        <<      OP_CHECKOUTPUTSIGVERIFY // <spend key> <renew key> | [addresses]
-        <<      OP_NFROMALTSTACK        // <spend key> <renew key> [addresses] |
-        <<      OP_DUP                  // <spend key> <renew key> [addresses] <num addresss> |
-        <<      5                       // <spend key> <renew key> [addresses] <num addresss> 4 |
-        <<      OP_ADD                  // <spend key> <renew key> [addresses] <total args> |
-        <<      OP_TOALTSTACK           // <spend key> <renew key> [addresses] | <total args>
-        <<      ToByteVector(tag)       // <spend key> <renew key> [addresses] <tag> |
-        <<      0                       // <spend key> <renew key> [addresses] <tag> <vault type> |
-        <<      OP_FROMALTSTACK         // <spend key> <renew key> [addresses] <tag> <vault type> <total args> |
-        <<      1                       // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> |
-        <<      's'                     // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> |
-        <<      1                       // <spend key> <renew key> [addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
+        << OP_DROP                      // <sig> <mode> <spend key> <renew key> <spendlimit> [addresses] <tag>|
+        << OP_DROP                      // <sig> <mode> <spend key> <renew key> <spendlimit> [addresses] |
+        << OP_NTOALTSTACK               // <sig> <mode> <spend key> <renew key> <spendlimit> | [addresses]
+        << OP_TOALTSTACK                // <sig> <mode> <spend key> <renew key> | [addresses] <spendlimit>
+        << OP_TOALTSTACK                // <sig> <mode> <spend key> | [addresses] <spendlimit> <renew key>
+        << OP_TOALTSTACK                // <sig> <mode> | [addresses] <spendlimit> <renew key> <spend key>
+        << 0                            // <sig> <mode> 0 | [addresses] <spendlimit> <renew key> <spend key>
+        << OP_EQUAL                     // <sig> <bool> | [addresses] <spendlimit> <renew key> <spend key>
+        << OP_IF                        // <sig> | [addresses] <spendlimit> <renew key> <spend key>
+        <<      OP_FROMALTSTACK         // <sig> <spend key> | [addresses] <spendlimit> <renew key>
+        <<      OP_DUP                  // <sig> <spend key> <spend key> | [addresses] <spendlimit> <renew key>
+        <<      OP_TOALTSTACK           // <sig> <spend key> | [addresses] <spendlimit> <renew key> <spend key>
+        <<      OP_CHECKSIGVERIFY       // | [addresses] <spendlimit> <renew key> <spend key>
+        <<      OP_FROMALTSTACK         // <spend key> | [addresses] <spendlimit> <renew key>
+        <<      OP_FROMALTSTACK         // <spend key> <renew key> | [addresses] <spendlimit>
+        <<      OP_FROMALTSTACK         // <spend key> <renew key> <spendlimit> | [addresses]
+        <<      OP_DUP                  // <spend key> <renew key> <spendlimit> <speedlimit> | [addresses]
+        <<      0                       // <spend key> <renew key> <spendlimit> <speedlimit> 0 | [addresses]
+        <<      OP_OUTPUTAMOUNT         // <spend key> <renew key> <spendlimit> <speedlimit> <output at 0> | [addresses]
+        <<      OP_GREATERTHANOREQUAL   // <spend key> <renew key> <spendlimit> <true or false> | [addresses]
+        <<      OP_VERIFY               // <spend key> <renew key> <spendlimit> | [addresses]
+        <<      0                       // <spend key> <renew key> <spendlimit> <0 args> | [addresses]
+        <<      0                       // <spend key> <renew key> <spendlimit> <0 args> <out index>| [addresses]
+        <<      OP_NFROMALTSTACK        // <spend key> <renew key> <spendlimit> <0 args> <out index> [addresses] |
+        <<      OP_NDUP                 // <spend key> <renew key> <spendlimit> <0 args> <out index> [addresses] [addresses] |
+        <<      OP_NTOALTSTACK          // <spend key> <renew key> <spendlimit> <0 args> <out index> [addresses] | [addresses]
+        <<      OP_CHECKOUTPUTSIGVERIFY // <spend key> <renew key> <spendlimit> | [addresses]
+        <<      OP_NFROMALTSTACK        // <spend key> <renew key> <spendlimit> [addresses] |
+        <<      OP_DUP                  // <spend key> <renew key> <spendlimit> [addresses] <num addresss> |
+        <<      6                       // <spend key> <renew key> <spendlimit> [addresses] <num addresss> 6 |
+        <<      OP_ADD                  // <spend key> <renew key> <spendlimit> [addresses] <total args> |
+        <<      OP_TOALTSTACK           // <spend key> <renew key> <spendlimit> [addresses] | <total args>
+        <<      ToByteVector(tag)       // <spend key> <renew key> <spendlimit> [addresses] <tag> |
+        <<      0                       // <spend key> <renew key> <spendlimit> [addresses] <tag> <vault type> |
+        <<      OP_FROMALTSTACK         // <spend key> <renew key> <spendlimit> [addresses] <tag> <vault type> <total args> |
+        <<      1                       // <spend key> <renew key> <spendlimit> [addresses] <tag> <vault type> <total args> <out index> |
+        <<      's'                     // <spend key> <renew key> <spendlimit> [addresses] <tag> <vault type> <total args> <out index> <self> |
+        <<      1                       // <spend key> <renew key> <spendlimit> [addresses] <tag> <vault type> <total args> <out index> <self> <num addresses>|
         <<      OP_CHECKOUTPUTSIGVERIFY // |
         <<      2                       // 2 |
         <<      OP_OUTPUTCOUNT          // <count>
         <<      OP_EQUAL                // <bool>
         << OP_ELSE
-        <<      OP_FROMALTSTACK         // <sig> <spend key> | [addresses] <renew key>
-        <<      OP_DROP                 // <sig> | [addresses] <renew key>
+        <<      OP_FROMALTSTACK         // <sig> <spend key> | [addresses] <spendlimit> <renew key>
+        <<      OP_DROP                 // <sig> | [addresses] <spendlimit> <renew key>
         <<      OP_FROMALTSTACK         // <sig> <renew key> | [addresses]
         <<      OP_CHECKSIGVERIFY       // | [addresses]
-        <<      0                       // <total args> | [addresses]
-        <<      0                       // <total args> <out index> | [addresses]
-        <<      's'                     // <total args> <out index> <self> | [addresses]
-        <<      1                       // <total args> <out index> <self> <num addresses>| [addresses]
-        <<      OP_CHECKOUTPUTSIGVERIFY //  | [addresses]
-        <<      1                       // 1 | [addresses]
-        <<      OP_OUTPUTCOUNT          // 1 <count> | [addresses]
-        <<      OP_EQUAL                // <bool> | [addresses]
+        <<      0                       // <total args> | [addresses] <spendlimit> 
+        <<      0                       // <total args> <out index> | [addresses] <spendlimit>
+        <<      's'                     // <total args> <out index> <self> | [addresses] <spendlimit>
+        <<      1                       // <total args> <out index> <self> <num addresses>| [addresses] <spendlimit>
+        <<      OP_CHECKOUTPUTSIGVERIFY //  | [addresses] <spendlimit>
+        <<      1                       // 1 | [addresses] <spendlimit>
+        <<      OP_OUTPUTCOUNT          // 1 <count> | [addresses] <spendlimit>
+        <<      OP_EQUAL                // <bool> | [addresses] <spendlimit>
         << OP_ENDIF;
 
     return script;

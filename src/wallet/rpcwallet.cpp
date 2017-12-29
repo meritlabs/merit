@@ -1060,7 +1060,8 @@ UniValue createvault(const JSONRPCRequest& request)
             "2. \"options\"            (json) optional json object \n"
             "    {\n"
             "        \"type\": <\"simple\"| ...>, \n"
-            "        \"addresses\": [<address>,...], \n"
+            "        \"spendlimit\": <amount merit> \n"
+            "        \"whitelist\": [<address>,...], \n"
             "    }\n"
             "\nResult:\n"
             "\"vault_address\"         (string) Address of the vault.\n"
@@ -1092,6 +1093,7 @@ UniValue createvault(const JSONRPCRequest& request)
 
     vault::Whitelist whitelist;
 
+    CAmount spendlimit = 100000000_merit; //Default is max amount of merit in existence.
     if(options.isObject()) {
         if(options.exists("whitelist")) {
             ExtractWhitelist(options, whitelist);
@@ -1100,7 +1102,13 @@ UniValue createvault(const JSONRPCRequest& request)
         if(options.exists("type")) {
             type = options["type"].get_str();
         }
+
+        if(options.exists("spendlimit")) {
+            spendlimit = AmountFromValue(options["spendlimit"]);
+        }
     }
+
+    UniValue ret(UniValue::VOBJ);
 
     if(type == "simple")
     {
@@ -1150,6 +1158,7 @@ UniValue createvault(const JSONRPCRequest& request)
                     vault_address,
                     ToByteVector(spend_pub_key),
                     ToByteVector(master_pub_key),
+                    spendlimit,
                     ExpandParam(whitelist),
                     whitelist.size(),
                     ToByteVector(vault_tag),
@@ -1164,7 +1173,6 @@ UniValue createvault(const JSONRPCRequest& request)
 
         pwallet->AddParamScript(vault_script, vault_address);
 
-        UniValue ret(UniValue::VOBJ);
         ret.push_back(Pair("vault_address", EncodeDestination(vault_address)));
         ret.push_back(Pair("txid", txid));
         ret.push_back(Pair("amount", ValueFromAmount(amount)));
@@ -1183,10 +1191,83 @@ UniValue createvault(const JSONRPCRequest& request)
         }
         ret.push_back(Pair("whitelist", whitelist_ret));
 
-        return ret;
+    } else if (type == "multisig") {
+
+        /*
+        CPubKey spend_pub_key = //GET FROM INPUT;
+        CPubKey spend_pub_key_id = spend_pub_key.GetID();
+
+        CPubKey master_pub_key_1 = //GET FROM INPUT;
+        CPubKey master_pub_key_2 = //GET FROM INPUT;
+
+        auto master_pub_key_id = master_pub_key.GetID();
+        auto vault_tag = Hash160(master_pub_key_id.begin(), master_pub_key_id.end());
+
+        auto vault_script = GetScriptForSimpleVault(vault_tag);
+
+        //If the whitelist is not specified, just whitelist the spend key address.
+        if(whitelist.empty()) {
+            whitelist.push_back(ToByteVector(spend_pub_key_id));
+        }
+
+        CParamScriptID script_id = vault_script;
+
+        referral::ReferralRef script_referral =
+            pwallet->GenerateNewReferral(
+                        script_id,
+                        pwallet->ReferralAddress(),
+                        pwallet->ReferralPubKey());
+
+        if(!script_referral) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Unable to generate referral for the vault script");
+        }
+
+        CParamScriptID vault_address{script_referral->GetAddress()};
+
+        auto script_pub_key =
+            GetParameterizedP2SH(
+                    vault_address,
+                    ToByteVector(spend_pub_key),
+                    ToByteVector(master_pub_key),
+                    ExpandParam(whitelist),
+                    whitelist.size(),
+                    ToByteVector(vault_tag),
+                    1);
+
+
+        CWalletTx wtx;
+        CCoinControl no_coin_control; // This is a deprecated API
+        SendMoney(pwallet, script_pub_key, amount, false, wtx, no_coin_control);
+
+        const auto txid = wtx.GetHash().GetHex();
+
+        pwallet->AddParamScript(vault_script, vault_address);
+
+        ret.push_back(Pair("vault_address", EncodeDestination(vault_address)));
+        ret.push_back(Pair("txid", txid));
+        ret.push_back(Pair("amount", ValueFromAmount(amount)));
+        ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
+        ret.push_back(Pair("vault_script", ScriptToAsmStr(vault_script, true)));
+        ret.push_back(Pair("tag", vault_tag.GetHex()));
+        ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_pub_key_id)));
+        ret.push_back(Pair("master_sk", HexStr(master_key.GetPrivKey())));
+        ret.push_back(Pair("master_pk", HexStr(master_key.GetPubKey())));
+
+        UniValue whitelist_ret(UniValue::VARR);
+        if(options.exists("whitelist")) {
+            whitelist_ret = options["whitelist"].get_array();
+        } else {
+            whitelist_ret.push_back(EncodeDestination(spend_pub_key_id));
+        }
+        ret.push_back(Pair("whitelist", whitelist_ret));
+        */
     } else {
         throw JSONRPCError(RPC_TYPE_ERROR, "The type \"" + type + "\" is not valid");
     }
+
+    return ret;
 }
 
 UniValue renewvault(const JSONRPCRequest& request)
@@ -1297,6 +1378,11 @@ UniValue renewvault(const JSONRPCRequest& request)
                 ExtractWhitelist(options, whitelist);
             }
 
+            auto spendlimit = vault.spendlimit;
+            if(options.exists("spendlimit")) {
+                spendlimit = AmountFromValue(options["spendlimit"]);
+            }
+
             auto spend_pub_key = vault.spend_pub_key;
             if(options.exists("spend_pk")) {
                 const auto spend_pk_bytes = ParseHex(options["spend_pk"].get_str());
@@ -1332,6 +1418,7 @@ UniValue renewvault(const JSONRPCRequest& request)
                         *script_id,
                         ToByteVector(spend_pub_key),
                         ToByteVector(master_pub_key),
+                        spendlimit,
                         ExpandParam(whitelist),
                         whitelist.size(),
                         ToByteVector(vault.tag),
@@ -1496,6 +1583,14 @@ UniValue spendvault(const JSONRPCRequest& request)
         std::stringstream e;
         e << "Insufficient funds, can only spend "
           << ValueFromAmount(total_amount).get_real()
+          << " merit";
+        throw JSONRPCError(RPC_TYPE_ERROR, e.str());
+    }
+
+    if(amount > vaults[0].spendlimit) {
+        std::stringstream e;
+        e << "Amount is over the spend limit of "
+          << ValueFromAmount(vaults[0].spendlimit).get_real()
           << " merit";
         throw JSONRPCError(RPC_TYPE_ERROR, e.str());
     }
@@ -1695,6 +1790,7 @@ UniValue getvaultinfo(const JSONRPCRequest& request)
     ret.push_back(Pair("type", ref.type));
     ret.push_back(Pair("address", address));
     ret.push_back(Pair("amount", ValueFromAmount(total_amount)));
+    ret.push_back(Pair("spendlimit", ValueFromAmount(ref.spendlimit)));
     ret.push_back(Pair("coins", coins));
     ret.push_back(Pair("consistent", consistent));
     ret.push_back(Pair("spend_pub_key", HexStr(ref.spend_pub_key)));

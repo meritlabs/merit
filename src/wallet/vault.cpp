@@ -204,6 +204,7 @@ Vault ParseVaultCoin(const VaultCoin& coin)
         vault.address = vault_script;
         vault.spend_pub_key.Set(stack[0]);
         vault.master_pub_key.Set(stack[1]);
+        vault.spendlimit = CScriptNum{stack[2], true}.getint();
     }
 
     return vault;

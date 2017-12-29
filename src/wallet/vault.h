@@ -41,6 +41,7 @@ struct Vault
     CPubKey spend_pub_key;
     CPubKey master_pub_key;
     Whitelist whitelist;
+    CAmount spendlimit;
 
     bool SameKind(const Vault& o) const;
 };
