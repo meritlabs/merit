@@ -228,8 +228,6 @@ public:
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("0x0000000000000000003b9ce759c2a087d52abc4266f8f4ebd6d768b89defa50a"); //477890
 
-        // Genesis reward 
-        CAmount genesisReward = 20000000_merit;
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -251,21 +249,21 @@ public:
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};
 
-        // genesis ref address: 13f4j1zWmweBVSQM9Jcr18JUdmJMR6kGSY
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
-        genesis = CreateGenesisBlock(1514332800, 86, 0x207fffff, 27, 1, genesisReward, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
+        // Genesis reward 
+        CAmount genesisReward = 20000000_merit;
+
+        // genesis ref address: MAZDxStvGxozP7NgNHGnFPup6zBX1igP1K
+        genesis = CreateGenesisBlock(1514332800, 75, 0x207fffff, 27, 1, genesisReward, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0x655d62, 0xed3ff7, 0x1547118, 0x17e18e9, 0x1951b67, 0x1a62f65, 0x1d198ae, 0x1e0ba85, 0x1e62486,
-            0x2089288, 0x2375a91, 0x24062c5, 0x2cbaa5b, 0x2de47f4, 0x311bf15, 0x316a6bc, 0x35d5304, 0x3c0d00a,
-            0x3c886d9, 0x4083f0a, 0x4764c00, 0x4ba602d, 0x4cb39a4, 0x4e787d4, 0x502ac74, 0x53e184a, 0x55d0a7e,
-            0x587c138, 0x5b048b7, 0x5b45c38, 0x5b9d7a4, 0x5f2911f, 0x629008a, 0x65320c5, 0x677d335, 0x68d242b,
-            0x6af63ab, 0x6b8d144, 0x6e76030, 0x6f53051, 0x6f75c4e, 0x75d6a77};
+            0xae77de, 0xb1eaa8, 0xc52046, 0xca731a, 0xced0c0, 0x1408611, 0x14b9c73, 0x1922548, 0x1b70cf3, 0x1c257dc, 0x21ed8e3, 0x260f8a0, 0x273484e, 0x277de2a, 0x297a8a7, 0x2b61d43, 0x2bfbb3f, 0x3097ab6, 0x3963aeb, 0x3baf747, 0x3dd9834, 0x4113a4f, 0x4123464, 0x4792fd1, 0x47ac661, 0x4ca9735, 0x4cc555d, 0x4daaf1f, 0x5035f05, 0x5321b54, 0x592b152, 0x5c9e46e, 0x5ea77dc, 0x5f2c75e, 0x638c0a6, 0x6d1bdb5, 0x70ccdf8, 0x740f960, 0x76c771e, 0x7822f76, 0x782d93a, 0x79daa36,
+        };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("7d90f80b61a7b3a343194f2ff9e2f78e0230768e49e8df383ee690162ba347a8"));
-        assert(genesis.hashMerkleRoot == uint256S("7464a1ce95a025602f92c5584be0904c5d9211e87dd08811f7a7774ddcbdc565"));
+        assert(consensus.hashGenesisBlock == uint256S("cb9e9782176c4582579fbc93c9e2f161f6785b3dcf882564d1f9ee6edc840424"));
+        assert(genesis.hashMerkleRoot == uint256S("b27e04cc1c480dc707e72dd37ffabf0cc12d34c2a535368434350d1de7b5f065"));
 
 
         // Note that of those with the service bits flag, most only support a subset of possible options
@@ -357,21 +355,17 @@ public:
 
         CAmount genesisReward = 20000000_merit;
 
-        // genesis ref address: miB2255Vay5SGYsxrsbDq3WoVku4LJiFeG
+        // genesis ref address: mJqR2xnCsncZT7jsqTFuLvF1sFe7deGQH3
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1514332800, 96, 0x207fffff, 24, 1, genesisReward, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
+        genesis = CreateGenesisBlock(1514332800, 120, 0x207fffff, 24, 1, genesisReward, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0x6a34, 0xa9f33, 0xaef47, 0xcab32, 0x17b5a5, 0x1b10f8, 0x1e2d11, 0x2358bb, 0x2432c5,
-            0x2aea48, 0x2e1a1e, 0x376b30, 0x376f1a, 0x3c1e94, 0x3f1a3d, 0x4a7b5d, 0x5205c4,
-            0x55859e, 0x599c1a, 0x5b8ca9, 0x5f78e0, 0x6ed41e, 0x771733, 0x96e970, 0x9f4171,
-            0x9f5497, 0xa0cd41, 0xa16a53, 0xa24199, 0xa42687, 0xa7c282, 0xb36f11, 0xb45c67,
-            0xbf0600, 0xbf2c25, 0xc342b1, 0xc70509, 0xdc18e6, 0xe4e564, 0xf147e0, 0xf6bde5,
-            0xfcc8ee};
+            0x15b8f, 0x195867, 0x1bbe29, 0x1bd48c, 0x230a7e, 0x2553db, 0x2c5bd0, 0x31996b, 0x3789b6, 0x48b67a, 0x4a31e0, 0x52a1bf, 0x5f6ddc, 0x60f02d, 0x6de4ec, 0x7e7534, 0x89b733, 0x8ed16d, 0x93ee9f, 0x9d09d8, 0xa19b42, 0xa2374b, 0xa3a53e, 0xab68ff, 0xb3f004, 0xb64ebf, 0xc582b5, 0xcb1628, 0xcc9d57, 0xd0a370, 0xd12874, 0xd14c44, 0xd379b3, 0xd479ec, 0xd62a58, 0xdebb7a, 0xe86442, 0xeb5482, 0xf2609d, 0xf28706, 0xf5e069, 0xf9eb5f
+        };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("8689bfaaebb6d43bf6a5316bcc1f3ccb41aa067d842ed24587adb91ef0df8bd5"));
-        assert(genesis.hashMerkleRoot == uint256S("7464a1ce95a025602f92c5584be0904c5d9211e87dd08811f7a7774ddcbdc565"));
+        assert(consensus.hashGenesisBlock == uint256S("795bc3e58f7863d41411eed4f7ec488570250a4907083df553285b7497e6338e"));
+        assert(genesis.hashMerkleRoot == uint256S("b27e04cc1c480dc707e72dd37ffabf0cc12d34c2a535368434350d1de7b5f065"));
 
 
         vFixedSeeds.clear();
@@ -458,18 +452,18 @@ public:
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
 
         CAmount genesisReward = 20000000_merit;
-        genesis = CreateGenesisBlock(1514332800, 13, 0x207fffff, 18, 1, genesisReward, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
+
+        // genesis ref address: mJqR2xnCsncZT7jsqTFuLvF1sFe7deGQH3
+        genesis = CreateGenesisBlock(1514332800, 120, 0x207fffff, 24, 1, genesisReward, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0x2be5, 0x30b9, 0x36d1, 0x5f03, 0x8abd, 0xc678, 0x10d8c, 0x11727, 0x11728, 0x12518, 0x127f2, 0x15b8e,
-            0x16bb7, 0x17c6f, 0x18282, 0x184a0, 0x187df, 0x19aa0, 0x1aa07, 0x1aaf1, 0x1bdda, 0x1d49f, 0x1dd18,
-            0x21c64, 0x23436, 0x23e39, 0x24a06, 0x25d98, 0x28687, 0x2d58e, 0x2e9a8, 0x2f202,0x2f412, 0x2fc95,
-            0x31d70, 0x3265a, 0x32b6e, 0x37500, 0x3a8b5, 0x3e37a, 0x3f2ef, 0x3f908
+            0x15b8f, 0x195867, 0x1bbe29, 0x1bd48c, 0x230a7e, 0x2553db, 0x2c5bd0, 0x31996b, 0x3789b6, 0x48b67a, 0x4a31e0, 0x52a1bf, 0x5f6ddc, 0x60f02d, 0x6de4ec, 0x7e7534, 0x89b733, 0x8ed16d, 0x93ee9f, 0x9d09d8, 0xa19b42, 0xa2374b, 0xa3a53e, 0xab68ff, 0xb3f004, 0xb64ebf, 0xc582b5, 0xcb1628, 0xcc9d57, 0xd0a370, 0xd12874, 0xd14c44, 0xd379b3, 0xd479ec, 0xd62a58, 0xdebb7a, 0xe86442, 0xeb5482, 0xf2609d, 0xf28706, 0xf5e069, 0xf9eb5f
         };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("d32c0f46ee271b361562a1f24f6e852dc4fe66493ae5acf58cd8db3415061339"));
-        assert(genesis.hashMerkleRoot == uint256S("7464a1ce95a025602f92c5584be0904c5d9211e87dd08811f7a7774ddcbdc565"));
+        assert(consensus.hashGenesisBlock == uint256S("795bc3e58f7863d41411eed4f7ec488570250a4907083df553285b7497e6338e"));
+        assert(genesis.hashMerkleRoot == uint256S("b27e04cc1c480dc707e72dd37ffabf0cc12d34c2a535368434350d1de7b5f065"));
+
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
