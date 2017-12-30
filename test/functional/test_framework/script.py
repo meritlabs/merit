@@ -169,7 +169,7 @@ OP_SIZE = CScriptOp(0x82)
 # bit logic
 OP_INVERT = CScriptOp(0x83)
 OP_AND = CScriptOp(0x84)
-OP_OR = CScriptOp(0x85)
+OP_NDROP = CScriptOp(0x85)
 OP_XOR = CScriptOp(0x86)
 OP_EQUAL = CScriptOp(0x87)
 OP_EQUALVERIFY = CScriptOp(0x88)
@@ -299,7 +299,7 @@ OPCODE_NAMES.update({
     OP_SIZE : 'OP_SIZE',
     OP_INVERT : 'OP_INVERT',
     OP_AND : 'OP_AND',
-    OP_OR : 'OP_OR',
+    OP_NDROP : 'OP_NDROP',
     OP_XOR : 'OP_XOR',
     OP_EQUAL : 'OP_EQUAL',
     OP_EQUALVERIFY : 'OP_EQUALVERIFY',

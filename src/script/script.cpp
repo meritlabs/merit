@@ -62,6 +62,7 @@ const char* GetOpName(opcodetype opcode)
     case OP_IFDUP                  : return "OP_IFDUP";
     case OP_DEPTH                  : return "OP_DEPTH";
     case OP_DROP                   : return "OP_DROP";
+    case OP_NDROP                  : return "OP_NDROP";
     case OP_DUP                    : return "OP_DUP";
     case OP_NDUP                   : return "OP_NDUP";
     case OP_NIP                    : return "OP_NIP";
@@ -79,7 +80,6 @@ const char* GetOpName(opcodetype opcode)
     case OP_SIZE                   : return "OP_SIZE";
 
     // bit logic
-    case OP_OR                     : return "OP_OR";
     case OP_XOR                    : return "OP_XOR";
     case OP_EQUAL                  : return "OP_EQUAL";
     case OP_EQUALVERIFY            : return "OP_EQUALVERIFY";

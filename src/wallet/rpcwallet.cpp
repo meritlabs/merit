@@ -1043,6 +1043,39 @@ void ExtractWhitelist(const UniValue& options, vault::Whitelist& whitelist)
     }
 }
 
+using PubKeys = std::vector<CPubKey>;
+
+void ExtractPubKeys(const UniValue& list, PubKeys& keys)
+{
+    if(!list.isArray()) {
+        throw JSONRPCError(RPC_TYPE_ERROR, "keys must be a list");
+    }
+
+    for(size_t i = 0; i < list.size(); i++) {
+        auto key_str = list[i].get_str();
+        auto key_bytes =  ParseHex(key_str);
+        CPubKey key{key_bytes};
+
+        if(!key.IsFullyValid()) {
+            std::stringstream e;
+            e << "The key element \"" << key_str << "\" is not a valid public key";
+            throw JSONRPCError(RPC_TYPE_ERROR, e.str());
+        }
+
+        keys.push_back(key);
+    }
+}
+
+std::vector<valtype> KeysToByteVectors(const PubKeys& keys)
+{
+    std::vector<valtype> byte_vectors(keys.size());
+    std::transform(keys.begin(), keys.end(), byte_vectors.begin(),
+            [](const CPubKey& key) {
+                return ToByteVector(key);
+            });
+    return byte_vectors;
+}
+
 UniValue createvault(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
@@ -1109,6 +1142,9 @@ UniValue createvault(const JSONRPCRequest& request)
     }
 
     UniValue ret(UniValue::VOBJ);
+    UniValue whitelist_ret(UniValue::VARR);
+        
+    ret.push_back(Pair("type", type));
 
     if(type == "simple")
     {
@@ -1135,6 +1171,7 @@ UniValue createvault(const JSONRPCRequest& request)
         //If the whitelist is not specified, just whitelist the spend key address.
         if(whitelist.empty()) {
             whitelist.push_back(ToByteVector(spend_pub_key_id));
+            whitelist_ret.push_back(EncodeDestination(spend_pub_key_id));
         }
 
         CParamScriptID script_id = vault_script;
@@ -1176,6 +1213,7 @@ UniValue createvault(const JSONRPCRequest& request)
         ret.push_back(Pair("vault_address", EncodeDestination(vault_address)));
         ret.push_back(Pair("txid", txid));
         ret.push_back(Pair("amount", ValueFromAmount(amount)));
+        ret.push_back(Pair("spendlimit", ValueFromAmount(spendlimit)));
         ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
         ret.push_back(Pair("vault_script", ScriptToAsmStr(vault_script, true)));
         ret.push_back(Pair("tag", vault_tag.GetHex()));
@@ -1183,31 +1221,53 @@ UniValue createvault(const JSONRPCRequest& request)
         ret.push_back(Pair("master_sk", HexStr(master_key.GetPrivKey())));
         ret.push_back(Pair("master_pk", HexStr(master_key.GetPubKey())));
 
-        UniValue whitelist_ret(UniValue::VARR);
-        if(options.exists("whitelist")) {
-            whitelist_ret = options["whitelist"].get_array();
-        } else {
-            whitelist_ret.push_back(EncodeDestination(spend_pub_key_id));
-        }
-        ret.push_back(Pair("whitelist", whitelist_ret));
-
     } else if (type == "multisig") {
 
-        /*
-        CPubKey spend_pub_key = //GET FROM INPUT;
-        CPubKey spend_pub_key_id = spend_pub_key.GetID();
+        PubKeys spend_keys;
+        if(!options.exists("spend_keys")) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "must specify a spender public key list");
+        }
 
-        CPubKey master_pub_key_1 = //GET FROM INPUT;
-        CPubKey master_pub_key_2 = //GET FROM INPUT;
+        ExtractPubKeys(options["spend_keys"].get_array(), spend_keys);
 
-        auto master_pub_key_id = master_pub_key.GetID();
-        auto vault_tag = Hash160(master_pub_key_id.begin(), master_pub_key_id.end());
+        PubKeys master_keys;
+        if(!options.exists("master_keys")) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "must specify a master public key list");
+        }
 
-        auto vault_script = GetScriptForSimpleVault(vault_tag);
+        ExtractPubKeys(options["master_keys"].get_array(), master_keys);
 
-        //If the whitelist is not specified, just whitelist the spend key address.
+        if(spend_keys.empty()) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "must specify a non empty spend_keys list");
+
+        }
+
+        if(master_keys.empty()) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "must specify a non empty master_keys list");
+
+        }
+
+        const auto& tag_seed = master_keys[0];
+        auto vault_tag = Hash160(tag_seed.begin(), tag_seed.end());
+        auto vault_script = GetScriptForMultisigVault(vault_tag);
+
+        //If the whitelist is not specified, just whitelist the spend keys.
         if(whitelist.empty()) {
-            whitelist.push_back(ToByteVector(spend_pub_key_id));
+            std::transform(spend_keys.begin(), spend_keys.end(),
+                    std::back_inserter(whitelist),
+                    [&whitelist_ret](const CPubKey& key) {
+                        auto key_id = key.GetID();
+                        whitelist_ret.push_back(EncodeDestination(key_id));
+                        return ToByteVector(key_id);
+                    });
         }
 
         CParamScriptID script_id = vault_script;
@@ -1226,16 +1286,21 @@ UniValue createvault(const JSONRPCRequest& request)
 
         CParamScriptID vault_address{script_referral->GetAddress()};
 
+        auto spend_key_vectors = KeysToByteVectors(spend_keys);
+        auto master_key_vectors = KeysToByteVectors(master_keys);
+
         auto script_pub_key =
             GetParameterizedP2SH(
                     vault_address,
-                    ToByteVector(spend_pub_key),
-                    ToByteVector(master_pub_key),
+                    ExpandParam(spend_key_vectors),
+                    spend_key_vectors.size(),
+                    ExpandParam(master_key_vectors),
+                    master_key_vectors.size(),
+                    spendlimit,
                     ExpandParam(whitelist),
                     whitelist.size(),
                     ToByteVector(vault_tag),
                     1);
-
 
         CWalletTx wtx;
         CCoinControl no_coin_control; // This is a deprecated API
@@ -1248,24 +1313,22 @@ UniValue createvault(const JSONRPCRequest& request)
         ret.push_back(Pair("vault_address", EncodeDestination(vault_address)));
         ret.push_back(Pair("txid", txid));
         ret.push_back(Pair("amount", ValueFromAmount(amount)));
+        ret.push_back(Pair("spendlimit", ValueFromAmount(spendlimit)));
         ret.push_back(Pair("script", ScriptToAsmStr(script_pub_key, true)));
         ret.push_back(Pair("vault_script", ScriptToAsmStr(vault_script, true)));
         ret.push_back(Pair("tag", vault_tag.GetHex()));
-        ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_pub_key_id)));
-        ret.push_back(Pair("master_sk", HexStr(master_key.GetPrivKey())));
-        ret.push_back(Pair("master_pk", HexStr(master_key.GetPubKey())));
+        ret.push_back(Pair("spend_keys", options["spend_keys"].get_array()));
+        ret.push_back(Pair("master_keys", options["spend_keys"].get_array()));
 
-        UniValue whitelist_ret(UniValue::VARR);
-        if(options.exists("whitelist")) {
-            whitelist_ret = options["whitelist"].get_array();
-        } else {
-            whitelist_ret.push_back(EncodeDestination(spend_pub_key_id));
-        }
-        ret.push_back(Pair("whitelist", whitelist_ret));
-        */
     } else {
         throw JSONRPCError(RPC_TYPE_ERROR, "The type \"" + type + "\" is not valid");
     }
+
+    if(options.exists("whitelist")) {
+        whitelist_ret = options["whitelist"].get_array();
+    }
+
+    ret.push_back(Pair("whitelist", whitelist_ret));
 
     return ret;
 }
