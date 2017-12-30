@@ -425,7 +425,7 @@ CScript GetScriptForSimpleVault(const uint160& tag)
 CScript GetScriptForMultisigVault(const uint160& tag)
 {
     // params [spend...] [master...] <spendlimit> [addresses: <addr1> <addr2> <...> <num addresses>] <tag> <vault type>
-    // stack on start0:  <sig> <mode> <spend key> <master1> <master2> <speedlimit> [addresses] <tag> |
+    // stack on start0:  <sig> <mode> [spend] [master] <speedlimit> [addresses] <tag> |
     CScript script;
     script
         << OP_DROP                      // [sigs] <mode> [spend] [master] <spendlimit> [addresses] <tag>|
