@@ -149,7 +149,7 @@ public:
     CMainParams()
     {
         strNetworkID = "main";
-        consensus.nBlocksToMaturity = 3; //DONT COMMIT ME
+        consensus.nBlocksToMaturity = 100;
         consensus.initial_block_reward = 20;
         consensus.nSubsidyHalvingInterval = 2102400;
         consensus.sEdgeBitsAllowed = {26, 27, 28, 29, 30, 31};
