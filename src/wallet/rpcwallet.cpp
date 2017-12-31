@@ -593,7 +593,7 @@ static UniValue EasySend(
     return ret;
 }
 
-struct EasySendCoin 
+struct EasySendCoin
 {
     Coin coin;
     COutPoint out;
@@ -649,8 +649,8 @@ void FindEasySendCoins(const CScriptID& easy_send_address, EasySendCoins& coins)
 void SelectEasySendCoins(
         CWallet&  pwallet,
         CCoinControl& coin_control,
-        const EasySendCoins coins, 
-        CAmount& unspent_amount) { 
+        const EasySendCoins coins,
+        CAmount& unspent_amount) {
 
     for(const auto& c : coins) {
 
@@ -4691,7 +4691,14 @@ UniValue generate(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    EnsureWalletIsUnlocked(pwallet);
+    if (pwallet->IsLocked()) {
+        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
+    }
+
+    // check that wallet is alredy referred or has unlock transaction
+    if (!pwallet->IsReferred() && pwallet->mapWalletRTx.empty()) {
+        throw JSONRPCError(RPC_WALLET_NOT_REFERRED, "Error: Wallet is not unlocked. Use referrer address to unlock first. See 'unlockwallet'");
+    }
 
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 3) {
         throw std::runtime_error(

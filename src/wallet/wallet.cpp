@@ -536,7 +536,7 @@ bool CWallet::SetMinVersion(enum WalletFeature nVersion, CWalletDB* pwalletdbIn,
 
     {
         CWalletDB* pwalletdb = pwalletdbIn ? pwalletdbIn : new CWalletDB(*dbw);
-        if (nWalletVersion > 40000)
+        if (nWalletVersion > 10000)
             pwalletdb->WriteMinVersion(nWalletVersion);
         if (!pwalletdbIn)
             delete pwalletdb;
@@ -1662,7 +1662,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const referral::Address& parentAddress,
         CKey key)
 {
-    if(!signPubKey.IsValid()) { 
+    if(!signPubKey.IsValid()) {
         throw std::runtime_error("Cannot generate referral, the public key used is invalid");
     }
 
