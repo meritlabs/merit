@@ -422,6 +422,81 @@ UniValue verifymessage(const JSONRPCRequest& request)
     return (pubkey.GetID() == *keyID);
 }
 
+UniValue verifydata(const JSONRPCRequest& request)
+{
+    if (request.fHelp || (request.params.size() != 3 && request.params.size() != 4))
+        throw std::runtime_error(
+            "verifymessage \"data\" \"signature\" \"pubkey\"\n"
+            "\nVerify a signed message\n"
+            "\nArguments:\n"
+            "1. \"data\"         (string, required) Data in HEX that was signed.\n"
+            "2. \"signature\"    (string, required) The signature provided by the signer in base 64 encoding (see signmessage).\n"
+            "3. \"pubkey\"       (string, required) The Pub Key used to verify the signature.\n"
+            "4. \"ishash\"       (bool, optional) If the data is already the hash.\n"
+            "\nResult:\n"
+            "true|false   (boolean) If the signature is verified or not.\n"
+            "\nExamples:\n"
+            "\nSign some data\n"
+            + HelpExampleCli("signdata", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\" \"KzoE8aAgDYG7KwexBoTvKZurEiWmip41Pws8mReLb8a1u5nKVnn1\"") +
+            "\nVerify the signature\n"
+            + HelpExampleCli("verifyhdata", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\" \"signature\" \"03C54754046C5B3FCA19AF3CEA45883F47280954FABF4C7EA0E970EF792D0DEF24\"")
+        );
+
+    LOCK(cs_main);
+
+    auto data  = ParseHex(request.params[0].get_str());
+    auto sig    = ParseHex(request.params[1].get_str());
+    auto pub_key = CPubKey{ParseHex(request.params[2].get_str())};
+
+    auto is_hash = !request.params[3].isNull();
+
+    CHashWriter ss(SER_GETHASH, 0);
+    ss << data;
+
+    return pub_key.Verify(is_hash ? uint256{data} : ss.GetHash(), sig);
+}
+
+UniValue signdata(const JSONRPCRequest& request)
+{
+    if (request.fHelp || (request.params.size() != 2 && request.params.size() != 3))
+        throw std::runtime_error(
+            "signdata \"hexdata\" \"privatekey\"\n"
+            "\nSign hex binary data with the private key\n"
+            "\nArguments:\n"
+            "1. \"data\"         (string, required) Data in HEX to sign using private key.\n"
+            "2. \"privatekey\"      (string, required) Private key in WIF format.\n"
+            "3. \"ishash\"          (bool, optional) If the hexdata is already the hash.\n"
+            "\nResult:\n"
+            "\"signature\"          (string) The signature of the message encoded in base 64\n"
+            "\nExamples:\n"
+            "\nUnlock the wallet for 30 seconds\n"
+            "\nCreate the signature\n"
+            + HelpExampleCli("signdata", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\" \"KzoE8aAgDYG7KwexBoTvKZurEiWmip41Pws8mReLb8a1u5nKVnn1\"") +
+            "\nVerify the signature\n"
+            + HelpExampleCli("verifyhdata", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XX\" \"signature\" \"03C54754046C5B3FCA19AF3CEA45883F47280954FABF4C7EA0E970EF792D0DEF24\"")
+        );
+
+    LOCK(cs_main);
+
+    auto data = ParseHex(request.params[0].get_str());
+    CMeritSecret secret;
+    secret.SetString(request.params[1].get_str());
+
+    auto is_hash = !request.params[2].isNull();
+
+    auto key = secret.GetKey();
+
+    CHashWriter ss(SER_GETHASH, 0);
+    ss << data;
+
+    std::vector<unsigned char> sig;
+    if (!key.Sign(is_hash ? uint256{data} : ss.GetHash(), sig))
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Sign failed");
+
+    return HexStr(sig);
+}
+
+
 UniValue signmessagewithprivkey(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 2)
@@ -1410,6 +1485,8 @@ static const CRPCCommand commands[] =
     { "util",               "isaddressbeaconed",      &isaddressbeaconed,      {"address"} },
     { "util",               "createmultisig",         &createmultisig,         {"nrequired","keys"} },
     { "util",               "verifymessage",          &verifymessage,          {"address","signature","message"} },
+    { "util",               "signdata",               &signdata,               {"data","key"} },
+    { "util",               "verifydata",             &verifydata,             {"data","signature","pubkey"} },
     { "util",               "signmessagewithprivkey", &signmessagewithprivkey, {"privkey","message"} },
 
     /* Address index */

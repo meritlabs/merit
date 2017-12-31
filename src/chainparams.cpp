@@ -50,11 +50,11 @@ static CBlock CreateGenesisBlock(
     txNew.vout[0].scriptPubKey = genesisOutputScript;
 
     // compressed pubkey
-    auto rawKeyStr = ParseHex("0337d249c44b0327389a65687c7e9a823271a8c4355c74378d0b608b3339480e9a");
+    auto rawKeyStr = ParseHex("03C710FD3FD8B56537BF121870AF462107D3583F7E0CBD97F80EE271F48DAFF593");
     CPubKey rawPubKey{rawKeyStr};
     CKeyID address = rawPubKey.GetID();
     referral::MutableReferral refNew{1, address, rawPubKey, referral::Address{}};
-    refNew.signature = ParseHex("3044022068fc88103f01cf0851616131c9c83ce37c45e0392aab983980c04afa0e603bcc022043319a4e8b62456b4121e960d1b4d5ba2f29c5523e55a65da968fff27a61a321");
+    refNew.signature = ParseHex("3045022100de57c7ee321c5e1924a8527e25903d832d89a1936be6a4ef971823d724c5b61e02204249048bf680623314365e1e9c0795ff6c523a52c44f68948b6ff869f0d68931");
 
     CBlock genesis;
     genesis.nTime = nTime;
@@ -122,7 +122,12 @@ static CBlock CreateGenesisBlock(
     bool findPoW = false)
 {
     const char* pszTimestamp = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
-    const CScript genesisOutputScript = CScript() << ParseHex("0337d249c44b0327389a65687c7e9a823271a8c4355c74378d0b608b3339480e9a") << OP_CHECKSIG;
+
+    auto rawKeyStr = ParseHex("03C710FD3FD8B56537BF121870AF462107D3583F7E0CBD97F80EE271F48DAFF593");
+    CPubKey rawPubKey{rawKeyStr};
+    CKeyID address = rawPubKey.GetID();
+    auto genesisOutputScript = GetScriptForDestination(address);
+
     return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nEdgeBits, nVersion, genesisReward, params, pkPrefix, findPoW);
 }
 
@@ -199,7 +204,7 @@ public:
     CMainParams()
     {
         strNetworkID = "main";
-        consensus.nBlocksToMaturity = 100;
+        consensus.nBlocksToMaturity = 3; //DONT COMMIT ME
         consensus.initial_block_reward = 20;
         consensus.nSubsidyHalvingInterval = 2102400;
         consensus.sEdgeBitsAllowed = {26, 27, 28, 29, 30, 31};
@@ -254,16 +259,16 @@ public:
         // Genesis reward 
         CAmount genesisReward = 20000000_merit;
 
-        // genesis ref address: MAZDxStvGxozP7NgNHGnFPup6zBX1igP1K
-        genesis = CreateGenesisBlock(1514332800, 75, 0x207fffff, 27, 1, genesisReward, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
+        // genesis ref address: MS9pSM66vUzxaqqYsW3ESrev1u1Ci5F9Ve
+        genesis = CreateGenesisBlock(1514332800, 33, 0x207fffff, 27, 1, genesisReward, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0xae77de, 0xb1eaa8, 0xc52046, 0xca731a, 0xced0c0, 0x1408611, 0x14b9c73, 0x1922548, 0x1b70cf3, 0x1c257dc, 0x21ed8e3, 0x260f8a0, 0x273484e, 0x277de2a, 0x297a8a7, 0x2b61d43, 0x2bfbb3f, 0x3097ab6, 0x3963aeb, 0x3baf747, 0x3dd9834, 0x4113a4f, 0x4123464, 0x4792fd1, 0x47ac661, 0x4ca9735, 0x4cc555d, 0x4daaf1f, 0x5035f05, 0x5321b54, 0x592b152, 0x5c9e46e, 0x5ea77dc, 0x5f2c75e, 0x638c0a6, 0x6d1bdb5, 0x70ccdf8, 0x740f960, 0x76c771e, 0x7822f76, 0x782d93a, 0x79daa36,
+            0x221e95, 0x307e14, 0x39ec40, 0x7de2b0, 0xbdaa3a, 0xdafef2, 0xe2e79f, 0xee0846, 0xffdff6, 0x17ccae3, 0x19f05c3, 0x1aba887, 0x2071c42, 0x246cfe8, 0x260dc00, 0x27e0407, 0x2eb5817, 0x32eb206, 0x362d6f2, 0x3b5dc8a, 0x3cf6d84, 0x3e67ef6, 0x3fa1cf5, 0x4981a27, 0x4c53e6a, 0x4d1a09c, 0x4d4dece, 0x5236e7c, 0x5846eac, 0x5c471fb, 0x5c9940f, 0x5e4b473, 0x5f89874, 0x636c833, 0x66cb623, 0x6830f4c, 0x69fb5cf, 0x7641f59, 0x77770db, 0x7858ff5, 0x7907467, 0x7b466d1,
         };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("cb9e9782176c4582579fbc93c9e2f161f6785b3dcf882564d1f9ee6edc840424"));
-        assert(genesis.hashMerkleRoot == uint256S("b27e04cc1c480dc707e72dd37ffabf0cc12d34c2a535368434350d1de7b5f065"));
+        assert(consensus.hashGenesisBlock == uint256S("7a7dc3db203d2464b032dfcfbcca6d05e87e4313b622ed4e0a58815d64d74b8c"));
+        assert(genesis.hashMerkleRoot == uint256S("63c4b7c52a66d23ffbed6200d334d70a45204e44067a40d688337a4e5501c278"));
 
 
         // Note that of those with the service bits flag, most only support a subset of possible options
@@ -343,7 +348,8 @@ public:
         base58Prefixes[PUBKEY_ADDRESS] = AddressPrefix(1, 110);
         base58Prefixes[SCRIPT_ADDRESS] = AddressPrefix(1, 125);
         base58Prefixes[PARAM_SCRIPT_ADDRESS] = AddressPrefix(1, 117);
-        base58Prefixes[SECRET_KEY] = AddressPrefix(1, 239);
+        //base58Prefixes[SECRET_KEY] = AddressPrefix(1, 239);
+        base58Prefixes[SECRET_KEY] = AddressPrefix(1, 128);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
 
@@ -355,17 +361,19 @@ public:
 
         CAmount genesisReward = 20000000_merit;
 
-        // genesis ref address: mJqR2xnCsncZT7jsqTFuLvF1sFe7deGQH3
+        // genesis ref address: maS1WryPXJoXerCkLg2MYNz7nAToQTeFV3
+
         bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-        genesis = CreateGenesisBlock(1514332800, 120, 0x207fffff, 24, 1, genesisReward, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
+
+        genesis = CreateGenesisBlock(1514332800, 13, 0x207fffff, 24, 1, genesisReward, consensus, base58Prefixes[PUBKEY_ADDRESS], generateGenesis);
 
         genesis.sCycle = {
-            0x15b8f, 0x195867, 0x1bbe29, 0x1bd48c, 0x230a7e, 0x2553db, 0x2c5bd0, 0x31996b, 0x3789b6, 0x48b67a, 0x4a31e0, 0x52a1bf, 0x5f6ddc, 0x60f02d, 0x6de4ec, 0x7e7534, 0x89b733, 0x8ed16d, 0x93ee9f, 0x9d09d8, 0xa19b42, 0xa2374b, 0xa3a53e, 0xab68ff, 0xb3f004, 0xb64ebf, 0xc582b5, 0xcb1628, 0xcc9d57, 0xd0a370, 0xd12874, 0xd14c44, 0xd379b3, 0xd479ec, 0xd62a58, 0xdebb7a, 0xe86442, 0xeb5482, 0xf2609d, 0xf28706, 0xf5e069, 0xf9eb5f
+            0xbe24a, 0x1b2b6d, 0x1c122b, 0x1e853f, 0x2e2542, 0x346cef, 0x36fd5e, 0x389740, 0x397ad3, 0x3c9154, 0x3e64a8, 0x423875, 0x4c52a7, 0x5173dc, 0x549a56, 0x5c6086, 0x682862, 0x683d44, 0x7e9c80, 0x82a566, 0x8f31a7, 0xa73376, 0xa8372c, 0xaa0a45, 0xab0e07, 0xac3405, 0xaed7a9, 0xb6b5ea, 0xbda6a0, 0xcb2b83, 0xd8d9a8, 0xda8e31, 0xdeb300, 0xe04f15, 0xe78cb6, 0xf03113, 0xf2a019, 0xf4feb0, 0xf89c87, 0xf8c26e, 0xfa64c1, 0xfa967d,
         };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("795bc3e58f7863d41411eed4f7ec488570250a4907083df553285b7497e6338e"));
-        assert(genesis.hashMerkleRoot == uint256S("b27e04cc1c480dc707e72dd37ffabf0cc12d34c2a535368434350d1de7b5f065"));
+        assert(consensus.hashGenesisBlock == uint256S("6b0da3a3e8cde2b35f3357111730fd7364f7665c427e1dffbc2591866a0875a0"));
+        assert(genesis.hashMerkleRoot == uint256S("11fb123af7341c9c976d252b8f2f2317174aefcedead97803ff374312b9a1c9e"));
 
 
         vFixedSeeds.clear();

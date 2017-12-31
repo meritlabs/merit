@@ -1092,6 +1092,8 @@ UniValue createvault(const JSONRPCRequest& request)
             "        \"type\": <\"simple\"| ...>, \n"
             "        \"spendlimit\": <amount merit> \n"
             "        \"whitelist\": [<address>,...], \n"
+            "        \"spend_keys\": [<pubkey>,...], \n"
+            "        \"master_keys\": [<pubkey>,...], \n"
             "    }\n"
             "\nResult:\n"
             "\"vault_address\"         (string) Address of the vault.\n"
@@ -1148,18 +1150,27 @@ UniValue createvault(const JSONRPCRequest& request)
         CReserveKey reserve_key(pwallet);
 
         CPubKey spend_pub_key;
-        if (!reserve_key.GetReservedKey(spend_pub_key, true)) {
-            throw JSONRPCError(
-                    RPC_WALLET_ERROR,
-                    "Keypool ran out, please call keypoolrefill first");
+        if(options.exists("spend_key")) {
+            spend_pub_key = CPubKey{ParseHex(options["spend_key"].get_str())};
+        } else {
+            if (!reserve_key.GetReservedKey(spend_pub_key, true)) {
+                throw JSONRPCError(
+                        RPC_WALLET_ERROR,
+                        "Keypool ran out, please call keypoolrefill first");
+            }
         }
 
         auto spend_pub_key_id = spend_pub_key.GetID();
 
-        CKey master_key;
-        master_key.MakeNewKey(true);
 
-        auto master_pub_key = master_key.GetPubKey();
+        CPubKey master_pub_key;
+        CKey master_key;
+        if(options.exists("master_key")) {
+            master_pub_key = CPubKey{ParseHex(options["master_key"].get_str())};
+        } else {
+            master_key.MakeNewKey(true);
+            master_pub_key = master_key.GetPubKey();
+        }
 
         auto master_pub_key_id = master_pub_key.GetID();
         auto vault_tag = Hash160(master_pub_key_id.begin(), master_pub_key_id.end());
@@ -1215,7 +1226,9 @@ UniValue createvault(const JSONRPCRequest& request)
         ret.push_back(Pair("vault_script", ScriptToAsmStr(vault_script, true)));
         ret.push_back(Pair("tag", vault_tag.GetHex()));
         ret.push_back(Pair("spend_pubkey_id", EncodeDestination(spend_pub_key_id)));
-        ret.push_back(Pair("master_sk", CMeritSecret(master_key).ToString()));
+        if(master_key.IsValid()) {
+            ret.push_back(Pair("master_sk", CMeritSecret(master_key).ToString()));
+        }
         ret.push_back(Pair("master_pk", HexStr(master_pub_key.begin(), master_pub_key.end())));
 
     } else if (type == "multisig") {
@@ -1337,7 +1350,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() < 2) {
         throw std::runtime_error(
-                "renewvault vault_address master_sk (options)\n"
+                "renewvault vault_address (options)\n"
                 "\nCreate a simple vault with a specific amount.\n"
                 + HelpRequiringPassphrase(pwallet) +
                 "\nArguments:\n"
@@ -1345,10 +1358,10 @@ UniValue renewvault(const JSONRPCRequest& request)
                 "2. \"options\"            (json object) Options about which parts of the vault to change.\n"
                 "       {\n"
                 "           \"whitelist\": [\"addr1\", ...],\n"
-                "           \"orig_master_sk\": \"master secret key in hex\",\n"
-                "           \"master_sk\": \"master secret key in hex\",\n"
-                "           \"master_pk\": \"master public key in hex\",\n"
-                "           \"spend_pk\": \"master public key in hex\"\n"
+                "           \"master_sk\": \"master secret key in wif\",\n"
+                "           \"new_master_sk\": \"master secret key in hex\",\n"
+                "           \"new_master_pk\": \"master public key in hex\",\n"
+                "           \"new_spend_pk\": \"master public key in hex\"\n"
                 "       }\n"
                 "\nResult:\n"
                 "\"txid\"                  (string) The transaction id.\n"
@@ -1450,9 +1463,9 @@ UniValue renewvault(const JSONRPCRequest& request)
         }
 
         auto master_pub_key = vault.master_pub_key;
-        if(options.exists("master_pk") && options.exists("master_sk")) {
+        if(options.exists("master_pk") && options.exists("new_master_sk")) {
             CMeritSecret master_secret;
-            master_secret.SetString(options["master_sk"].get_str());
+            master_secret.SetString(options["new_master_sk"].get_str());
 
             auto new_master_key = master_secret.GetKey();
             const CPrivKey master_sk = new_master_key.GetPrivKey();
@@ -1687,6 +1700,8 @@ UniValue spendvault(const JSONRPCRequest& request)
                 "1. \"vault_address\"       (string) Address of the vault.\n"
                 "2. \"amount\"              (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
                 "3. \"destination_address\" (string) Destination of funds.\n"
+                "4. \"signing key\"         (string) Optional Hex string of the spending key.\n"
+                "5. \"send\"                (bool) Optional send or just print out tx. default is true.\n"
                 "\nResult:\n"
                 "\"txid\"                   (string) The transaction id.\n"
                 "\"amount\"                 (number) amount sent.\n"
@@ -1705,6 +1720,13 @@ UniValue spendvault(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
 
     std::string dest_address = request.params[2].get_str();
+
+    std::string spend_key_wif;
+    if(!request.params[3].isNull()) {
+        spend_key_wif = request.params[3].get_str();
+    }
+    
+    bool send = request.params[4].isNull() ?  true : request.params[4].get_bool();
 
     CTxDestination vault_dest = DecodeDestination(vault_address);
     if (boost::get<CParamScriptID>(&vault_dest) == nullptr) {
@@ -1822,9 +1844,15 @@ UniValue spendvault(const JSONRPCRequest& request)
     const auto spend_address = vaults[0].spend_pub_key.GetID();
 
     CKey spend_key;
-    if (!pwallet->GetKey(spend_address, spend_key)) {
-        throw JSONRPCError(
-                RPC_WALLET_ERROR, "Unable to find the spendkey in the keystore");
+    if(spend_key_wif.empty()) {
+        if (!pwallet->GetKey(spend_address, spend_key)) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR, "Unable to find the spendkey in the keystore");
+        }
+    } else  { 
+        CMeritSecret spend_secret;
+        spend_secret.SetString(spend_key_wif);
+        spend_key = spend_secret.GetKey();
     }
 
     const auto& referral_pub_key_id = pwallet->ReferralPubKey().GetID();
@@ -1868,7 +1896,11 @@ UniValue spendvault(const JSONRPCRequest& request)
 
     wtx.SetTx(std::make_shared<CTransaction>(mtx));
 
-    if(vault.type == 0) {
+    if(vault.type == 1) {
+        send = false;
+    }
+
+    if(send) {
         CValidationState state;
         if (!pwallet->CommitTransaction(wtx, reserve_key, g_connman.get(), state)) {
             error = strprintf(
@@ -1876,13 +1908,12 @@ UniValue spendvault(const JSONRPCRequest& request)
                     state.GetRejectReason());
             throw JSONRPCError(RPC_WALLET_ERROR, error);
         }
+    }
 
-        //add script to wallet so we can redeem it later if needed.
-        ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
-        ret.push_back(Pair("amount", ValueFromAmount(amount)));
-    } else if (vault.type == 1) {
-        ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
-        ret.push_back(Pair("amount", ValueFromAmount(amount)));
+    ret.push_back(Pair("txid", wtx.GetHash().GetHex()));
+    ret.push_back(Pair("amount", ValueFromAmount(amount)));
+
+    if(!send) {
         ret.push_back(Pair("rawtx", EncodeHexTx(*wtx.tx)));
     }
 
@@ -4785,6 +4816,105 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     return obj;
 }
 
+UniValue beaconaddress(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || (request.params.size() != 3 && request.params.size() != 4)) {
+        throw std::runtime_error(
+            "beaconaddress \"address\" \"signingkey\" \"parentaddress\"\n"
+            "signs and beacons an address with the signing key specified\n"
+            "\nArguments:\n"
+            "1. address   (string, required) Parent address needed to unlock the wallet.\n"
+            "2. signingkey   (string, required) key used to sign the referral in WIF format.\n"
+            "3. parentaddress   (string, required) Parent address needed to unlock the wallet.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"beaconid\": xxxxx,               (string) id of the beacon\n"
+            "  \"address\": xxxxx,                (string) address beaconed\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("beaconaddress", "\"address\" \"key\" \"parentaddress\"")
+            + HelpExampleRpc("beaconaddress", "\"address\" \"key\" \"parentaddress\"")
+        );
+    }
+
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    UniValue obj(UniValue::VOBJ);
+    if(request.params.size() == 3) {
+
+        CMeritAddress address(request.params[0].get_str());
+
+        CMeritSecret signing_key_secret;
+        signing_key_secret.SetString(request.params[1].get_str());
+
+        CMeritAddress parent_address(request.params[2].get_str());
+
+        if (!address.IsValid()) {
+            std::stringstream e;
+            e << "Address " << address.ToString() << " is not valid or in wrong format.";
+            throw std::runtime_error(e.str());
+        }
+
+        if(signing_key_secret.GetSize() < 32) { 
+            std::stringstream e;
+            e << "The signing key needs to be greater or equal to 32 bytes in size. Got " << signing_key_secret.GetSize() << " instead.";
+            throw std::runtime_error(e.str());
+        }
+
+        auto key = signing_key_secret.GetKey();
+        if (!key.IsValid()) {
+            throw std::runtime_error("The signing key needs to be in the Wallet Import Format");
+        }
+
+        if (!parent_address.IsValid()) {
+            throw std::runtime_error(strprintf("Parent address \"%s\" is not valid or in wrong format.", parent_address.ToString().c_str()));
+        }
+
+        auto referral = pwallet->GenerateNewReferral(
+                address.GetType(),
+                *address.GetUint160(),
+                key.GetPubKey(),
+                *parent_address.GetUint160(),
+                key); 
+
+        if(!referral) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Unable to generate referral for receiver key");
+        }
+
+        // TODO: Make this check more robust.
+        UniValue obj(UniValue::VOBJ);
+
+        obj.push_back(Pair("beaconid", referral->GetHash().GetHex()));
+        obj.push_back(Pair("address", CMeritAddress{referral->addressType, referral->GetAddress()}.ToString()));
+    } else {
+
+        CMeritAddress address(request.params[0].get_str());
+        CPubKey pub_key{ParseHex(request.params[1].get_str())};
+        CMeritAddress parent_address(request.params[2].get_str());
+
+        auto parent_addr_uint160 = parent_address.GetUint160() ? 
+            * parent_address.GetUint160() : referral::Address{};
+
+        referral::Referral ref{
+            referral::MutableReferral(
+                address.GetType(), *address.GetUint160(), pub_key, parent_addr_uint160)
+        };
+
+        auto hash = (CHashWriter(SER_GETHASH, 0) << parent_addr_uint160 << ref.GetAddress()).GetHash();
+
+        obj.push_back(Pair("referral_data_to_sign", hash.GetHex()));
+    }
+
+    return obj;
+}
+
 UniValue getanv(const JSONRPCRequest& request)
 {
     assert(prefviewdb);
@@ -4943,6 +5073,7 @@ static const CRPCCommand commands[] =
 
     // merit specific commands
     { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress"} },
+    { "referral",           "beaconaddress",            &beaconaddress,            {"address", "key", "parentaddress"} },
     { "referral",           "getanv",                   &getanv,                   {} },
 
     { "wallet",             "getrewards",               &getrewards,               {} },
