@@ -46,7 +46,7 @@ namespace {
  *   vMerkleTree: 4a5e1e
  */
 static CBlock CreateGenesisBlock(
-    const PubKeys genesisKeys,
+    const PubKeys& genesisKeys,
     const std::string& signatureHex,
     const char* pszTimestamp,
     uint32_t nTime,
@@ -67,6 +67,8 @@ static CBlock CreateGenesisBlock(
     mutRef.signature = ParseHex(signatureHex);
 
     referral::Referral ref{mutRef};
+
+    uint256 hash = (CHashWriter(SER_GETHASH, 0) << ref.parentAddress << ref.GetAddress()).GetHash();
 
     const CMeritAddress address{2, ref.GetAddress()};
     const auto genesisOutputScript = GetScriptForDestination(address.Get());
@@ -230,25 +232,22 @@ public:
         CAmount genesisReward = 20000000_merit;
 
         PubKeys genesisKeys = {
-            CPubKey{ParseHex("03C710FD3FD8B56537BF121870AF462107D3583F7E0CBD97F80EE271F48DAFF593")},
-            CPubKey{ParseHex("024F1BC2E023ED1BACDC8171798113F1F7280C881919A11B592A25A976ABFB8798")},
+            CPubKey{ParseHex("02DB1B668505E835356B3CC854B4F04CF94812E0CB536AD7E13D6C32E5441C901C")},
+            CPubKey{ParseHex("033743F618164114D64845BEE3947DDA816A833F69FD996586738D57DF32B5C878")},
         };
 
-        const std::string referralSig = 
-            "304502210090792fc651c1d88caf78a071b9a33699e9f2324af3096d45e6c7a3"
-            "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
-            "f967f5b6895626";
+        const std::string referralSig = "3044022075966858282b5f174348becf2b36e7474fe981c4d99d6d826fafe9d0ac24e8e102202b934185ebcd218479db27e4af0a7c30ad9c60e9d04f16e9e21884b8275e4623";
 
-        // genesis ref address: MS9pSM66vUzxaqqYsW3ESrev1u1Ci5F9Ve
-        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  0, 0x207fffff, 27, 1, genesisReward, consensus, generateGenesis);
+        // genesis ref address: ST2HYE5KMszAdBcGo3kw7Qsb9u1nRQhac4
+        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  1, 0x207fffff, 27, 1, genesisReward, consensus, generateGenesis);
 
         genesis.sCycle = {
-            0x221e95, 0x307e14, 0x39ec40, 0x7de2b0, 0xbdaa3a, 0xdafef2, 0xe2e79f, 0xee0846, 0xffdff6, 0x17ccae3, 0x19f05c3, 0x1aba887, 0x2071c42, 0x246cfe8, 0x260dc00, 0x27e0407, 0x2eb5817, 0x32eb206, 0x362d6f2, 0x3b5dc8a, 0x3cf6d84, 0x3e67ef6, 0x3fa1cf5, 0x4981a27, 0x4c53e6a, 0x4d1a09c, 0x4d4dece, 0x5236e7c, 0x5846eac, 0x5c471fb, 0x5c9940f, 0x5e4b473, 0x5f89874, 0x636c833, 0x66cb623, 0x6830f4c, 0x69fb5cf, 0x7641f59, 0x77770db, 0x7858ff5, 0x7907467, 0x7b466d1,
+            0x15d885, 0x256dce, 0x2cc8d0, 0x5cd44a, 0xd6d132, 0x106b67b, 0x11962db, 0x14ab89d, 0x18abdce, 0x1a45363, 0x1a7f63b, 0x1bbd6a5, 0x1bf9e06, 0x1c5867a, 0x20ad7f3, 0x24e9681, 0x24fb531, 0x29fe5c4, 0x2aaf2d5, 0x362d3ff, 0x39fc056, 0x3fc1e9a, 0x4c15367, 0x4e7fd5a, 0x5021fd5, 0x50cbb61, 0x5213f29, 0x55ca2e7, 0x594706d, 0x5b74b85, 0x5dc54ba, 0x5f02c74, 0x651ab75, 0x66627a8, 0x672d4a5, 0x69030db, 0x6b7dd35, 0x6ccbc8c, 0x77c92c1, 0x77e766a, 0x7a30059, 0x7d86a68,
         };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("7a7dc3db203d2464b032dfcfbcca6d05e87e4313b622ed4e0a58815d64d74b8c"));
-        assert(genesis.hashMerkleRoot == uint256S("63c4b7c52a66d23ffbed6200d334d70a45204e44067a40d688337a4e5501c278"));
+        assert(consensus.hashGenesisBlock == uint256S("5fe9fb4f6bb108383e61cf4401dff6e947f6345956bf2f54b19ffd1092028c24"));
+        assert(genesis.hashMerkleRoot == uint256S("61621466cfa6f549f5dbc144057d96046989f830c7bff2743e593a161ba42499"));
     }
 };
 
