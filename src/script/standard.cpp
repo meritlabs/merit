@@ -197,11 +197,11 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, Solutions& vSoluti
 char AddressTypeFromDestination(const CTxDestination& dest)
 {
     char addressType = 0;
-    if(auto id = boost::get<CKeyID>(&dest)) {
+    if(boost::get<CKeyID>(&dest)) {
         addressType = 1;
-    } else if(auto id = boost::get<CScriptID>(&dest)) {
+    } else if(boost::get<CScriptID>(&dest)) {
         addressType = 2;
-    } else if(auto id = boost::get<CParamScriptID>(&dest)) {
+    } else if(boost::get<CParamScriptID>(&dest)) {
         addressType = 3;
     }
 

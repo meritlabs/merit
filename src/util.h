@@ -170,7 +170,7 @@ void debug(const char* fmt, const Args&... args)
     LogPrintStr("DEBUG: " + tfm::format(fmt, args...) + "\n");
 }
 #else
-#define debug(...) 
+#define debug(...)
 #endif 
 
 
