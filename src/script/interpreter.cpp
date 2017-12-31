@@ -1159,8 +1159,8 @@ bool EvalScript(
                         // (x1 x2 -- out)
                         if (stack.size() < 2)
                             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
-                        CScriptNum bn1(stacktop(-2), fRequireMinimal);
-                        CScriptNum bn2(stacktop(-1), fRequireMinimal);
+                        CScriptNum bn1(stacktop(-2), fRequireMinimal, 8);
+                        CScriptNum bn2(stacktop(-1), fRequireMinimal, 8);
                         CScriptNum bn(0);
                         switch (opcode)
                         {
