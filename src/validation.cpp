@@ -2646,6 +2646,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             if(!UpdateANV(block, view)) {
                 return AbortNode(state, "Failed to write ANV index");
             }
+
             for(const auto& tx : block.vtx) {
                 UpdateCoins(*tx, view, 0);
             }

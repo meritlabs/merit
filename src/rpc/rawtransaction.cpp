@@ -799,7 +799,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
             "       {\n"
             "         \"txid\":\"id\",             (string, required) The transaction id\n"
             "         \"vout\":n,                  (numeric, required) The output number\n"
-            "         \"scriptPubKey\": \"hex\",   (string, required) script key\n"
+            "         \"beaconKey\": \"hex\",      (string, required) key used to beacon a P2SH/PP2SH\n"
             "         \"redeemScript\": \"hex\",   (string, required for P2SH or P2WSH) redeem script\n"
             "         \"amount\": value            (numeric, required) The amount spent\n"
             "       }\n"
@@ -975,24 +975,29 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
                     {
                         {"txid", UniValueType(UniValue::VSTR)},
                         {"vout", UniValueType(UniValue::VNUM)},
-                        {"scriptPubKey", UniValueType(UniValue::VSTR)},
+                        {"beaconKey", UniValueType(UniValue::VSTR)},
                         {"redeemScript", UniValueType(UniValue::VSTR)},
                     });
                 UniValue v = find_value(prevOut, "redeemScript");
                 if (!v.isNull()) {
+                    auto beaconDest = DecodeDestination(find_value(prevOut, "beaconKey").get_str());
+                    CKeyID beaconId;
+                    GetUint160(beaconDest, beaconId);
+
                     std::vector<unsigned char> rsData(ParseHexV(v, "redeemScript"));
-                    std::vector<unsigned char> scriptPubKeyData(ParseHexV(v, "scriptPubKey"));
                     CScript redeemScript(rsData.begin(), rsData.end());
 
-                    CScript scriptPubKey(scriptPubKeyData.begin(), scriptPubKeyData.end());
+                    uint160 mixedAddress;
+                    MixAddresses(CScriptID{redeemScript}, beaconId, mixedAddress);
+                    tempKeystore.AddCScript(redeemScript, mixedAddress);
+
                     CTxDestination dest;
                     if(ExtractDestination(scriptPubKey, dest)) {
-                        uint160 addr;
-                        if(GetUint160(dest, addr)) {
-                            tempKeystore.AddCScript(redeemScript, addr);
+                        uint160 address; 
+                        if(GetUint160(dest, address)) {
+                            tempKeystore.AddReferralAddressPubKey(address, beaconId);
                         }
                     }
-
                 }
             }
         }
@@ -1037,6 +1042,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
             TxInErrorToJSON(txin, vErrors, "Input not found or already spent");
             continue;
         }
+
         const CScript& prevPubKey = coin.out.scriptPubKey;
         const CAmount& amount = coin.out.nValue;
 
