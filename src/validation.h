@@ -147,11 +147,11 @@ static const int64_t MAX_FEE_ESTIMATION_TIP_AGE = 3 * 60 * 60;
 /** Default for -permitbaremultisig */
 static const bool DEFAULT_PERMIT_BAREMULTISIG = true;
 static const bool DEFAULT_CHECKPOINTS_ENABLED = true;
-static const bool DEFAULT_TXINDEX = false;
-static const bool DEFAULT_ADDRESSINDEX = false;
-static const bool DEFAULT_TIMESTAMPINDEX = false;
-static const bool DEFAULT_SPENTINDEX = false;
-static const bool DEFAULT_REFERRALINDEX = false;
+static const bool DEFAULT_TXINDEX = true;
+static const bool DEFAULT_ADDRESSINDEX = true;
+static const bool DEFAULT_TIMESTAMPINDEX = true;
+static const bool DEFAULT_SPENTINDEX = true;
+static const bool DEFAULT_REFERRALINDEX = true;
 static const unsigned int DEFAULT_DB_MAX_OPEN_FILES = 1000;
 static const bool DEFAULT_DB_COMPRESSION = true;
 static const unsigned int DEFAULT_BANSCORE_THRESHOLD = 100;
