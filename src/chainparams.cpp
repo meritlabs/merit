@@ -68,8 +68,6 @@ static CBlock CreateGenesisBlock(
 
     referral::Referral ref{mutRef};
 
-    uint256 hash = (CHashWriter(SER_GETHASH, 0) << ref.parentAddress << ref.GetAddress()).GetHash();
-
     const CMeritAddress address{2, ref.GetAddress()};
     const auto genesisOutputScript = GetScriptForDestination(address.Get());
 
