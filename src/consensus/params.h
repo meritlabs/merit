@@ -49,6 +49,7 @@ struct Params {
     uint256 hashGenesisBlock;
     int nSubsidyHalvingInterval;
     uint32_t nBlocksToMaturity;
+
     /**
      * Minimum blocks including miner confirmation of the total of 2016 blocks in a retargeting period,
      * (nPowTargetTimespan / nPowTargetSpacing) which is also used for BIP9 deployments.
@@ -67,8 +68,9 @@ struct Params {
     int64_t nEdgeBitsTargetThreshold; // threshold for nEdgeBits adjustments
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
     int64_t ambassador_percent_cut;
-    size_t total_winning_ambassadors;
-    size_t max_lottery_reservoir_size;
+    uint64_t total_winning_ambassadors;
+    uint64_t initial_block_reward;
+    uint64_t max_lottery_reservoir_size;
     uint256 nMinimumChainWork;
     uint256 defaultAssumeValid;
     /** Cuckoo cycle length */

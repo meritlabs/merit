@@ -12,13 +12,13 @@
 #include <limits>
 
 /** The maximum allowed size for a serialized block, in bytes (only for buffer size limits) */
-static const unsigned int MAX_BLOCK_SERIALIZED_SIZE = 4000000;
+static const unsigned int MAX_BLOCK_SERIALIZED_SIZE = 16000000;
 /** The maximum allowed size for a serialized block transactions, in bytes */
 static const unsigned int MAX_TRANSACTIONS_SERIALIZED_SIZE_SHARE = 90;
 /** The maximum allowed weight for a block, see BIP 141 (network rule) */
-static const unsigned int MAX_BLOCK_WEIGHT = 4000000;
+static const unsigned int MAX_BLOCK_WEIGHT = 16000000;
 /** The maximum allowed number of signature check operations in a block (network rule) */
-static const int64_t MAX_BLOCK_SIGOPS_COST = 80000;
+static const int64_t MAX_BLOCK_SIGOPS_COST = 240000;
 
 /** Minimum number of edge bits for cuckoo miner - block.nEdgeBits value */
 static const uint16_t MIN_EDGE_BITS = 16;

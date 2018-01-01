@@ -22,6 +22,7 @@ using VaultCoins = std::vector<VaultCoin>;
 using VaultOutputs = std::vector<COutPoint>;
 using WhitelistAddress = std::vector<unsigned char>;
 using Whitelist = std::vector<WhitelistAddress>;
+using PubKeys = std::vector<CPubKey>;
 
 VaultOutputs GetUnspentOutputs(CCoinsViewCache& view, const VaultOutputs& outputs);
 VaultCoins GetUnspentCoins(CCoinsViewCache& view, const VaultOutputs& unspent);
@@ -38,9 +39,16 @@ struct Vault
     Coin coin;
     CScript script;
     CParamScriptID address;
+    Whitelist whitelist;
+    CAmount spendlimit;
+
+    //type 0 specific
     CPubKey spend_pub_key;
     CPubKey master_pub_key;
-    Whitelist whitelist;
+
+    //type 1 specific
+    PubKeys spend_keys;
+    PubKeys master_keys;
 
     bool SameKind(const Vault& o) const;
 };

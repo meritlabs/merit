@@ -99,6 +99,7 @@ public:
     bool SetString(const std::string& str);
     std::string ToString() const;
     int CompareTo(const CBase58Data& b58) const;
+    size_t GetSize() const;
 
     bool operator==(const CBase58Data& b58) const { return CompareTo(b58) == 0; }
     bool operator<=(const CBase58Data& b58) const { return CompareTo(b58) <= 0; }

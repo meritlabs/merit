@@ -6,6 +6,7 @@
 
 #include "base58.h"
 #include <limits>
+#include <boost/rational.hpp>
 
 namespace referral
 {
@@ -23,7 +24,10 @@ const char DB_LOT_VAL = 'v';
 const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
 }
 
-using ANVTuple = std::tuple<char, Address, CAmount>;
+//stores ANV internally as a rational number with numerator/denominator
+using AnvInternal = std::pair<CAmount, CAmount>;
+using ANVTuple = std::tuple<char, Address, AnvInternal>;
+using AnvRat = boost::rational<CAmount>;
 
 ReferralsViewDB::ReferralsViewDB(
         size_t cache_size,
@@ -87,7 +91,7 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
         return false;
     }
 
-    ANVTuple anv{referral.addressType, referral.GetAddress(), CAmount{0}};
+    ANVTuple anv{referral.addressType, referral.GetAddress(), AnvInternal{0, 1}};
     if(!m_db.Write(std::make_pair(DB_ANV, referral.GetAddress()), anv)) {
         return false;
     }
@@ -176,6 +180,8 @@ bool ReferralsViewDB::UpdateANV(
         const Address& start_address,
         CAmount change)
 {
+    AnvRat change_rat = change;
+
     debug("\tUpdateANV: %s + %d",
             CMeritAddress(address_type, start_address).ToString(), change);
 
@@ -183,7 +189,7 @@ bool ReferralsViewDB::UpdateANV(
     size_t level = 0;
 
     //MAX_LEVELS guards against cycles in DB
-    while(address && level < MAX_LEVELS)
+    while(address && change != 0 && level < MAX_LEVELS)
     {
         //it's possible address didn't exist yet so an ANV of 0 is assumed.
         ANVTuple anv;
@@ -202,7 +208,14 @@ bool ReferralsViewDB::UpdateANV(
                 std::get<2>(anv),
                 change);
 
-        std::get<2>(anv) += change;
+        auto& anv_in = std::get<2>(anv);
+
+        AnvRat anv_rat{anv_in.first, anv_in.second};
+
+        anv_rat += change_rat;
+
+        anv_in.first = anv_rat.numerator();
+        anv_in.second = anv_rat.denominator();
 
         if(!m_db.Write(std::make_pair(DB_ANV, *address), anv)) {
             //TODO: Do we rollback anv computation for already processed address?
@@ -219,6 +232,7 @@ bool ReferralsViewDB::UpdateANV(
             address.reset();
         }
         level++;
+        change_rat /= 2;
     }
 
     // We should never have cycles in the DB.
@@ -227,12 +241,25 @@ bool ReferralsViewDB::UpdateANV(
     return true;
 }
 
+CAmount AnvInToAnvPub(const AnvInternal& in)
+{
+    AnvRat anv_rat{in.first, in.second};
+    return boost::rational_cast<CAmount>(anv_rat);
+}
+
 MaybeAddressANV ReferralsViewDB::GetANV(const Address& address) const
 {
     ANVTuple anv;
-    return m_db.Read(std::make_pair(DB_ANV, address), anv) ?
-        MaybeAddressANV{{ std::get<0>(anv), std::get<1>(anv), std::get<2>(anv) }} :
-        MaybeAddressANV{};
+    if(!m_db.Read(std::make_pair(DB_ANV, address), anv)) { 
+        return MaybeAddressANV{};
+    }
+
+    const auto anv_pub = AnvInToAnvPub(std::get<2>(anv));
+    return MaybeAddressANV({
+        std::get<0>(anv),
+        std::get<1>(anv),
+        anv_pub
+        });
 }
 
 AddressANVs ReferralsViewDB::GetAllANVs() const
@@ -261,11 +288,12 @@ AddressANVs ReferralsViewDB::GetAllANVs() const
             continue;
         }
 
+        const auto anv_pub = AnvInToAnvPub(std::get<2>(anv));
         anvs.push_back({
                 std::get<0>(anv),
                 std::get<1>(anv),
-                std::get<2>(anv)
-                });
+                anv_pub
+             });
 
         iter->Next();
     }

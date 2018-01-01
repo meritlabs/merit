@@ -163,10 +163,16 @@ CScript GetScriptForEasySend(
 
 /**
  * Constructs a vault script which limits spending. Allows resetting and
- * chaning rules. Returns a parameterized-pay-to-script-hash with the following
- * parameters: <tag> <spend_key> <renew_key>
+ * changing rules. Returns a parameterized-pay-to-script-hash. 
  */
 CScript GetScriptForSimpleVault(const uint160& tag);
+
+/**
+ * Constructs a vault script which limits spending and requires multiple signatures. 
+ * Allows resetting and changing rules. 
+ * Returns a parameterized-pay-to-script-hash.
+ */
+CScript GetScriptForMultisigVault(const uint160& tag);
 
 /**
  * Constructs a Parameterized P2SH. You can push params onto script after calling

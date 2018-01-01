@@ -551,8 +551,7 @@ bool EvalScript(
             if (opcode > OP_16 && ++nOpCount > MAX_OPS_PER_SCRIPT)
                 return set_error(serror, SCRIPT_ERR_OP_COUNT);
 
-            if (opcode == OP_OR ||
-                opcode == OP_XOR ||
+            if (opcode == OP_XOR ||
                 opcode == OP_2MUL ||
                 opcode == OP_2DIV ||
                 opcode == OP_MUL ||
@@ -686,8 +685,9 @@ bool EvalScript(
                     {
                         // ( out_index -- amount)
                         int output_index = 0;
-                        if(!Pop(stack, output_index, serror))
+                        if(!Pop(stack, output_index, serror)) {
                             return false;
+                        }
 
                         CAmount amount;
                         if(!checker.GetOutputAmount(output_index, amount)) {
@@ -925,7 +925,24 @@ bool EvalScript(
                         popstack(stack);
                     }
                     break;
+                    case OP_NDROP:
+                    {
+                        // (xn ... x2 x1 x0 n - )
+                        int n = 0;
+                        if(!Pop(stack, n, serror)) {
+                            return false;
+                        }
 
+                        if (n < 0 || n > static_cast<int>(stack.size())) {
+                            return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+                        }
+
+                        for(int i = 0; i < n; i++) {
+                            popstack(stack);
+                        }
+
+                    }
+                    break;
                     case OP_DUP:
                     {
                         // (x -- x x)
@@ -939,39 +956,49 @@ bool EvalScript(
                     {
                         // (xn ... x2 x1 x0 n - xn ... x2 x1 x0)
                         int n = 0;
-                        if(!Peek(stack, n, serror))
+                        if(!Peek(stack, n, serror)) {
                             return false;
+                        }
 
                         //include the size element
                         n ++;
 
-                        if (n < 0 || n > static_cast<int>(stack.size()))
+                        if (n < 0 || n > static_cast<int>(stack.size())) {
                             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+                        }
 
-                        if (stack.size() + altstack.size() + n > MAX_STACK_SIZE)
+                        if (stack.size() + altstack.size() + n > MAX_STACK_SIZE) {
                             return set_error(serror, SCRIPT_ERR_STACK_SIZE);
+                        }
 
                         auto start = stack.size() - n;
                         auto end = stack.size();
-                        for(size_t i = start; i < end; i++)
+                        for(size_t i = start; i < end; i++) {
                             stack.push_back(stack[i]);
+                        }
                     }
                     break;
                     case OP_NREPEAT:
                     {
                         // (x n - x x x ... n)
                         int n = 0;
-                        if(!Pop(stack, n, serror))
+                        if(!Pop(stack, n, serror)) {
                             return false;
+                        }
 
-                        if (n < 0 || stack.size() < 2)
+                        if (n < 0 || stack.size() < 2) {
                             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
+                        }
 
-                        if (stack.size() + altstack.size() + n > MAX_STACK_SIZE)
+                        if (stack.size() + altstack.size() + n > MAX_STACK_SIZE) {
                             return set_error(serror, SCRIPT_ERR_STACK_SIZE);
+                        }
 
                         const auto elem = stacktop(-1);
-                        while(n--) stack.push_back(elem);
+
+                        for(int i = 0; i < n; i++) {
+                            stack.push_back(elem);
+                        }
                     }
                     break;
                     case OP_NIP:
@@ -1132,8 +1159,8 @@ bool EvalScript(
                         // (x1 x2 -- out)
                         if (stack.size() < 2)
                             return set_error(serror, SCRIPT_ERR_INVALID_STACK_OPERATION);
-                        CScriptNum bn1(stacktop(-2), fRequireMinimal);
-                        CScriptNum bn2(stacktop(-1), fRequireMinimal);
+                        CScriptNum bn1(stacktop(-2), fRequireMinimal, 8);
+                        CScriptNum bn2(stacktop(-1), fRequireMinimal, 8);
                         CScriptNum bn(0);
                         switch (opcode)
                         {
@@ -1442,8 +1469,9 @@ bool EvalScript(
                     {
                         // ( [arg1 arg2 ... argN num_args ] output_index add1 add2 .. addN num_addresses-- bool)
                         size_t possible_address_count = 0;
-                        if(!Pop(stack, possible_address_count, serror))
+                        if(!Pop(stack, possible_address_count, serror)) {
                             return false;
+                        }
 
                         if(possible_address_count < 1 || possible_address_count > stack.size()) {
                             return set_error(serror, SCRIPT_ERR_BAD_ADDRESS_COUNT);
@@ -1470,28 +1498,33 @@ bool EvalScript(
                             return false;
 
                         const auto* maybe_output = checker.GetTxnOutput(output_index);
-                        if(!maybe_output)
+                        if(!maybe_output) {
                             return set_error(serror, SCRIPT_ERR_OUTPUT_INDEX_OUT_OF_BOUNDS);
+                        }
 
                         const auto& output_script = maybe_output->scriptPubKey;
 
                         //quick check to see if the output script is a supported type.
-                        if(!output_script.IsStandardPayToHash())
+                        if(!output_script.IsStandardPayToHash()) {
                             return set_error(serror, SCRIPT_ERR_OUTPUT_UNSUPPORTED);
+                        }
 
                         //get addresses from output type.
                         txnouttype output_type;
                         Solutions output_hashes;
-                        if(!Solver(output_script, output_type, output_hashes))
+                        if(!Solver(output_script, output_type, output_hashes)) {
                             return set_error(serror, SCRIPT_ERR_OUTPUT_UNSUPPORTED);
+                        }
 
                         //sanity check to validate we have a valid output type
                         //after solving for the addresses.
-                        if(!IsValidOutputTypeForCheckOutputSig(output_type))
+                        if(!IsValidOutputTypeForCheckOutputSig(output_type)) {
                             return set_error(serror, SCRIPT_ERR_OUTPUT_UNSUPPORTED);
+                        }
 
-                        if(output_hashes.size() != 1)
+                        if(output_hashes.size() != 1) {
                             return set_error(serror, SCRIPT_ERR_OUTPUT_UNSUPPORTED);
+                        }
 
                         uint160 output_address{output_hashes[0]};
 

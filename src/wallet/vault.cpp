@@ -135,6 +135,26 @@ VaultCoins FindUnspentVaultCoins(const uint160& address)
     return FilterVaultCoins(unspent_coins, address);
 }
 
+
+void ExtractPubKeys(const Stack& stack, int num_keys_idx, PubKeys& keys)
+{
+        if(num_keys_idx < 1) { 
+            throw JSONRPCError(RPC_TYPE_ERROR, 
+                    "Vault seem sto be incompatible");
+        }
+        
+        const auto num_keys = CScriptNum{stack[num_keys_idx], false}.getint();
+        if(num_keys > num_keys_idx) {
+            throw JSONRPCError(RPC_TYPE_ERROR, 
+                    "Vault does not have expected amount of keys");
+        } 
+
+        for(int i = num_keys_idx - num_keys; i < num_keys_idx; i++) {
+            CPubKey key{stack[i]};
+            keys.push_back(key);
+        }
+}
+
 Vault ParseVaultCoin(const VaultCoin& coin)
 {
     Vault vault;
@@ -148,9 +168,7 @@ Vault ParseVaultCoin(const VaultCoin& coin)
 
     CScript script_params;
     if(!scriptPubKey.ExtractParameterizedPayToScriptHashParams(script_params)) {
-        throw JSONRPCError(
-                RPC_INVALID_ADDRESS_OR_KEY,
-                "The address is not a vault");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "The address is not a vault");
     }
 
     Stack stack;
@@ -158,54 +176,73 @@ Vault ParseVaultCoin(const VaultCoin& coin)
     EvalPushOnlyScript(stack, script_params, SCRIPT_VERIFY_MINIMALDATA, &serror);
 
     if(stack.empty()) {
-        throw JSONRPCError(
-                RPC_MISC_ERROR,
-                "Unexpectedly couldn't parse vault params");
+        throw JSONRPCError(RPC_MISC_ERROR, "Unexpectedly couldn't parse vault params");
     }
 
 
     const CScriptNum type_num(stack.back(), true);
     vault.type = type_num.getint();
 
-    if(vault.type == 0 /* simple */) {
-        const int stack_size = stack.size();
+    const int stack_size = stack.size();
 
-        if(stack_size < 5) {
+    if(stack_size < 3) {
+        throw JSONRPCError(RPC_MISC_ERROR, "Cannot extract whitelist from vault");
+    }
+
+    const auto& vault_tag = stack[stack_size - 2];
+    vault.tag = uint160{vault_tag};
+
+    const auto num_address_idx = stack_size - 3;
+    const auto num_addresses = CScriptNum{stack[num_address_idx], false}.getint();
+
+    if(stack_size < 3 + num_addresses) {
+        throw JSONRPCError(RPC_MISC_ERROR, "Vault seems to be incompatible");
+    }
+
+    for(int i = num_address_idx - num_addresses; i < num_address_idx; i++) {
+        vault.whitelist.push_back(stack[i]);
+    }
+
+    auto spendlimit_idx = num_address_idx - num_addresses - 1;
+    vault.spendlimit = CScriptNum{stack[spendlimit_idx], true, 8}.getint64();
+
+    if(vault.type == 0) {
+
+        if(stack_size < 6) {
             std::stringstream e;
-            e << "Simple vault requires 5 or more parameters. " 
+            e << "Simple vault requires 6 or more parameters. " 
               << stack_size 
               << " were provided"; 
 
-            throw JSONRPCError(
-                    RPC_TYPE_ERROR,
-                    e.str());
-        }
-
-        const auto& vault_tag = stack[stack_size - 2];
-        vault.tag = uint160{vault_tag};
-
-        const auto num_address_idx = stack_size - 3;
-        const CScriptNum script_num_addresses(stack[num_address_idx], false);
-        const auto num_addresses = script_num_addresses.getint();
-
-        if(stack_size < 3 + num_addresses) {
-            throw JSONRPCError(
-                    RPC_MISC_ERROR,
-                    "Vault seems to be incompatible");
-        }
-
-        for(int i = num_address_idx - num_addresses; i < num_address_idx; i++) {
-            vault.whitelist.push_back(stack[i]);
+            throw JSONRPCError(RPC_TYPE_ERROR, e.str());
         }
 
         const auto vault_script = GetScriptForSimpleVault(uint160{vault_tag});
 
         vault.script = vault_script;
-        vault.address = vault_script;
         vault.spend_pub_key.Set(stack[0]);
         vault.master_pub_key.Set(stack[1]);
+
+    } else if (vault.type == 1) {
+
+
+        const auto num_master_keys_idx = spendlimit_idx - 1;
+        ExtractPubKeys(stack, num_master_keys_idx, vault.master_keys);
+
+        const auto num_spend_keys_idx = num_master_keys_idx - vault.master_keys.size() - 1;
+        ExtractPubKeys(stack, num_spend_keys_idx, vault.spend_keys);
+
+        const auto vault_script = GetScriptForMultisigVault(uint160{vault_tag});
+
+        vault.script = vault_script;
+
+    } else {
+        std::stringstream e;
+        e << "Vault of type " << vault.type << " is not supported";
+        throw JSONRPCError(RPC_MISC_ERROR, e.str());
     }
 
+    vault.address = vault.script;
     return vault;
 }
 

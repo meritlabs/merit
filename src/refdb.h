@@ -27,6 +27,7 @@ using MaybeLotteryEntrant = boost::optional<LotteryEntrant>;
 using AddressPair = std::pair<char, Address>;
 using MaybeAddressPair = boost::optional<AddressPair>;
 
+
 struct AddressANV
 {
     char address_type;

@@ -262,17 +262,13 @@ referral::MaybeReferral LookupReferral(
 
 bool CheckReferralSignature(const referral::Referral& ref, const std::vector<referral::ReferralRef>& extraReferrals)
 {
-    assert(ref.pubkey.IsValid());
+    if(!ref.pubkey.IsValid()) {
+        return false;
+    }
 
     auto hash = (CHashWriter(SER_GETHASH, 0) << ref.parentAddress << ref.GetAddress()).GetHash();
 
     return ref.pubkey.Verify(hash, ref.signature);
-
-    // otherwise look up the chain for parent referral with pubkey beaconed to check signature
-    auto parentRef = LookupReferral(ref.parentAddress, *prefviewcache, extraReferrals);
-    assert(parentRef);
-
-    return CheckReferralSignature(*parentRef, extraReferrals);
 }
 
 bool CheckFinalTx(const CTransaction &tx, int flags)
@@ -2646,6 +2642,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             if(!UpdateANV(block, view)) {
                 return AbortNode(state, "Failed to write ANV index");
             }
+
+            for(const auto& tx : block.vtx) {
+                UpdateCoins(*tx, view, 0);
+            }
         }
         return true;
     }
@@ -3578,7 +3578,6 @@ static void PruneBlockIndexCandidates() {
 static bool ActivateBestChainStep(CValidationState& state, const CChainParams& chainparams, CBlockIndex* pindexMostWork, const std::shared_ptr<const CBlock>& pblock, bool& fInvalidFound, ConnectTrace& connectTrace)
 {
     if(pblock) debug("ActivateBestChainStep: %s", pblock->GetHash().GetHex());
-    else debug("%s...", __func__);
 
     AssertLockHeld(cs_main);
     const CBlockIndex *pindexOldTip = chainActive.Tip();
@@ -3619,7 +3618,6 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
         for (CBlockIndex *pindexConnect : reverse_iterate(vpindexToConnect)) {
 
             if(pblock) debug("TestValidity: %s", pblock->GetHash().GetHex());
-            else debug("%s...", __func__);
 
             if (!ConnectTip(state, chainparams, pindexConnect, pindexConnect == pindexMostWork ? pblock : std::shared_ptr<const CBlock>(), connectTrace, disconnectTransactions, disconnectReferrals)) {
                 if (state.IsInvalid()) {
@@ -3696,7 +3694,6 @@ bool ActivateBestChain(CValidationState &state, const CChainParams& chainparams,
     // us in the middle of ProcessNewBlock - do not assume pblock is set
     // sanely for performance or correctness!
     if(pblock) debug("ActivateBestChain: %s", pblock->GetHash().GetHex());
-    else debug("%s...", __func__);
 
     CBlockIndex *pindexMostWork = nullptr;
     CBlockIndex *pindexNewTip = nullptr;

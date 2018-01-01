@@ -16,6 +16,9 @@
 #include <boost/variant/apply_visitor.hpp>
 #include <boost/variant/static_visitor.hpp>
 
+#include <iostream>
+#include "utilstrencodings.h"
+
 /** All alphanumeric characters except for "0", "I", "O", and "l" */
 static const char* pszBase58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
@@ -211,7 +214,10 @@ int CBase58Data::CompareTo(const CBase58Data& b58) const
     return 0;
 }
 
-
+size_t CBase58Data::GetSize() const
+{
+    return vchData.size();
+}
 
 class CMeritAddressVisitor : public boost::static_visitor<bool>
 {

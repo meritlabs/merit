@@ -101,6 +101,7 @@ enum opcodetype : short
     OP_IFDUP = 0x73,
     OP_DEPTH = 0x74,
     OP_DROP = 0x75,
+    OP_NDROP = 0x85,
     OP_DUP = 0x76,
     OP_NIP = 0x77,
     OP_OVER = 0x78,
@@ -118,7 +119,6 @@ enum opcodetype : short
     OP_SIZE = 0x82,
 
     // bit logic
-    OP_OR = 0x85,
     OP_XOR = 0x86,
     OP_EQUAL = 0x87,
     OP_EQUALVERIFY = 0x88,
@@ -325,6 +325,11 @@ public:
             return std::numeric_limits<int>::max();
         else if (m_value < std::numeric_limits<int>::min())
             return std::numeric_limits<int>::min();
+        return m_value;
+    }
+
+    int64_t getint64() const
+    {
         return m_value;
     }
 

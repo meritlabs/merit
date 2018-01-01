@@ -445,7 +445,15 @@ static Stacks CombineSignatures(const CScript& scriptPubKey, const BaseSignature
             Solver(pubKey2, txType2, vSolutions2);
             sigs1.script.pop_back();
             sigs2.script.pop_back();
+
+            valtype beaconKey;
+            if(!sigs1.script.empty()) {
+                beaconKey = sigs1.script.back();
+            }
+
             Stacks result = CombineSignatures(pubKey2, checker, txType2, vSolutions2, sigs1, sigs2, sigversion);
+
+            result.script.push_back(beaconKey);
             result.script.push_back(spk);
             return result;
         }

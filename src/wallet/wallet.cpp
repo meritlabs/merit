@@ -1081,7 +1081,10 @@ bool CWallet::AddToWallet(const referral::ReferralTx& rtxIn, bool fFlushOnClose)
     }
 
     //// debug print
-    LogPrintf("AddToWallet %s  %s%s\n", rtxIn.GetHash().ToString(), (fInsertedNew ? "new" : ""), (fUpdated ? "update" : ""));
+    LogPrintf("AddToWallet %s  %s%s\n",
+            rtxIn.GetHash().ToString(),
+            (fInsertedNew ? "new" : ""),
+            (fUpdated ? "update" : ""));
 
     // Write to disk
     if (fInsertedNew || fUpdated) {
@@ -1091,9 +1094,10 @@ bool CWallet::AddToWallet(const referral::ReferralTx& rtxIn, bool fFlushOnClose)
     }
 
     // Set unlock referral tx in case this tx is root unlock tx, wallet us not unlocked yet and tx is in the blockchain, aka confirmed
-    if (rtx.IsUnlockTx() && !IsReferred() && rtx.IsAccepted()) {
+    if (rtx.IsUnlockTx() && !IsReferred()) {
+        LogPrintf("Setting Unlock Tx %s  %s%s\n", rtxIn.GetHash().ToString(), (fInsertedNew ? "new" : ""), (fUpdated ? "update" : ""));
         SetUnlockReferralTx(rtx, true);
-    }
+    } 
 
     // Notify UI of new or updated transaction
     NotifyTransactionChanged(this, hash, CT_NEW);
@@ -1674,7 +1678,13 @@ referral::ReferralRef CWallet::GenerateNewReferral(
 
     CValidationState state;
     CreateTransaction(rtx, referral, key);
-    CommitTransaction(rtx, g_connman.get(), state);
+    if(!CommitTransaction(rtx, g_connman.get(), state)) {
+        std::stringstream e;
+        e << "Unable to submit the beacon message: " 
+          << state.GetDebugMessage();
+
+        throw std::runtime_error(e.str());
+    }
 
     return referral;
 }
@@ -1706,7 +1716,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
 
 bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool)
 {
-    if (IsReferred() || !rtx.IsUnlockTx() || !rtx.IsAccepted()) {
+    if (IsReferred() || !rtx.IsUnlockTx()) {
         return false;
     }
 
