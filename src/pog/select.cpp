@@ -11,15 +11,17 @@ namespace pog
 {
     /**
      * AnvDistribution uses Inverse Transform Sampling. Computing the
-     * CDF is trivial for for the ANV discrete distribution is easy
-     * by simply sorting and adding up all the ANVs of the addresss provided.
+     * CDF is trivial for the ANV discrete distribution by simply sorting and 
+     * adding up all the ANVs of the addresss provided.
      *
      * Scaling to probabilities is unnecessary because we will use a hash function
      * to sample into the range between 0-MaxAnv. Since the hash is already
      * a uniform distribution then it provides a good way to sample into
      * the distribution of ANVs where those with a bigger ANV are sampled more often.
      *
-     * The most expensive part of creating the distribution is sorting the ANVs
+     * The most expensive part of creating the distribution is sorting the ANVs.
+     * However, since the number of ANVs is fixed no matter how large the 
+     * blockchain gets, then there should be no issue handling growth.
      */
     AnvDistribution::AnvDistribution(referral::AddressANVs anvs) : 
         m_inverted(anvs.size())
@@ -37,7 +39,6 @@ namespace pog
 
         assert(m_anvs.size() == anvs.size());
 
-        //sort from lowest to highest
         std::sort(std::begin(anvs), std::end(anvs),
                 [](const referral::AddressANV& a, const referral::AddressANV& b) {
                     return a.anv < b.anv;
@@ -65,10 +66,8 @@ namespace pog
         //It doesn't make sense to sample from an empty distribution.
         assert(m_inverted.empty() == false);
 
-        //TODO: Should we loop over whole hash?
         const auto selected_anv = SipHashUint256(0, 0, hash) % m_max_anv;
 
-        //find first inverted Wallet Anv that is greater or equal to the selected value.
         auto pos = std::lower_bound(std::begin(m_inverted), std::end(m_inverted),
                 selected_anv,
                 [](const referral::AddressANV& a, CAmount selected) {

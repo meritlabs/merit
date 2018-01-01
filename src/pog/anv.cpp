@@ -9,7 +9,7 @@ namespace pog
 {
     /**
      * This version simply pulls the ANV from the DB. ReferralsViewDB::UpdateANV
-     * incrementally updates an ANV for a address and all parents.
+     * incrementally updates an ANV for an address and all parents.
      */
     referral::MaybeAddressANV ComputeANV(
             const referral::Address& address_id,

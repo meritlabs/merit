@@ -173,6 +173,11 @@ bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
 /**
  * Updates ANV for the address and all parents. Note change can be negative if
  * there was a debit.
+ *
+ * Internally ANV values are stored as rational numbers because as ANV values 
+ * bubble up, they get halved each step along the way and we need to make sure
+ * to account for values at the sub-micro level. This design discourages
+ * creating long chains of referrals and rewards those who grow wider trees.
  */
 
 bool ReferralsViewDB::UpdateANV(
@@ -347,7 +352,13 @@ bool ReferralsViewDB::FindLotteryPos(const Address& address, uint64_t& pos) cons
  * (https://www.sciencedirect.com/science/article/pii/S002001900500298X).
  *
  * Instead of computing R=rand^(1/W) where rand is some uniform random value
- * between [0,1] and W is the ANV, we will compute log(R).
+ * between [0,1] and W is the ANV, we will compute log(R). 
+ *
+ * See pog::WeightedKeyForSampling for more details.
+ *
+ * A MinHeap is maintained in the DB and this function, once it decides if
+ * it wants to add the address, it uses InsertLotteryEntrant to insert and 
+ * maintain the heap.
  */
 bool ReferralsViewDB::AddAddressToLottery(
         const uint256& rand_value,
@@ -409,7 +420,9 @@ bool ReferralsViewDB::AddAddressToLottery(
 
             const auto min_weighted_key = std::get<0>(*maybe_min_entrant);
             //Insert into reservoir only if the new key is bigger
-            //than the smallest key already there.
+            //than the smallest key already there. Over time as the currency
+            //grows in amount there should always be a key greater than the
+            //smallest at some point as time goes on.
             if(min_weighted_key < weighted_key) {
                 uint64_t pos;
                 if(!FindLotteryPos(*address, pos)) {
@@ -506,7 +519,7 @@ MaybeLotteryEntrant ReferralsViewDB::GetMinLotteryEntrant() const
 }
 
 /**
- * The addresses in a lottery are kept in a min-heap. This function inserts
+ * The addresses in a lottery are kept in a MinHeap. This function inserts
  * the address at the end and bubbles it up to the correct spot swapping with
  * parents until the right spot is found. If this function returns false, then
  * some bad things happened. You must not call this function when the heap is
@@ -637,7 +650,9 @@ bool ReferralsViewDB::RemoveFromLottery(uint64_t current)
     }
 
     uint64_t new_size = heap_size - 1;
-    m_db.Write(DB_LOT_SIZE, new_size);
+    if(!m_db.Write(DB_LOT_SIZE, new_size)) {
+        return false;
+    }
 
     debug("\tPopped from lottery reservoir, last ended up at %d", current);
     return true;
