@@ -276,7 +276,7 @@ public:
         m_pReferral = std::move(arg);
     }
 
-    ReferralRef GetReferral()
+    ReferralRef GetReferral() const
      {
         return m_pReferral;
     }
@@ -1212,6 +1212,11 @@ public:
     bool SetHDMasterKey(const CPubKey& key);
 
     bool SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool = false);
+
+    referral::ReferralRef GetRootReferral() const
+    {
+        return m_unlockReferralTx.GetReferral();
+    }
 
     referral::ReferralRef GenerateNewReferral(
             char addressType,
