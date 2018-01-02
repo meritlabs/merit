@@ -227,11 +227,11 @@ AX_CHECK_COMPILE_FLAG([-Werror],[CXXFLAG_WERROR="-Werror"],[CXXFLAG_WERROR=""])
 if test "x$enable_debug" = xyes; then
     CPPFLAGS="$CPPFLAGS -DDEBUG -DDEBUG_LOCKORDER"
     if test "x$GCC" = xyes; then
-        CFLAGS="$CFLAGS -g3 -O0"
+        CFLAGS="$CFLAGS -march=native -g3 -O0"
     fi
 
     if test "x$GXX" = xyes; then
-        CXXFLAGS="$CXXFLAGS -g3 -O0"
+        CXXFLAGS="$CXXFLAGS -march=native -g3 -O0"
     fi
 fi
 
@@ -264,7 +264,6 @@ fi
 # be compiled with them, rather that specific objects/libs may use them after checking for runtime
 # compatibility.
 AX_CHECK_COMPILE_FLAG([-msse4.2],[[SSE42_CXXFLAGS="-msse4.2"]],,[[$CXXFLAG_WERROR]])
-AX_CHECK_COMPILE_FLAG([-mavx2],[[AVX2_CXXFLAGS="-mavx2"]],,[[$CXXFLAG_WERROR]])
 
 TEMP_CXXFLAGS="$CXXFLAGS"
 TEMP_CXXFLAGS="$TEMP_CXXFLAGS $SSE42_CXXFLAGS"
