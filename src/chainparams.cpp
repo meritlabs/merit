@@ -148,7 +148,7 @@ public:
     {
         strNetworkID = "main";
         consensus.nBlocksToMaturity = 100;
-        consensus.initial_block_reward = 20;
+        consensus.initial_block_reward = 20_merit;
         consensus.nSubsidyHalvingInterval = 2102400;
         consensus.sEdgeBitsAllowed = {26, 27, 28, 29, 30, 31};
         consensus.powLimit = Consensus::PoWLimit{
@@ -255,7 +255,7 @@ public:
     {
         strNetworkID = "test";
         consensus.nBlocksToMaturity = 5;
-        consensus.initial_block_reward = 20;
+        consensus.initial_block_reward = 20_merit;
         consensus.nSubsidyHalvingInterval = 2102400;
         consensus.sEdgeBitsAllowed = {20, 21, 22, 23, 24, 25, 26};
         consensus.powLimit = Consensus::PoWLimit{
@@ -369,7 +369,7 @@ public:
     {
         strNetworkID = "regtest";
         consensus.nBlocksToMaturity = 5;
-        consensus.initial_block_reward = 20;
+        consensus.initial_block_reward = 20_merit;
         consensus.nSubsidyHalvingInterval = 2102400;
         consensus.sEdgeBitsAllowed = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26};
         consensus.powLimit = Consensus::PoWLimit{

@@ -1517,7 +1517,21 @@ CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params)
     if (halvings >= 64)
         return 0;
 
-    CAmount nSubsidy = 50 * COIN;
+    CAmount nSubsidy = 0;
+
+    /**
+     * Initial launch didn't read from the consensus_params correctly and therefore
+     * the block reward was 50 merit instead of 20 like it should have been.
+     *
+     * In order to keep the block chain without forking, we will enable the correct
+     * amount on block 2262 when the bug was discovered.
+     */
+    if(height >= 2262) {
+        nSubsidy = consensus_params.initial_block_reward;
+    } else {
+        nSubsidy = 50 * COIN;
+    }
+
     // Subsidy is cut in half every 210,000 blocks which will occur approximately every 4 years.
     nSubsidy >>= halvings;
     return nSubsidy;
