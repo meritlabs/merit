@@ -1524,9 +1524,9 @@ CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params)
      * the block reward was 50 merit instead of 20 like it should have been.
      *
      * In order to keep the block chain without forking, we will enable the correct
-     * amount on block 2262 when the bug was discovered.
+     * amount on block 2300 when the bug was discovered.
      */
-    if(height >= 2262) {
+    if(height >= 2300) {
         nSubsidy = consensus_params.initial_block_reward;
     } else {
         nSubsidy = 50 * COIN;
