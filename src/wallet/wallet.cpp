@@ -1097,7 +1097,7 @@ bool CWallet::AddToWallet(const referral::ReferralTx& rtxIn, bool fFlushOnClose)
     if (rtx.IsUnlockTx() && !IsReferred()) {
         LogPrintf("Setting Unlock Tx %s  %s%s\n", rtxIn.GetHash().ToString(), (fInsertedNew ? "new" : ""), (fUpdated ? "update" : ""));
         SetUnlockReferralTx(rtx, true);
-    } 
+    }
 
     // Notify UI of new or updated transaction
     NotifyTransactionChanged(this, hash, CT_NEW);
@@ -1680,7 +1680,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
     CreateTransaction(rtx, referral, key);
     if(!CommitTransaction(rtx, g_connman.get(), state)) {
         std::stringstream e;
-        e << "Unable to submit the beacon message: " 
+        e << "Unable to submit the beacon message: "
           << state.GetDebugMessage();
 
         throw std::runtime_error(e.str());

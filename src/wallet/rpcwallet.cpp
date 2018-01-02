@@ -1051,7 +1051,7 @@ void ExtractPubKeys(const UniValue& list, vault::PubKeys& keys)
 
     for(size_t i = 0; i < list.size(); i++) {
         auto key_str = list[i].get_str();
-        CPubKey key{ParseHex(key_str)};  
+        CPubKey key{ParseHex(key_str)};
 
         if(!key.IsFullyValid()) {
             std::stringstream e;
@@ -1142,7 +1142,7 @@ UniValue createvault(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VOBJ);
     UniValue whitelist_ret(UniValue::VARR);
-        
+
     ret.push_back(Pair("type", type));
 
     if(type == "simple")
@@ -1452,7 +1452,7 @@ UniValue renewvault(const JSONRPCRequest& request)
             CMeritSecret master_secret;
             master_secret.SetString(options["orig_master_sk"].get_str());
             master_key = master_secret.GetKey();
-        } else { 
+        } else {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Must provide orig_master_sk");
         }
 
@@ -1725,7 +1725,7 @@ UniValue spendvault(const JSONRPCRequest& request)
     if(!request.params[3].isNull()) {
         spend_key_wif = request.params[3].get_str();
     }
-    
+
     bool send = request.params[4].isNull() ?  true : request.params[4].get_bool();
 
     CTxDestination vault_dest = DecodeDestination(vault_address);
@@ -1849,7 +1849,7 @@ UniValue spendvault(const JSONRPCRequest& request)
             throw JSONRPCError(
                     RPC_WALLET_ERROR, "Unable to find the spendkey in the keystore");
         }
-    } else  { 
+    } else  {
         CMeritSecret spend_secret;
         spend_secret.SetString(spend_key_wif);
         spend_key = spend_secret.GetKey();
@@ -4084,7 +4084,9 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
             "  \"keypoolsize_hd_internal\": xxxx, (numeric) how many new keys are pre-generated for internal use (used for change outputs, only appears if the wallet is using this feature, otherwise external keys are used)\n"
             "  \"unlocked_until\": ttt,           (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
             "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
-            "  \"hdmasterkeyid\": \"<hash160>\"     (string) the Hash160 of the HD master pubkey\n"
+            "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
+            "  \"referred\": true|false           (boolean) if wallet is referred\n"
+            "  \"referraladdress\": xxxxxx        (string) referral address to use to share with other users\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getwalletinfo", "")
@@ -4115,6 +4117,17 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
     obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
     if (!masterKeyID.IsNull())
          obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
+
+    if (!pwallet->IsReferred()) {
+        obj.push_back(Pair("referred", false));
+    } else {
+        obj.push_back(Pair("referred", true));
+        auto referral = pwallet->GetRootReferral();
+        assert(!referral->GetHash().IsNull());
+
+        obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{referral->GetAddress()})));
+    }
+
     return obj;
 }
 
@@ -4867,7 +4880,7 @@ UniValue beaconaddress(const JSONRPCRequest& request)
             throw std::runtime_error(e.str());
         }
 
-        if(signing_key_secret.GetSize() < 32) { 
+        if(signing_key_secret.GetSize() < 32) {
             std::stringstream e;
             e << "The signing key needs to be greater or equal to 32 bytes in size. Got " << signing_key_secret.GetSize() << " instead.";
             throw std::runtime_error(e.str());
@@ -4887,7 +4900,7 @@ UniValue beaconaddress(const JSONRPCRequest& request)
                 *address.GetUint160(),
                 key.GetPubKey(),
                 *parent_address.GetUint160(),
-                key); 
+                key);
 
         if(!referral) {
             throw JSONRPCError(
@@ -4906,7 +4919,7 @@ UniValue beaconaddress(const JSONRPCRequest& request)
         CPubKey pub_key{ParseHex(request.params[1].get_str())};
         CMeritAddress parent_address(request.params[2].get_str());
 
-        auto parent_addr_uint160 = parent_address.GetUint160() ? 
+        auto parent_addr_uint160 = parent_address.GetUint160() ?
             * parent_address.GetUint160() : referral::Address{};
 
         referral::Referral ref{
