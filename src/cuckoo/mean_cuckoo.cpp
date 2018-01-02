@@ -40,10 +40,20 @@
 // and directly count YZ values in a cache friendly 32KB.
 // A final pair of compression rounds remap YZ values from 15 into 11 bits.
 
+#ifdef __AVX2__
+
+#ifndef NSIPHASH
+#define NSIPHASH 8
+#endif
+
+#else
 
 #ifndef NSIPHASH
 #define NSIPHASH 1
 #endif
+
+#endif
+
 
 // for p close to 0, Pr(X>=k) < e^{-n*p*eps^2} where k=n*p*(1+eps)
 // see https://en.wikipedia.org/wiki/Binomial_distribution#Tail_bounds
