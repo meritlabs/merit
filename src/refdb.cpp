@@ -174,7 +174,7 @@ bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
  * Updates ANV for the address and all parents. Note change can be negative if
  * there was a debit.
  *
- * Internally ANV values are stored as rational numbers because as ANV values 
+ * Internally ANV values are stored as rational numbers because as ANV values
  * bubble up, they get halved each step along the way and we need to make sure
  * to account for values at the sub-micro level. This design discourages
  * creating long chains of referrals and rewards those who grow wider trees.
@@ -207,10 +207,11 @@ bool ReferralsViewDB::UpdateANV(
         assert(!std::get<1>(anv).IsNull());
 
         debug(
-                "\t\t %d %s %d + %d",
+                "\t\t %d %s %d/%d + %d",
                 level,
                 CMeritAddress(std::get<0>(anv),std::get<1>(anv)).ToString(),
-                std::get<2>(anv),
+                std::get<0>((std::get<2>(anv))),
+                std::get<1>((std::get<2>(anv))),
                 change);
 
         auto& anv_in = std::get<2>(anv);
@@ -255,7 +256,7 @@ CAmount AnvInToAnvPub(const AnvInternal& in)
 MaybeAddressANV ReferralsViewDB::GetANV(const Address& address) const
 {
     ANVTuple anv;
-    if(!m_db.Read(std::make_pair(DB_ANV, address), anv)) { 
+    if(!m_db.Read(std::make_pair(DB_ANV, address), anv)) {
         return MaybeAddressANV{};
     }
 
@@ -352,12 +353,12 @@ bool ReferralsViewDB::FindLotteryPos(const Address& address, uint64_t& pos) cons
  * (https://www.sciencedirect.com/science/article/pii/S002001900500298X).
  *
  * Instead of computing R=rand^(1/W) where rand is some uniform random value
- * between [0,1] and W is the ANV, we will compute log(R). 
+ * between [0,1] and W is the ANV, we will compute log(R).
  *
  * See pog::WeightedKeyForSampling for more details.
  *
  * A MinHeap is maintained in the DB and this function, once it decides if
- * it wants to add the address, it uses InsertLotteryEntrant to insert and 
+ * it wants to add the address, it uses InsertLotteryEntrant to insert and
  * maintain the heap.
  */
 bool ReferralsViewDB::AddAddressToLottery(
