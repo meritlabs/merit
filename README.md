@@ -21,7 +21,7 @@ information or see https://opensource.org/licenses/MIT.
 
 TestNet
 -------------------
-You should create a long RPCpassword as instructed here: https://github.com/merit/merit/blob/master/doc/build-osx.md#running
+You should create a long RPCpassword as instructed here: https://github.com/meritlabs/merit/blob/master/doc/build-osx.md#running
 
 You will want a merit.conf that looks like:
 ```

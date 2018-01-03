@@ -208,7 +208,7 @@ def main():
     enable_meritd = config["components"].getboolean("ENABLE_MERITD")
 
     if config["environment"]["EXEEXT"] == ".exe" and not args.force:
-        # https://github.com/merit/merit/commit/d52802551752140cf41f0d9a225a43e84404d3e9
+        # https://github.com/meritlabs/merit/commit/d52802551752140cf41f0d9a225a43e84404d3e9
         # https://github.com/bitcoin/bitcoin/pull/5677#issuecomment-136646964
         print("Tests currently disabled on Windows by default. Use --force option to enable")
         sys.exit(0)

@@ -2,7 +2,7 @@ Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Merit
 Upstream-Contact: Satoshi Nakamoto <satoshin@gmx.com>
  irc://#merit@freenode.net
-Source: https://github.com/merit/merit
+Source: https://github.com/meritlabs/merit
 
 Files: *
 Copyright: 2009-2017, Bitcoin Core developers

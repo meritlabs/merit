@@ -29,7 +29,7 @@ Build Merit Core
 
 1. Clone the merit source code and cd into `merit`
 
-        git clone https://github.com/merit/merit
+        git clone https://github.com/meritlabs/merit
         cd merit
 
 2.  Build merit-core:

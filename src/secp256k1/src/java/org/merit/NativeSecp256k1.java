@@ -29,8 +29,6 @@ import static org.merit.NativeSecp256k1Util.*;
 /**
  * <p>This class holds native methods to handle ECDSA verification.</p>
  *
- * <p>You can find an example library that can be used for this at https://github.com/merit/secp256k1</p>
- *
  * <p>To build secp256k1 for use with meritj, run
  * `./configure --enable-jni --enable-experimental --enable-module-ecdh`
  * and `make` then copy `.libs/libsecp256k1.so` to your system library path

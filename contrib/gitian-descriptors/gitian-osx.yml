@@ -28,7 +28,7 @@ packages:
 - "python-setuptools"
 - "fonts-tuffy"
 remotes:
-- "url": "https://github.com/merit/merit.git"
+- "url": "https://github.com/meritlabs/merit.git"
   "dir": "merit"
 files:
 - "MacOSX10.11.sdk.tar.gz"
