@@ -54,7 +54,10 @@ uint64_t nLastBlockWeight = 0;
 
 extern std::unique_ptr<CConnman> g_connman;
 
-int64_t UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
+int64_t UpdateTime(
+        CBlockHeader* pblock,
+        const Consensus::Params& consensusParams,
+        const CBlockIndex* pindexPrev)
 {
     int64_t nOldTime = pblock->nTime;
     int64_t nNewTime = std::max(pindexPrev->GetMedianTimePast() + 1, GetAdjustedTime());
@@ -132,7 +135,8 @@ static BlockAssembler::Options DefaultOptions(const CChainParams& params)
     return options;
 }
 
-BlockAssembler::BlockAssembler(const CChainParams& params) : BlockAssembler(params, DefaultOptions(params)) {}
+BlockAssembler::BlockAssembler(const CChainParams& params) :
+    BlockAssembler(params, DefaultOptions(params)) {}
 
 void BlockAssembler::resetBlock()
 {
@@ -184,7 +188,8 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblock->nTime = GetAdjustedTime();
     const int64_t nMedianTimePast = pindexPrev->GetMedianTimePast();
 
-    nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST) ? nMedianTimePast : pblock->GetBlockTime();
+    nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST) ?
+        nMedianTimePast : pblock->GetBlockTime();
 
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
@@ -224,7 +229,10 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
      * via referrals. The rewards are given out in a lottery where the probability
      * of winning is based on an ambassadors referral network.
      */
-    const auto lottery = RewardAmbassadors(previousBlockHash, subsidy.ambassador, chain_params.total_winning_ambassadors);
+    const auto lottery = RewardAmbassadors(
+            previousBlockHash,
+            subsidy.ambassador,
+            chain_params.total_winning_ambassadors);
     assert(lottery.remainder >= 0);
 
     /**
@@ -241,13 +249,24 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     assert(miner_subsidy > 0);
 
     coinbaseTx.vout[0].nValue = nFees + miner_subsidy;
-
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
-    pblocktemplate->vchCoinbaseCommitment = GenerateCoinbaseCommitment(*pblock, pindexPrev, chain_params);
+
+    pblocktemplate->vchCoinbaseCommitment =
+        GenerateCoinbaseCommitment(*pblock, pindexPrev, chain_params);
+
     pblocktemplate->vTxFees[0] = -nFees;
 
     uint64_t nSerializeSize = GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION);
-    LogPrintf("CreateNewBlock(): total size: %u block weight: %u txs: %u fees: %ld sigops: %d refs: %d\n", nSerializeSize, GetBlockWeight(*pblock), nBlockTx, nFees, nBlockSigOpsCost, nBlockRef);
+
+    LogPrintf(
+            "CreateNewBlock(): total size: %u block weight: %u txs: %u "
+            "fees: %ld sigops: %d refs: %d\n",
+            nSerializeSize,
+            GetBlockWeight(*pblock),
+            nBlockTx,
+            nFees,
+            nBlockSigOpsCost,
+            nBlockRef);
 
     auto pow = GetNextWorkRequired(pindexPrev, pblock, chain_params);
 
@@ -261,11 +280,22 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     CValidationState state;
     if (!TestBlockValidity(state, chainparams, *pblock, pindexPrev, false, false)) {
-        throw std::runtime_error(strprintf("%s: TestBlockValidity failed: %s", __func__, FormatStateMessage(state)));
+        throw std::runtime_error(
+                strprintf(
+                    "%s: TestBlockValidity failed: %s",
+                    __func__,
+                    FormatStateMessage(state)));
     }
     int64_t nTime2 = GetTimeMicros();
 
-    LogPrint(BCLog::BENCH, "CreateNewBlock() packages: %.2fms (%d packages, %d updated descendants), validity: %.2fms (total %.2fms)\n", 0.001 * (nTime1 - nTimeStart), nPackagesSelected, nDescendantsUpdated, 0.001 * (nTime2 - nTime1), 0.001 * (nTime2 - nTimeStart));
+    LogPrint(
+            BCLog::BENCH,
+            "CreateNewBlock() packages: %.2fms (%d packages, %d updated "
+            "descendants), validity: %.2fms (total %.2fms)\n",
+            0.001 * (nTime1 - nTimeStart),
+            nPackagesSelected, nDescendantsUpdated,
+            0.001 * (nTime2 - nTime1),
+            0.001 * (nTime2 - nTimeStart));
 
     return std::move(pblocktemplate);
 }
@@ -282,7 +312,9 @@ void BlockAssembler::onlyUnconfirmed(CTxMemPool::setEntries& testSet)
     }
 }
 
-bool BlockAssembler::CheckReferrals(CTxMemPool::setEntries& testSet, referral::ReferralTxMemPool::setEntries& candidateReferrals)
+bool BlockAssembler::CheckReferrals(
+        CTxMemPool::setEntries& testSet,
+        referral::ReferralTxMemPool::setEntries& candidateReferrals)
 {
     std::vector<referral::ReferralRef> vRefs(candidateReferrals.size());
 
@@ -322,7 +354,9 @@ bool BlockAssembler::TestPackage(uint64_t packageSize, int64_t packageSigOpsCost
 // - premature witness (in case segwit transactions are added to mempool before
 //   segwit activation)
 // - serialized size (in case -blockmaxsize is in use)
-bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactions, const referral::ReferralTxMemPool::setEntries& referrals)
+bool BlockAssembler::TestPackageContent(
+        const CTxMemPool::setEntries& transactions,
+        const referral::ReferralTxMemPool::setEntries& referrals)
 {
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
     for (const CTxMemPool::txiter it : transactions) {
@@ -331,7 +365,12 @@ bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactio
         if (!fIncludeWitness && it->GetEntryValue().HasWitness())
             return false;
         if (fNeedSizeAccounting) {
-            uint64_t nTxSize = ::GetSerializeSize(it->GetEntryValue(), SER_NETWORK, PROTOCOL_VERSION);
+
+            uint64_t nTxSize = 
+                ::GetSerializeSize(
+                        it->GetEntryValue(),
+                        SER_NETWORK,
+                        PROTOCOL_VERSION);
 
             // share block size by transactions and referrals
             if (nPotentialBlockSize + nTxSize >= nTransactionsMaxSize) {
@@ -343,7 +382,11 @@ bool BlockAssembler::TestPackageContent(const CTxMemPool::setEntries& transactio
 
     if (fNeedSizeAccounting) {
         for (const auto& it : referrals) {
-            uint64_t nRefSize = ::GetSerializeSize(it->GetEntryValue(), SER_NETWORK, PROTOCOL_VERSION);
+
+            uint64_t nRefSize = 
+                ::GetSerializeSize(
+                    it->GetEntryValue(),
+                    SER_NETWORK, PROTOCOL_VERSION);
 
             // share block size by transactions and referrals
             if (nPotentialBlockSize + nRefSize >= nBlockMaxSize) {
@@ -382,7 +425,8 @@ void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::refiter iter)
 {
     if (refsInBlock.count(iter)) {
-        debug("\t%s: Referral %s is already in block\n", __func__, iter->GetSharedEntryValue()->GetHash().GetHex());
+        debug("\t%s: Referral %s is already in block\n", __func__,
+                iter->GetSharedEntryValue()->GetHash().GetHex());
         return;
     }
 
@@ -397,8 +441,9 @@ void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::refiter ite
     ++nBlockRef;
 }
 
-int BlockAssembler::UpdatePackagesForAdded(const CTxMemPool::setEntries& alreadyAdded,
-    indexed_modified_transaction_set& mapModifiedTx)
+int BlockAssembler::UpdatePackagesForAdded(
+        const CTxMemPool::setEntries& alreadyAdded,
+        indexed_modified_transaction_set& mapModifiedTx)
 {
     int nDescendantsUpdated = 0;
     for (const CTxMemPool::txiter it : alreadyAdded) {
@@ -433,13 +478,19 @@ int BlockAssembler::UpdatePackagesForAdded(const CTxMemPool::setEntries& already
 // guaranteed to fail again, but as a belt-and-suspenders check we put it in
 // failedTx and avoid re-evaluation, since the re-evaluation would be using
 // cached size/sigops/fee values that are not actually correct.
-bool BlockAssembler::SkipMapTxEntry(CTxMemPool::txiter it, indexed_modified_transaction_set& mapModifiedTx, CTxMemPool::setEntries& failedTx)
+bool BlockAssembler::SkipMapTxEntry(
+        CTxMemPool::txiter it,
+        indexed_modified_transaction_set& mapModifiedTx,
+        CTxMemPool::setEntries& failedTx)
 {
     assert(it != mempool.mapTx.end());
     return mapModifiedTx.count(it) || txsInBlock.count(it) || failedTx.count(it);
 }
 
-void BlockAssembler::SortForBlock(const CTxMemPool::setEntries& package, CTxMemPool::txiter entry, std::vector<CTxMemPool::txiter>& sortedEntries)
+void BlockAssembler::SortForBlock(
+        const CTxMemPool::setEntries& package,
+        CTxMemPool::txiter entry,
+        std::vector<CTxMemPool::txiter>& sortedEntries)
 {
     // Sort package by ancestor count
     // If a transaction A depends on transaction B, then A's ancestor count
@@ -459,7 +510,8 @@ void BlockAssembler::AddReferrals()
         const auto ref = it->GetSharedEntryValue();
 
         if (refsInBlock.count(it)) {
-            debug("\t%s: Referral %s is already in block\n", __func__, ref->GetHash().GetHex());
+            debug("\t%s: Referral %s is already in block\n", __func__,
+                    ref->GetHash().GetHex());
             continue;
         }
 
@@ -506,7 +558,7 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
     // and modifying them for their already included ancestors
     UpdatePackagesForAdded(txsInBlock, mapModifiedTx);
 
-    CTxMemPool::indexed_transaction_set::index<ancestor_score>::type::iterator mi = mempool.mapTx.get<ancestor_score>().begin();
+    auto mi = mempool.mapTx.get<ancestor_score>().begin();
     CTxMemPool::txiter iter;
 
     // Limit the number of attempts to add transactions to the block when it is
@@ -589,7 +641,16 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
         CTxMemPool::setEntries ancestors;
         uint64_t nNoLimit = std::numeric_limits<uint64_t>::max();
         std::string dummy;
-        mempool.CalculateMemPoolAncestors(*iter, ancestors, nNoLimit, nNoLimit, nNoLimit, nNoLimit, dummy, false);
+
+        mempool.CalculateMemPoolAncestors(
+                *iter,
+                ancestors,
+                nNoLimit,
+                nNoLimit,
+                nNoLimit,
+                nNoLimit,
+                dummy,
+                false);
 
         onlyUnconfirmed(ancestors);
         ancestors.insert(iter);
@@ -630,7 +691,10 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
     }
 }
 
-void IncrementExtraNonce(CBlock* pblock, const CBlockIndex* pindexPrev, unsigned int& nExtraNonce)
+void IncrementExtraNonce(
+        CBlock* pblock,
+        const CBlockIndex* pindexPrev,
+        unsigned int& nExtraNonce)
 {
     // Update nExtraNonce
     static uint256 hashPrevBlock;
@@ -681,23 +745,32 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
     std::shared_ptr<CReserveScript> coinbaseScript;
     GetMainSignals().ScriptForMining(coinbaseScript);
 
+    ctpl::thread_pool pool{nThreads};
+
     try {
         // Throw an error if no script was provided.  This can happen
         // due to some internal error but also if the keypool is empty.
         // In the latter case, already the pointer is NULL.
-        if (!coinbaseScript || coinbaseScript->reserveScript.empty())
-            throw std::runtime_error("No coinbase script available (mining requires a wallet)");
+        if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
+            throw std::runtime_error(
+                    "No coinbase script available "
+                    "(mining requires a wallet)");
+        }
 
         while (true) {
             if (chainparams.MiningRequiresPeers()) {
-                // Busy-wait for the network to come online so we don't waste time mining
-                // on an obsolete chain. In regtest mode we expect to fly solo.
+                // Busy-wait for the network to come online so we don't waste 
+                // time mining n an obsolete chain. In regtest mode we expect 
+                // to fly solo.
                 if (!g_connman) {
-                    throw std::runtime_error("Peer-to-peer functionality missing or disabled");
+                    throw std::runtime_error(
+                            "Peer-to-peer functionality missing or disabled");
                 }
 
                 do {
-                    bool fvNodesEmpty = g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0;
+                    bool fvNodesEmpty = 
+                        g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0;
+
                     if (!fvNodesEmpty && !IsInitialBlockDownload())
                         break;
                     MilliSleep(1000);
@@ -710,17 +783,22 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
             unsigned int nTransactionsUpdatedLast = mempool.GetTransactionsUpdated();
             CBlockIndex* pindexPrev = chainActive.Tip();
 
-            std::unique_ptr<CBlockTemplate> pblocktemplate(BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript));
+            std::unique_ptr<CBlockTemplate> pblocktemplate{
+                BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript)};
 
             if (!pblocktemplate.get()) {
-                LogPrintf("Error in MeritMiner: Keypool ran out, please call keypoolrefill before restarting the mining thread\n");
+                LogPrintf(
+                        "Error in MeritMiner: Keypool ran out, please call "
+                        "keypoolrefill before restarting the mining thread\n");
                 return;
             }
 
             CBlock* pblock = &pblocktemplate->block;
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
-            LogPrintf("Running MeritMiner with %u transactions and %u referrals in block (%u bytes)\n",
+            LogPrintf(
+                    "Running MeritMiner with %u transactions and %u referrals "
+                    "in block (%u bytes)\n",
                 pblock->vtx.size(),
                 pblock->m_vRef.size(),
                 ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION));
@@ -738,7 +816,13 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
             while (true) {
                 // Check if something found
 
-                if (cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgeBits, cycle, chainparams.GetConsensus(), nThreads)) {
+                if (cuckoo::FindProofOfWorkAdvanced(
+                            pblock->GetHash(),
+                            pblock->nBits,
+                            pblock->nEdgeBits,
+                            cycle,
+                            chainparams.GetConsensus(),
+                            pool)) {
                     // Found a solution
                     pblock->sCycle = cycle;
 
@@ -748,7 +832,9 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
                     auto cycleHash = SerializeHash(cycle);
 
                     LogPrintf("MeritMiner:\n");
-                    LogPrintf("proof-of-work found within %8.3f seconds \n  block hash: %s  \n  cycle hash: %s  \ntarget: %s\n",
+                    LogPrintf(
+                            "proof-of-work found within %8.3f seconds \n  block"
+                            " hash: %s  \n  cycle hash: %s  \ntarget: %s\n",
                         elapsed.count(),
                         pblock->GetHash().GetHex(),
                         cycleHash.GetHex(),
@@ -768,17 +854,23 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
                 boost::this_thread::interruption_point();
 
                 // Regtest mode doesn't require peers
-                if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0 && chainparams.MiningRequiresPeers())
+                if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0 && 
+                        chainparams.MiningRequiresPeers()) {
                     break;
+                }
 
-                if (pblock->nNonce >= 0xfffff)
+                if (pblock->nNonce >= 0xfffff) {
                     break;
+                }
 
-                if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > chainparams.MininBlockStaleTime())
+                if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && 
+                        GetTime() - nStart > chainparams.MininBlockStaleTime()) {
                     break;
+                }
 
-                if (pindexPrev != chainActive.Tip())
+                if (pindexPrev != chainActive.Tip()) {
                     break;
+                }
 
                 // Update nTime every few seconds
                 if (UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev) < 0) {
@@ -786,6 +878,7 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
                     // so that we can use the correct time.
                     break;
                 }
+
                 if (chainparams.GetConsensus().fPowAllowMinDifficultyBlocks) {
                     // Changing pblock->nTime can change work required on testnet:
                     hashTarget.SetCompact(pblock->nBits);
@@ -819,5 +912,5 @@ void GenerateMerit(bool mine, int nThreads, const CChainParams& chainparams)
     if (nThreads == 0 || !mine)
         return;
 
-    minerThread = new boost::thread(boost::bind(&MeritMiner, boost::cref(chainparams), nThreads));
+    minerThread = new boost::thread(&MeritMiner, chainparams, nThreads);
 }

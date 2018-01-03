@@ -6,11 +6,12 @@
 #define MERIT_CUCKOO_MEAN_CUCKOO_H
 
 #include "uint256.h"
+#include "ctpl/ctpl.h"
 
 #include <set>
 #include <vector>
 
 // Find proofsize-length cuckoo cycle in random graph
-bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle, uint8_t nThreads = 1);
+bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle, ctpl::thread_pool&);
 
 #endif // MERIT_CUCKOO_MEAN_CUCKOO_H

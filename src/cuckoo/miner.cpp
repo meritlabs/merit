@@ -19,7 +19,13 @@
 
 namespace cuckoo
 {
-bool FindProofOfWork(const uint256 hash, unsigned int nBits, uint8_t edgeBits, std::set<uint32_t>& cycle, const Consensus::Params& params)
+
+bool FindProofOfWork(
+        const uint256 hash,
+        unsigned int nBits,
+        uint8_t edgeBits,
+        std::set<uint32_t>& cycle,
+        const Consensus::Params& params)
 {
     assert(cycle.empty());
     bool cycleFound = FindCycle(hash, edgeBits, params.nCuckooProofSize, cycle);
@@ -33,7 +39,12 @@ bool FindProofOfWork(const uint256 hash, unsigned int nBits, uint8_t edgeBits, s
     return false;
 }
 
-bool VerifyProofOfWork(uint256 hash, unsigned int nBits, uint8_t edgeBits, const std::set<uint32_t>& cycle, const Consensus::Params& params)
+bool VerifyProofOfWork(
+        uint256 hash,
+        unsigned int nBits,
+        uint8_t edgeBits,
+        const std::set<uint32_t>& cycle,
+        const Consensus::Params& params)
 {
     if (cycle.size() != params.nCuckooProofSize) {
         return false;
@@ -63,10 +74,11 @@ bool FindProofOfWorkAdvanced(
     uint8_t edgeBits,
     std::set<uint32_t>& cycle,
     const Consensus::Params& params,
-    uint8_t nThreads)
+    ctpl::thread_pool& pool)
 {
     assert(cycle.empty());
-    bool cycleFound = FindCycleAdvanced(hash, edgeBits, params.nCuckooProofSize, cycle, nThreads);
+    bool cycleFound = 
+        FindCycleAdvanced(hash, edgeBits, params.nCuckooProofSize, cycle, pool);
 
     if (cycleFound && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
         return true;
@@ -76,4 +88,5 @@ bool FindProofOfWorkAdvanced(
 
     return false;
 }
+
 }
