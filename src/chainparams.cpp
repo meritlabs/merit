@@ -55,8 +55,7 @@ static CBlock CreateGenesisBlock(
     uint8_t nEdgeBits,
     int32_t nVersion,
     const CAmount& genesisReward,
-    Consensus::Params& params,
-    bool findPoW = false)
+    Consensus::Params& params)
 {
     assert(genesisKeys.size() > 1);
 
@@ -97,43 +96,6 @@ static CBlock CreateGenesisBlock(
     genesis.m_vRef.push_back(referral::MakeReferralRef(ref));
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
-
-    if (findPoW) {
-        std::set<uint32_t> pow;
-
-        uint32_t nMaxTries = 10000000;
-        genesis.nNonce = 0;
-
-        ctpl::thread_pool pool{DEFAULT_MINING_THREADS};
-        while (nMaxTries > 0 
-                && !cuckoo::FindProofOfWorkAdvanced(
-                    genesis.GetHash(),
-                    genesis.nBits,
-                    genesis.nEdgeBits,
-                    pow,
-                    params,
-                    pool)) {
-            ++genesis.nNonce;
-            --nMaxTries;
-        }
-
-        if (nMaxTries == 0) {
-            printf("Could not find cycle for genesis block");
-        } else {
-            printf("Genesis block generated!!!\n");
-            printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\naddress: %s\nnodes:\n",
-                genesis.GetHash().GetHex().c_str(),
-                genesis.hashMerkleRoot.GetHex().c_str(),
-                genesis.nNonce,
-                genesis.nEdgeBits,
-                address.ToString().c_str());
-            for (const auto& node : pow) {
-                printf("0x%x, ", node);
-            }
-        }
-
-        exit(1);
-    }
 
     return genesis;
 }
@@ -235,8 +197,6 @@ public:
 
     void Init() override
     {
-        bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-
         CAmount genesisReward = 20000000_merit;
 
         PubKeys genesisKeys = {
@@ -247,7 +207,7 @@ public:
         const std::string referralSig = "3044022075966858282b5f174348becf2b36e7474fe981c4d99d6d826fafe9d0ac24e8e102202b934185ebcd218479db27e4af0a7c30ad9c60e9d04f16e9e21884b8275e4623";
 
         // genesis ref address: ST2HYE5KMszAdBcGo3kw7Qsb9u1nRQhac4
-        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  1, 0x207fffff, 27, 1, genesisReward, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  1, 0x207fffff, 27, 1, genesisReward, consensus);
 
         genesis.sCycle = {
             0x15d885, 0x256dce, 0x2cc8d0, 0x5cd44a, 0xd6d132, 0x106b67b, 0x11962db, 0x14ab89d, 0x18abdce, 0x1a45363, 0x1a7f63b, 0x1bbd6a5, 0x1bf9e06, 0x1c5867a, 0x20ad7f3, 0x24e9681, 0x24fb531, 0x29fe5c4, 0x2aaf2d5, 0x362d3ff, 0x39fc056, 0x3fc1e9a, 0x4c15367, 0x4e7fd5a, 0x5021fd5, 0x50cbb61, 0x5213f29, 0x55ca2e7, 0x594706d, 0x5b74b85, 0x5dc54ba, 0x5f02c74, 0x651ab75, 0x66627a8, 0x672d4a5, 0x69030db, 0x6b7dd35, 0x6ccbc8c, 0x77c92c1, 0x77e766a, 0x7a30059, 0x7d86a68,
@@ -348,8 +308,6 @@ public:
         // genesis ref address:
         // sPm5Tq6pZwDtcgGMJcqsvtmh5wZsSqVyRH
 
-        bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-
         PubKeys genesisKeys{
             CPubKey(ParseHex("03C710FD3FD8B56537BF121870AF462107D3583F7E0CBD97F80EE271F48DAFF593")),
                 CPubKey(ParseHex("024F1BC2E023ED1BACDC8171798113F1F7280C881919A11B592A25A976ABFB8798")),
@@ -360,7 +318,7 @@ public:
             "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
             "f967f5b6895626";
 
-        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  381, 0x207fffff, 24, 1, genesisReward, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  381, 0x207fffff, 24, 1, genesisReward, consensus);
 
         genesis.sCycle = {
             0x13529, 0xb3ef1, 0xf3211, 0x166f1d, 0x1fe182, 0x229740, 0x2704c2, 0x2a3b1b, 0x32053c, 0x39fee1, 0x3ed8ff, 0x3f079d, 0x408b98, 0x40b31d, 0x434ea2, 0x463eaa, 0x482bb4, 0x49eae3, 0x4bb609, 0x545752, 0x5a2d5b, 0x5e3999, 0x6ca1d2, 0x76c4f7, 0x826245, 0x82d44d, 0xad2cd4, 0xafd7be, 0xb5792b, 0xb593a2, 0xb7f4fb, 0xc2a540, 0xcec41e, 0xd33967, 0xdbb0b8, 0xdc9ce4, 0xdf509e, 0xe04520, 0xe187ef, 0xe30157, 0xed068f, 0xfd58fe,
@@ -447,8 +405,6 @@ public:
 
     void Init() override
     {
-        bool generateGenesis = gArgs.GetBoolArg("-generategenesis", false);
-
         CAmount genesisReward = 20000000_merit;
 
         PubKeys genesisKeys = {
@@ -462,7 +418,7 @@ public:
             "f967f5b6895626";
 
         // genesis ref address: mJqR2xnCsncZT7jsqTFuLvF1sFe7deGQH3
-        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  0, 0x207fffff, 24, 1, genesisReward, consensus, generateGenesis);
+        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  0, 0x207fffff, 24, 1, genesisReward, consensus);
 
         genesis.sCycle = {
             0x15b8f, 0x195867, 0x1bbe29, 0x1bd48c, 0x230a7e, 0x2553db, 0x2c5bd0, 0x31996b, 0x3789b6, 0x48b67a, 0x4a31e0, 0x52a1bf, 0x5f6ddc, 0x60f02d, 0x6de4ec, 0x7e7534, 0x89b733, 0x8ed16d, 0x93ee9f, 0x9d09d8, 0xa19b42, 0xa2374b, 0xa3a53e, 0xab68ff, 0xb3f004, 0xb64ebf, 0xc582b5, 0xcb1628, 0xcc9d57, 0xd0a370, 0xd12874, 0xd14c44, 0xd379b3, 0xd479ec, 0xd62a58, 0xdebb7a, 0xe86442, 0xeb5482, 0xf2609d, 0xf28706, 0xf5e069, 0xf9eb5f

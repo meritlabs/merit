@@ -355,7 +355,6 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-mine", _("Mine coins in the background"));
     strUsage += HelpMessageOpt("-mineproclimit=<n>", strprintf(_("Set the number of threads for coins mining if enabled (-1 = all cores, default: %d)"), DEFAULT_MINING_THREADS));
 
-    strUsage += HelpMessageOpt("-generategenesis", _("Generate genesis block"));
     strUsage += HelpMessageOpt("-testedgebits", _("Run edgeBits time test")); // TODO: remove before launch
     strUsage += HelpMessageOpt("-datadir=<dir>", _("Specify data directory"));
     if (showDebug) {
