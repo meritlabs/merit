@@ -3747,6 +3747,12 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRe
         assert(keypool.vchPubKey.IsValid());
         m_pool_key_to_index.erase(keypool.vchPubKey.GetID());
         LogPrintf("keypool reserve %d\n", nIndex);
+
+        if(!CheckAddressBeaconed(keypool.vchPubKey.GetID(), true)) {
+            if(!GenerateNewReferral(keypool.vchPubKey, m_unlockReferralTx.GetReferral()->GetAddress())) {
+                throw std::runtime_error(std::string(__func__) + ": cannot beacon keypool address");
+            }
+        }
     }
 }
 
