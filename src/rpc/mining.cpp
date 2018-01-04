@@ -111,7 +111,12 @@ UniValue getnetworkhashps(const JSONRPCRequest& request)
     return GetNetworkHashPS(!request.params[0].isNull() ? request.params[0].get_int() : 120, !request.params[1].isNull() ? request.params[1].get_int() : -1);
 }
 
-UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGenerate, uint64_t nMaxTries, bool keepScript, uint8_t nThreads)
+UniValue generateBlocks(
+        std::shared_ptr<CReserveScript> coinbaseScript,
+        int nGenerate,
+        uint64_t nMaxTries,
+        bool keepScript,
+        uint8_t nThreads)
 {
     static const int nInnerLoopCount = 0x10000;
     int nHeightEnd = 0;
@@ -125,7 +130,11 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
     unsigned int nExtraNonce = 0;
     UniValue blockHashes(UniValue::VARR);
     auto consensusParams = Params().GetConsensus();
-    std::unique_ptr<CBlockTemplate> pblocktemplate(BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript));
+
+    std::unique_ptr<CBlockTemplate> pblocktemplate{
+            BlockAssembler{Params()}.CreateNewBlock(coinbaseScript->reserveScript)};
+
+    ctpl::thread_pool pool{nThreads};
 
     while (nHeight < nHeightEnd)
     {
@@ -139,8 +148,16 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
         }
 
         std::set<uint32_t> cycle;
-        while (nMaxTries > 0 && pblock->nNonce < nInnerLoopCount &&
-               !cuckoo::FindProofOfWorkAdvanced(pblock->GetHash(), pblock->nBits, pblock->nEdgeBits, cycle, consensusParams, nThreads)) {
+        while (nMaxTries > 0 
+                && pblock->nNonce < nInnerLoopCount 
+                && !cuckoo::FindProofOfWorkAdvanced(
+                    pblock->GetHash(),
+                    pblock->nBits,
+                    pblock->nEdgeBits,
+                    cycle,
+                    consensusParams,
+                    pool)) {
+
             ++pblock->nNonce;
             --nMaxTries;
         }
@@ -148,6 +165,7 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
         if (nMaxTries == 0) {
             break;
         }
+
         if (pblock->nNonce == nInnerLoopCount) {
             continue;
         }
@@ -156,18 +174,21 @@ UniValue generateBlocks(std::shared_ptr<CReserveScript> coinbaseScript, int nGen
 
         pblock->sCycle = cycle;
 
-        std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(*pblock);
+        auto shared_pblock = std::make_shared<const CBlock>(*pblock);
+
         if (!ProcessNewBlock(Params(), shared_pblock, true, nullptr))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
         ++nHeight;
         blockHashes.push_back(pblock->GetHash().GetHex());
 
-        //mark script as important because it was used at least for one coinbase output if the script came from the wallet
-        if (keepScript)
-        {
+        //mark script as important because it was used at least for one coinbase 
+        //output if the script came from the wallet
+        if (keepScript) {
             coinbaseScript->KeepScript();
         }
-        pblocktemplate = BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript);
+
+        pblocktemplate = 
+            BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript);
     }
     return blockHashes;
 }

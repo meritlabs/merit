@@ -302,6 +302,7 @@ public:
     uint8_t nThreads;
     uint32_t nTrims;
     Params<EDGEBITS, XBITS> params;
+    ctpl::thread_pool& pool;
     Barrier* barry;
 
     using BIGTYPE0 = offset_t;
@@ -312,10 +313,16 @@ public:
             *(uint32_t*)(p + i) = 0;
     }
 
-    edgetrimmer(const uint8_t nThreadsIn, const uint32_t nTrimsIn, const Params<EDGEBITS, XBITS>& paramsIn) : nThreads{nThreadsIn}, nTrims{nTrimsIn}, params{paramsIn}
+    edgetrimmer(
+            ctpl::thread_pool& poolIn,
+            const uint32_t nTrimsIn,
+            const Params<EDGEBITS, XBITS>& paramsIn) : 
+        pool{poolIn}, nTrims{nTrimsIn}, params{paramsIn}
     {
         assert(sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucketZ));
         assert(sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucketZ));
+
+        nThreads = pool.size();
 
         buckets = new yzbucketZ[P::NX];
         touch((uint8_t*)buckets, sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>));
@@ -972,15 +979,17 @@ public:
             return;
         }
 
-        std::thread* threads = new std::thread[nThreads];
-        for (uint32_t t = 0; t < nThreads; t++) {
-            threads[t] = std::thread(&etworker<offset_t, EDGEBITS, XBITS>, this, t);
-        }
-        for (uint32_t t = 0; t < nThreads; t++) {
-            threads[t].join();
+        std::vector<std::future<void>> jobs;
+        for (int t = 0; t < pool.size(); t++) {
+            jobs.push_back(
+                    pool.push([this, t](int id) {
+                        etworker<offset_t, EDGEBITS, XBITS>(this, t);
+                    }));
         }
 
-        delete[] threads;
+        for(auto& j : jobs) {
+            j.wait();
+        }
     }
 
     void trimmer(uint32_t id)
@@ -1045,10 +1054,18 @@ public:
     std::vector<uint32_t> sols; // concatanation of all proof's indices
     uint8_t proofSize;
     Params<EDGEBITS, XBITS> params;
+    ctpl::thread_pool& pool;
 
-    solver_ctx(const char* header, const uint32_t headerlen, const uint32_t nThreads, const uint32_t nTrims, const uint8_t proofSizeIn, const Params<EDGEBITS, XBITS>& paramsIn) : proofSize{proofSizeIn}, params{paramsIn}
+    solver_ctx(
+            ctpl::thread_pool& poolIn,
+            const char* header,
+            const uint32_t headerlen,
+            const uint32_t nTrims,
+            const uint8_t proofSizeIn,
+            const Params<EDGEBITS,
+            XBITS>& paramsIn) : proofSize{proofSizeIn}, params{paramsIn}, pool{poolIn}
     {
-        trimmer = new edgetrimmer<offset_t, EDGEBITS, XBITS>(nThreads, nTrims, paramsIn);
+        trimmer = new edgetrimmer<offset_t, EDGEBITS, XBITS>(pool, nTrims, paramsIn);
 
         cycleus.reserve(proofSize);
         cyclevs.reserve(proofSize);
@@ -1108,13 +1125,17 @@ public:
 
         sols.resize(sols.size() + proofSize);
 
-        std::thread* threads = new std::thread[trimmer->nThreads];
-        for (uint32_t t = 0; t < trimmer->nThreads; t++) {
-            threads[t] = std::thread(&matchworker<offset_t, EDGEBITS, XBITS>, this, t);
+        std::vector<std::future<void>> jobs;
+        for (int t = 0; t < pool.size(); t++) {
+            jobs.push_back(
+                    pool.push(
+                        [this, t](int id) {
+                            matchworker<offset_t, EDGEBITS, XBITS>(this, t);
+                        }));
         }
 
-        for (uint32_t t = 0; t < trimmer->nThreads; t++) {
-            threads[t].join();
+        for (auto& j : jobs) {
+            j.wait();
         }
 
         qsort(&sols[sols.size() - proofSize], proofSize, sizeof(uint32_t), nonce_cmp);
@@ -1303,7 +1324,7 @@ public:
 };
 
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
-bool run(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle, uint8_t nThreads)
+bool run(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle, ctpl::thread_pool& pool)
 {
     // TODO: modify checks in the algorith the way we would be able to generate more edges
     // should require changes of BUCKETSIZE values
@@ -1315,7 +1336,7 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint
 
     Params<EDGEBITS, XBITS> params;
 
-    solver_ctx<offset_t, EDGEBITS, XBITS> ctx(hashStr.c_str(), hashStr.size(), nThreads, nTrims, proofSize, params);
+    solver_ctx<offset_t, EDGEBITS, XBITS> ctx(pool, hashStr.c_str(), hashStr.size(), nTrims, proofSize, params);
 
     bool found = ctx.solve();
 
@@ -1326,41 +1347,41 @@ bool run(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint
     return found;
 }
 
-bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle, uint8_t nThreads)
+bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle, ctpl::thread_pool& pool)
 {
     switch (edgeBits) {
     case 16:
-        return run<uint32_t, 16u, 0u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 16u, 0u>(hash, edgeBits, proofSize, cycle, pool);
     case 17:
-        return run<uint32_t, 17u, 1u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 17u, 1u>(hash, edgeBits, proofSize, cycle, pool);
     case 18:
-        return run<uint32_t, 18u, 1u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 18u, 1u>(hash, edgeBits, proofSize, cycle, pool);
     case 19:
-        return run<uint32_t, 19u, 2u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 19u, 2u>(hash, edgeBits, proofSize, cycle, pool);
     case 20:
-        return run<uint32_t, 20u, 2u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 20u, 2u>(hash, edgeBits, proofSize, cycle, pool);
     case 21:
-        return run<uint32_t, 21u, 3u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 21u, 3u>(hash, edgeBits, proofSize, cycle, pool);
     case 22:
-        return run<uint32_t, 22u, 3u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 22u, 3u>(hash, edgeBits, proofSize, cycle, pool);
     case 23:
-        return run<uint32_t, 23u, 4u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 23u, 4u>(hash, edgeBits, proofSize, cycle, pool);
     case 24:
-        return run<uint32_t, 24u, 4u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 24u, 4u>(hash, edgeBits, proofSize, cycle, pool);
     case 25:
-        return run<uint32_t, 25u, 5u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 25u, 5u>(hash, edgeBits, proofSize, cycle, pool);
     case 26:
-        return run<uint32_t, 26u, 5u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 26u, 5u>(hash, edgeBits, proofSize, cycle, pool);
     case 27:
-        return run<uint32_t, 27u, 6u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 27u, 6u>(hash, edgeBits, proofSize, cycle, pool);
     case 28:
-        return run<uint32_t, 28u, 6u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 28u, 6u>(hash, edgeBits, proofSize, cycle, pool);
     case 29:
-        return run<uint32_t, 29u, 7u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint32_t, 29u, 7u>(hash, edgeBits, proofSize, cycle, pool);
     case 30:
-        return run<uint64_t, 30u, 8u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint64_t, 30u, 8u>(hash, edgeBits, proofSize, cycle, pool);
     case 31:
-        return run<uint64_t, 31u, 8u>(hash, edgeBits, proofSize, cycle, nThreads);
+        return run<uint64_t, 31u, 8u>(hash, edgeBits, proofSize, cycle, pool);
 
     default:
         throw std::runtime_error(strprintf("%s: EDGEBITS equal to %d is not suppoerted", __func__, edgeBits));

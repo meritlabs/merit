@@ -75,7 +75,13 @@ static CBlock CreateGenesisBlock(
     txNew.nVersion = 1;
     txNew.vin.resize(1);
     txNew.vout.resize(1);
-    txNew.vin[0].scriptSig = CScript() << 486604799 << CScriptNum(4) << std::vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
+    txNew.vin[0].scriptSig = 
+        CScript() << 486604799
+                  << CScriptNum(4)
+                  << std::vector<unsigned char>(
+                          (const unsigned char*)pszTimestamp, 
+                          (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
+
     txNew.vout[0].nValue = genesisReward;
     txNew.vout[0].scriptPubKey = genesisOutputScript;
 
@@ -98,7 +104,15 @@ static CBlock CreateGenesisBlock(
         uint32_t nMaxTries = 10000000;
         genesis.nNonce = 0;
 
-        while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgeBits, pow, params, DEFAULT_MINING_THREADS)) {
+        ctpl::thread_pool pool{DEFAULT_MINING_THREADS};
+        while (nMaxTries > 0 
+                && !cuckoo::FindProofOfWorkAdvanced(
+                    genesis.GetHash(),
+                    genesis.nBits,
+                    genesis.nEdgeBits,
+                    pow,
+                    params,
+                    pool)) {
             ++genesis.nNonce;
             --nMaxTries;
         }
