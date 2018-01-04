@@ -167,7 +167,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     if (!pblocktemplate.get())
         return nullptr;
-
     pblock = &pblocktemplate->block; // pointer for convenience
 
     // Add dummy coinbase tx as first transaction
@@ -194,6 +193,12 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
+
+
+    addPackageTxs(nPackagesSelected, nDescendantsUpdated);
+
+    // add left referrals to the block after dependant transactions and referrals already added
+    AddReferrals();
 
     int64_t nTime1 = GetTimeMicros();
 
@@ -245,11 +250,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     coinbaseTx.vout[0].nValue = nFees + miner_subsidy;
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
-
-    addPackageTxs(nPackagesSelected, nDescendantsUpdated);
-
-    // add left referrals to the block after dependant transactions and referrals already added
-    AddReferrals();
 
     pblocktemplate->vchCoinbaseCommitment =
         GenerateCoinbaseCommitment(*pblock, pindexPrev, chain_params);
@@ -656,10 +656,6 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
         ancestors.insert(iter);
 
         referral::ReferralTxMemPool::setEntries referrals;
-
-        //include mining address.
-        mempoolReferral.GetReferralsForTransaction(pblock->vtx[0], referrals);
-
         mempool.CalculateMemPoolAncestorsReferrals(ancestors, referrals);
 
         // Test if all tx's have required referrals and all tx's are Final

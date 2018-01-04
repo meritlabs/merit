@@ -2291,7 +2291,6 @@ bool TransactionsAreBeaconed(const CBlock& block)
                 return ref->GetAddress();
             });
 
-
     //Check and make sure each transaction outputs are sending merit
     //to beaconed currencies.
     for (const auto& tx : block.vtx) {
@@ -4515,17 +4514,15 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
     // NOTE: CheckBlockHeader is called by CheckBlock
     if (!ContextualCheckBlockHeader(block, state, chainparams, pindexPrev, GetAdjustedTime()))
         return error("%s: Consensus::ContextualCheckBlockHeader: %s", __func__, FormatStateMessage(state));
-
     if (!CheckBlock(block, state, chainparams.GetConsensus(), fCheckPOW, fCheckMerkleRoot))
         return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
-    
     if (!ContextualCheckBlock(block, state, chainparams.GetConsensus(), pindexPrev))
         return error("%s: Consensus::ContextualCheckBlock: %s", __func__, FormatStateMessage(state));
 
     if (!ConnectBlock(block, state, &indexDummy, viewNew, chainparams, true))
         return error("%s: ConnectBlock: %s", __func__, FormatStateMessage(state));
-
     assert(state.IsValid());
+
     return true;
 }
 
