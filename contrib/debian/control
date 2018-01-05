@@ -27,8 +27,8 @@ Build-Depends: debhelper,
  libzmq3-dev
 Standards-Version: 3.9.2
 Homepage: https://meritcore.org/
-Vcs-Git: git://github.com/merit/merit.git
-Vcs-Browser: https://github.com/merit/merit
+Vcs-Git: git://github.com/meritlabs/merit.git
+Vcs-Browser: https://github.com/meritlabs/merit
 
 Package: meritd
 Architecture: any

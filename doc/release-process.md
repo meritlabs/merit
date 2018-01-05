@@ -3,9 +3,9 @@ Release Process
 
 Before every release candidate:
 
-* Update translations (ping wumpus on IRC) see [translation_process.md](https://github.com/merit/merit/blob/master/doc/translation_process.md#synchronising-translations).
+* Update translations (ping wumpus on IRC) see [translation_process.md](https://github.com/meritlabs/merit/blob/master/doc/translation_process.md#synchronising-translations).
 
-* Update manpages, see [gen-manpages.sh](https://github.com/merit/merit/blob/master/contrib/devtools/README.md#gen-manpagessh).
+* Update manpages, see [gen-manpages.sh](https://github.com/meritlabs/merit/blob/master/contrib/devtools/README.md#gen-manpagessh).
 
 Before every minor and major release:
 
@@ -36,7 +36,7 @@ Check out the source code in the following directory hierarchy.
     git clone https://github.com/bitcoin-core/gitian.sigs.git
     git clone https://github.com/bitcoin-core/merit-detached-sigs.git
     git clone https://github.com/devrandom/gitian-builder.git
-    git clone https://github.com/merit/merit.git
+    git clone https://github.com/meritlabs/merit.git
 
 ### Merit maintainers/release engineers, suggestion for writing release notes
 
@@ -304,6 +304,6 @@ bitcoin.org (see below for bitcoin.org update instructions).
 
   - Archive release notes for the new version to `doc/release-notes/` (branch `master` and branch of the release)
 
-  - Create a [new GitHub release](https://github.com/merit/merit/releases/new) with a link to the archived release notes.
+  - Create a [new GitHub release](https://github.com/meritlabs/merit/releases/new) with a link to the archived release notes.
 
   - Celebrate

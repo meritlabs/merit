@@ -28,7 +28,7 @@ packages:
 - "ca-certificates"
 - "python"
 remotes:
-- "url": "https://github.com/merit/merit.git"
+- "url": "https://github.com/meritlabs/merit.git"
   "dir": "merit"
 files: []
 script: |

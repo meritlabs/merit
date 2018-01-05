@@ -1,8 +1,8 @@
 Merit Core integration/staging tree
 =====================================
 
-
-https://merit.me
+<!-- add https when it works on the site -->
+www.merit.me
 
 What is Merit?
 ----------------
@@ -18,6 +18,15 @@ License
 
 Merit Core is released under the terms of the MIT license. See [COPYING](COPYING) for more
 information or see https://opensource.org/licenses/MIT.
+
+Getting Started
+-------------------
+So you want to get involved with Merit?
+Great! Just clone this repo
+
+```git clone https://github.com/meritlabs/merit.git```
+
+and take a look at our [docs](doc/README.md)
 
 TestNet
 -------------------

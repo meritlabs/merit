@@ -1,3 +1,9 @@
+BIP are Bitcoin Improvement Proposals.
+
+When building Merit, we decided to use the world's highest-value digital currency as our foundation: Bitcoin. The Bitcoin code has had the most contributors (and eyes on it). It has the trust of a huge number of investors and technologists.
+
+As Merit used Bitcoin code, BIPs are relevant to Merit Core development.
+
 BIPs that are implemented by Bitcoin Core (up-to-date up to **v0.13.0**):
 
 * [`BIP 9`](https://github.com/bitcoin/bips/blob/master/bip-0009.mediawiki): The changes allowing multiple soft-forks to be deployed in parallel have been implemented since **v0.12.1**  ([PR #7575](https://github.com/bitcoin/bitcoin/pull/7575))
