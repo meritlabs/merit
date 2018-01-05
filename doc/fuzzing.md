@@ -1,5 +1,5 @@
 
-A special test harness `test_bitcoin_fuzzy` is provided to provide an easy
+A special test harness `test_merit_fuzzy` is provided to provide an easy
 =======
 Fuzz-testing Merit Core
 ==========================

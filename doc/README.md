@@ -3,8 +3,11 @@ Merit
 
 Setup
 ---------------------
-Merit's mobile wallet is the easiest way to get started.
-To download the mobile wallet, visit [merit.me](http://www.merit.me/get-started/index.html#DownloadMobile).
+
+For the moment setting up of merit core requires obtaining code, compiling and installing it.
+Binary distribution will be released soon.
+
+To compile and run merit follow instructions linked in #Building section of the doc.
 
 ### Need Help?
 
