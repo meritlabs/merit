@@ -201,9 +201,6 @@ public:
     /** Remove a transaction from the mempool tracking stats*/
     bool removeTx(uint256 hash, bool inBlock);
 
-    /** DEPRECATED. Return a feerate estimate */
-    CFeeRate estimateFee(int confTarget) const;
-
     /** Estimate feerate needed to get be included in a block within confTarget
      *  blocks. If no answer can be given at confTarget, return an estimate at
      *  the closest target where one can be given.  'conservative' estimates are

@@ -662,15 +662,6 @@ void CBlockPolicyEstimator::processBlock(unsigned int nBlockHeight,
     untrackedTxs = 0;
 }
 
-CFeeRate CBlockPolicyEstimator::estimateFee(int confTarget) const
-{
-    // It's not possible to get reasonable estimates for confTarget of 1
-    if (confTarget <= 1)
-        return CFeeRate(0);
-
-    return estimateRawFee(confTarget, DOUBLE_SUCCESS_PCT, FeeEstimateHorizon::MED_HALFLIFE);
-}
-
 CFeeRate CBlockPolicyEstimator::estimateRawFee(int confTarget, double successThreshold, FeeEstimateHorizon horizon, EstimationResult* result) const
 {
     TxConfirmStats* stats;
