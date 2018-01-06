@@ -290,7 +290,7 @@ bitcoin.org (see below for bitcoin.org update instructions).
 
 - Announce the release:
 
-  - merit-dev and merit-core-dev mailing list
+  - merit and merit-dev mailing list
 
   - Merit Core announcements list https://meritcore.org/en/list/announcements/join/
 

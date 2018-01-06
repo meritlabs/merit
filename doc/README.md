@@ -17,7 +17,8 @@ for help and more information.
 
 Building
 ---------------------
-The following are developer notes on how to build Merit on your native platform. They are not complete guides, but include notes on the necessary libraries, compile flags, etc.
+The following are developer notes on how to build Merit on your native platform.
+They are not complete guides, but include notes on the necessary libraries, compile flags, etc.
 
 - [OS X Build Notes](build-osx.md)
 - [Unix Build Notes](build-unix.md)
@@ -33,26 +34,49 @@ Running
 To start the Merit daemon, run
 - `src/meritd`
 
+Test Net
+-------------------
+You should create a long RPCpassword as instructed here: https://github.com/meritlabs/merit/blob/master/doc/build-osx.md#running
+
+You will want a merit.conf that looks like. You can find the merit.conf file under $HOME/.merit/merit.conf
+
+```
+rpcuser=meritrpc
+rpcpassword=<randomLongPassword>
+
+#--- Network
+addnode=13.90.86.37
+addnode=13.90.85.234
+addnode=13.82.88.148
+
+testnet=1
+server=1
+rpcapplowip=127.0.0.1
+whitelist=127.0.0.1
+
+zmqpubrawtx=tcp://127.0.0.1:28332
+zmqpubhashblock=tcp://127.0.0.1:28332
+zmqpubrawblock=tcp://127.0.0.1:28332
+zmqpubhashtx=tcp://127.0.0.1:28332
+```
+
 Development
 ---------------------
-The Merit repo's [root README](/README.md) contains relevant information on the development process and automated testing.
 
 - [Developer Notes](developer-notes.md)
 - [Release Notes](release-notes.md)
 - [Release Process](release-process.md)
-- [Source Code Documentation (External Link)](https://dev.visucore.com/merit/doxygen/)
 - [Translation Process](translation_process.md)
 - [Translation Strings Policy](translation_strings_policy.md)
-- [Travis CI](travis-ci.md)
 - [Unauthenticated REST Interface](REST-interface.md)
 - [Shared Libraries](shared-libraries.md)
-- [BIPS](bips.md)
 - [Dnsseed Policy](dnsseed-policy.md)
 - [Benchmarking](benchmarking.md)
+- [Legacy Bitcoin Improvement Proposals](bips.md)
 
 ### Resources
-* Discuss project-specific development on #merit-core-dev on Freenode. If you don't have an IRC client use [webchat here](http://webchat.freenode.net/?channels=merit-core-dev).
-* Discuss general Merit development on #merit-dev on Freenode. If you don't have an IRC client use [webchat here](http://webchat.freenode.net/?channels=merit-dev).
+* Discuss general aspects of Merit on #merit on Freenode. [webchat here](http://webchat.freenode.net/?channels=merit).
+* Discuss general Merit development on #merit-dev on Freenode. [webchat here](http://webchat.freenode.net/?channels=merit-dev).
 
 ### Miscellaneous
 - [Assets Attribution](assets-attribution.md)

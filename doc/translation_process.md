@@ -8,8 +8,6 @@ Transifex is setup to monitor the GitHub repo for updates, and when code contain
 
 Multiple language support is critical in assisting Merit’s global adoption, and growth. One of Merit’s greatest strengths is cross-border money transfers, any help making that easier is greatly appreciated.
 
-See the [Transifex Merit project](https://www.transifex.com/projects/p/merit/) to assist in translations. You should also join the translation mailing list for announcements - see details below.
-
 ### Writing code with translations
 We use automated scripts to help extract translations in both Qt, and non-Qt source files. It is rarely necessary to manually edit the files in `src/qt/locale/`. The translation source files must adhere to the following format:
 `merit_xx_YY.ts or merit_xx.ts`
@@ -106,6 +104,6 @@ To create a new language template, you will need to edit the languages manifest 
 **Note:** that the language translation file **must end in `.qm`** (the compiled extension), and not `.ts`.
 
 ### Questions and general assistance
-The Merit-Core translation maintainers include *tcatm, seone, Diapolo, wumpus and luke-jr*. You can find them, and others, in the Freenode IRC chatroom - `irc.freenode.net #merit-core-dev`.
+The Merit-Core translation maintainers include *tcatm, seone, Diapolo, wumpus and luke-jr*. You can find them, and others, in the Freenode IRC chatroom - `irc.freenode.net #merit-dev`.
 
 If you are a translator, you should also subscribe to the mailing list, https://groups.google.com/forum/#!forum/merit-translators. Announcements will be posted during application pre-releases to notify translators to check for updates.
