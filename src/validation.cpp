@@ -588,6 +588,11 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
     {
         LOCK(pool.cs);
 
+        // is it already in the chain?
+        if (prefviewcache->Exists(hash)) {
+            return state.Invalid(false, REJECT_DUPLICATE, "ref-already-beaconed");
+        }
+
         // is it already in the memory pool?
         if (pool.Exists(hash)) {
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
@@ -2286,7 +2291,7 @@ bool TransactionsAreBeaconed(const CBlock& block)
 
     std::set<uint160> referrals_in_block;
     std::transform(block.m_vRef.begin(), block.m_vRef.end(),
-            std::inserter(referrals_in_block, referrals_in_block.end()), 
+            std::inserter(referrals_in_block, referrals_in_block.end()),
             [](const referral::ReferralRef& ref) {
                 return ref->GetAddress();
             });
@@ -2305,7 +2310,7 @@ bool TransactionsAreBeaconed(const CBlock& block)
             }
 
             //Must be in either the block or blockchain.
-            if(!referrals_in_block.count(address.first) && 
+            if(!referrals_in_block.count(address.first) &&
                !prefviewdb->Exists(address.first)) {
                 return false;
             }
@@ -2996,7 +3001,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 REJECT_INVALID, "bad-cb-orphan-referrals");
     }
 
-    if(!TransactionsAreBeaconed(block)) { 
+    if(!TransactionsAreBeaconed(block)) {
         return state.DoS(100,
                 error("ConnectBlock(): There are transactions that are not beaconed"),
                 REJECT_INVALID, "bad-cb-orphan-transactions");
