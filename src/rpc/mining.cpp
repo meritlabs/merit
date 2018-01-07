@@ -148,8 +148,8 @@ UniValue generateBlocks(
         }
 
         std::set<uint32_t> cycle;
-        while (nMaxTries > 0 
-                && pblock->nNonce < nInnerLoopCount 
+        while (nMaxTries > 0
+                && pblock->nNonce < nInnerLoopCount
                 && !cuckoo::FindProofOfWorkAdvanced(
                     pblock->GetHash(),
                     pblock->nBits,
@@ -181,13 +181,13 @@ UniValue generateBlocks(
         ++nHeight;
         blockHashes.push_back(pblock->GetHash().GetHex());
 
-        //mark script as important because it was used at least for one coinbase 
+        //mark script as important because it was used at least for one coinbase
         //output if the script came from the wallet
         if (keepScript) {
             coinbaseScript->KeepScript();
         }
 
-        pblocktemplate = 
+        pblocktemplate =
             BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript);
     }
     return blockHashes;
@@ -808,41 +808,6 @@ UniValue submitblock(const JSONRPCRequest& request)
     return BIP22ValidationResult(sc.state);
 }
 
-UniValue estimatefee(const JSONRPCRequest& request)
-{
-    if (request.fHelp || request.params.size() != 1)
-        throw std::runtime_error(
-            "estimatefee nblocks\n"
-            "\nDEPRECATED. Please use estimatesmartfee for more intelligent estimates."
-            "\nEstimates the approximate fee per kilobyte needed for a transaction to begin\n"
-            "confirmation within nblocks blocks. Uses virtual transaction size of transaction\n"
-            "as defined in BIP 141 (witness data is discounted).\n"
-            "\nArguments:\n"
-            "1. nblocks     (numeric, required)\n"
-            "\nResult:\n"
-            "n              (numeric) estimated fee-per-kilobyte\n"
-            "\n"
-            "A negative value is returned if not enough transactions and blocks\n"
-            "have been observed to make an estimate.\n"
-            "-1 is always returned for nblocks == 1 as it is impossible to calculate\n"
-            "a fee that is high enough to get reliably included in the next block.\n"
-            "\nExample:\n"
-            + HelpExampleCli("estimatefee", "6")
-            );
-
-    RPCTypeCheck(request.params, {UniValue::VNUM});
-
-    int nBlocks = request.params[0].get_int();
-    if (nBlocks < 1)
-        nBlocks = 1;
-
-    CFeeRate feeRate = ::feeEstimator.estimateFee(nBlocks);
-    if (feeRate == CFeeRate(0))
-        return -1.0;
-
-    return ValueFromAmount(feeRate.GetFeePerK());
-}
-
 UniValue estimatesmartfee(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
@@ -1083,7 +1048,6 @@ static const CRPCCommand commands[] =
     { "mining",             "getmining",              &getmining,              {} },
     { "mining",             "generatetoaddress",      &generatetoaddress,      {"nblocks","address","maxtries", "mineproclimit", "nthreads"} },
 
-    { "util",               "estimatefee",            &estimatefee,            {"nblocks"} },
     { "util",               "estimatesmartfee",       &estimatesmartfee,       {"nblocks", "estimate_mode"} },
 
     { "hidden",             "estimaterawfee",         &estimaterawfee,         {"conf_target", "threshold"} },
