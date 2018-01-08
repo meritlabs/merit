@@ -832,17 +832,17 @@ void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pb
         if(nErased > 0) LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx included or conflicted by block\n", nErased);
     }
 
-    std::vector<uint256> vOrphanReferralsErase;
+    std::set<uint256> vOrphanReferralsErase;
 
     for (const auto& ref: pblock->m_vRef) {
         assert(ref);
 
-        auto itByPrev = mapOrphanReferralsByPrev.find(ref->parentAddress);
+        auto itByPrev = mapOrphanReferralsByPrev.find(ref->GetAddress());
         if (itByPrev == mapOrphanReferralsByPrev.end()) continue;
 
         std::transform(
                 std::begin(itByPrev->second), std::end(itByPrev->second),
-                std::back_inserter(vOrphanReferralsErase),
+                std::inserter(vOrphanReferralsErase, vOrphanReferralsErase.begin()),
                 [](const OrphanedReferralIterSet::value_type& p) {
                     assert(p->second.ref);
                     return p->second.ref->GetHash();
@@ -852,7 +852,7 @@ void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pb
     // Erase orphan referrals include by this block
     {
         int nErased = 0;
-        for (uint256 &orphanHash : vOrphanReferralsErase) {
+        for (const uint256 &orphanHash : vOrphanReferralsErase) {
             nErased += EraseOrphanReferral(orphanHash);
         }
 

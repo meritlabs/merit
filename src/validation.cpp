@@ -601,7 +601,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
         if (!(prefviewcache->Exists(referral->parentAddress) ||
             pool.ExistsWithAddress(referral->parentAddress))) {
             missingReferrer = true;
-            return false;
+            return state.Invalid(false, REJECT_INVALID, "ref-parent-not-beaconed");
         }
 
         if (!CheckReferralSignature(*referral, pool.GetReferrals())) {
