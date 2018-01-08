@@ -1,11 +1,10 @@
 Developer Notes
 ===============
 
-Various coding styles have been used during the history of the codebase,
-and the result is not very consistent. However, we're now trying to converge to
-a single style, which is specified below. When writing patches, favor the new
-style over attempting to mimic the surrounding style, except for move-only
-commits.
+This codebase is based historically on Bitcoin and has various styles.
+We're now trying to converge to a single style, which is specified below. 
+When writing patches, favor the new style over attempting to mimic the surrounding style, 
+except for move-only commits.
 
 Do not submit patches solely to modify the style of existing code.
 
@@ -27,56 +26,57 @@ tool to clean up patches automatically before submission.
 - **Symbol naming conventions**. These are preferred in new code, but are not
 required when doing so would need changes to significant pieces of existing
 code.
-  - Variable and namespace names are all lowercase, and may use `_` to
-    separate words (snake_case).
-    - Class member variables have a `m_` prefix.
-    - Global variables have a `g_` prefix.
+  - Variable and namespace names are all lowercase and must use snake case.
   - Constant names are all uppercase, and use `_` to separate words.
   - Class names, function names and method names are UpperCamelCase
     (PascalCase). Do not prefix class names with `C`.
 
 - **Miscellaneous**
+  - Put braces around single statement blocks after if, while, etc.
   - `++i` is preferred over `i++`.
   - `nullptr` is preferred over `NULL` or `(void*)0`.
   - `static_assert` is preferred over `assert` where possible. Generally; compile-time checking is preferred over run-time checking.
 
 Block style example:
 ```c++
-int g_count = 0;
+int count = 0;
 
 namespace foo
 {
-class Class
-{
-    std::string m_name;
-
-public:
-    bool Function(const std::string& s, int n)
+    class Class
     {
-        // Comment summarising what this section of code does
-        for (int i = 0; i < n; ++i) {
-            int total_sum = 0;
-            // When something fails, return early
-            if (!Something()) return false;
-            ...
-            if (SomethingElse(i)) {
-                total_sum += ComputeSomething(g_count);
-            } else {
-                DoSomething(m_name, total_sum);
-            }
-        }
+        std::string name;
 
-        // Success return is usually at the end
-        return true;
+        public:
+        bool Function(const std::string& s, int n)
+        {
+            // Comment summarising what this section of code does
+            for (int i = 0; i < n; ++i) {
+                int total_sum = 0;
+                // When something fails, return early
+                if (!Something()) {
+                    return false;
+                }
+                ...
+                    if (SomethingElse(i)) {
+                        total_sum += ComputeSomething(g_count);
+                    } else {
+                        DoSomething(name, total_sum);
+                    }
+            }
+
+            // Success return is usually at the end
+            return true;
+        }
     }
-}
 } // namespace foo
 ```
 
 Doxygen comments
 -----------------
 
-To facilitate the generation of documentation, use doxygen-compatible comment blocks for functions, methods and fields.
+To facilitate the generation of documentation, use doxygen-compatible 
+comment blocks for functions, methods and fields.
 
 For example, to describe a function use:
 ```c++
@@ -178,11 +178,6 @@ and then cs_wallet, while thread 2 locks them in the opposite order:
 result, deadlock as each waits for the other to release its lock) are
 a problem. Compile with -DDEBUG_LOCKORDER to get lock order
 inconsistencies reported in the debug.log file.
-
-Re-architecting the core code so there are better-defined interfaces
-between the various components is a goal, with any necessary locking
-done by the components (e.g. see the self-contained CKeyStore class
-and its cs_KeyStore lock for example).
 
 Threads
 -------
@@ -487,6 +482,9 @@ There is a tool in contrib/devtools/git-subtree-check.sh to check a subtree dire
 its upstream repository.
 
 Current subtrees include:
+
+- src/ctpl
+  - Upstream at https://github.com/vit-vit/ctpl; maintained by Core contributors.
 
 - src/leveldb
   - Upstream at https://github.com/google/leveldb ; Maintained by Google, but open important PRs to Core to avoid delay

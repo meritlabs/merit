@@ -44,11 +44,7 @@ related to the DNS seed operation.
 If these expectations cannot be satisfied the operator should
 discontinue providing services and contact the active Merit
 Core development team as well as posting on
-[merit-dev](https://lists.linuxfoundation.org/mailman/listinfo/merit-dev).
+[merit-dev](https://groups.google.com/forum/#!forum/merit-dev).
 
 Behavior outside of these expectations may be reasonable in some
 situations but should be discussed in public in advance.
-
-See also
-----------
-- [merit-seeder](https://github.com/sipa/merit-seeder) is a reference implementation of a DNS seed.
