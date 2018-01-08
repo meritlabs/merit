@@ -1597,7 +1597,7 @@ pog::AmbassadorLottery RewardAmbassadors(
 
     // We may have fewer keys in the distribution than the expected winners,
     // so just pick smallest of the two.
-    const auto desired_winners = std::min(params.total_winning_ambassadors, selector.Size());
+    const auto desired_winners = std::min(params.total_winning_ambassadors, static_cast<uint64_t>(selector.Size()));
     assert(desired_winners > 0);
     assert(desired_winners < 100);
 
