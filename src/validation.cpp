@@ -1564,7 +1564,7 @@ void TreeToForest(
         referral::AddressANVs& entrants,
         const Consensus::Params& params)
 {
-    if(height < 13500) {
+    if (height < 13500) {
         return;
     }
 
@@ -1582,14 +1582,12 @@ pog::AmbassadorLottery RewardAmbassadors(
         const Consensus::Params& params)
 {
     assert(height >= 0);
-
-    //validate sane winner amount
     assert(prefviewdb != nullptr);
 
     auto entrants = pog::GetAllRewardableANVs(*prefviewdb);
 
-    //Make sure the root of the tree is removed as it doesn't
-    //participate in lottery.
+    // Make sure the root of the tree is removed as it doesn't
+    // participate in lottery.
     TreeToForest(height, entrants, params);
 
     // Wallet selector will create a distribution from all the keys
@@ -1598,12 +1596,14 @@ pog::AmbassadorLottery RewardAmbassadors(
     // We may have fewer keys in the distribution than the expected winners,
     // so just pick smallest of the two.
     const auto desired_winners = std::min(params.total_winning_ambassadors, static_cast<uint64_t>(selector.Size()));
+
+    // If we have an empty distribution, for example in some of the unit
+    // tests, we return the whole ambassador amount back to the miner
+    if(desired_winners == 0) return {{}, total};
+
+    // validate sane winner amount
     assert(desired_winners > 0);
     assert(desired_winners < 100);
-
-    //If we have an empty distribution, for example in some of the unit
-    //tests, we return the whole ambassador amount back to the miner
-    if(desired_winners == 0) return {{}, total};
 
     // Select the N winners using the previousBlockHash as the seed
     auto winners = selector.Select(previousBlockHash, desired_winners);
@@ -1613,7 +1613,7 @@ pog::AmbassadorLottery RewardAmbassadors(
     // Compute reward for all the winners
     auto rewards = pog::RewardAmbassadors(winners, total);
 
-    //Return the remainder which will be given to the miner;
+    // Return the remainder which will be given to the miner;
     assert(rewards.remainder <= total);
     assert(rewards.remainder >= 0);
 
