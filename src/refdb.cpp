@@ -131,7 +131,7 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
                 CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
                 CMeritAddress{parent_referral->addressType, referral.parentAddress}.ToString());
 
-    } else if(!allow_no_parent) {
+    } else if (!allow_no_parent) {
         assert(false && "parent referral missing");
         return false;
     } else {

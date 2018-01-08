@@ -332,7 +332,11 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
  * with part of the block subsidy based on a deterministic lottery. RewardAmbassadors
  * returns a vector of key -> reward pairs. Any remainder not allocated is returned.
  */
-pog::AmbassadorLottery RewardAmbassadors(const uint256& previousBlockHash, CAmount total, size_t desired_winners);
+pog::AmbassadorLottery RewardAmbassadors(
+        int height,
+        const uint256& previousBlockHash,
+        CAmount total,
+        const Consensus::Params&);
 
 /**
  * Include ambassadors into the coinbase transaction and split the total payment between them.
