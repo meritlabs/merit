@@ -1555,19 +1555,51 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
     return {miner_subsidy, ambassador_subsidy};
 }
 
-pog::AmbassadorLottery RewardAmbassadors(const uint256& previousBlockHash, CAmount total, size_t desired_winners)
+/**
+ * After block 13499 the genesis address does not participate in the lottery.
+ * TreeToForest removes the root address from the entrants.
+ */
+void TreeToForest(
+        int height,
+        referral::AddressANVs& entrants,
+        const Consensus::Params& params)
 {
+    if(height < 13500) {
+        return;
+    }
+
+    entrants.erase(
+            std::remove_if(entrants.begin(), entrants.end(),
+                [&params](const referral::AddressANV& e) {
+                    return e.address == params.genesis_address;
+                }), entrants.end());
+}
+
+pog::AmbassadorLottery RewardAmbassadors(
+        int height,
+        const uint256& previousBlockHash,
+        CAmount total,
+        const Consensus::Params& params)
+{
+    assert(height >= 0);
+
     //validate sane winner amount
-    assert(desired_winners > 0);
-    assert(desired_winners < 100);
     assert(prefviewdb != nullptr);
 
+    auto entrants = pog::GetAllRewardableANVs(*prefviewdb);
+
+    //Make sure the root of the tree is removed as it doesn't
+    //participate in lottery.
+    TreeToForest(height, entrants, params);
+
     // Wallet selector will create a distribution from all the keys
-    pog::WalletSelector selector{pog::GetAllRewardableANVs(*prefviewdb)};
+    pog::WalletSelector selector{entrants};
 
     // We may have fewer keys in the distribution than the expected winners,
     // so just pick smallest of the two.
-    desired_winners = std::min(desired_winners, selector.Size());
+    const auto desired_winners = std::min(params.total_winning_ambassadors, selector.Size());
+    assert(desired_winners > 0);
+    assert(desired_winners < 100);
 
     //If we have an empty distribution, for example in some of the unit
     //tests, we return the whole ambassador amount back to the miner
@@ -2977,9 +3009,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // Figure out which ambassadors should be rewarded and check to make sure
     // they are paid the expected amount.
     const auto lottery = RewardAmbassadors(
+            pindex->nHeight,
             hashPrevBlock,
             subsidy.ambassador,
-            chainparams.GetConsensus().total_winning_ambassadors);
+            chainparams.GetConsensus());
     assert(lottery.remainder >= 0);
 
     if(!AreExpectedLotteryWinnersPaid(lottery, coinbase_tx))
@@ -3596,7 +3629,9 @@ static void PruneBlockIndexCandidates() {
  */
 static bool ActivateBestChainStep(CValidationState& state, const CChainParams& chainparams, CBlockIndex* pindexMostWork, const std::shared_ptr<const CBlock>& pblock, bool& fInvalidFound, ConnectTrace& connectTrace)
 {
-    if(pblock) debug("ActivateBestChainStep: %s", pblock->GetHash().GetHex());
+    if(pblock) {
+        debug("ActivateBestChainStep: %s", pblock->GetHash().GetHex());
+    }
 
     AssertLockHeld(cs_main);
     const CBlockIndex *pindexOldTip = chainActive.Tip();
@@ -3636,7 +3671,9 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
         // Connect new blocks.
         for (CBlockIndex *pindexConnect : reverse_iterate(vpindexToConnect)) {
 
-            if(pblock) debug("TestValidity: %s", pblock->GetHash().GetHex());
+            if(pblock) {
+                debug("TestValidity: %s", pblock->GetHash().GetHex());
+            }
 
             if (!ConnectTip(state, chainparams, pindexConnect, pindexConnect == pindexMostWork ? pblock : std::shared_ptr<const CBlock>(), connectTrace, disconnectTransactions, disconnectReferrals)) {
                 if (state.IsInvalid()) {
@@ -3712,7 +3749,9 @@ bool ActivateBestChain(CValidationState &state, const CChainParams& chainparams,
     // far from a guarantee. Things in the P2P/RPC will often end up calling
     // us in the middle of ProcessNewBlock - do not assume pblock is set
     // sanely for performance or correctness!
-    if(pblock) debug("ActivateBestChain: %s", pblock->GetHash().GetHex());
+    if(pblock) {
+        debug("ActivateBestChain: %s", pblock->GetHash().GetHex());
+    }
 
     CBlockIndex *pindexMostWork = nullptr;
     CBlockIndex *pindexNewTip = nullptr;

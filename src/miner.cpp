@@ -230,9 +230,10 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
      * of winning is based on an ambassadors referral network.
      */
     const auto lottery = RewardAmbassadors(
+            nHeight,
             previousBlockHash,
             subsidy.ambassador,
-            chain_params.total_winning_ambassadors);
+            chain_params);
     assert(lottery.remainder >= 0);
 
     /**

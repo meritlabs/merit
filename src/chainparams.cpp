@@ -207,6 +207,8 @@ public:
         const std::string referralSig = "3044022075966858282b5f174348becf2b36e7474fe981c4d99d6d826fafe9d0ac24e8e102202b934185ebcd218479db27e4af0a7c30ad9c60e9d04f16e9e21884b8275e4623";
 
         // genesis ref address: ST2HYE5KMszAdBcGo3kw7Qsb9u1nRQhac4
+        consensus.genesis_address = uint160{ParseHex("3ed7e0dbbe7d8ae8f478cb69bea2edf878760d74")};
+
         genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  1, 0x207fffff, 27, 1, genesisReward, consensus);
 
         genesis.sCycle = {
@@ -307,6 +309,8 @@ public:
 
         // genesis ref address:
         // sPm5Tq6pZwDtcgGMJcqsvtmh5wZsSqVyRH
+        consensus.genesis_address = uint160{ParseHex("3c759153e6519361689f43d1ed981c1417c05dcf")};
+
 
         PubKeys genesisKeys{
             CPubKey(ParseHex("03C710FD3FD8B56537BF121870AF462107D3583F7E0CBD97F80EE271F48DAFF593")),
@@ -417,7 +421,10 @@ public:
             "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
             "f967f5b6895626";
 
-        // genesis ref address: mJqR2xnCsncZT7jsqTFuLvF1sFe7deGQH3
+        // genesis ref address:
+        // sPm5Tq6pZwDtcgGMJcqsvtmh5wZsSqVyRH
+        consensus.genesis_address = uint160{ParseHex("3c759153e6519361689f43d1ed981c1417c05dcf")};
+
         genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  0, 0x207fffff, 24, 1, genesisReward, consensus);
 
         genesis.sCycle = {

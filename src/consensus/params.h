@@ -47,6 +47,8 @@ struct PoWLimit {
  */
 struct Params {
     uint256 hashGenesisBlock;
+    uint160 genesis_address;
+
     int nSubsidyHalvingInterval;
     uint32_t nBlocksToMaturity;
 
@@ -75,6 +77,7 @@ struct Params {
     uint256 defaultAssumeValid;
     /** Cuckoo cycle length */
     uint8_t nCuckooProofSize;
+
 };
 } // namespace Consensus
 
