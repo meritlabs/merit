@@ -321,14 +321,14 @@ MaybeUint160 CMeritAddress::GetUint160() const
 }
 
 char CMeritAddress::GetType() const {
-    char type = -1;
+    char type = 0;
 
     if (vchVersion == Params().Base58Prefix(CChainParams::PUBKEY_ADDRESS)) {
-        type = 0;
-    } else if (vchVersion == Params().Base58Prefix(CChainParams::SCRIPT_ADDRESS)) {
         type = 1;
-    } else if (vchVersion == Params().Base58Prefix(CChainParams::PARAM_SCRIPT_ADDRESS)) {
+    } else if (vchVersion == Params().Base58Prefix(CChainParams::SCRIPT_ADDRESS)) {
         type = 2;
+    } else if (vchVersion == Params().Base58Prefix(CChainParams::PARAM_SCRIPT_ADDRESS)) {
+        type = 3;
     }
 
     return type;
@@ -337,9 +337,9 @@ char CMeritAddress::GetType() const {
 std::string CMeritAddress::GetTypeStr() const
 {
     switch(GetType()) {
-        case 0: return "pubkey";
-        case 1: return "script";
-        case 2: return "parameterized_script";
+        case 1: return "pubkey";
+        case 2: return "script";
+        case 3: return "parameterized_script";
         default: "none";
     }
 }
@@ -351,7 +351,7 @@ bool CMeritAddress::GetIndexKey(uint160& hashBytes, int& type) const
     }
 
     type = GetType();
-    assert(type != -1);
+    assert(type != 0);
     memcpy(&hashBytes, &vchData[0], 20);
 
     return true;
