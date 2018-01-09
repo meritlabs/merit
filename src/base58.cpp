@@ -334,6 +334,16 @@ char CMeritAddress::GetType() const {
     return type;
 }
 
+std::string CMeritAddress::GetTypeStr() const
+{
+    switch(GetType()) {
+        case 1: return "pubkey";
+        case 2: return "script";
+        case 3: return "parameterized_script";
+        default: "unknown";
+    }
+}
+
 bool CMeritAddress::GetIndexKey(uint160& hashBytes, int& type) const
 {
     if(!IsValid()) {

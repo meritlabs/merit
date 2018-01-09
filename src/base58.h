@@ -145,6 +145,7 @@ public:
     CTxDestination Get() const;
     MaybeUint160 GetUint160() const;
     char GetType() const;
+    std::string GetTypeStr() const;
 
     bool GetKeyID(CKeyID &keyID) const;
     bool GetIndexKey(uint160& hashBytes, int& type) const;
