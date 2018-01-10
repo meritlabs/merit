@@ -82,6 +82,22 @@ double GetDifficulty(const CBlockIndex* blockindex)
     return dDiff;
 }
 
+std::string GetCycleStr(std::set<uint32_t> cycle)
+{
+    std::stringstream cycleStr;
+    auto it = cycle.begin();
+
+    do {
+        cycleStr << "0x" << std::hex << *it;
+
+        if(++it != cycle.end()) {
+            cycleStr << " ";
+        }
+    } while (it != cycle.end());
+
+    return cycleStr.str();
+}
+
 UniValue blockheaderToJSON(const CBlockIndex* blockindex)
 {
     UniValue result(UniValue::VOBJ);
@@ -98,6 +114,7 @@ UniValue blockheaderToJSON(const CBlockIndex* blockindex)
     result.push_back(Pair("time", (int64_t)blockindex->nTime));
     result.push_back(Pair("mediantime", (int64_t)blockindex->GetMedianTimePast()));
     result.push_back(Pair("nonce", (uint64_t)blockindex->nNonce));
+    result.push_back(Pair("cycle", GetCycleStr(blockindex->sCycle)));
     result.push_back(Pair("bits", strprintf("%08x", blockindex->nBits)));
     result.push_back(Pair("edgebits", strprintf("%u", blockindex->nEdgeBits)));
     result.push_back(Pair("difficulty", GetDifficulty(blockindex)));
@@ -158,6 +175,7 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
     result.push_back(Pair("time", block.GetBlockTime()));
     result.push_back(Pair("mediantime", (int64_t)blockindex->GetMedianTimePast()));
     result.push_back(Pair("nonce", (uint64_t)block.nNonce));
+    result.push_back(Pair("cycle", GetCycleStr(block.sCycle)));
     result.push_back(Pair("bits", strprintf("%08x", block.nBits)));
     result.push_back(Pair("edgebits", strprintf("%u", blockindex->nEdgeBits)));
     result.push_back(Pair("difficulty", GetDifficulty(blockindex)));
@@ -872,21 +890,22 @@ UniValue getblockheader(const JSONRPCRequest& request)
             "2. verbose           (boolean, optional, default=true) true for a json object, false for the hex encoded data\n"
             "\nResult (for verbose = true):\n"
             "{\n"
-            "  \"hash\" : \"hash\",     (string) the block hash (same as provided)\n"
-            "  \"confirmations\" : n,   (numeric) The number of confirmations, or -1 if the block is not on the main chain\n"
-            "  \"height\" : n,          (numeric) The block height or index\n"
-            "  \"version\" : n,         (numeric) The block version\n"
-            "  \"versionHex\" : \"00000000\", (string) The block version formatted in hexadecimal\n"
-            "  \"merkleroot\" : \"xxxx\", (string) The merkle root\n"
-            "  \"time\" : ttt,          (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n"
-            "  \"mediantime\" : ttt,    (numeric) The median block time in seconds since epoch (Jan 1 1970 GMT)\n"
-            "  \"nonce\" : n,           (numeric) The nonce\n"
-            "  \"bits\" : \"1d00ffff\", (string) The bits\n"
-            "  \"edgebits\" : n,        (numeric) The edge bits for cycle edge\n"
-            "  \"difficulty\" : x.xxx,  (numeric) The difficulty\n"
-            "  \"chainwork\" : \"0000...1f3\"     (string) Expected number of hashes required to produce the current chain (in hex)\n"
-            "  \"previousblockhash\" : \"hash\",  (string) The hash of the previous block\n"
-            "  \"nextblockhash\" : \"hash\",      (string) The hash of the next block\n"
+            "  \"hash\" : \"hash\",                 (string) the block hash (same as provided)\n"
+            "  \"confirmations\" : n,               (numeric) The number of confirmations, or -1 if the block is not on the main chain\n"
+            "  \"height\" : n,                      (numeric) The block height or index\n"
+            "  \"version\" : n,                     (numeric) The block version\n"
+            "  \"versionHex\" : \"00000000\",       (string) The block version formatted in hexadecimal\n"
+            "  \"merkleroot\" : \"xxxx\",           (string) The merkle root\n"
+            "  \"time\" : ttt,                      (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"mediantime\" : ttt,                (numeric) The median block time in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"nonce\" : n,                       (numeric) The nonce\n"
+            "  \"cycle\" : \"0xXXX 0xXXX ...\",     (string) Cuckoo cycle\n"
+            "  \"bits\" : \"1d00ffff\",             (string) The bits\n"
+            "  \"edgebits\" : n,                    (numeric) The edge bits for cycle edge\n"
+            "  \"difficulty\" : x.xxx,              (numeric) The difficulty\n"
+            "  \"chainwork\" : \"0000...1f3\"       (string) Expected number of hashes required to produce the current chain (in hex)\n"
+            "  \"previousblockhash\" : \"hash\",    (string) The hash of the previous block\n"
+            "  \"nextblockhash\" : \"hash\",        (string) The hash of the next block\n"
             "}\n"
             "\nResult (for verbose=false):\n"
             "\"data\"             (string) A string that is serialized, hex-encoded data for block 'hash'.\n"
@@ -951,6 +970,7 @@ UniValue getblock(const JSONRPCRequest& request)
             "  \"time\" : ttt,          (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n"
             "  \"mediantime\" : ttt,    (numeric) The median block time in seconds since epoch (Jan 1 1970 GMT)\n"
             "  \"nonce\" : n,           (numeric) The nonce\n"
+
             "  \"bits\" : \"1d00ffff\", (string) The bits\n"
             "  \"edgebits\" : n,        (numeric) The edge bits for cycle edge\n"
             "  \"difficulty\" : x.xxx,  (numeric) The difficulty\n"
