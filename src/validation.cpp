@@ -1655,9 +1655,10 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
 struct RewardComp
 {
     bool operator()(const pog::AmbassadorReward& a, const pog::AmbassadorReward& b) {
-        if(a.address < b.address) return true;
-        if(a.address == b.address) return a.amount < b.amount;
-        return false;
+        if(a.amount == b.amount) { 
+            return a.address < b.address;
+        }
+        return a.amount < b.amount;
     }
 };
 

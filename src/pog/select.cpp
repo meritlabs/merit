@@ -210,11 +210,10 @@ namespace pog
         } else {
             std::sort(std::begin(anvs), std::end(anvs),
                     [](const referral::AddressANV& a, const referral::AddressANV& b) {
-                        if(a.anv < b.anv) return true;
                         if(a.anv == b.anv) {
                             return a.address < b.address;
                         }
-                        return false;
+                        return a.anv < b.anv;
                     });
         }
 
