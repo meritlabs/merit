@@ -50,7 +50,7 @@ static const int MAX_URI_LENGTH = 255;
 #define SPINNER_FRAMES 36
 
 #define QAPP_ORG_NAME "Merit"
-#define QAPP_ORG_DOMAIN "bitcoin.org"
+#define QAPP_ORG_DOMAIN "merit.me"
 #define QAPP_APP_NAME_DEFAULT "Merit-Qt"
 #define QAPP_APP_NAME_TESTNET "Merit-Qt-testnet"
 
