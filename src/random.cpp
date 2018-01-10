@@ -57,7 +57,7 @@ static inline int64_t GetPerformanceCounter()
 {
     // Read the hardware time stamp counter when available.
     // See https://en.wikipedia.org/wiki/Time_Stamp_Counter for more information.
-#if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
+#if defined(__MINGW__) || (defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64)))
     return __rdtsc();
 #elif !defined(_MSC_VER) && defined(__i386__)
     uint64_t r = 0;

@@ -30,7 +30,9 @@ namespace pog
         CAmount remainder;
     };
 
-    AmbassadorLottery RewardAmbassadors(const referral::AddressANVs& winners, CAmount total);
+    AmbassadorLottery RewardAmbassadors(
+            int height,
+            const referral::AddressANVs& winners, CAmount total);
 
 } // namespace pog
 
