@@ -11,9 +11,15 @@ namespace pog
 {
 
     AmbassadorLottery RewardAmbassadors(
+            int height,
             const referral::AddressANVs& winners,
             CAmount total_reward)
     {
+        /**
+         * Increase ANV precision on block 16000
+         */
+        CAmount fixed_precision = height < 16000 ? 100 : 1000;
+
         CAmount total_anv = 
             std::accumulate(std::begin(winners), std::end(winners), CAmount{0}, 
                     [](CAmount acc, const referral::AddressANV& v) 
@@ -23,10 +29,10 @@ namespace pog
 
         Rewards rewards(winners.size());
         std::transform(std::begin(winners), std::end(winners), std::begin(rewards),
-                [total_reward, total_anv](const referral::AddressANV& v) 
+                [total_reward, total_anv, fixed_precision](const referral::AddressANV& v) 
                 { 
-                    auto percent = (v.anv*1000) / total_anv;
-                    CAmount reward = (total_reward * percent) / 1000;
+                    double percent = (v.anv*fixed_precision) / total_anv;
+                    CAmount reward = (total_reward * percent) / fixed_precision;
                     assert(reward <= total_reward);
                     return AmbassadorReward{v.address_type, v.address, reward};
                 });

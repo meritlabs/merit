@@ -1611,7 +1611,7 @@ pog::AmbassadorLottery RewardAmbassadors(
     assert(winners.size() == desired_winners);
 
     // Compute reward for all the winners
-    auto rewards = pog::RewardAmbassadors(winners, total);
+    auto rewards = pog::RewardAmbassadors(height, winners, total);
 
     // Return the remainder which will be given to the miner;
     assert(rewards.remainder <= total);
