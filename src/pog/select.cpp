@@ -152,9 +152,9 @@ namespace pog
         }
 
         /**
-         * Sort algorithm used prior to 16000. The LegacyAnvCmp was
+         * A GCC compatible Sort algorithm used prior to 16000. The LegacyAnvCmp was
          * defective because it did not compare addresses when the ANV was the
-         * same. Therefore sort is implemented here so that the algorithm has
+         * same. A GCC compatible sort is implemented here so that the algorithm has
          * the same expected order for entries with the same ANV but different
          * address.
          */
