@@ -70,7 +70,7 @@ namespace pog
             }
         }
 
-        referral::AddressANVs::iterator partition_pivot(
+        referral::AddressANVs::iterator PartitionPivot(
                 referral::AddressANVs::iterator first,
                 referral::AddressANVs::iterator last)
         {
@@ -92,7 +92,7 @@ namespace pog
 
                 --limit;
 
-                auto cut = partition_pivot(first, last);
+                auto cut = PartitionPivot(first, last);
                 IntroSort(cut, last, limit);
                 last = cut;
             }
