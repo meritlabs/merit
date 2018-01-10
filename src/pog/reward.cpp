@@ -31,8 +31,16 @@ namespace pog
                     return AmbassadorReward{v.address_type, v.address, reward};
                 });
 
+        Rewards filtered_rewards;
+        filtered_rewards.reserve(rewards.size());
+        std::copy_if(std::begin(rewards), std::end(rewards), 
+                std::back_inserter(filtered_rewards),
+                [](const AmbassadorReward& reward) {
+                    return reward.amount > 0;
+                });
+
         CAmount total_rewarded = 
-            std::accumulate(std::begin(rewards), std::end(rewards), CAmount{0}, 
+            std::accumulate(std::begin(filtered_rewards), std::end(filtered_rewards), CAmount{0}, 
                     [](CAmount acc, const AmbassadorReward& reward) 
                     { 
                         return acc + reward.amount;
@@ -46,7 +54,7 @@ namespace pog
         assert(remainder >= 0);
         assert(remainder <= total_reward);
 
-        return {rewards, remainder};
+        return {filtered_rewards, remainder};
     }
 
 } // namespace pog

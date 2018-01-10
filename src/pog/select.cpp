@@ -9,6 +9,168 @@
 
 namespace pog
 {
+    namespace
+    {
+
+        bool LegacyAnvCmp(
+                const referral::AddressANV& a,
+                const referral::AddressANV& b) 
+        {
+            return a.anv < b.anv;
+        };
+
+        void MoveMedian(
+                referral::AddressANVs::iterator result,
+                referral::AddressANVs::iterator a,
+                referral::AddressANVs::iterator b,
+                referral::AddressANVs::iterator c)
+        {
+            if (LegacyAnvCmp(*a, *b)) {
+                if (LegacyAnvCmp(*b, *c)) {
+                    std::iter_swap(result, b);
+                }
+                else if (LegacyAnvCmp(*a, *c)) {
+                    std::iter_swap(result, c);
+                } else {
+                    std::iter_swap(result, a);
+                }
+            }
+            else if (LegacyAnvCmp(*a, *c)) {
+                std::iter_swap(result, a);
+            } else if (LegacyAnvCmp(*b, *c)) {
+                std::iter_swap(result, c);
+            } else {
+                std::iter_swap(result, b);
+            }
+        }
+
+        referral::AddressANVs::iterator PartitionAroundPivot(
+                referral::AddressANVs::iterator first,
+                referral::AddressANVs::iterator last,
+                referral::AddressANVs::iterator pivot)
+        {
+            while (true)
+            {
+                while (LegacyAnvCmp(*first, *pivot)) {
+                    ++first;
+                }
+
+                --last;
+
+                while (LegacyAnvCmp(*pivot, *last)) {
+                    --last;
+                }
+
+                if (!(first < last)) {
+                    return first;
+                }
+
+                std::iter_swap(first, last);
+                ++first;
+            }
+        }
+
+        referral::AddressANVs::iterator partition_pivot(
+                referral::AddressANVs::iterator first,
+                referral::AddressANVs::iterator last)
+        {
+            auto m = first + (last - first) / 2;
+            MoveMedian(first, first + 1, m, last - 1);
+            return PartitionAroundPivot(first + 1, last, first);
+        }
+
+        void IntroSort(
+                referral::AddressANVs::iterator first,
+                referral::AddressANVs::iterator last,
+                int limit)
+        {
+            while (last - first > int(16)) {
+                if (limit == 0) {
+                    std::partial_sort(first, last, last, LegacyAnvCmp);
+                    return;
+                }
+
+                --limit;
+
+                auto cut = partition_pivot(first, last);
+                IntroSort(cut, last, limit);
+                last = cut;
+            }
+        }
+
+        void LinearInsert(referral::AddressANVs::iterator last)
+        {
+            const auto val = *last;
+            auto next = last;
+            --next;
+
+            while (LegacyAnvCmp(val, *next)) {
+                *last = std::move(*next);
+                last = next;
+                --next;
+            }
+            *last = val;
+        }
+
+        void InsertionSortInner(
+                referral::AddressANVs::iterator first,
+                referral::AddressANVs::iterator last)
+        {
+            if (first == last) {
+                return;
+            }
+
+            for (auto i = first + 1; i != last; ++i) {
+                if (LegacyAnvCmp(*i, *first)) {
+                    auto val = std::move(*i);
+                    std::move_backward(first, i, i + 1);
+                    *first = std::move(val);
+                } else {
+                    LinearInsert(i);
+                }
+            }
+        }
+
+        void InsertionSort(
+                referral::AddressANVs::iterator first,
+                referral::AddressANVs::iterator last)
+        {
+            if (last - first > int(16))
+            {
+                InsertionSortInner(first, first + int(16));
+                for (auto i = first + int(16); i != last; ++i) {
+                    LinearInsert(i);
+                }
+            } else {
+                InsertionSortInner(first, last);
+            }
+        }
+
+        size_t lg(size_t n)
+        {
+            return sizeof(size_t) * __CHAR_BIT__ - 1 - __builtin_clzll(n);
+        }
+
+        /**
+         * Sort algorithm used prior to 16000. The LegacyAnvCmp was
+         * defective because it did not compare addresses when the ANV was the
+         * same. Therefore sort is implemented here so that the algorithm has
+         * the same expected order for entries with the same ANV but different
+         * address.
+         */
+        void LegacySort(
+                referral::AddressANVs::iterator first,
+                referral::AddressANVs::iterator last)
+        {
+            if(first == last) {
+                return;
+            }
+
+            IntroSort(first, last, lg(last - first) * 2);
+            InsertionSort(first, last);
+        }
+    }
+
     /**
      * AnvDistribution uses Inverse Transform Sampling. Computing the
      * CDF is trivial for the ANV discrete distribution by simply sorting and 
@@ -23,7 +185,7 @@ namespace pog
      * However, since the number of ANVs is fixed no matter how large the 
      * blockchain gets, then there should be no issue handling growth.
      */
-    AnvDistribution::AnvDistribution(referral::AddressANVs anvs) : 
+    AnvDistribution::AnvDistribution(int height, referral::AddressANVs anvs) : 
         m_inverted(anvs.size())
     {
         //index anvs by address id for convenience. 
@@ -39,10 +201,22 @@ namespace pog
 
         assert(m_anvs.size() == anvs.size());
 
-        std::sort(std::begin(anvs), std::end(anvs),
-                [](const referral::AddressANV& a, const referral::AddressANV& b) {
-                    return a.anv < b.anv;
-                });
+        /**
+         * Prior to block 16000 the sort algorithm was defective because of the 
+         * comparator. Use legacy sort for old blocks and new sort after 16000
+         */
+        if(height < 16000) {
+            LegacySort(std::begin(anvs), std::end(anvs));
+        } else {
+            std::sort(std::begin(anvs), std::end(anvs),
+                    [](const referral::AddressANV& a, const referral::AddressANV& b) {
+                        if(a.anv < b.anv) return true;
+                        if(a.anv == b.anv) {
+                            return a.address < b.address;
+                        }
+                        return false;
+                    });
+        }
 
         assert(m_inverted.size() == anvs.size());
 
@@ -89,7 +263,8 @@ namespace pog
         return m_inverted.size();
     }
 
-    WalletSelector::WalletSelector(const referral::AddressANVs& anvs) : m_distribution{anvs} {}
+    WalletSelector::WalletSelector(int height, const referral::AddressANVs& anvs) : 
+        m_distribution{height, anvs} {}
 
     /**
      * Selecting winners from the distribution is deterministic and will return the same

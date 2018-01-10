@@ -1591,7 +1591,7 @@ pog::AmbassadorLottery RewardAmbassadors(
     TreeToForest(height, entrants, params);
 
     // Wallet selector will create a distribution from all the keys
-    pog::WalletSelector selector{entrants};
+    pog::WalletSelector selector{height, entrants};
 
     // We may have fewer keys in the distribution than the expected winners,
     // so just pick smallest of the two.
@@ -1694,6 +1694,7 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
 
                 return {addressType, address, out.nValue};
             });
+
     SortRewards(sorted_outs);
 
     //Sort winners

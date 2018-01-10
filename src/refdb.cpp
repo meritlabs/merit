@@ -380,7 +380,7 @@ bool ReferralsViewDB::AddAddressToLottery(
          * The bug has little impact when the reservoir is not full.
          */
         if(height >= 16000) {
-            auto maybe_anv = GetANV(*address);
+            maybe_anv = GetANV(*address);
             if(!maybe_anv) return false;
 
             //combine hashes and hash to get next sampling value

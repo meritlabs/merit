@@ -20,7 +20,7 @@ namespace pog
     class AnvDistribution
     {
         public:
-            AnvDistribution(referral::AddressANVs anvs);
+            AnvDistribution(int height, referral::AddressANVs anvs);
             const referral::AddressANV& Sample(const uint256& hash) const;
             size_t Size() const;
 
@@ -33,7 +33,7 @@ namespace pog
     class WalletSelector
     {
         public:
-            WalletSelector(const referral::AddressANVs& anvs);
+            WalletSelector(int height, const referral::AddressANVs& anvs);
 
             referral::AddressANVs Select(uint256 hash, size_t n) const;
 
