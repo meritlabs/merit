@@ -25,8 +25,8 @@ namespace pog
         std::transform(std::begin(winners), std::end(winners), std::begin(rewards),
                 [total_reward, total_anv](const referral::AddressANV& v) 
                 { 
-                    auto percent = (v.anv*100) / total_anv;
-                    CAmount reward = (total_reward * percent) / 100;
+                    auto percent = (v.anv*1000) / total_anv;
+                    CAmount reward = (total_reward * percent) / 1000;
                     assert(reward <= total_reward);
                     return AmbassadorReward{v.address_type, v.address, reward};
                 });
