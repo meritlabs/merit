@@ -362,17 +362,32 @@ bool ReferralsViewDB::FindLotteryPos(const Address& address, uint64_t& pos) cons
  * maintain the heap.
  */
 bool ReferralsViewDB::AddAddressToLottery(
-        const uint256& rand_value,
+        int height,
+        uint256 rand_value,
         char address_type,
         MaybeAddress address,
         const uint64_t max_reservoir_size,
         LotteryUndos& undos)
 {
-    const auto maybe_anv = GetANV(*address);
+    auto maybe_anv = GetANV(*address);
     if(!maybe_anv) return false;
 
     size_t levels = 0;
     while(address && levels < MAX_LEVELS) {
+
+        /**
+         * Fix for the sampling algorithm before the reservoir is full.
+         * The bug has little impact when the reservoir is not full.
+         */
+        if(height >= 16000) {
+            maybe_anv = GetANV(*address);
+            if(!maybe_anv) return false;
+
+            //combine hashes and hash to get next sampling value
+            CHashWriter hasher{SER_DISK, CLIENT_VERSION};
+            hasher << rand_value << *address;
+            rand_value = hasher.GetHash();
+        }
 
         const auto weighted_key = pog::WeightedKeyForSampling(rand_value, maybe_anv->anv);
         const auto heap_size = GetLotteryHeapSize();
@@ -467,6 +482,7 @@ bool ReferralsViewDB::AddAddressToLottery(
 
         const auto parent = GetParentAddress(*address);
         if(parent) {
+            address_type = parent->first;
             address = parent->second;
         } else {
             address.reset();

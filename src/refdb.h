@@ -91,7 +91,8 @@ public:
     AddressANVs GetAllRewardableANVs() const;
 
     bool AddAddressToLottery(
-            const uint256&,
+            int height,
+            uint256,
             char address_type,
             MaybeAddress,
             const uint64_t max_reservoir_size,
