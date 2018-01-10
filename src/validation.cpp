@@ -363,7 +363,7 @@ bool CheckSequenceLocks(const CTransaction &tx, int flags, LockPoints* lp, bool 
                 prevheights[txinIndex] = coin.nHeight;
             }
         }
-        lockPair = CalculateSequenceLocks(tx, flags, &prevheights, index);
+        lockPair = CalculateSequenceLocks(tx, &prevheights, index);
         if (lp) {
             lp->height = lockPair.first;
             lp->time = lockPair.second;
@@ -2353,6 +2353,7 @@ bool TransactionsAreBeaconed(const CBlock& block)
 }
 
 bool UpdateLotteryEntrants(
+        int height,
         const CBlock& block,
         const DebitsAndCredits& debits_and_credits,
         const Consensus::Params& consensus_params,
@@ -2373,6 +2374,7 @@ bool UpdateLotteryEntrants(
 
         referral::LotteryUndos undos;
         if(!prefviewdb->AddAddressToLottery(
+                    height,
                     hash,
                     address_type,
                     address,
@@ -2760,9 +2762,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         }
     }
 
-    // Start enforcing BIP68 (sequence locks) and BIP112 (CHECKSEQUENCEVERIFY) using versionbits logic.
-    int nLockTimeFlags = LOCKTIME_VERIFY_SEQUENCE;
-
     // Get the script flags for this block
     unsigned int flags = GetBlockScriptFlags(pindex, chainparams.GetConsensus());
 
@@ -2814,7 +2813,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
             }
 
-            if (!SequenceLocks(tx, nLockTimeFlags, &prevheights, *pindex)) {
+            if (!SequenceLocks(tx, &prevheights, *pindex)) {
                 return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
                                  REJECT_INVALID, "bad-txns-nonfinal");
             }
@@ -3015,13 +3014,15 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             chainparams.GetConsensus());
     assert(lottery.remainder >= 0);
 
-    if(!AreExpectedLotteryWinnersPaid(lottery, coinbase_tx))
+    if(!AreExpectedLotteryWinnersPaid(lottery, coinbase_tx)) {
         return state.DoS(100,
                 error("ConnectBlock(): coinbase did not pay the expected ambassadors."),
                 REJECT_INVALID, "bad-cb-bad-ambassadors");
+    }
 
-    if (!control.Wait())
+    if (!control.Wait()) {
         return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
+    }
 
     int64_t nTime6 = GetTimeMicros(); nTimeVerify += nTime6 - nTime5;
     LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime6 - nTime5), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
@@ -3040,8 +3041,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 REJECT_INVALID, "bad-cb-orphan-transactions");
     }
 
-    if (fJustCheck)
+    if (fJustCheck) {
         return true;
+    }
 
     //The order is important here. We must insert the referrals so that
     //the referral tree is updated to be correct before we debit/credit
@@ -3055,6 +3057,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     }
 
     if(!UpdateLotteryEntrants(
+                pindex->nHeight,
                 block,
                 debits_and_credits,
                 chainparams.GetConsensus(),
@@ -3081,9 +3084,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         setDirtyBlockIndex.insert(pindex);
     }
 
-    if (fTxIndex)
+    if (fTxIndex) {
         if (!pblocktree->WriteTxIndex(vPos))
             return AbortNode(state, "Failed to write transaction index");
+    }
 
     if (fAddressIndex) {
         if (!pblocktree->WriteAddressIndex(addressIndex)) {
@@ -3095,9 +3099,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         }
     }
 
-    if (fSpentIndex)
+    if (fSpentIndex) {
         if (!pblocktree->UpdateSpentIndex(spentIndex))
             return AbortNode(state, "Failed to write transaction index");
+    }
 
     if (fTimestampIndex) {
         unsigned int logicalTS = pindex->nTime;
@@ -4299,12 +4304,9 @@ static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, c
 {
     const int nHeight = pindexPrev == nullptr ? 0 : pindexPrev->nHeight + 1;
 
-    // Start enforcing BIP113 (Median Time Past) using versionbits logic.
-    int nLockTimeFlags = LOCKTIME_MEDIAN_TIME_PAST;
-
-    int64_t nLockTimeCutoff = (nLockTimeFlags & LOCKTIME_MEDIAN_TIME_PAST)
-                              ? pindexPrev->GetMedianTimePast()
-                              : block.GetBlockTime();
+    int64_t nLockTimeCutoff = pindexPrev != nullptr ?
+        pindexPrev->GetMedianTimePast() :
+        block.GetBlockTime();
 
     // Check that all transactions are finalized
     for (const auto& tx : block.vtx) {
@@ -4313,11 +4315,13 @@ static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, c
         }
     }
 
-    // Enforce rule that the coinbase starts with serialized block height
-    CScript expect = CScript() << nHeight;
-    if (block.vtx[0]->vin[0].scriptSig.size() < expect.size() ||
-        !std::equal(expect.begin(), expect.end(), block.vtx[0]->vin[0].scriptSig.begin())) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-cb-height", false, "block height mismatch in coinbase");
+    if(nHeight > 0) {
+        // Enforce rule that the coinbase starts with serialized block height
+        CScript expect = CScript() << nHeight;
+        if (block.vtx[0]->vin[0].scriptSig.size() < expect.size() ||
+                !std::equal(expect.begin(), expect.end(), block.vtx[0]->vin[0].scriptSig.begin())) {
+            return state.DoS(100, false, REJECT_INVALID, "bad-cb-height", false, "block height mismatch in coinbase");
+        }
     }
 
     // Validation for witness commitments.
@@ -5308,6 +5312,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
             if(!IndexReferrals(block.m_vRef, true)) {
                 return error("%s: IndexReferrals failed", __func__);
             }
+
             if(!UpdateANV(block, *pcoinsTip)) {
                 return error("%s: UpdateANV failed", __func__);
             }

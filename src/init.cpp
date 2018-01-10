@@ -651,6 +651,8 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
 
     // -reindex
     if (fReindex) {
+        LoadGenesisBlock(chainparams);
+
         int nFile = 0;
         while (true) {
             CDiskBlockPos pos(nFile, 0);
@@ -666,8 +668,6 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
         pblocktree->WriteReindexing(false);
         fReindex = false;
         LogPrintf("Reindexing finished\n");
-        // To avoid ending up in a situation without genesis block, re-try initializing (no-op if reindexing worked):
-        LoadGenesisBlock(chainparams);
     }
 
     // hardcoded $DATADIR/bootstrap.dat
