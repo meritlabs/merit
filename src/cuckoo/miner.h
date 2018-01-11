@@ -43,7 +43,6 @@ bool VerifyProofOfWork(
  */
 bool FindProofOfWorkAdvanced(
         uint256 hash,
-        int nonce,
         unsigned int nBits,
         uint8_t edgeBits,
         std::set<uint32_t>& cycle,

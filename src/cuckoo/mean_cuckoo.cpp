@@ -1331,15 +1331,7 @@ bool run(const uint256& hash, uint8_t proofSize, std::set<uint32_t>& cycle, ctpl
 
     solver_ctx<offset_t, EDGEBITS, XBITS> ctx(pool, hashStr.c_str(), hashStr.size(), nTrims, proofSize);
 
-    struct timeval time0, time1;
-    uint32_t timems;
-    gettimeofday(&time0, 0);
-
     bool found = ctx.solve();
-
-    gettimeofday(&time1, 0);
-    timems = (time1.tv_sec-time0.tv_sec)*1000 + (time1.tv_usec-time0.tv_usec)/1000;
-    printf("Time: %d ms\n", timems);
 
     if (found) {
         copy(ctx.sols.begin(), ctx.sols.begin() + ctx.sols.size(), inserter(cycle, cycle.begin()));

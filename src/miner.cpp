@@ -818,7 +818,6 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
                 // Check if something found
                 if (cuckoo::FindProofOfWorkAdvanced(
                             pblock->GetHash(),
-                            pblock->nNonce,
                             pblock->nBits,
                             pblock->nEdgeBits,
                             cycle,

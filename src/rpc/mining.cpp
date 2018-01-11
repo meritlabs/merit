@@ -152,7 +152,6 @@ UniValue generateBlocks(
                 && pblock->nNonce < nInnerLoopCount
                 && !cuckoo::FindProofOfWorkAdvanced(
                     pblock->GetHash(),
-                    pblock->nNonce,
                     pblock->nBits,
                     pblock->nEdgeBits,
                     cycle,

@@ -70,7 +70,6 @@ bool VerifyProofOfWork(
 
 bool FindProofOfWorkAdvanced(
     const uint256 hash,
-    int nonce,
     unsigned int nBits,
     uint8_t edgeBits,
     std::set<uint32_t>& cycle,
@@ -80,10 +79,6 @@ bool FindProofOfWorkAdvanced(
     assert(cycle.empty());
     bool cycleFound =
         FindCycleAdvanced(hash, edgeBits, params.nCuckooProofSize, cycle, pool);
-
-    if (cycleFound) {
-        printf("\n\n\t\tCYCLE FOUND with nonce %d\n\n\t\t", nonce);
-    }
 
     if (cycleFound && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
         return true;
