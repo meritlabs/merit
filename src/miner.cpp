@@ -841,9 +841,6 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
                         cycleHash.GetHex(),
                         hashTarget.GetHex());
 
-                    LogPrintf("\t\tChecking nonce %d\n", pblock->nNonce);
-
-
                     ProcessBlockFound(pblock, chainparams);
                     coinbaseScript->KeepScript();
 

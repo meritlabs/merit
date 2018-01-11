@@ -224,10 +224,19 @@ AC_ARG_ENABLE([werror],
 AC_LANG_PUSH([C++])
 AX_CHECK_COMPILE_FLAG([-Werror],[CXXFLAG_WERROR="-Werror"],[CXXFLAG_WERROR=""])
 
+if test "x$GCC" = xyes; then
+    CFLAGS="$CFLAGS -march=native"
+fi
+
+if test "x$GXX" = xyes; then
+    CXXFLAGS="$CXXFLAGS -march=native"
+fi
+
 if test "x$enable_debug" = xyes; then
     CPPFLAGS="$CPPFLAGS -DDEBUG -DDEBUG_LOCKORDER"
+
     if test "x$GCC" = xyes; then
-        CFLAGS="$CFLAGS -march=native -g3 -O0"
+      CFLAGS="$CFLAGS -g3 -O0"
     fi
 
     if test "x$GXX" = xyes; then
@@ -260,14 +269,7 @@ if test "x$CXXFLAGS_overridden" = "xno"; then
   AX_CHECK_COMPILE_FLAG([-Wimplicit-fallthrough],[CXXFLAGS="$CXXFLAGS -Wno-implicit-fallthrough"],,[[$CXXFLAG_WERROR]])
 fi
 
-# Check for optional instruction set support. Enabling these does _not_ imply that all code will
-# be compiled with them, rather that specific objects/libs may use them after checking for runtime
-# compatibility.
-AX_CHECK_COMPILE_FLAG([-msse4.2],[[SSE42_CXXFLAGS="-msse4.2"]],,[[$CXXFLAG_WERROR]])
-
 TEMP_CXXFLAGS="$CXXFLAGS"
-TEMP_CXXFLAGS="$TEMP_CXXFLAGS $SSE42_CXXFLAGS"
-TEMP_CXXFLAGS="$TEMP_CXXFLAGS $AVX2_CXXFLAGS"
 AC_MSG_CHECKING(for assembler crc32 support)
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
     #include <stdint.h>
