@@ -9,6 +9,7 @@
 #include "amount.h"
 #include "serialize.h"
 #include "primitives/referral.h"
+#include "primitives/transaction.h"
 #include "pog/wrs.h"
 
 #include <boost/optional.hpp>
@@ -85,8 +86,11 @@ public:
 
     bool InsertReferral(const Referral&, bool allow_no_parent = false);
     bool RemoveReferral(const Referral&);
+    bool ConfirmReferral(const Referral&, const CTransaction&);
 
     bool Exists(const Address&) const;
+    bool IsConfirmed(const Address&) const;
+    bool RemoveReferralConfirmation(const Address&);
 
     AddressANVs GetAllRewardableANVs() const;
 

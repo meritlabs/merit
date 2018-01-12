@@ -145,6 +145,12 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
+        
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].nStartTime = 1516363200; // January 19, 2018
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].nTimeout = 1532001600;   // July 19, 2008
+        
+        
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000002");
@@ -252,7 +258,12 @@ public:
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
-        consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
+        consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008 
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].nStartTime = 1516363200; // January 19, 2018
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].nTimeout = 1532001600;   // July 19, 2008
+        
+        
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
@@ -366,6 +377,11 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 0;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 999999999999ULL;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].nStartTime = 1516363200; // January 19, 2018
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].nTimeout = 1532001600;   // July 19, 2008
+        
+        
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");

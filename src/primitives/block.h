@@ -13,6 +13,8 @@
 #include "uint256.h"
 #include <set>
 
+const int32_t DAEDALUS_BIT = 1 << 27;
+
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work
  * requirements.  When they solve the proof-of-work, they broadcast the block
@@ -85,6 +87,7 @@ public:
     // network and disk
     std::vector<CTransactionRef> vtx;
     referral::ReferralRefs m_vRef;
+    std::vector<CTransactionRef> invites;
 
 
     // memory only
@@ -108,6 +111,9 @@ public:
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
         READWRITE(m_vRef);
+        if(nVersion & DAEDALUS_BIT) {
+            READWRITE(invites);
+        }
     }
 
     void SetNull()

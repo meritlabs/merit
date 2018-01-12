@@ -20,6 +20,7 @@ const char DB_ANV = 'a';
 const char DB_PUBKEY = 'k';
 const char DB_LOT_SIZE = 's';
 const char DB_LOT_VAL = 'v';
+const char DB_CONFIRMATION = 'i';
 
 const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
 }
@@ -56,10 +57,6 @@ MaybeAddress ReferralsViewDB::GetAddressByPubKey(const CPubKey& pubkey) const
 {
     Address address;
     return m_db.Read(std::make_pair(DB_PUBKEY, pubkey), address) ?  MaybeAddress{address} : MaybeAddress{};
-}
-
-bool ReferralsViewDB::Exists(const referral::Address& address) const {
-    return m_db.Exists(std::make_pair(DB_REFERRALS, address));
 }
 
 MaybeAddressPair ReferralsViewDB::GetParentAddress(const Address& address) const
@@ -168,6 +165,35 @@ bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
         return false;
 
     return true;
+}
+
+bool ReferralsViewDB::ConfirmReferral(const Referral& referral, const CTransaction& transaction) 
+{
+    if(IsConfirmed(referral.GetAddress())) {
+        return false;
+     } 
+
+    if(!m_db.Write(std::make_pair(DB_CONFIRMATION, referral.GetAddress()), transaction.GetHash())) {
+        return false;
+    }
+
+    return true;
+}
+
+
+bool ReferralsViewDB::Exists(const referral::Address& address) const 
+{
+    return m_db.Exists(std::make_pair(DB_REFERRALS, address));
+}
+
+bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const 
+{
+    return m_db.Exists(std::make_pair(DB_CONFIRMATION, address));
+}
+
+bool ReferralsViewDB::RemoveReferralConfirmation(const Address& address) 
+{
+    return m_db.Erase(std::make_pair(DB_CONFIRMATION, address));
 }
 
 /**

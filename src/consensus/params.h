@@ -17,6 +17,7 @@ namespace Consensus {
 enum DeploymentPos
 {
     DEPLOYMENT_GENESIS,
+    DEPLOYMENT_DAEDALUS,
     MAX_VERSION_BITS_DEPLOYMENTS
 };
 
@@ -77,6 +78,8 @@ struct Params {
     uint256 defaultAssumeValid;
     /** Cuckoo cycle length */
     uint8_t nCuckooProofSize;
+    size_t start_invite_limit_height;
+    size_t end_invite_limit_height;
 
 };
 } // namespace Consensus
