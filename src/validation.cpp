@@ -4112,6 +4112,49 @@ static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state,
     return true;
 }
 
+bool ValidateDaedalus(const CBlock& block, CValidationState& state, const Consensus::Params& params)
+{
+    int32_t expected_version = ComputeBlockVersion(pindex->pprev, chainParams.GetConsensus());
+
+    if(!(expected_version & DAEDALUS_BIT)) {
+        // During the Daedalus deployment, no other block types will be accepted.
+        // This is unique to the daedalus deployment.
+        return !(block.nVersion & DAEDALUS_BIT); 
+    } 
+
+    // This is a daedalus block; so let's be sure that the block conforms to:
+    // 1) All recipients have confirmed invitations
+    // 2) The coinbase includes invitation rewards
+
+    if(!(block.nVersion & DAEDALUS_BIT)) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-blk-expected-daedalus", false, "expected a daedalus block; node is bad actor or out-of-date");
+    }
+
+    // Size limits are larger in the case of daedalus
+    if (block.vtx.empty() || block.invites.empty() || (block.vtx.size() + block.invites.size()) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT || ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT)
+        return state.DoS(100, false, REJECT_INVALID, "bad-blk-length", false, "size limits failed");
+
+    for (const auto& inv : block.invites) {
+        if (!CheckTransaction(*inv, state, false)) {
+            return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
+                                 strprintf("Invite check failed (inv hash %s) %s", inv->GetHash().ToString(), state.GetDebugMessage()));
+        }
+    }
+
+    // First invite must be "invite-coinbase", the rest must not be
+    if (block.invites.empty() || !block.invites[0]->IsCoinBase()) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-invite-cb-missing", false, "first invite is not coinbase");
+    }
+
+    for (unsigned int i = 1; i < block.invites.size(); i++) {
+        if (block.invites[i]->IsCoinBase()) {
+            return state.DoS(100, false, REJECT_INVALID, "bad-invite-cb-multiple", false, "more than one invite coinbase");
+        }
+    }
+
+    return true;
+}
+
 bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW, bool fCheckMerkleRoot)
 {
     // These are checks that are independent of context.
@@ -4135,6 +4178,10 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
         // while still invalidating it.
         if (mutated)
             return state.DoS(100, false, REJECT_INVALID, "bad-txns-duplicate", true, "duplicate transaction");
+    }
+
+    if(!ValidateDaedalus(block, state, consensusParams)) {
+        return false; // state is expected to be set by ValidateDaedalus();
     }
 
     // All potential-corruption validation must be done before we do any
@@ -4166,12 +4213,15 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
                 strprintf("Referral check failed (ref hash %s) %s", ref->GetHash().GetHex(), state.GetDebugMessage()));
         }
     }
-
     unsigned int nSigOps = 0;
-    for (const auto& tx : block.vtx)
-    {
+    for (const auto& tx : block.vtx) {
         nSigOps += GetLegacySigOpCount(*tx);
     }
+
+    for (const auto& inv : block.invites) {
+        nSigOps += GetLegacySigOpCount(*inv);
+    }
+
     if (nSigOps * WITNESS_SCALE_FACTOR > MAX_BLOCK_SIGOPS_COST)
         return state.DoS(100, false, REJECT_INVALID, "bad-blk-sigops", false, "out-of-bounds SigOpCount");
 
@@ -4299,6 +4349,12 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
     if (block.GetBlockTime() > nAdjustedTime + MAX_FUTURE_BLOCK_TIME)
         return state.Invalid(false, REJECT_INVALID, "time-too-new", "block timestamp too far in the future");
 
+    return true;
+}
+
+bool ValidateContextualDaedalusBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
+{
+    // TODO: Implement.
     return true;
 }
 
