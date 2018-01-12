@@ -4112,9 +4112,9 @@ static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state,
     return true;
 }
 
-bool ValidateDaedalus(const CBlock& block, CValidationState& state, const Consensus::Params& params)
+bool ValidateContextualDaedalusBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensus, const CBlockIndex* pindexPrev)
 {
-    int32_t expected_version = ComputeBlockVersion(pindex->pprev, chainParams.GetConsensus());
+    int32_t expected_version = ComputeBlockVersion(pindexPrev, consensus);
 
     if(!(expected_version & DAEDALUS_BIT)) {
         // During the Daedalus deployment, no other block types will be accepted.
@@ -4178,10 +4178,6 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
         // while still invalidating it.
         if (mutated)
             return state.DoS(100, false, REJECT_INVALID, "bad-txns-duplicate", true, "duplicate transaction");
-    }
-
-    if(!ValidateDaedalus(block, state, consensusParams)) {
-        return false; // state is expected to be set by ValidateDaedalus();
     }
 
     // All potential-corruption validation must be done before we do any
@@ -4352,14 +4348,13 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
     return true;
 }
 
-bool ValidateContextualDaedalusBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
-{
-    // TODO: Implement.
-    return true;
-}
 
 static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
 {
+    if(!ValidateContextualDaedalusBlock(block, state, consensusParams, pindexPrev)) {
+        return false; // state is expected to be set by ValidateDaedalus();
+    }
+
     const int nHeight = pindexPrev == nullptr ? 0 : pindexPrev->nHeight + 1;
 
     int64_t nLockTimeCutoff = pindexPrev != nullptr ?
