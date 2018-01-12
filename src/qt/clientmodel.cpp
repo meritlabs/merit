@@ -276,13 +276,15 @@ static void NotifyNetworkActiveChanged(ClientModel *clientmodel, bool networkAct
 
 static void NotifyAlertChanged(ClientModel *clientmodel)
 {
-    qDebug() << "NotifyAlertChanged";
+    // TODO: get qDebug() to work
+    // qDebug() << "NotifyAlertChanged";
     QMetaObject::invokeMethod(clientmodel, "updateAlert", Qt::QueuedConnection);
 }
 
 static void BannedListChanged(ClientModel *clientmodel)
 {
-    qDebug() << QString("%1: Requesting update for peer banlist").arg(__func__);
+    // TODO: get qDebug() to work
+    // qDebug() << QString("%1: Requesting update for peer banlist").arg(__func__);
     QMetaObject::invokeMethod(clientmodel, "updateBanlist", Qt::QueuedConnection);
 }
 
