@@ -86,11 +86,6 @@ public:
 
     bool InsertReferral(const Referral&, bool allow_no_parent = false);
     bool RemoveReferral(const Referral&);
-    bool ConfirmReferral(const Referral&, const CTransaction&);
-
-    bool Exists(const Address&) const;
-    bool IsConfirmed(const Address&) const;
-    bool RemoveReferralConfirmation(const Address&);
 
     AddressANVs GetAllRewardableANVs() const;
 
@@ -105,6 +100,15 @@ public:
     bool UndoLotteryEntrant(
             const LotteryUndo&,
             const uint64_t max_reservoir_size);
+
+    //Daedalus code.
+    bool ConfirmReferral(const Referral&, const CTransaction&);
+    bool Exists(const Address&) const;
+    bool IsConfirmed(const Address&) const;
+    bool RemoveReferralConfirmation(const Address&);
+
+    bool ConfirmAllPreDaedalusAddresses();
+    bool AreAllPreDaedalusAddressesConfirmed() const;
 
 private:
     uint64_t GetLotteryHeapSize() const;

@@ -31,6 +31,9 @@ struct BIP9Deployment {
     int64_t nStartTime;
     /** Timeout/expiry MedianTime for the deployment attempt. */
     int64_t nTimeout;
+
+    int start_block = 0;
+    int end_block = 0;
 };
 
 struct PoW {

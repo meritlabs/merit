@@ -2600,6 +2600,8 @@ public:
     int64_t EndTime(const Consensus::Params& params) const override { return std::numeric_limits<int64_t>::max(); }
     int Period(const Consensus::Params& params) const override { return params.nMinerConfirmationWindow; }
     int Threshold(const Consensus::Params& params) const override { return params.nRuleChangeActivationThreshold; }
+    int BeginBlock(const Consensus::Params& params) const override { return params.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block; }
+    int EndBlock(const Consensus::Params& params) const override { return params.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block; }
 
     bool Condition(const CBlockIndex* pindex, const Consensus::Params& params) const override
     {
@@ -4103,7 +4105,11 @@ static bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, 
     return true;
 }
 
-static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
+static bool CheckBlockHeader(
+        const CBlockHeader& block,
+        CValidationState& state,
+        const Consensus::Params& consensusParams,
+        bool fCheckPOW = true)
 {
     // Check proof of work matches claimed amount
     if (fCheckPOW && !cuckoo::VerifyProofOfWork(block.GetHash(), block.nBits, block.nEdgeBits, block.sCycle, consensusParams))
@@ -4112,7 +4118,52 @@ static bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state,
     return true;
 }
 
-bool ValidateContextualDaedalusBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensus, const CBlockIndex* pindexPrev)
+bool ConfirmAllPreDaedalusAddresses(
+        CValidationState& state,
+        const Consensus::Params& consensus,
+        const CBlockIndex* pindexPrev)
+{
+    const auto height = pindexPrev->nHeight + 1;
+
+    //Don't do the indexing if we are not on the first block during the daedalus deployment.
+    if(height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) { 
+        return true;
+    }
+
+    if(height > consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) { 
+        return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
+    }
+
+    //One time confirmation of all addresses before the daedalus block
+    prefviewdb->ConfirmAllPreDaedalusAddresses();
+}
+
+bool ValidateTransactionsAreConfirmed(const CBlock& block)
+{
+    for(const auto& tx : block.vtx) {
+        assert(tx);
+
+        for (const auto& out : tx->vout) {
+            const auto address = ExtractAddress(out);
+            if(address.second == 0) {
+                if(out.nValue == 0) continue;
+                else return false;
+            }
+
+            if(!prefviewdb->IsConfirmed(address.first)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool ValidateContextualDaedalusBlock(
+        const CBlock& block,
+        CValidationState& state,
+        const Consensus::Params& consensus,
+        const CBlockIndex* pindexPrev)
 {
     int32_t expected_version = ComputeBlockVersion(pindexPrev, consensus);
 
@@ -4122,17 +4173,39 @@ bool ValidateContextualDaedalusBlock(const CBlock& block, CValidationState& stat
         return !(block.nVersion & DAEDALUS_BIT); 
     } 
 
+    // Make sure we confirm all pre daedalus addresses. This is a one time event.
+    if(!ConfirmAllPreDaedalusAddresses(state, consensus, pindexPrev)) {
+        throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
+    }
+
     // This is a daedalus block; so let's be sure that the block conforms to:
     // 1) All recipients have confirmed invitations
     // 2) The coinbase includes invitation rewards
-
     if(!(block.nVersion & DAEDALUS_BIT)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-blk-expected-daedalus", false, "expected a daedalus block; node is bad actor or out-of-date");
+        return state.DoS(100,
+                false,
+                REJECT_INVALID,
+                "bad-blk-expected-daedalus",
+                false,
+                "expected a daedalus block; node is bad actor or out-of-date");
     }
 
     // Size limits are larger in the case of daedalus
-    if (block.vtx.empty() || block.invites.empty() || (block.vtx.size() + block.invites.size()) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT || ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT)
-        return state.DoS(100, false, REJECT_INVALID, "bad-blk-length", false, "size limits failed");
+    if (block.vtx.empty() || 
+            block.invites.empty() || 
+            (block.vtx.size() + block.invites.size()) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT || 
+            ::GetSerializeSize(
+                block,
+                SER_NETWORK,
+                PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT)
+
+        return state.DoS(
+                100,
+                false,
+                REJECT_INVALID,
+                "bad-blk-length",
+                false,
+                "size limits failed");
 
     for (const auto& inv : block.invites) {
         if (!CheckTransaction(*inv, state, false)) {
@@ -4150,6 +4223,15 @@ bool ValidateContextualDaedalusBlock(const CBlock& block, CValidationState& stat
         if (block.invites[i]->IsCoinBase()) {
             return state.DoS(100, false, REJECT_INVALID, "bad-invite-cb-multiple", false, "more than one invite coinbase");
         }
+    }
+
+    if(!ValidateTransactionsAreConfirmed(block)) {
+        return state.DoS(
+                100,
+                false,
+                REJECT_INVALID,
+                "bad-bad-txn-unconfirmed", false, "Transaction has unconfirmed address");
+
     }
 
     return true;

@@ -21,6 +21,7 @@ const char DB_PUBKEY = 'k';
 const char DB_LOT_SIZE = 's';
 const char DB_LOT_VAL = 'v';
 const char DB_CONFIRMATION = 'i';
+const char DB_PRE_DAEDALUS_CONFIRMED = 'k';
 
 const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
 }
@@ -165,35 +166,6 @@ bool ReferralsViewDB::RemoveReferral(const Referral& referral) {
         return false;
 
     return true;
-}
-
-bool ReferralsViewDB::ConfirmReferral(const Referral& referral, const CTransaction& transaction) 
-{
-    if(IsConfirmed(referral.GetAddress())) {
-        return false;
-     } 
-
-    if(!m_db.Write(std::make_pair(DB_CONFIRMATION, referral.GetAddress()), transaction.GetHash())) {
-        return false;
-    }
-
-    return true;
-}
-
-
-bool ReferralsViewDB::Exists(const referral::Address& address) const 
-{
-    return m_db.Exists(std::make_pair(DB_REFERRALS, address));
-}
-
-bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const 
-{
-    return m_db.Exists(std::make_pair(DB_CONFIRMATION, address));
-}
-
-bool ReferralsViewDB::RemoveReferralConfirmation(const Address& address) 
-{
-    return m_db.Erase(std::make_pair(DB_CONFIRMATION, address));
 }
 
 /**
@@ -760,6 +732,89 @@ bool ReferralsViewDB::OrderReferrals(referral::ReferralRefs& refs)
     }
 
     return true;
+}
+
+bool ReferralsViewDB::ConfirmReferral(const Referral& referral, const CTransaction& transaction) 
+{
+    if(IsConfirmed(referral.GetAddress())) {
+        return false;
+     } 
+
+    if(!m_db.Write(std::make_pair(DB_CONFIRMATION, referral.GetAddress()), transaction.GetHash())) {
+        return false;
+    }
+
+    return true;
+}
+
+
+bool ReferralsViewDB::Exists(const referral::Address& address) const 
+{
+    return m_db.Exists(std::make_pair(DB_REFERRALS, address));
+}
+
+bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const 
+{
+    return m_db.Exists(std::make_pair(DB_CONFIRMATION, address));
+}
+
+bool ReferralsViewDB::RemoveReferralConfirmation(const Address& address) 
+{
+    return m_db.Erase(std::make_pair(DB_CONFIRMATION, address));
+}
+
+bool ReferralsViewDB::ConfirmAllPreDaedalusAddresses()
+{
+    //Check to see if addresses have already been confirmed.
+    if(m_db.Exists(DB_PRE_DAEDALUS_CONFIRMED)) {
+        return true;
+    }
+
+    std::unique_ptr<CDBIterator> iter{m_db.NewIterator()};
+    iter->SeekToFirst();
+
+    uint256 confirmed_tag;
+    unsigned char* tag = static_cast<unsigned char*>(confirmed_tag.begin());
+    tag[0] = 'd';
+
+    auto address = std::make_pair(DB_REFERRALS, Address{});
+    while(iter->Valid())
+    {
+        //filter non ANV addresss
+        if(!iter->GetKey(address)) {
+            iter->Next();
+            continue;
+        }
+
+        if(address.first != DB_REFERRALS) {
+            iter->Next();
+            continue;
+        }
+
+        MutableReferral referral;
+        if(!iter->GetValue(referral)) {
+            iter->Next();
+            return false;
+        }
+
+        if(!m_db.Write(std::make_pair(DB_CONFIRMATION, referral.GetAddress()), confirmed_tag)) {
+            return false;
+        }
+
+        iter->Next();
+    }
+
+    //Mark state in DB that all addresses before daedalus have been confirmed.
+    if(!m_db.Write(DB_PRE_DAEDALUS_CONFIRMED, true)) {
+        return false;
+    }
+
+    return true;
+}
+
+bool ReferralsViewDB::AreAllPreDaedalusAddressesConfirmed() const
+{
+    return m_db.Exists(DB_PRE_DAEDALUS_CONFIRMED);
 }
 
 }

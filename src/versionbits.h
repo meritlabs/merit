@@ -59,6 +59,9 @@ protected:
     virtual int Period(const Consensus::Params& params) const =0;
     virtual int Threshold(const Consensus::Params& params) const =0;
 
+    virtual int BeginBlock(const Consensus::Params& params) const =0;
+    virtual int EndBlock(const Consensus::Params& params) const =0;
+
 public:
     BIP9Stats GetStateStatisticsFor(const CBlockIndex* pindex, const Consensus::Params& params) const;
     // Note that the functions below take a pindexPrev as input: they compute information for block B based on its parent.

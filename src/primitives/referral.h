@@ -53,6 +53,9 @@ public:
     // Type of address. 1 == Key ID, 2 = Script ID, 3 = Parameterized Script ID
     const char addressType;
 
+    // address that this referral is related to.
+    Address address;
+
     // pubky used to sign referral
     // pubkey of beaconed address in case addressType = 1
     // signer pubkey otherwise
@@ -62,8 +65,7 @@ public:
     valtype signature;
 
 private:
-    // address that this referral is related to.
-    Address address;
+    Address computed_address;
 
     /** Memory only. */
     const uint256 hash;
@@ -94,7 +96,7 @@ public:
 
     const Address& GetAddress() const
     {
-        return address;
+        return computed_address;
     }
 
     /**
@@ -127,7 +129,6 @@ public:
 struct MutableReferral {
 friend class Referral;
 
-private:
     Address address;
 
 public:
@@ -147,6 +148,7 @@ public:
         const CPubKey& pubkeyIn,
         const Address& parentAddressIn);
 
+    Address GetAddress() const;
 
     template <typename Stream>
     inline void Serialize(Stream& s) const
@@ -183,6 +185,7 @@ public:
 
     template <typename Stream, typename RefType>
     friend void UnserializeReferral(RefType& ref, Stream& s);
+
 };
 
 using ReferralRef =  std::shared_ptr<const Referral>;
