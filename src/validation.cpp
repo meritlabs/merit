@@ -2319,20 +2319,24 @@ bool RemoveReferrals(const CBlock& block)
     return true;
 }
 
-bool TransactionsAreBeaconed(const CBlock& block)
-{
-    assert(prefviewdb);
+using ReferralSet = std::set<uint160>;
 
-    std::set<uint160> referrals_in_block;
+void BuildReferralSet(const CBlock& block, ReferralSet& referrals_in_block) 
+{
     std::transform(block.m_vRef.begin(), block.m_vRef.end(),
             std::inserter(referrals_in_block, referrals_in_block.end()),
             [](const referral::ReferralRef& ref) {
                 return ref->GetAddress();
             });
+}
 
+bool TransactionsAreBeaconed(
+        const ReferralSet& referrals_in_block,
+        const std::vector<CTransactionRef>& vtx)
+{
     //Check and make sure each transaction outputs are sending merit
     //to beaconed currencies.
-    for (const auto& tx : block.vtx) {
+    for (const auto& tx : vtx) {
         for(const auto& out : tx->vout) {
 
             const auto address = ExtractAddress(out);
@@ -2352,6 +2356,24 @@ bool TransactionsAreBeaconed(const CBlock& block)
     }
 
     return true;
+}
+
+bool TransactionsAreBeaconed(const CBlock& block)
+{
+    assert(prefviewdb);
+
+    ReferralSet referrals_in_block;
+    BuildReferralSet(block, referrals_in_block);
+    return TransactionsAreBeaconed(referrals_in_block, block.vtx);
+}
+
+bool InvitesAreBeaconed(const CBlock& block)
+{
+    assert(prefviewdb);
+
+    ReferralSet referrals_in_block;
+    BuildReferralSet(block, referrals_in_block);
+    return TransactionsAreBeaconed(referrals_in_block, block.invites);
 }
 
 bool UpdateLotteryEntrants(
@@ -4138,7 +4160,50 @@ bool ConfirmAllPreDaedalusAddresses(
     prefviewdb->ConfirmAllPreDaedalusAddresses();
 }
 
-bool ValidateTransactionsAreConfirmed(const CBlock& block)
+bool ConfirmAddresses(const CBlock& block)
+{
+    ReferralSet referrals_in_block;
+    BuildReferralSet(block, referrals_in_block);
+
+    for(const auto& tx : block.invites) {
+        assert(tx);
+
+        for (const auto& out : tx->vout) {
+            const auto address = ExtractAddress(out);
+            if(address.second == 0) {
+                if(out.nValue == 0) continue;
+                else return false;
+            }
+
+            auto maybe_referral = prefviewdb->GetReferral(address.first);
+
+            if(!maybe_referral) {
+                if(referrals_in_block.count(address.first)) {
+                    auto ref = std::find_if(
+                            block.m_vRef.begin(), block.m_vRef.end(), 
+                            [&address](const referral::ReferralRef ref) {
+                                return ref->GetAddress() == address.first;
+                            });
+                    if(ref != block.m_vRef.end()) {
+                        maybe_referral = **ref;
+                    }
+                }
+            }
+
+            if(!maybe_referral) {
+                return false;
+            }
+
+            if(!prefviewdb->ConfirmReferral(*maybe_referral, *tx)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool ValidateAddressesAreConfirmed(const CBlock& block)
 {
     for(const auto& tx : block.vtx) {
         assert(tx);
@@ -4154,6 +4219,38 @@ bool ValidateTransactionsAreConfirmed(const CBlock& block)
                 return false;
             }
         }
+    }
+
+    return true;
+}
+
+bool ValidateInvites(const CBlock& block, CValidationState& state)
+{
+    // First invite must be "invite-coinbase", the rest must not be
+    if (block.invites.empty() || !block.invites[0]->IsCoinBase()) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-invite-cb-missing", false, "first invite is not coinbase");
+    }
+
+    bool check_coinbase = false;
+    for (const auto& inv : block.invites) {
+
+        assert(inv);
+
+        if (!CheckTransaction(*inv, state, false)) {
+            return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
+                                 strprintf("Invite check failed (inv hash %s) %s", inv->GetHash().ToString(), state.GetDebugMessage()));
+        }
+
+        //Only the first invite can be a coinbase
+        if (check_coinbase && inv->IsCoinBase()) {
+            return state.DoS(100, false, REJECT_INVALID, "bad-invite-cb-multiple", false, "more than one invite coinbase");
+        }
+
+        check_coinbase = true;
+    }
+
+    if(!InvitesAreBeaconed(block)) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-invite-not-beaconed", false, "an invite is not beaconed.");
     }
 
     return true;
@@ -4207,25 +4304,12 @@ bool ValidateContextualDaedalusBlock(
                 false,
                 "size limits failed");
 
-    for (const auto& inv : block.invites) {
-        if (!CheckTransaction(*inv, state, false)) {
-            return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
-                                 strprintf("Invite check failed (inv hash %s) %s", inv->GetHash().ToString(), state.GetDebugMessage()));
-        }
+    if(!ValidateInvites(block, state)) {
+        //state is assumed to be set.
+        return false;
     }
 
-    // First invite must be "invite-coinbase", the rest must not be
-    if (block.invites.empty() || !block.invites[0]->IsCoinBase()) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-invite-cb-missing", false, "first invite is not coinbase");
-    }
-
-    for (unsigned int i = 1; i < block.invites.size(); i++) {
-        if (block.invites[i]->IsCoinBase()) {
-            return state.DoS(100, false, REJECT_INVALID, "bad-invite-cb-multiple", false, "more than one invite coinbase");
-        }
-    }
-
-    if(!ValidateTransactionsAreConfirmed(block)) {
+    if(!ValidateAddressesAreConfirmed(block)) {
         return state.DoS(
                 100,
                 false,
