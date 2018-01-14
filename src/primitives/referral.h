@@ -54,18 +54,18 @@ public:
     const char addressType;
 
     // address that this referral is related to.
-    Address address;
+    const Address address;
 
     // pubky used to sign referral
     // pubkey of beaconed address in case addressType = 1
     // signer pubkey otherwise
-    CPubKey pubkey;
+    const CPubKey pubkey;
 
     // signature of parentAddress + address
-    valtype signature;
+    const valtype signature;
 
 private:
-    Address computed_address;
+    const Address computed_address;
 
     /** Memory only. */
     const uint256 hash;
@@ -75,7 +75,6 @@ private:
 public:
     /** Convert a MutableReferral into a Referral. */
     Referral(const MutableReferral& ref);
-
     Referral(MutableReferral&& ref);
 
     template <typename Stream>

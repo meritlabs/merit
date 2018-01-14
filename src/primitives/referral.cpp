@@ -74,7 +74,7 @@ Referral::Referral(MutableReferral &&ref) :
     parentAddress{std::move(ref.parentAddress)},
     addressType{ref.addressType},
     pubkey{std::move(ref.pubkey)},
-    signature{ref.signature},
+    signature{std::move(ref.signature)},
     address{std::move(ref.address)},
     computed_address{ref.GetAddress()},
     hash{ComputeHash()} {}

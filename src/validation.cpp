@@ -4175,6 +4175,7 @@ bool ConfirmAddresses(const CBlock& block)
                 else return false;
             }
 
+            const referral::Referral* ref_to_confirm = nullptr;
             auto maybe_referral = prefviewdb->GetReferral(address.first);
 
             if(!maybe_referral) {
@@ -4185,16 +4186,18 @@ bool ConfirmAddresses(const CBlock& block)
                                 return ref->GetAddress() == address.first;
                             });
                     if(ref != block.m_vRef.end()) {
-                        maybe_referral = **ref;
+                        ref_to_confirm = ref->get();
                     }
                 }
+            } else {
+                ref_to_confirm = maybe_referral.get_ptr();
             }
 
-            if(!maybe_referral) {
+            if(ref_to_confirm == nullptr) {
                 return false;
             }
 
-            if(!prefviewdb->ConfirmReferral(*maybe_referral, *tx)) {
+            if(!prefviewdb->ConfirmReferral(*ref_to_confirm, *tx)) {
                 return false;
             }
         }
