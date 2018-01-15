@@ -74,11 +74,11 @@ static CBlock CreateGenesisBlock(
     txNew.nVersion = 1;
     txNew.vin.resize(1);
     txNew.vout.resize(1);
-    txNew.vin[0].scriptSig = 
+    txNew.vin[0].scriptSig =
         CScript() << 486604799
                   << CScriptNum(4)
                   << std::vector<unsigned char>(
-                          (const unsigned char*)pszTimestamp, 
+                          (const unsigned char*)pszTimestamp,
                           (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
 
     txNew.vout[0].nValue = genesisReward;
@@ -96,6 +96,36 @@ static CBlock CreateGenesisBlock(
     genesis.m_vRef.push_back(referral::MakeReferralRef(ref));
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
+
+    // if (true) {
+    //     std::set<uint32_t> pow;
+
+    //     uint32_t nMaxTries = 10000000;
+    //     genesis.nNonce = 0;
+
+    //     ctpl::thread_pool pool{8};
+
+    //     while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgeBits, pow, params, pool)) {
+    //         ++genesis.nNonce;
+    //         --nMaxTries;
+    //     }
+
+    //     if (nMaxTries == 0) {
+    //         printf("Could not find cycle for genesis block");
+    //     } else {
+    //         printf("Genesis block generated!!!\n");
+    //         printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\nnodes:\n",
+    //             genesis.GetHash().GetHex().c_str(),
+    //             genesis.hashMerkleRoot.GetHex().c_str(),
+    //             genesis.nNonce,
+    //             genesis.nEdgeBits); // use pkPrefix here as it differs for different nets
+    //         for (const auto& node : pow) {
+    //             printf("0x%x, ", node);
+    //         }
+    //     }
+
+    //     exit(1);
+    // }
 
     return genesis;
 }
@@ -145,13 +175,13 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
-        
+
         consensus.daedalus_base_invites_per_block = 1;
         consensus.daedalus_max_winners_per_block = 5;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 28000; // About January 19, 2018
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 291520;   // About July 19, 2008
-        
+
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000002");
@@ -259,15 +289,15 @@ public:
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
-        consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008 
+        consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
 
         consensus.daedalus_base_invites_per_block = 1;
         consensus.daedalus_max_winners_per_block = 5;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 28000; // About January 19, 2018
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 291520;   // About July 19, 2008
-        
-        
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 10; // About January 19, 2018
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 10000;   // About July 19, 2008
+
+
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
@@ -318,7 +348,7 @@ public:
             0};
     }
 
-    void Init() override 
+    void Init() override
     {
         CAmount genesisReward = 20000000_merit;
 
@@ -332,20 +362,24 @@ public:
                 CPubKey(ParseHex("024F1BC2E023ED1BACDC8171798113F1F7280C881919A11B592A25A976ABFB8798")),
         };
 
-        const std::string referralSig = 
+        const std::string referralSig =
             "304502210090792fc651c1d88caf78a071b9a33699e9f2324af3096d45e6c7a3"
             "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
             "f967f5b6895626";
 
-        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  381, 0x207fffff, 24, 1, genesisReward, consensus);
+        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  58, 0x207fffff, 24, 1, genesisReward, consensus);
 
         genesis.sCycle = {
-            0x13529, 0xb3ef1, 0xf3211, 0x166f1d, 0x1fe182, 0x229740, 0x2704c2, 0x2a3b1b, 0x32053c, 0x39fee1, 0x3ed8ff, 0x3f079d, 0x408b98, 0x40b31d, 0x434ea2, 0x463eaa, 0x482bb4, 0x49eae3, 0x4bb609, 0x545752, 0x5a2d5b, 0x5e3999, 0x6ca1d2, 0x76c4f7, 0x826245, 0x82d44d, 0xad2cd4, 0xafd7be, 0xb5792b, 0xb593a2, 0xb7f4fb, 0xc2a540, 0xcec41e, 0xd33967, 0xdbb0b8, 0xdc9ce4, 0xdf509e, 0xe04520, 0xe187ef, 0xe30157, 0xed068f, 0xfd58fe,
+            0x10de12, 0x16cfda, 0x1c0d53, 0x207ab1, 0x2a513a, 0x2af9c6, 0x2b7a23, 0x2bf8ad, 0x39de17, 0x3e7ecf,
+            0x3f3383, 0x48bc18, 0x499683, 0x4c6a4f, 0x5289f2, 0x5b409a, 0x6665d4, 0x691a40, 0x6989f2, 0x75ba71,
+            0x7a299b, 0x7bb8e7, 0x8120c1, 0x855dc5, 0x8e7c8a, 0x9c93ea, 0x9e5ebf, 0xa1b5c3, 0xb39b6e, 0xb6b47c,
+            0xbc7f31, 0xbd6904, 0xc54857, 0xd15732, 0xd4225e, 0xd6dc71, 0xd975d1, 0xdbdfd3, 0xe74ad5, 0xec2a9a,
+            0xecf829, 0xfb9440
         };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("448f31e47f5daabfd1984f03a64723c7f50b2306961e6f0e7f482e0b49f2dbea"));
-        assert(genesis.hashMerkleRoot == uint256S("8be99a68b2514e86f17368e9cce63d302aa0f29ed91654b7c90dc9f7201fb69f"));
+        assert(consensus.hashGenesisBlock == uint256S("e705d1c21319f16244ed05a89356b8caccd23c873f3a8f4d6809fab022ddfb7f"));
+        assert(genesis.hashMerkleRoot == uint256S("ee86d6080dc2b3a706d7635fe81fc49c7aea8592de1e1eab79d82265a738e76a"));
 
     }
 };
@@ -387,8 +421,8 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 28000; // About January 19, 2018
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 291520;   // About July 19, 2008
-        
-        
+
+
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
@@ -439,7 +473,7 @@ public:
             CPubKey{ParseHex("024F1BC2E023ED1BACDC8171798113F1F7280C881919A11B592A25A976ABFB8798")},
         };
 
-        const std::string referralSig = 
+        const std::string referralSig =
             "304502210090792fc651c1d88caf78a071b9a33699e9f2324af3096d45e6c7a3"
             "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
             "f967f5b6895626";

@@ -124,6 +124,14 @@ public:
     void operator()(const CNoDestination &none) {}
 };
 
+bool DaedalusGeneration()
+{
+    auto daedalus_deployment = Params().GetConsensus().vDeployments[Consensus::DEPLOYMENT_DAEDALUS];
+
+    return chainActive.Tip()->nVersion >= daedalus_deployment.start_block ||
+        chainActive.Tip()->nVersion <= daedalus_deployment.end_block;
+}
+
 namespace referral
 {
 bool ReferralTx::RelayWalletTransaction(CConnman *connman)
@@ -223,6 +231,8 @@ CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb, bool internal)
 {
     AssertLockHeld(cs_wallet); // mapKeyMetadata
     bool fCompressed = CanSupportFeature(FEATURE_COMPRPUBKEY); // default to compressed public keys if we want 0.6.0 wallets
+
+    debug("[WARNING] GENERATING NEW KEY\n");
 
     CKey secret;
 
@@ -3634,6 +3644,11 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<referral::Addres
             return false;
         }
 
+        // do not derive new keys while in daedalus generation
+        if (DaedalusGeneration()) {
+            return true;
+        }
+
         CWalletDB walletdb(*dbw);
         std::shared_ptr<referral::Address> currentTopReferral;
 
@@ -3716,9 +3731,9 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRe
     keypool.vchPubKey = CPubKey();
 
     {
-        if (!IsLocked() && IsReferred())
+        if (!IsLocked() && IsReferred()) {
             TopUpKeyPool();
-
+        }
 
         LOCK(cs_wallet);
 
@@ -3733,7 +3748,6 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRe
 
         auto it = setKeyPool.begin();
         nIndex = *it;
-        setKeyPool.erase(it);
         if (!walletdb.ReadPool(nIndex, keypool)) {
             throw std::runtime_error(std::string(__func__) + ": read failed");
         }
@@ -3745,14 +3759,21 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRe
         }
 
         assert(keypool.vchPubKey.IsValid());
-        m_pool_key_to_index.erase(keypool.vchPubKey.GetID());
-        LogPrintf("keypool reserve %d\n", nIndex);
 
         if(!CheckAddressBeaconed(keypool.vchPubKey.GetID(), true)) {
             if(!GenerateNewReferral(keypool.vchPubKey, m_unlockReferralTx.GetReferral()->GetAddress())) {
                 throw std::runtime_error(std::string(__func__) + ": cannot beacon keypool address");
             }
         }
+
+        // do not remove key from pool
+        if (DaedalusGeneration()) {
+            return;
+        }
+
+        setKeyPool.erase(it);
+        m_pool_key_to_index.erase(keypool.vchPubKey.GetID());
+        LogPrintf("keypool reserve %d\n", nIndex);
     }
 }
 
@@ -4349,8 +4370,7 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
         }
 
         walletInstance->SetBestChain(chainActive.GetLocator());
-    }
-    else if (gArgs.IsArgSet("-usehd")) {
+    } else if (gArgs.IsArgSet("-usehd")) {
         bool useHD = gArgs.GetBoolArg("-usehd", DEFAULT_USE_HD_WALLET);
         if (walletInstance->IsHDEnabled() && !useHD) {
             InitError(strprintf(_("Error loading %s: You can't disable HD on an already existing HD wallet"), walletFile));
