@@ -174,6 +174,11 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblocktemplate->vTxFees.push_back(-1);       // updated at end
     pblocktemplate->vTxSigOpsCost.push_back(-1); // updated at end
 
+    //Add a dummy coinbase invite as first invite in daedalus block
+    if((pblock->nVersion & DAEDALUS_BIT) != 0) {
+        pblock->invites.emplace_back();
+    }
+
     LOCK2(cs_main, mempool.cs);
     CBlockIndex* pindexPrev = chainActive.Tip();
     assert(pindexPrev != nullptr);
@@ -193,7 +198,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
-
 
     addPackageTxs(nPackagesSelected, nDescendantsUpdated);
 
@@ -256,6 +260,21 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         GenerateCoinbaseCommitment(*pblock, pindexPrev, chain_params);
 
     pblocktemplate->vTxFees[0] = -nFees;
+
+    //Include invites if we are mining a daudalus block
+    if((pblock->nVersion & DAEDALUS_BIT) != 0) {
+        CMutableTransaction coinbaseInvites;
+        coinbaseInvites.nVersion = CTransaction::INVITE_VERSION;
+
+        const auto invites = RewardInvites(
+                nHeight,
+                previousBlockHash,
+                chain_params);
+
+        DistributeInvites(invites, coinbaseInvites);
+        pblock->invites[0] = MakeTransactionRef(std::move(coinbaseInvites));
+    }
+
 
     uint64_t nSerializeSize = GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION);
 

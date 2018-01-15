@@ -334,14 +334,24 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
  */
 pog::AmbassadorLottery RewardAmbassadors(
         int height,
-        const uint256& previousBlockHash,
+        const uint256& previous_block_hash,
         CAmount total,
+        const Consensus::Params&);
+
+pog::InviteRewards RewardInvites(
+        int height,
+        const uint256& previous_block_hash,
         const Consensus::Params&);
 
 /**
  * Include ambassadors into the coinbase transaction and split the total payment between them.
  */
 void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx);
+
+/**
+ * Include invites into the coinbase invite transaction.
+ */
+void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& tx);
 
 /** Guess verification progress (as a fraction between 0.0=genesis and 1.0=current tip). */
 double GuessVerificationProgress(const ChainTxData& data, CBlockIndex* pindex);

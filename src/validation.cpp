@@ -1577,7 +1577,7 @@ void TreeToForest(
 
 pog::AmbassadorLottery RewardAmbassadors(
         int height,
-        const uint256& previousBlockHash,
+        const uint256& previous_block_hash,
         CAmount total,
         const Consensus::Params& params)
 {
@@ -1605,8 +1605,8 @@ pog::AmbassadorLottery RewardAmbassadors(
     assert(desired_winners > 0);
     assert(desired_winners < 100);
 
-    // Select the N winners using the previousBlockHash as the seed
-    auto winners = selector.Select(previousBlockHash, desired_winners);
+    // Select the N winners using the previous block hash as the seed
+    auto winners = selector.Select(previous_block_hash, desired_winners);
 
     assert(winners.size() == desired_winners);
 
@@ -1620,6 +1620,29 @@ pog::AmbassadorLottery RewardAmbassadors(
     return rewards;
 }
 
+pog::InviteRewards RewardInvites(
+        int height,
+        const uint256& previous_block_hash,
+        const Consensus::Params& params)
+{
+    assert(height >= 0);
+    assert(prefviewdb != nullptr);
+
+    const auto lottery_params =
+        pog::ComputeInviteLotteryParams(height, params);
+
+    const auto winners = pog::SelectConfirmedAddresses(
+            *prefviewdb,
+            previous_block_hash,
+            lottery_params.total_winners);
+
+    if(winners.size() != lottery_params.total_winners) {
+        return {};
+    }
+
+    return pog::RewardInvites(winners, lottery_params);
+}
+
 bool IsValidAmbassadorDestination(const CTxDestination& dest)
 {
     const auto which = dest.which();
@@ -1630,6 +1653,7 @@ bool IsValidAmbassadorDestination(const CTxDestination& dest)
 void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx)
 {
     debug("Lottery Results");
+
 
     // Pay them by adding a txout to the coinbase transaction;
     std::transform(
@@ -1652,6 +1676,33 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
             });
 }
 
+void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& tx)
+{
+    assert(tx.nVersion == CTransaction::INVITE_VERSION);
+
+    debug("Invite Lottery Results");
+
+    // Pay them by adding a txout to the coinbase transaction;
+    std::transform(
+            std::begin(rewards),
+            std::end(rewards),
+            std::back_inserter(tx.vout),
+
+            [](const pog::InviteReward& reward) {
+                CMeritAddress addr{reward.address_type, reward.address};
+                const auto dest = addr.Get();
+
+                if (!addr.IsValid() || !IsValidAmbassadorDestination(dest)) {
+                    throw std::runtime_error{"invalid ambassador"};
+                }
+
+                debug("\tWinner: %s, %d", addr.ToString(), static_cast<int>(reward.address_type));
+
+                const auto script = GetScriptForDestination(dest);
+                return CTxOut{reward.invites, script};
+            });
+}
+
 struct RewardComp
 {
     bool operator()(const pog::AmbassadorReward& a, const pog::AmbassadorReward& b) {
@@ -1665,6 +1716,21 @@ struct RewardComp
 void SortRewards(pog::Rewards& rewards)
 {
     std::sort(std::begin(rewards), std::end(rewards), RewardComp());
+}
+
+struct InviteComp
+{
+    bool operator()(const pog::InviteReward& a, const pog::InviteReward& b) {
+        if(a.invites == b.invites) { 
+            return a.address < b.address;
+        }
+        return a.invites < b.invites;
+    }
+};
+
+void SortInvites(pog::InviteRewards& rewards)
+{
+    std::sort(std::begin(rewards), std::end(rewards), InviteComp());
 }
 
 bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const CTransaction& coinbase) {
@@ -1708,6 +1774,49 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
             std::begin(sorted_outs), std::end(sorted_outs),
             std::begin(sorted_winners), std::end(sorted_winners),
             RewardComp());
+}
+
+bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, const CTransaction& coinbase) {
+    assert(coinbase.IsCoinBase());
+
+    //quick test before doing more expensive validation
+    if(coinbase.vout.size() != expected_invites.size())
+        return false;
+
+    //Transform vouts to rewards
+    pog::InviteRewards sorted_outs(coinbase.vout.size());
+    std::transform(std::begin(coinbase.vout), std::end(coinbase.vout), std::begin(sorted_outs),
+            [](const CTxOut& out) -> pog::InviteReward {
+                CTxDestination dest;
+                if(!ExtractDestination(out.scriptPubKey, dest)) {
+                    return {0, {}, out.nValue};
+                }
+
+                uint160 address;
+                if(!GetUint160(dest, address)) {
+                    return {0, {}, out.nValue};
+                }
+
+                auto addressType = AddressTypeFromDestination(dest);
+                if(addressType == 0) {
+                    return {0, {}, out.nValue};
+                }
+
+                return {addressType, address, out.nValue};
+            });
+
+    SortInvites(sorted_outs);
+
+    //Sort winners
+    auto sorted_invites = expected_invites;
+    SortInvites(sorted_invites);
+
+    // Make sure all expected rewards exist in the set of all rewards given in
+    // the block.
+    return std::includes(
+            std::begin(sorted_outs), std::end(sorted_outs),
+            std::begin(sorted_invites), std::end(sorted_invites),
+            InviteComp());
 }
 
 bool IsInitialBlockDownload()
@@ -3383,6 +3492,19 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 REJECT_INVALID, "bad-cb-orphan-transactions");
     }
 
+    if((block.nVersion & DAEDALUS_BIT) != 0) {
+        const auto invite_rewards = RewardInvites(
+                pindex->nHeight,
+                hashPrevBlock,
+                chainparams.GetConsensus());
+
+        if(!AreExpectedInvitesRewarded(invite_rewards, coinbase_tx)) {
+            return state.DoS(100,
+                    error("ConnectBlock(): coinbase did not reward expected invites."),
+                    REJECT_INVALID, "bad-cb-bad-invites");
+        }
+    }
+
     if (fJustCheck) {
         return true;
     }
@@ -3394,8 +3516,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         return AbortNode(state, "Failed to write referrals");
     }
 
-    if(!ConfirmAddresses(block)) {
-        return AbortNode(state, "Failed to confirm addresses");
+    if((block.nVersion & DAEDALUS_BIT) != 0) {
+        if(!ConfirmAddresses(block)) {
+            return AbortNode(state, "Failed to confirm addresses");
+        }
     }
 
     if(!UpdateANV(debits_and_credits)) {

@@ -6,6 +6,7 @@
 #define MERIT_POG_REWARD_H
 
 #include "refdb.h"
+#include "consensus/params.h"
 
 namespace pog
 {
@@ -33,6 +34,28 @@ namespace pog
     AmbassadorLottery RewardAmbassadors(
             int height,
             const referral::AddressANVs& winners, CAmount total);
+
+    struct InviteReward
+    {
+        char address_type;
+        referral::Address address;
+        int invites;
+    };
+
+    struct InviteLotteryParams
+    {
+        int total_winners;
+        int total_invites;
+    };
+
+    InviteLotteryParams ComputeInviteLotteryParams(
+            int height,
+            const Consensus::Params& params);
+
+    using InviteRewards = std::vector<InviteReward>;
+    InviteRewards RewardInvites(
+            const referral::ConfirmedAddresses& winners,
+            const InviteLotteryParams& params);
 
 } // namespace pog
 
