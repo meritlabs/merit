@@ -597,6 +597,11 @@ extern VersionBitsCache versionbitscache;
  */
 int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Params& params);
 
+/**
+ * Returns true if we expect to be in daedalus mode.
+ */
+bool ExpectDaedalus(const CBlockIndex* pindexPrev, const Consensus::Params& params);
+
 /** Reject codes greater or equal to this can be returned by AcceptToMemPool
  * for transactions, to signal internal conditions. They cannot and should not
  * be sent over the P2P network.

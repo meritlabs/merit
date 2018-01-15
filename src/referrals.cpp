@@ -76,4 +76,11 @@ void ReferralsViewCache::RemoveReferral(const Referral& ref) const
     m_db->RemoveReferral(ref);
 }
 
+bool ReferralsViewCache::IsConfirmed(const Address& address) const
+{
+    assert(m_db);
+    //TODO: Have an in memory cache. For now just passthrough.
+    return m_db->IsConfirmed(address);
+}
+
 }

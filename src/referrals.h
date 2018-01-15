@@ -83,6 +83,9 @@ public:
 
     /** Flush referrals to disk and clear cache */
     void Flush();
+
+    /** Check if an address is confirmed */
+    bool IsConfirmed(const Address&) const;
 };
 
 } // namespace referral

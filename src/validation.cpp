@@ -1678,7 +1678,7 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
 
 void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& tx)
 {
-    assert(tx.nVersion == CTransaction::INVITE_VERSION);
+    assert(tx->IsInvite());
 
     debug("Invite Lottery Results");
 
@@ -2717,6 +2717,12 @@ int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Para
     return nVersion;
 }
 
+bool ExpectDaedalus(const CBlockIndex* pindex, const Consensus::Params& params)
+{
+    const auto expected_version = ComputeBlockVersion(pindex, params);
+    return (expected_version & DAEDALUS_BIT) != 0;
+}
+
 /**
  * Threshold condition checker that triggers when unknown versionbits are seen on the network.
  */
@@ -2834,8 +2840,34 @@ bool ConfirmAddresses(const CBlock& block)
     return true;
 }
 
+using ConfirmationSet = std::set<uint160>;
+
+void BuildConfirmationSet(const CTransactionRef& invite,
+        ConfirmationSet& confirmations_in_block)
+{
+    std::transform(invite->vout.begin(), invite->vout.end(),
+            std::inserter(confirmations_in_block, confirmations_in_block.end()),
+            [](const CTxOut& out) {
+                const auto address = ExtractAddress(out);
+                return address.first;
+            });
+}
+
+void BuildConfirmationSet(
+        const CBlock& block,
+        ConfirmationSet& confirmations_in_block)
+{
+    for(const auto& invite : block.invites) {
+        assert((invite->nVersion & DAEDALUS_BIT) != 0);
+        BuildConfirmationSet(invite, confirmations_in_block);
+    }
+}
+
 bool ValidateAddressesAreConfirmed(const CBlock& block)
 {
+    ConfirmationSet confirmations_in_block;
+    BuildConfirmationSet(block, confirmations_in_block);
+
     for(const auto& tx : block.vtx) {
         assert(tx);
 
@@ -2846,7 +2878,9 @@ bool ValidateAddressesAreConfirmed(const CBlock& block)
                 else return false;
             }
 
-            if(!prefviewdb->IsConfirmed(address.first)) {
+            //Check block or blockchain if the address is confirmed.
+            if(confirmations_in_block.count(address.first) == 0 &&
+                    !prefviewdb->IsConfirmed(address.first)) {
                 return false;
             }
         }
@@ -2876,7 +2910,7 @@ bool ValidateInvites(
 
         assert(inv);
 
-        if(inv->nVersion != CTransaction::INVITE_VERSION) {
+        if(!inv->IsInvite()) {
             return state.DoS(
                     100,
                     false,
@@ -2928,7 +2962,7 @@ bool ValidateInvites(
             }
 
             assert(prev);
-            if(prev->nVersion != CTransaction::INVITE_VERSION) {
+            if(!prev->IsInvite()) {
                 return state.DoS(
                         100,
                         false,
@@ -2961,7 +2995,7 @@ bool ValidateTransactionInputsNotInvites(
         CValidationState& state)
 {
     for(const auto& tx : block.vtx) {
-        if(tx->nVersion == CTransaction::INVITE_VERSION) {
+        if(tx->IsInvite()) {
             return state.DoS(
                     100,
                     false,
@@ -2991,7 +3025,7 @@ bool ValidateTransactionInputsNotInvites(
             }
 
             assert(prev);
-            if(prev->nVersion == CTransaction::INVITE_VERSION) {
+            if(prev->IsInvite()) {
                 return state.DoS(
                         100,
                         false,
@@ -3011,9 +3045,7 @@ bool ValidateContextualDaedalusBlock(
         const Consensus::Params& params,
         const CBlockIndex* pindexPrev)
 {
-    int32_t expected_version = ComputeBlockVersion(pindexPrev, params);
-
-    if (!(expected_version & DAEDALUS_BIT)) {
+    if (!ExpectDaedalus(pindexPrev, params)) {
         // During the Daedalus deployment, no other block types will be accepted.
         // This is unique to the daedalus deployment.
         return !(block.nVersion & DAEDALUS_BIT);
@@ -3027,7 +3059,7 @@ bool ValidateContextualDaedalusBlock(
     // This is a daedalus block; so let's be sure that the block conforms to:
     // 1) All recipients have confirmed invitations
     // 2) The coinbase includes invitation rewards
-    if (!(block.nVersion & DAEDALUS_BIT)) {
+    if ((block.nVersion & DAEDALUS_BIT) == 0) {
         return state.DoS(100,
                 false,
                 REJECT_INVALID,

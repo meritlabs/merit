@@ -158,17 +158,20 @@ uint256 ComputeMerkleRootFromBranch(const uint256& leaf, const std::vector<uint2
 
 uint256 BlockMerkleRoot(const CBlock& block, bool* mutated)
 {
-    std::vector<uint256> leaves;
+    std::vector<uint256> leaves(
+            block.vtx.size() + block.invites.size() + block.m_vRef.size());
 
-    auto aggregateSize = block.vtx.size() + block.m_vRef.size();
-    leaves.resize(aggregateSize);
-
-    for (size_t s = 0; s < block.vtx.size(); s++) {
-        leaves[s] = block.vtx[s]->GetHash();
+    size_t i = 0;
+    for (size_t s = 0; s < block.vtx.size(); s++, i++) {
+        leaves[i] = block.vtx[s]->GetHash();
     }
 
-    for (size_t s = 0; s < block.m_vRef.size(); s++) {
-        leaves[block.vtx.size() + s] = block.m_vRef[s]->GetHash();
+    for (size_t s = 0; s < block.invites.size(); s++, i++) {
+        leaves[i] = block.invites[s]->GetHash();
+    };
+
+    for (size_t s = 0; s < block.m_vRef.size(); s++, i++) {
+        leaves[i] = block.m_vRef[s]->GetHash();
     };
 
     return ComputeMerkleRoot(leaves, mutated);
@@ -176,21 +179,37 @@ uint256 BlockMerkleRoot(const CBlock& block, bool* mutated)
 
 uint256 BlockWitnessMerkleRoot(const CBlock& block, bool* mutated)
 {
-    std::vector<uint256> leaves;
-    leaves.resize(block.vtx.size());
+    std::vector<uint256> leaves(block.vtx.size() + block.invites.size());
     leaves[0].SetNull(); // The witness hash of the coinbase is 0.
-    for (size_t s = 1; s < block.vtx.size(); s++) {
-        leaves[s] = block.vtx[s]->GetWitnessHash();
+
+    size_t i = 0;
+    for (size_t s = 1; s < block.vtx.size(); s++, i++) {
+        leaves[i] = block.vtx[s]->GetWitnessHash();
+    }
+
+    for (size_t s = 1; s < block.invites.size(); s++, i++) {
+        leaves[i] = block.invites[s]->GetWitnessHash();
     }
     return ComputeMerkleRoot(leaves, mutated);
 }
 
 std::vector<uint256> BlockMerkleBranch(const CBlock& block, uint32_t position)
 {
-    std::vector<uint256> leaves;
-    leaves.resize(block.vtx.size());
-    for (size_t s = 0; s < block.vtx.size(); s++) {
+    std::vector<uint256> leaves(
+            block.vtx.size() + block.invites.size() + block.m_vRef.size());
+
+    size_t i = 0;
+    for (size_t s = 0; s < block.vtx.size(); s++, i++) {
         leaves[s] = block.vtx[s]->GetHash();
     }
+
+    for (size_t s = 0; s < block.invites.size(); s++, i++) {
+        leaves[i] = block.invites[s]->GetHash();
+    };
+
+    for (size_t s = 0; s < block.m_vRef.size(); s++, i++) {
+        leaves[i] = block.m_vRef[s]->GetHash();
+    };
+
     return ComputeMerkleBranch(leaves, position);
 }

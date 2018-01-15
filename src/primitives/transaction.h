@@ -349,6 +349,11 @@ public:
 
     std::string ToString() const;
 
+    bool IsInvite() const 
+    {
+        return nVersion == INVITE_VERSION;
+    }
+
     bool HasWitness() const
     {
         for (size_t i = 0; i < vin.size(); i++) {
@@ -395,6 +400,11 @@ struct CMutableTransaction
     friend bool operator==(const CMutableTransaction& a, const CMutableTransaction& b)
     {
         return a.GetHash() == b.GetHash();
+    }
+
+    bool IsInvite() const 
+    {
+        return nVersion == CTransaction::INVITE_VERSION;
     }
 
     bool HasWitness() const

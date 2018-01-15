@@ -18,6 +18,9 @@
 #include "referrals.h"
 #include "utilmoneystr.h"
 
+extern CChain chainActive;
+bool ExpectDaedalus(const CBlockIndex* pindexPrev, const Consensus::Params& params);
+
 bool IsFinalTx(const CTransaction &tx, int nBlockHeight, int64_t nBlockTime)
 {
     if (tx.nLockTime == 0)
@@ -238,6 +241,13 @@ bool Consensus::CheckTxOutputs(
 
         if (!addressBeaconed) {
             return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-beaconed");
+        }
+
+        if(!tx.IsInvite() && ExpectDaedalus(chainActive.Tip(), ::Params().GetConsensus())) {
+            if(!referralsCache.IsConfirmed(addr)) {
+                //TODO: Check Mempool
+                return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-invited");
+            }
         }
     }
 
