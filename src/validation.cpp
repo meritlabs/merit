@@ -2833,8 +2833,34 @@ bool ConfirmAddresses(const CBlock& block)
     return true;
 }
 
+using ConfirmationSet = std::set<uint160>;
+
+void BuildConfirmationSet(const CTransactionRef& invite,
+        ConfirmationSet& confirmations_in_block)
+{
+    std::transform(invite->vout.begin(), invite->vout.end(),
+            std::inserter(confirmations_in_block, confirmations_in_block.end()),
+            [](const CTxOut& out) {
+                const auto address = ExtractAddress(out);
+                return address.first;
+            });
+}
+
+void BuildConfirmationSet(
+        const CBlock& block,
+        ConfirmationSet& confirmations_in_block)
+{
+    for(const auto& invite : block.invites) {
+        assert((invite->nVersion & DAEDALUS_BIT) != 0);
+        BuildConfirmationSet(invite, confirmations_in_block);
+    }
+}
+
 bool ValidateAddressesAreConfirmed(const CBlock& block)
 {
+    ConfirmationSet confirmations_in_block;
+    BuildConfirmationSet(block, confirmations_in_block);
+
     for(const auto& tx : block.vtx) {
         assert(tx);
 
@@ -2845,7 +2871,9 @@ bool ValidateAddressesAreConfirmed(const CBlock& block)
                 else return false;
             }
 
-            if(!prefviewdb->IsConfirmed(address.first)) {
+            //Check block or blockchain if the address is confirmed. 
+            if(confirmations_in_block.count(address.first) == 0 &&
+                    !prefviewdb->IsConfirmed(address.first)) {
                 return false;
             }
         }
