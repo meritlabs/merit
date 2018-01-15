@@ -27,7 +27,7 @@ using LotteryEntrant = std::tuple<pog::WeightedKey, char, Address>;
 using MaybeLotteryEntrant = boost::optional<LotteryEntrant>;
 using AddressPair = std::pair<char, Address>;
 using MaybeAddressPair = boost::optional<AddressPair>;
-
+using TransactionHash = uint256;
 
 struct AddressANV
 {
@@ -111,15 +111,15 @@ public:
             const uint64_t max_reservoir_size);
 
     //Daedalus code.
-    bool ConfirmReferral(const Referral&, const CTransaction&, int output_index);
+    bool ConfirmReferral(const Referral&, const TransactionHash&, int output_index);
     bool Exists(const Address&) const;
     bool IsConfirmed(const Address&) const;
     bool RemoveReferralConfirmation(const Address&);
 
     bool ConfirmAllPreDaedalusAddresses();
     bool AreAllPreDaedalusAddressesConfirmed() const;
-    size_t GetTotalConfirmations() const;
-    MaybeConfirmedAddress GetConfirmation(size_t idx) const;
+    uint64_t GetTotalConfirmations() const;
+    MaybeConfirmedAddress GetConfirmation(uint64_t idx) const;
 
 
 private:

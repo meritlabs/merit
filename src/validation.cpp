@@ -1706,7 +1706,7 @@ void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& t
 struct RewardComp
 {
     bool operator()(const pog::AmbassadorReward& a, const pog::AmbassadorReward& b) {
-        if(a.amount == b.amount) { 
+        if(a.amount == b.amount) {
             return a.address < b.address;
         }
         return a.amount < b.amount;
@@ -1721,7 +1721,7 @@ void SortRewards(pog::Rewards& rewards)
 struct InviteComp
 {
     bool operator()(const pog::InviteReward& a, const pog::InviteReward& b) {
-        if(a.invites == b.invites) { 
+        if(a.invites == b.invites) {
             return a.address < b.address;
         }
         return a.invites < b.invites;
@@ -1778,6 +1778,7 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
 
 bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, const CTransaction& coinbase) {
     assert(coinbase.IsCoinBase());
+    assert(coinbase.nVersion == CTransaction::INVITE_VERSION);
 
     //quick test before doing more expensive validation
     if(coinbase.vout.size() != expected_invites.size())
@@ -2430,7 +2431,7 @@ bool RemoveReferrals(const CBlock& block)
 
 using ReferralSet = std::set<uint160>;
 
-void BuildReferralSet(const CBlock& block, ReferralSet& referrals_in_block) 
+void BuildReferralSet(const CBlock& block, ReferralSet& referrals_in_block)
 {
     std::transform(block.m_vRef.begin(), block.m_vRef.end(),
             std::inserter(referrals_in_block, referrals_in_block.end()),
@@ -2480,9 +2481,9 @@ bool InvitesAreBeaconed(const CBlock& block)
 {
     assert(prefviewdb);
 
-    ReferralSet referrals_in_block;
-    BuildReferralSet(block, referrals_in_block);
-    return TransactionsAreBeaconed(referrals_in_block, block.invites);
+    ReferralSet confirmations_in_block;
+    BuildReferralSet(block, confirmations_in_block);
+    return TransactionsAreBeaconed(confirmations_in_block, block.invites);
 }
 
 bool UpdateLotteryEntrants(
@@ -2773,16 +2774,16 @@ bool ConfirmAllPreDaedalusAddresses(
 {
     const auto height = pindexPrev->nHeight + 1;
 
-    //Don't do the indexing if we are not on the first block during the daedalus deployment.
-    if(height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) { 
+    // Don't do the indexing if we are not on the first block during the daedalus deployment.
+    if (height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) {
         return true;
     }
 
-    if(height > consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) { 
+    if (height > consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) {
         return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
     }
 
-    //One time confirmation of all addresses before the daedalus block
+    // One time confirmation of all addresses before the daedalus block
     prefviewdb->ConfirmAllPreDaedalusAddresses();
 }
 
@@ -2808,7 +2809,7 @@ bool ConfirmAddresses(const CBlock& block)
             if(!maybe_referral) {
                 if(referrals_in_block.count(address.first)) {
                     auto ref = std::find_if(
-                            block.m_vRef.begin(), block.m_vRef.end(), 
+                            block.m_vRef.begin(), block.m_vRef.end(),
                             [&address](const referral::ReferralRef ref) {
                                 return ref->GetAddress() == address.first;
                             });
@@ -2824,7 +2825,7 @@ bool ConfirmAddresses(const CBlock& block)
                 return false;
             }
 
-            if(!prefviewdb->ConfirmReferral(*ref_to_confirm, *tx, i)) {
+            if(!prefviewdb->ConfirmReferral(*ref_to_confirm, tx->GetHash(), i)) {
                 return false;
             }
         }
@@ -2929,7 +2930,7 @@ bool ValidateInvites(
             assert(prev);
             if(prev->nVersion != CTransaction::INVITE_VERSION) {
                 return state.DoS(
-                        100, 
+                        100,
                         false,
                         REJECT_INVALID,
                         "bad-invite-input-is-not-invite",
@@ -2957,7 +2958,7 @@ bool ValidateInvites(
 bool ValidateTransactionInputsNotInvites(
         const CBlock& block,
         const Consensus::Params& params,
-        CValidationState& state) 
+        CValidationState& state)
 {
     for(const auto& tx : block.vtx) {
         if(tx->nVersion == CTransaction::INVITE_VERSION) {
@@ -2992,7 +2993,7 @@ bool ValidateTransactionInputsNotInvites(
             assert(prev);
             if(prev->nVersion == CTransaction::INVITE_VERSION) {
                 return state.DoS(
-                        100, 
+                        100,
                         false,
                         REJECT_INVALID,
                         "bad-transaction-input-is-invite",
@@ -3012,21 +3013,21 @@ bool ValidateContextualDaedalusBlock(
 {
     int32_t expected_version = ComputeBlockVersion(pindexPrev, params);
 
-    if(!(expected_version & DAEDALUS_BIT)) {
+    if (!(expected_version & DAEDALUS_BIT)) {
         // During the Daedalus deployment, no other block types will be accepted.
         // This is unique to the daedalus deployment.
-        return !(block.nVersion & DAEDALUS_BIT); 
-    } 
+        return !(block.nVersion & DAEDALUS_BIT);
+    }
 
     // Make sure we confirm all pre daedalus addresses. This is a one time event.
-    if(!ConfirmAllPreDaedalusAddresses(state, params, pindexPrev)) {
+    if (!ConfirmAllPreDaedalusAddresses(state, params, pindexPrev)) {
         throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
     }
 
     // This is a daedalus block; so let's be sure that the block conforms to:
     // 1) All recipients have confirmed invitations
     // 2) The coinbase includes invitation rewards
-    if(!(block.nVersion & DAEDALUS_BIT)) {
+    if (!(block.nVersion & DAEDALUS_BIT)) {
         return state.DoS(100,
                 false,
                 REJECT_INVALID,
@@ -3036,9 +3037,9 @@ bool ValidateContextualDaedalusBlock(
     }
 
     // Size limits are larger in the case of daedalus
-    if (block.vtx.empty() || 
-            block.invites.empty() || 
-            (block.vtx.size() + block.invites.size()) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT || 
+    if (block.vtx.empty() ||
+            block.invites.empty() ||
+            (block.vtx.size() + block.invites.size()) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT ||
             ::GetSerializeSize(
                 block,
                 SER_NETWORK,
@@ -3052,12 +3053,12 @@ bool ValidateContextualDaedalusBlock(
                 false,
                 "size limits failed");
 
-    if(!ValidateInvites(block, params, state)) {
+    if (!ValidateInvites(block, params, state)) {
         //state is assumed to be set.
         return false;
     }
 
-    if(!ValidateAddressesAreConfirmed(block)) {
+    if (!ValidateAddressesAreConfirmed(block)) {
         return state.DoS(
                 100,
                 false,
@@ -3068,7 +3069,7 @@ bool ValidateContextualDaedalusBlock(
 
     }
 
-    if(!ValidateTransactionInputsNotInvites(block, params, state)) {
+    if (!ValidateTransactionInputsNotInvites(block, params, state)) {
         return state.DoS(
                 100,
                 false,

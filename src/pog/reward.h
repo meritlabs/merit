@@ -39,7 +39,7 @@ namespace pog
     {
         char address_type;
         referral::Address address;
-        int invites;
+        CAmount invites;
     };
 
     struct InviteLotteryParams
