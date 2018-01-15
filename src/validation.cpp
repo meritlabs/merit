@@ -1678,7 +1678,7 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
 
 void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& tx)
 {
-    assert(tx->IsInvite());
+    assert(tx.IsInvite());
 
     debug("Invite Lottery Results");
 

@@ -126,9 +126,11 @@ public:
 
 bool DaedalusGeneration()
 {
-    auto daedalus_deployment = Params().GetConsensus().vDeployments[Consensus::DEPLOYMENT_DAEDALUS];
+    assert(chainActive.Tip());
 
-    return chainActive.Tip()->nVersion >= daedalus_deployment.start_block ||
+    auto daedalus_deployment = Params().GetConsensus().vDeployments[0];
+
+    return chainActive.Tip()->nVersion >= daedalus_deployment.start_block &&
         chainActive.Tip()->nVersion <= daedalus_deployment.end_block;
 }
 
@@ -3446,8 +3448,9 @@ DBErrors CWallet::LoadWallet(bool& fFirstRunRet)
     // This wallet is in its first run if all of these are empty
     fFirstRunRet = mapKeys.empty() && mapCryptedKeys.empty() && mapWatchKeys.empty() && setWatchOnly.empty() && mapScripts.empty();
 
-    if (nLoadWalletRet != DB_LOAD_OK)
+    if (nLoadWalletRet != DB_LOAD_OK) {
         return nLoadWalletRet;
+    }
 
     uiInterface.LoadWallet(this);
 
@@ -3643,7 +3646,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<referral::Addres
         // make sure the keypool size fits the user selected target (-keypool)
         int64_t missingKeys = std::max(std::max((int64_t) nTargetSize, (int64_t) 1) - (int64_t)setKeyPool.size(), (int64_t) 0);
 
-        LogPrintf("missingKets = %d\n", missingKeys);
+        LogPrintf("missingKeys = %d\n", missingKeys);
 
         // skip generating external keys for now
         for (int64_t i = missingKeys; i--;)
@@ -3678,11 +3681,11 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool)
     nIndex = -1;
     keypool.vchPubKey = CPubKey();
 
-    {
-        if (!IsLocked() && IsReferred()) {
-            TopUpKeyPool();
-        }
+    if (!IsLocked() && IsReferred()) {
+        TopUpKeyPool();
+    }
 
+    {
         LOCK(cs_wallet);
 
         assert(IsHDEnabled());
@@ -3703,12 +3706,7 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool)
         }
 
         assert(keypool.vchPubKey.IsValid());
-
-        if(!CheckAddressBeaconed(keypool.vchPubKey.GetID(), true)) {
-            if(!GenerateNewReferral(keypool.vchPubKey, m_unlockReferralTx.GetReferral()->GetAddress())) {
-                throw std::runtime_error(std::string(__func__) + ": cannot beacon keypool address");
-            }
-        }
+        assert(CheckAddressBeaconed(keypool.vchPubKey.GetID(), true));
 
         // do not remove key from pool
         if (DaedalusGeneration()) {
@@ -4289,32 +4287,13 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
                 throw std::runtime_error(std::string(__func__) + ": Storing master key failed");
         }
 
-        if (walletInstance->IsReferred()) {
-            if (!walletInstance->TopUpKeyPool()) {
-                InitError(_("Unable to generate initial keys") += "\n");
-                return NULL;
-            }
-        }
-
         walletInstance->SetBestChain(chainActive.GetLocator());
-    } else if (gArgs.IsArgSet("-usehd")) {
-        bool useHD = gArgs.GetBoolArg("-usehd", DEFAULT_USE_HD_WALLET);
-        if (walletInstance->IsHDEnabled() && !useHD) {
-            InitError(strprintf(_("Error loading %s: You can't disable HD on an already existing HD wallet"), walletFile));
-            return nullptr;
-        }
-        if (!walletInstance->IsHDEnabled() && useHD) {
-            InitError(strprintf(_("Error loading %s: You can't enable HD on an already existing non-HD wallet"), walletFile));
-            return nullptr;
-        }
     }
 
     LogPrintf(" wallet      %15dms\n", GetTimeMillis() - nStart);
+    LogPrintf(" wallet      %15dms\n", GetTimeMillis() - nStart);
 
     RegisterValidationInterface(walletInstance);
-
-    // Try to top up keypool. No-op if the wallet is locked.
-    walletInstance->TopUpKeyPool();
 
     CBlockIndex *pindexRescan = chainActive.Genesis();
     if (!gArgs.GetBoolArg("-rescan", false))
