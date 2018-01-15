@@ -1678,7 +1678,7 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
 
 void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& tx)
 {
-    assert(tx.nVersion == CTransaction::INVITE_VERSION);
+    assert(tx->IsInvite());
 
     debug("Invite Lottery Results");
 
@@ -2716,6 +2716,12 @@ int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Para
     return nVersion;
 }
 
+bool ExpectDaedalus(const CBlockIndex* pindex, const Consensus::Params& params) 
+{
+    const auto expected_version = ComputeBlockVersion(pindex, params);
+    return (expected_version & DAEDALUS_BIT) != 0;
+}
+
 /**
  * Threshold condition checker that triggers when unknown versionbits are seen on the network.
  */
@@ -2903,7 +2909,7 @@ bool ValidateInvites(
 
         assert(inv);
 
-        if(inv->nVersion != CTransaction::INVITE_VERSION) {
+        if(!inv->IsInvite()) {
             return state.DoS(
                     100,
                     false,
@@ -2955,7 +2961,7 @@ bool ValidateInvites(
             }
 
             assert(prev);
-            if(prev->nVersion != CTransaction::INVITE_VERSION) {
+            if(!prev->IsInvite()) {
                 return state.DoS(
                         100, 
                         false,
@@ -2988,7 +2994,7 @@ bool ValidateTransactionInputsNotInvites(
         CValidationState& state) 
 {
     for(const auto& tx : block.vtx) {
-        if(tx->nVersion == CTransaction::INVITE_VERSION) {
+        if(tx->IsInvite()) {
             return state.DoS(
                     100,
                     false,
@@ -3018,7 +3024,7 @@ bool ValidateTransactionInputsNotInvites(
             }
 
             assert(prev);
-            if(prev->nVersion == CTransaction::INVITE_VERSION) {
+            if(prev->IsInvite()) {
                 return state.DoS(
                         100, 
                         false,
@@ -3038,9 +3044,7 @@ bool ValidateContextualDaedalusBlock(
         const Consensus::Params& params,
         const CBlockIndex* pindexPrev)
 {
-    int32_t expected_version = ComputeBlockVersion(pindexPrev, params);
-
-    if(!(expected_version & DAEDALUS_BIT)) {
+    if(!ExpectDaedalus(pindexPrev, params)) {
         // During the Daedalus deployment, no other block types will be accepted.
         // This is unique to the daedalus deployment.
         return !(block.nVersion & DAEDALUS_BIT); 
@@ -3054,7 +3058,7 @@ bool ValidateContextualDaedalusBlock(
     // This is a daedalus block; so let's be sure that the block conforms to:
     // 1) All recipients have confirmed invitations
     // 2) The coinbase includes invitation rewards
-    if(!(block.nVersion & DAEDALUS_BIT)) {
+    if((block.nVersion & DAEDALUS_BIT) == 0) {
         return state.DoS(100,
                 false,
                 REJECT_INVALID,
