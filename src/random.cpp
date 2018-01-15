@@ -47,6 +47,9 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/thread.hpp>
+
 [[noreturn]] static void RandFailure()
 {
     LogPrintf("Failed to read randomness, aborting\n");
@@ -283,7 +286,19 @@ static void AddDataToRng(void* data, size_t len);
 void RandAddSeedSleep()
 {
     int64_t nPerfCounter1 = GetPerformanceCounter();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    /**
+     * Boost's sleep_for was uninterruptible when backed by nanosleep from 1.50
+     * until fixed in 1.52. Use the deprecated sleep method for the broken case.
+     * See: https://svn.boost.org/trac/boost/ticket/7238
+     */
+    #if defined(HAVE_WORKING_BOOST_SLEEP_FOR)
+        boost::this_thread::sleep_for(boost::chrono::milliseconds(1));
+    #elif defined(HAVE_WORKING_BOOST_SLEEP)
+        boost::this_thread::sleep(boost::posix_time::milliseconds(1));
+    #else
+    //should never get here
+    #error missing boost sleep implementation
+    #endif
     int64_t nPerfCounter2 = GetPerformanceCounter();
 
     // Combine with and update state
@@ -442,7 +457,19 @@ bool Random_SanityCheck()
     if (num_overwritten != NUM_OS_RANDOM_BYTES) return false; /* If this failed, bailed out after too many tries */
 
     // Check that GetPerformanceCounter increases at least during a GetOSRand() call + 1ms sleep.
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    /**
+     * Boost's sleep_for was uninterruptible when backed by nanosleep from 1.50
+     * until fixed in 1.52. Use the deprecated sleep method for the broken case.
+     * See: https://svn.boost.org/trac/boost/ticket/7238
+     */
+    #if defined(HAVE_WORKING_BOOST_SLEEP_FOR)
+        boost::this_thread::sleep_for(boost::chrono::milliseconds(1));
+    #elif defined(HAVE_WORKING_BOOST_SLEEP)
+        boost::this_thread::sleep(boost::posix_time::milliseconds(1));
+    #else
+    //should never get here
+    #error missing boost sleep implementation
+    #endif
     uint64_t stop = GetPerformanceCounter();
     if (stop == start) return false;
 
