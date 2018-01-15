@@ -226,10 +226,31 @@ class CompareTxMemPoolEntryByScore
 public:
     bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b) const
     {
+        const auto& atx = a.GetEntryValue();
+        const auto& btx = b.GetEntryValue();
+
+        // We prioritize invites over other transactions.
+        bool ai = atx.nVersion == CTransaction::INVITE_VERSION;
+        bool bi = btx.nVersion == CTransaction::INVITE_VERSION;
+
+        if(ai) { 
+            if(bi) { 
+                return btx.GetHash() < atx.GetHash();
+            } else {
+                return true;
+            }
+        } else {
+            if(bi) {
+                return false;
+            }
+        }
+
+        assert(!ai && !bi);
+
         double f1 = (double)a.GetModifiedFee() * b.GetSize();
         double f2 = (double)b.GetModifiedFee() * a.GetSize();
         if (f1 == f2) {
-            return b.GetEntryValue().GetHash() < a.GetEntryValue().GetHash();
+            return btx.GetHash() < atx.GetHash();
         }
         return f1 > f2;
     }

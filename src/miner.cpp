@@ -421,24 +421,31 @@ bool BlockAssembler::TestPackageContent(
 
 void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 {
-    pblock->vtx.emplace_back(iter->GetSharedEntryValue());
-    pblocktemplate->vTxFees.push_back(iter->GetFee());
+    const auto& tx = iter->GetEntryValue();
+    if(tx.nVersion == CTransaction::INVITE_VERSION) {
+        pblock->invites.emplace_back(iter->GetSharedEntryValue());
+    } else {
+        pblock->vtx.emplace_back(iter->GetSharedEntryValue());
+        pblocktemplate->vTxFees.push_back(iter->GetFee());
+        nFees += iter->GetFee();
+    }
+
     pblocktemplate->vTxSigOpsCost.push_back(iter->GetSigOpCost());
-    auto txSize = ::GetSerializeSize(iter->GetEntryValue(), SER_NETWORK, PROTOCOL_VERSION);
+    auto txSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
     if (fNeedSizeAccounting) {
         nBlockSize += txSize;
     }
+
     nBlockWeight += iter->GetWeight();
     ++nBlockTx;
     nBlockSigOpsCost += iter->GetSigOpCost();
-    nFees += iter->GetFee();
     txsInBlock.insert(iter);
 
     bool fPrintPriority = gArgs.GetBoolArg("-printpriority", DEFAULT_PRINTPRIORITY);
     if (fPrintPriority) {
         LogPrintf("fee %s txid %s\n",
             CFeeRate(iter->GetModifiedFee(), iter->GetSize()).ToString(),
-            iter->GetEntryValue().GetHash().ToString());
+            tx.GetHash().ToString());
     }
 }
 
@@ -634,7 +641,8 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
             packageSigOpsCost = modit->nSigOpCostWithAncestors;
         }
 
-        if (packageFees < blockMinFeeRate.GetFee(packageSize)) {
+        if (iter->GetEntryValue().nVersion != CTransaction::INVITE_VERSION && 
+                packageFees < blockMinFeeRate.GetFee(packageSize)) {
             // Everything else we might consider has a lower fee rate
             return;
         }
