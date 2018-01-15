@@ -2657,6 +2657,321 @@ static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consens
     return flags;
 }
 
+bool ConfirmAllPreDaedalusAddresses(
+        CValidationState& state,
+        const Consensus::Params& consensus,
+        const CBlockIndex* pindexPrev)
+{
+    const auto height = pindexPrev->nHeight + 1;
+
+    //Don't do the indexing if we are not on the first block during the daedalus deployment.
+    if(height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) { 
+        return true;
+    }
+
+    if(height > consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) { 
+        return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
+    }
+
+    //One time confirmation of all addresses before the daedalus block
+    prefviewdb->ConfirmAllPreDaedalusAddresses();
+}
+
+bool ConfirmAddresses(const CBlock& block)
+{
+    ReferralSet referrals_in_block;
+    BuildReferralSet(block, referrals_in_block);
+
+    for(const auto& tx : block.invites) {
+        assert(tx);
+
+        for (const auto& out : tx->vout) {
+            const auto address = ExtractAddress(out);
+            if(address.second == 0) {
+                if(out.nValue == 0) continue;
+                else return false;
+            }
+
+            const referral::Referral* ref_to_confirm = nullptr;
+            auto maybe_referral = prefviewdb->GetReferral(address.first);
+
+            if(!maybe_referral) {
+                if(referrals_in_block.count(address.first)) {
+                    auto ref = std::find_if(
+                            block.m_vRef.begin(), block.m_vRef.end(), 
+                            [&address](const referral::ReferralRef ref) {
+                                return ref->GetAddress() == address.first;
+                            });
+                    if(ref != block.m_vRef.end()) {
+                        ref_to_confirm = ref->get();
+                    }
+                }
+            } else {
+                ref_to_confirm = maybe_referral.get_ptr();
+            }
+
+            if(ref_to_confirm == nullptr) {
+                return false;
+            }
+
+            if(!prefviewdb->ConfirmReferral(*ref_to_confirm, *tx)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool ValidateAddressesAreConfirmed(const CBlock& block)
+{
+    for(const auto& tx : block.vtx) {
+        assert(tx);
+
+        for (const auto& out : tx->vout) {
+            const auto address = ExtractAddress(out);
+            if(address.second == 0) {
+                if(out.nValue == 0) continue;
+                else return false;
+            }
+
+            if(!prefviewdb->IsConfirmed(address.first)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool ValidateInvites(
+        const CBlock& block,
+        const Consensus::Params& params,
+        CValidationState& state)
+{
+    // First invite must be "invite-coinbase", the rest must not be
+    if (block.invites.empty() || !block.invites[0]->IsCoinBase()) {
+        return state.DoS(
+                100,
+                false,
+                REJECT_INVALID,
+                "bad-invite-cb-missing",
+                false,
+                "first invite is not coinbase");
+    }
+
+    bool check_coinbase = false;
+    for (const auto& inv : block.invites) {
+
+        assert(inv);
+
+        if(inv->nVersion != CTransaction::INVITE_VERSION) {
+            return state.DoS(
+                    100,
+                    false,
+                    REJECT_INVALID,
+                    "bad-invite-not-invite",
+                    false,
+                    "Invite transaction has wrong version");
+        }
+
+        if (!CheckTransaction(*inv, state, false)) {
+            return state.Invalid(
+                    false,
+                    state.GetRejectCode(),
+                    state.GetRejectReason(),
+                    strprintf(
+                        "Invite check failed (inv hash %s) %s",
+                        inv->GetHash().ToString(),
+                        state.GetDebugMessage()));
+        }
+
+        //Only the first invite can be a coinbase
+        if (check_coinbase && inv->IsCoinBase()) {
+            return state.DoS(
+                    100,
+                    false,
+                    REJECT_INVALID,
+                    "bad-invite-cb-multiple",
+                    false,
+                    "more than one invite coinbase");
+        }
+
+        for(const auto& in : inv->vin) {
+            CTransactionRef prev;
+            uint256 block_inv_is_in;
+            if(!GetTransaction(
+                        in.prevout.hash,
+                        prev,
+                        params,
+                        block_inv_is_in,
+                        true)) {
+
+                return state.DoS(
+                        100,
+                        false,
+                        REJECT_INVALID,
+                        "bad-invite-input-not-found",
+                        false,
+                        "Cannot find input for an invite");
+            }
+
+            assert(prev);
+            if(prev->nVersion != CTransaction::INVITE_VERSION) {
+                return state.DoS(
+                        100, 
+                        false,
+                        REJECT_INVALID,
+                        "bad-invite-input-is-not-invite",
+                        false,
+                        "Invites cannot have an input that is not an invite");
+            }
+        }
+
+        check_coinbase = true;
+    }
+
+    if(!InvitesAreBeaconed(block)) {
+        return state.DoS(
+                100,
+                false,
+                REJECT_INVALID,
+                "bad-invite-not-beaconed",
+                false,
+                "an invite is not beaconed.");
+    }
+
+    return true;
+}
+
+bool ValidateTransactionInputsNotInvites(
+        const CBlock& block,
+        const Consensus::Params& params,
+        CValidationState& state) 
+{
+    for(const auto& tx : block.vtx) {
+        if(tx->nVersion == CTransaction::INVITE_VERSION) {
+            return state.DoS(
+                    100,
+                    false,
+                    REJECT_INVALID,
+                    "bad-transaction-is-invite",
+                    false,
+                    "Normal transaction cannot be an invite");
+        }
+
+        for(const auto& in : tx->vin) {
+            CTransactionRef prev;
+            uint256 block_transaction_is_in;
+            if(!GetTransaction(
+                        in.prevout.hash,
+                        prev,
+                        params,
+                        block_transaction_is_in,
+                        true)) {
+
+                return state.DoS(
+                        100,
+                        false,
+                        REJECT_INVALID,
+                        "bad-transaction-input-not-found",
+                        false,
+                        "Cannot find input for a transaction");
+            }
+
+            assert(prev);
+            if(prev->nVersion == CTransaction::INVITE_VERSION) {
+                return state.DoS(
+                        100, 
+                        false,
+                        REJECT_INVALID,
+                        "bad-transaction-input-is-invite",
+                        false,
+                        "Normal transaction cannot have an invite as an inpu");
+            }
+        }
+    }
+    return true;
+}
+
+bool ValidateContextualDaedalusBlock(
+        const CBlock& block,
+        CValidationState& state,
+        const Consensus::Params& params,
+        const CBlockIndex* pindexPrev)
+{
+    int32_t expected_version = ComputeBlockVersion(pindexPrev, params);
+
+    if(!(expected_version & DAEDALUS_BIT)) {
+        // During the Daedalus deployment, no other block types will be accepted.
+        // This is unique to the daedalus deployment.
+        return !(block.nVersion & DAEDALUS_BIT); 
+    } 
+
+    // Make sure we confirm all pre daedalus addresses. This is a one time event.
+    if(!ConfirmAllPreDaedalusAddresses(state, params, pindexPrev)) {
+        throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
+    }
+
+    // This is a daedalus block; so let's be sure that the block conforms to:
+    // 1) All recipients have confirmed invitations
+    // 2) The coinbase includes invitation rewards
+    if(!(block.nVersion & DAEDALUS_BIT)) {
+        return state.DoS(100,
+                false,
+                REJECT_INVALID,
+                "bad-blk-expected-daedalus",
+                false,
+                "expected a daedalus block; node is bad actor or out-of-date");
+    }
+
+    // Size limits are larger in the case of daedalus
+    if (block.vtx.empty() || 
+            block.invites.empty() || 
+            (block.vtx.size() + block.invites.size()) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT || 
+            ::GetSerializeSize(
+                block,
+                SER_NETWORK,
+                PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT)
+
+        return state.DoS(
+                100,
+                false,
+                REJECT_INVALID,
+                "bad-blk-length",
+                false,
+                "size limits failed");
+
+    if(!ValidateInvites(block, params, state)) {
+        //state is assumed to be set.
+        return false;
+    }
+
+    if(!ValidateAddressesAreConfirmed(block)) {
+        return state.DoS(
+                100,
+                false,
+                REJECT_INVALID,
+                "bad-bad-txn-unconfirmed",
+                false,
+                "Transaction has unconfirmed address");
+
+    }
+
+    if(!ValidateTransactionInputsNotInvites(block, params, state)) {
+        return state.DoS(
+                100,
+                false,
+                REJECT_INVALID,
+                "bad-bad-txn-unconfirmed",
+                false,
+                "Transaction has inputs that are invites");
+    }
+
+    return true;
+}
+
+
 static int64_t nTimeCheck = 0;
 static int64_t nTimeForks = 0;
 static int64_t nTimeVerify = 0;
@@ -3076,6 +3391,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     //the ANV to the appropriate addresses.
     if(!IndexReferrals(ordered_referrals)) {
         return AbortNode(state, "Failed to write referrals");
+    }
+
+    if(!ConfirmAddresses(block)) {
+        return AbortNode(state, "Failed to confirm addresses");
     }
 
     if(!UpdateANV(debits_and_credits)) {
@@ -4136,190 +4455,6 @@ static bool CheckBlockHeader(
     // Check proof of work matches claimed amount
     if (fCheckPOW && !cuckoo::VerifyProofOfWork(block.GetHash(), block.nBits, block.nEdgeBits, block.sCycle, consensusParams))
         return state.DoS(50, false, REJECT_INVALID, "high-hash", false, "proof of work failed");
-
-    return true;
-}
-
-bool ConfirmAllPreDaedalusAddresses(
-        CValidationState& state,
-        const Consensus::Params& consensus,
-        const CBlockIndex* pindexPrev)
-{
-    const auto height = pindexPrev->nHeight + 1;
-
-    //Don't do the indexing if we are not on the first block during the daedalus deployment.
-    if(height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) { 
-        return true;
-    }
-
-    if(height > consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) { 
-        return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
-    }
-
-    //One time confirmation of all addresses before the daedalus block
-    prefviewdb->ConfirmAllPreDaedalusAddresses();
-}
-
-bool ConfirmAddresses(const CBlock& block)
-{
-    ReferralSet referrals_in_block;
-    BuildReferralSet(block, referrals_in_block);
-
-    for(const auto& tx : block.invites) {
-        assert(tx);
-
-        for (const auto& out : tx->vout) {
-            const auto address = ExtractAddress(out);
-            if(address.second == 0) {
-                if(out.nValue == 0) continue;
-                else return false;
-            }
-
-            const referral::Referral* ref_to_confirm = nullptr;
-            auto maybe_referral = prefviewdb->GetReferral(address.first);
-
-            if(!maybe_referral) {
-                if(referrals_in_block.count(address.first)) {
-                    auto ref = std::find_if(
-                            block.m_vRef.begin(), block.m_vRef.end(), 
-                            [&address](const referral::ReferralRef ref) {
-                                return ref->GetAddress() == address.first;
-                            });
-                    if(ref != block.m_vRef.end()) {
-                        ref_to_confirm = ref->get();
-                    }
-                }
-            } else {
-                ref_to_confirm = maybe_referral.get_ptr();
-            }
-
-            if(ref_to_confirm == nullptr) {
-                return false;
-            }
-
-            if(!prefviewdb->ConfirmReferral(*ref_to_confirm, *tx)) {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-bool ValidateAddressesAreConfirmed(const CBlock& block)
-{
-    for(const auto& tx : block.vtx) {
-        assert(tx);
-
-        for (const auto& out : tx->vout) {
-            const auto address = ExtractAddress(out);
-            if(address.second == 0) {
-                if(out.nValue == 0) continue;
-                else return false;
-            }
-
-            if(!prefviewdb->IsConfirmed(address.first)) {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-bool ValidateInvites(const CBlock& block, CValidationState& state)
-{
-    // First invite must be "invite-coinbase", the rest must not be
-    if (block.invites.empty() || !block.invites[0]->IsCoinBase()) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-invite-cb-missing", false, "first invite is not coinbase");
-    }
-
-    bool check_coinbase = false;
-    for (const auto& inv : block.invites) {
-
-        assert(inv);
-
-        if (!CheckTransaction(*inv, state, false)) {
-            return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
-                                 strprintf("Invite check failed (inv hash %s) %s", inv->GetHash().ToString(), state.GetDebugMessage()));
-        }
-
-        //Only the first invite can be a coinbase
-        if (check_coinbase && inv->IsCoinBase()) {
-            return state.DoS(100, false, REJECT_INVALID, "bad-invite-cb-multiple", false, "more than one invite coinbase");
-        }
-
-        check_coinbase = true;
-    }
-
-    if(!InvitesAreBeaconed(block)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-invite-not-beaconed", false, "an invite is not beaconed.");
-    }
-
-    return true;
-}
-
-bool ValidateContextualDaedalusBlock(
-        const CBlock& block,
-        CValidationState& state,
-        const Consensus::Params& consensus,
-        const CBlockIndex* pindexPrev)
-{
-    int32_t expected_version = ComputeBlockVersion(pindexPrev, consensus);
-
-    if(!(expected_version & DAEDALUS_BIT)) {
-        // During the Daedalus deployment, no other block types will be accepted.
-        // This is unique to the daedalus deployment.
-        return !(block.nVersion & DAEDALUS_BIT); 
-    } 
-
-    // Make sure we confirm all pre daedalus addresses. This is a one time event.
-    if(!ConfirmAllPreDaedalusAddresses(state, consensus, pindexPrev)) {
-        throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
-    }
-
-    // This is a daedalus block; so let's be sure that the block conforms to:
-    // 1) All recipients have confirmed invitations
-    // 2) The coinbase includes invitation rewards
-    if(!(block.nVersion & DAEDALUS_BIT)) {
-        return state.DoS(100,
-                false,
-                REJECT_INVALID,
-                "bad-blk-expected-daedalus",
-                false,
-                "expected a daedalus block; node is bad actor or out-of-date");
-    }
-
-    // Size limits are larger in the case of daedalus
-    if (block.vtx.empty() || 
-            block.invites.empty() || 
-            (block.vtx.size() + block.invites.size()) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT || 
-            ::GetSerializeSize(
-                block,
-                SER_NETWORK,
-                PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT)
-
-        return state.DoS(
-                100,
-                false,
-                REJECT_INVALID,
-                "bad-blk-length",
-                false,
-                "size limits failed");
-
-    if(!ValidateInvites(block, state)) {
-        //state is assumed to be set.
-        return false;
-    }
-
-    if(!ValidateAddressesAreConfirmed(block)) {
-        return state.DoS(
-                100,
-                false,
-                REJECT_INVALID,
-                "bad-bad-txn-unconfirmed", false, "Transaction has unconfirmed address");
-
-    }
 
     return true;
 }
