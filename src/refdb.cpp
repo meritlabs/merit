@@ -21,6 +21,8 @@ const char DB_PUBKEY = 'k';
 const char DB_LOT_SIZE = 's';
 const char DB_LOT_VAL = 'v';
 const char DB_CONFIRMATION = 'i';
+const char DB_CONFIRMATION_IDX = 'n';
+const char DB_CONFIRMATION_TOTAL = 'u';
 const char DB_PRE_DAEDALUS_CONFIRMED = 'k';
 
 const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
@@ -30,6 +32,10 @@ const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
 using AnvInternal = std::pair<CAmount, CAmount>;
 using ANVTuple = std::tuple<char, Address, AnvInternal>;
 using AnvRat = boost::rational<CAmount>;
+
+using TransactionHash = uint256;
+using TransactionOutIndex = int;
+using ConfirmationTuple = std::tuple<char, Address, TransactionHash, TransactionOutIndex>;
 
 ReferralsViewDB::ReferralsViewDB(
         size_t cache_size,
@@ -734,17 +740,37 @@ bool ReferralsViewDB::OrderReferrals(referral::ReferralRefs& refs)
     return true;
 }
 
-bool ReferralsViewDB::ConfirmReferral(const Referral& referral, const CTransaction& transaction) 
+bool ReferralsViewDB::ConfirmReferral(
+        const Referral& referral,
+        const CTransaction& transaction,
+        int output_index) 
 {
-    if(IsConfirmed(referral.GetAddress())) {
+    const auto& address = referral.GetAddress();
+
+    if(IsConfirmed(address)) {
         return false;
      } 
 
-    if(!m_db.Write(std::make_pair(DB_CONFIRMATION, referral.GetAddress()), transaction.GetHash())) {
+    size_t total_confirmations = 0;
+    m_db.Read(DB_CONFIRMATION_TOTAL, total_confirmations);
+
+    if(!m_db.Write(
+                std::make_pair(DB_CONFIRMATION_IDX, total_confirmations), 
+                std::make_tuple(
+                    referral.addressType,
+                    address,
+                    transaction.GetHash(),
+                    output_index))) {
         return false;
     }
 
-    return true;
+    if(!m_db.Write(
+                std::make_pair(DB_CONFIRMATION, address),
+                total_confirmations)) {
+        return false;
+    }
+
+    return m_db.Write(DB_CONFIRMATION_IDX, total_confirmations + 1);
 }
 
 
@@ -760,7 +786,26 @@ bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const
 
 bool ReferralsViewDB::RemoveReferralConfirmation(const Address& address) 
 {
-    return m_db.Erase(std::make_pair(DB_CONFIRMATION, address));
+    size_t idx = 0;
+    if(!m_db.Read(std::make_pair(DB_CONFIRMATION, address), idx)) {
+        return false;
+    }
+
+    if(!m_db.Erase(std::make_pair(DB_CONFIRMATION, address))) {
+        return false;
+    }
+
+    if(!m_db.Erase(std::make_pair(DB_CONFIRMATION, idx))) {
+        return false;
+    }
+
+    size_t total = 0;
+    if(!m_db.Read(DB_CONFIRMATION_TOTAL, total)) {
+        return false;
+    }
+
+    assert(total > 0);
+    return m_db.Write(DB_CONFIRMATION_TOTAL, total - 1);
 }
 
 bool ReferralsViewDB::ConfirmAllPreDaedalusAddresses()
@@ -776,6 +821,8 @@ bool ReferralsViewDB::ConfirmAllPreDaedalusAddresses()
     uint256 confirmed_tag;
     unsigned char* tag = static_cast<unsigned char*>(confirmed_tag.begin());
     tag[0] = 'd';
+
+    const int confirmed_index = 0;
 
     auto address = std::make_pair(DB_REFERRALS, Address{});
     while(iter->Valid())
@@ -797,7 +844,14 @@ bool ReferralsViewDB::ConfirmAllPreDaedalusAddresses()
             return false;
         }
 
-        if(!m_db.Write(std::make_pair(DB_CONFIRMATION, referral.GetAddress()), confirmed_tag)) {
+        auto referral_address = referral.GetAddress();
+
+        if(!m_db.Write(
+                    std::make_pair(DB_CONFIRMATION, referral_address),
+                    std::make_tuple(
+                        referral.addressType,
+                        confirmed_tag,
+                        confirmed_index))) {
             return false;
         }
 
@@ -817,4 +871,30 @@ bool ReferralsViewDB::AreAllPreDaedalusAddressesConfirmed() const
     return m_db.Exists(DB_PRE_DAEDALUS_CONFIRMED);
 }
 
+size_t ReferralsViewDB::GetTotalConfirmations() const
+{
+    size_t total = 0;
+    m_db.Read(DB_CONFIRMATION_TOTAL, total);
+    return total;
 }
+
+MaybeConfirmedAddress ReferralsViewDB::GetConfirmation(size_t idx) const
+{
+    auto total = GetTotalConfirmations();
+    if(idx >= total) {
+        return MaybeConfirmedAddress{};
+    }
+
+    ConfirmationTuple val;
+    if(!m_db.Read(std::make_pair(DB_CONFIRMATION_IDX, idx), val)) {
+        return MaybeConfirmedAddress{};
+    }
+
+    return MaybeConfirmedAddress{{
+        std::get<0>(val),
+        std::get<1>(val)
+    }};
+}
+
+} //namespace referral
+

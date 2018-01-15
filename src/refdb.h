@@ -39,6 +39,15 @@ struct AddressANV
 using AddressANVs = std::vector<AddressANV>;
 using MaybeAddressANV = boost::optional<AddressANV>;
 
+struct ConfirmedAddress
+{
+    char address_type;
+    Address address;
+};
+
+using ConfirmedAddresses = std::vector<ConfirmedAddress>;
+using MaybeConfirmedAddress = boost::optional<ConfirmedAddress>;
+
 /**
  * These are the replaced samples in the lottery.
  */
@@ -102,13 +111,16 @@ public:
             const uint64_t max_reservoir_size);
 
     //Daedalus code.
-    bool ConfirmReferral(const Referral&, const CTransaction&);
+    bool ConfirmReferral(const Referral&, const CTransaction&, int output_index);
     bool Exists(const Address&) const;
     bool IsConfirmed(const Address&) const;
     bool RemoveReferralConfirmation(const Address&);
 
     bool ConfirmAllPreDaedalusAddresses();
     bool AreAllPreDaedalusAddressesConfirmed() const;
+    size_t GetTotalConfirmations() const;
+    MaybeConfirmedAddress GetConfirmation(size_t idx) const;
+
 
 private:
     uint64_t GetLotteryHeapSize() const;

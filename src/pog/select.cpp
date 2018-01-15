@@ -293,4 +293,35 @@ namespace pog
         return m_distribution.Size();
     }
 
+    referral::ConfirmedAddresses SelectConfirmedAddresses(
+            const referral::ReferralsViewDB& db,
+            uint256 hash,
+            size_t n)
+    {
+        assert(n > 0);
+        auto requested = n;
+
+        const auto total = db.GetTotalConfirmations();
+
+        referral::ConfirmedAddresses addresses;
+
+        while(n--) {
+            const auto selected_idx = SipHashUint256(0, 0, hash) % total;
+            const auto sampled = db.GetConfirmation(selected_idx);
+
+            if(!sampled) {
+                return {};
+            }
+
+            addresses.push_back(*sampled);
+
+            CHashWriter hasher{SER_DISK, CLIENT_VERSION};
+            hasher << hash << sampled->address;
+            hash = hasher.GetHash();
+        }
+
+        assert(addresses.size() == requested);
+        return addresses;
+    }
+
 } // namespace pog

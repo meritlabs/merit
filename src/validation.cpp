@@ -2685,7 +2685,8 @@ bool ConfirmAddresses(const CBlock& block)
     for(const auto& tx : block.invites) {
         assert(tx);
 
-        for (const auto& out : tx->vout) {
+        for (int i = 0; i < tx->vout.size(); i++) {
+            const auto& out = tx->vout[i];
             const auto address = ExtractAddress(out);
             if(address.second == 0) {
                 if(out.nValue == 0) continue;
@@ -2714,7 +2715,7 @@ bool ConfirmAddresses(const CBlock& block)
                 return false;
             }
 
-            if(!prefviewdb->ConfirmReferral(*ref_to_confirm, *tx)) {
+            if(!prefviewdb->ConfirmReferral(*ref_to_confirm, *tx, i)) {
                 return false;
             }
         }

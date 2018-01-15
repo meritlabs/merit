@@ -42,6 +42,11 @@ namespace pog
             AnvDistribution m_distribution;
     };
 
+    referral::ConfirmedAddresses SelectConfirmedAddresses(
+            const referral::ReferralsViewDB& db,
+            uint256 hash,
+            size_t n);
+
 } // namespace pog
 
 #endif //MERIT_POG_SELECT_H
