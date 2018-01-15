@@ -264,8 +264,8 @@ public:
         consensus.daedalus_base_invites_per_block = 1;
         consensus.daedalus_max_winners_per_block = 5;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 28000; // About January 19, 2018
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 291520;   // About July 19, 2008
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 15; // About January 19, 2018
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 30;   // About July 19, 2008
         
         
 
@@ -385,8 +385,8 @@ public:
         consensus.daedalus_base_invites_per_block = 1;
         consensus.daedalus_max_winners_per_block = 5;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 28000; // About January 19, 2018
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 291520;   // About July 19, 2008
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 15; // About January 19, 2018
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 30;   // About July 19, 2008
         
         
 
