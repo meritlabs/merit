@@ -156,6 +156,18 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
         else
             txs.push_back(tx->GetHash().GetHex());
     }
+    UniValue invites(UniValue::VARR);
+    for(const auto& invite : block.invites)
+    {
+        if(txDetails)
+        {
+            UniValue objInv(UniValue::VOBJ);
+            TxToUniv(*invite, uint256(), objInv, true, RPCSerializationFlags());
+            invites.push_back(objInv);
+        }
+        else
+            invites.push_back(invite->GetHash().GetHex());
+    }
 
     UniValue refs(UniValue::VARR);
     for(const auto& ref : block.m_vRef)
@@ -171,6 +183,7 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
     }
 
     result.push_back(Pair("tx", txs));
+    result.push_back(Pair("invites", invites));
     result.push_back(Pair("referrals", refs));
     result.push_back(Pair("time", block.GetBlockTime()));
     result.push_back(Pair("mediantime", (int64_t)blockindex->GetMedianTimePast()));

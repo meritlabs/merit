@@ -174,17 +174,18 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblocktemplate->vTxFees.push_back(-1);       // updated at end
     pblocktemplate->vTxSigOpsCost.push_back(-1); // updated at end
 
-    //Add a dummy coinbase invite as first invite in daedalus block
-    if((pblock->nVersion & DAEDALUS_BIT) != 0) {
-        pblock->invites.emplace_back();
-    }
-
     LOCK2(cs_main, mempool.cs);
     CBlockIndex* pindexPrev = chainActive.Tip();
     assert(pindexPrev != nullptr);
     nHeight = pindexPrev->nHeight + 1;
 
     pblock->nVersion = ComputeBlockVersion(pindexPrev, chain_params);
+
+    //Add a dummy coinbase invite as first invite in daedalus block
+    if((pblock->nVersion & DAEDALUS_BIT) != 0) {
+        pblock->invites.emplace_back();
+    }
+
     // -regtest only: allow overriding block.nVersion with
     // -blockversion=N to test forking scenarios
     if (chainparams.MineBlocksOnDemand())
@@ -264,6 +265,10 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     //Include invites if we are mining a daudalus block
     if((pblock->nVersion & DAEDALUS_BIT) != 0) {
         CMutableTransaction coinbaseInvites;
+        coinbaseInvites.vin.resize(1);
+        coinbaseInvites.vin[0].prevout.SetNull();
+        coinbaseInvites.vin[0].scriptSig = CScript() << nHeight << OP_0;
+
         coinbaseInvites.nVersion = CTransaction::INVITE_VERSION;
 
         const auto invites = RewardInvites(

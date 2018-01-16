@@ -2707,7 +2707,9 @@ int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Para
     LOCK(cs_main);
     int32_t nVersion = VERSIONBITS_TOP_BITS;
 
-    for (int i = 0; i < (int)Consensus::MAX_VERSION_BITS_DEPLOYMENTS; i++) {
+    assert(pindexPrev);
+
+    for (int i = 0; i < static_cast<int>(Consensus::MAX_VERSION_BITS_DEPLOYMENTS); i++) {
         ThresholdState state = VersionBitsState(pindexPrev, params, (Consensus::DeploymentPos)i, versionbitscache);
         if (state == THRESHOLD_LOCKED_IN || state == THRESHOLD_STARTED) {
             nVersion |= VersionBitsMask(params, (Consensus::DeploymentPos)i);
@@ -2780,17 +2782,17 @@ bool ConfirmAllPreDaedalusAddresses(
 {
     const auto height = pindexPrev->nHeight + 1;
 
-    // Don't do the indexing if we are not on the first block during the daedalus deployment.
-    if (height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) {
+    // Don't do the indexing if we are not on the block before the daedalus deployment.
+    if (height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block - 1) {
         return true;
     }
 
-    if (height > consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) {
+    if (height > consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block - 1) {
         return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
     }
 
-    // One time confirmation of all addresses before the daedalus block
-    prefviewdb->ConfirmAllPreDaedalusAddresses();
+    //One time confirmation of all addresses before the daedalus block
+    return prefviewdb->ConfirmAllPreDaedalusAddresses();
 }
 
 bool ConfirmAddresses(const CBlock& block)
@@ -2858,7 +2860,7 @@ void BuildConfirmationSet(
         ConfirmationSet& confirmations_in_block)
 {
     for(const auto& invite : block.invites) {
-        assert((invite->nVersion & DAEDALUS_BIT) != 0);
+        assert(invite->nVersion == CTransaction::INVITE_VERSION);
         BuildConfirmationSet(invite, confirmations_in_block);
     }
 }
@@ -2905,7 +2907,7 @@ bool ValidateInvites(
                 "first invite is not coinbase");
     }
 
-    bool check_coinbase = false;
+    bool coinbase = true;
     for (const auto& inv : block.invites) {
 
         assert(inv);
@@ -2931,8 +2933,13 @@ bool ValidateInvites(
                         state.GetDebugMessage()));
         }
 
+        if(coinbase)  {
+            coinbase = false;
+            continue;
+        }
+
         //Only the first invite can be a coinbase
-        if (check_coinbase && inv->IsCoinBase()) {
+        if (inv->IsCoinBase()) {
             return state.DoS(
                     100,
                     false,
@@ -2972,8 +2979,6 @@ bool ValidateInvites(
                         "Invites cannot have an input that is not an invite");
             }
         }
-
-        check_coinbase = true;
     }
 
     if(!InvitesAreBeaconed(block)) {
@@ -3003,6 +3008,10 @@ bool ValidateTransactionInputsNotInvites(
                     "bad-transaction-is-invite",
                     false,
                     "Normal transaction cannot be an invite");
+        }
+
+        if(tx->IsCoinBase()) {
+            continue;
         }
 
         for(const auto& in : tx->vin) {
@@ -3046,14 +3055,15 @@ bool ValidateContextualDaedalusBlock(
         const CBlockIndex* pindexPrev)
 {
     if (!ExpectDaedalus(pindexPrev, params)) {
+
+        // Make sure we confirm all pre daedalus addresses. This is a one time event.
+        if(!ConfirmAllPreDaedalusAddresses(state, params, pindexPrev)) {
+            throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
+        }
+
         // During the Daedalus deployment, no other block types will be accepted.
         // This is unique to the daedalus deployment.
         return !(block.nVersion & DAEDALUS_BIT);
-    }
-
-    // Make sure we confirm all pre daedalus addresses. This is a one time event.
-    if (!ConfirmAllPreDaedalusAddresses(state, params, pindexPrev)) {
-        throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
     }
 
     // This is a daedalus block; so let's be sure that the block conforms to:
@@ -3098,17 +3108,11 @@ bool ValidateContextualDaedalusBlock(
                 "bad-bad-txn-unconfirmed",
                 false,
                 "Transaction has unconfirmed address");
-
     }
 
     if (!ValidateTransactionInputsNotInvites(block, params, state)) {
-        return state.DoS(
-                100,
-                false,
-                REJECT_INVALID,
-                "bad-bad-txn-unconfirmed",
-                false,
-                "Transaction has inputs that are invites");
+        //state is assumed set
+        return false;
     }
 
     return true;
@@ -3124,7 +3128,7 @@ static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
 
-bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos, uint pos_offset)
+bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos, unsigned int pos_offset)
 {
     // Update offsets for referrals so they can be recorded.
     CDiskTxPos pos{cur_block_pos, GetSizeOfCompactSize(block.m_vRef.size()) + pos_offset};
@@ -3815,7 +3819,7 @@ void static UpdateTip(CBlockIndex *pindexNew, const CChainParams& chainParams) {
             }
         }
         // Check the version of the last 100 blocks to see if we need to upgrade:
-        for (int i = 0; i < 100 && pindex != nullptr; i++)
+        for (int i = 0; i < 100 && pindex->pprev != nullptr; i++)
         {
             int32_t nExpectedVersion = ComputeBlockVersion(pindex->pprev, chainParams.GetConsensus());
             if (pindex->nVersion > VERSIONBITS_LAST_OLD_BLOCK_VERSION && (pindex->nVersion & ~nExpectedVersion) != 0)
