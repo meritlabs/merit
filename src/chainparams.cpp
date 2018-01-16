@@ -13,6 +13,7 @@
 #include "tinyformat.h"
 #include "util.h"
 #include "utilstrencodings.h"
+#include "versionbits.h"
 
 #include <assert.h>
 
@@ -367,19 +368,30 @@ public:
             "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
             "f967f5b6895626";
 
-        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  58, 0x207fffff, 24, 1, genesisReward, consensus);
+        genesis = CreateGenesisBlock(
+            genesisKeys,
+            referralSig,
+            TIMESTAMP_MESSAGE,
+            1514332800,
+            226,
+            0x207fffff,
+            24,
+            1 << VERSIONBITS_NUM_BITS,
+            genesisReward,
+            consensus);
 
         genesis.sCycle = {
-            0x10de12, 0x16cfda, 0x1c0d53, 0x207ab1, 0x2a513a, 0x2af9c6, 0x2b7a23, 0x2bf8ad, 0x39de17, 0x3e7ecf,
-            0x3f3383, 0x48bc18, 0x499683, 0x4c6a4f, 0x5289f2, 0x5b409a, 0x6665d4, 0x691a40, 0x6989f2, 0x75ba71,
-            0x7a299b, 0x7bb8e7, 0x8120c1, 0x855dc5, 0x8e7c8a, 0x9c93ea, 0x9e5ebf, 0xa1b5c3, 0xb39b6e, 0xb6b47c,
-            0xbc7f31, 0xbd6904, 0xc54857, 0xd15732, 0xd4225e, 0xd6dc71, 0xd975d1, 0xdbdfd3, 0xe74ad5, 0xec2a9a,
-            0xecf829, 0xfb9440
+            0xe9cd, 0x4aafb, 0x66eb8, 0xd77ed, 0x18c83a, 0x20920a, 0x27b203, 0x31aa2f,
+            0x35d655, 0x3a9648, 0x42c61d, 0x4a99e9, 0x4d27d3, 0x5b63ea, 0x62d7f1,
+            0x650a53, 0x65b660, 0x6c2dc3, 0x6d39e7, 0x7229d4, 0x81fa88, 0x85da2d,
+            0x8ba0c1, 0x92f694, 0x98f93e, 0x9d13a1, 0xa119a6, 0xa1dde1, 0xa5a518,
+            0xa66594, 0xa73180, 0xa91a66, 0xac82d2, 0xaf349d, 0xbd0ebd, 0xd23dbb,
+            0xd930b0, 0xdf5bba, 0xea32ca, 0xf14360, 0xf4e3e9, 0xf8a6c5
         };
 
         consensus.hashGenesisBlock = genesis.GetHash();
 
-        assert(consensus.hashGenesisBlock == uint256S("448f31e47f5daabfd1984f03a64723c7f50b2306961e6f0e7f482e0b49f2dbea"));
+        assert(consensus.hashGenesisBlock == uint256S("84ad50555ce1c28a2dc532ffe71622f3087db16f021e5d47925a56175384d088"));
         assert(genesis.hashMerkleRoot == uint256S("8be99a68b2514e86f17368e9cce63d302aa0f29ed91654b7c90dc9f7201fb69f"));
     }
 };

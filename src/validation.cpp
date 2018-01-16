@@ -1781,7 +1781,7 @@ bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, cons
     assert(coinbase.nVersion == CTransaction::INVITE_VERSION);
 
     //quick test before doing more expensive validation
-    if(coinbase.vout.size() != expected_invites.size()) { 
+    if(coinbase.vout.size() != expected_invites.size()) {
         return false;
     }
 
@@ -2707,8 +2707,6 @@ int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Para
 {
     LOCK(cs_main);
     int32_t nVersion = VERSIONBITS_TOP_BITS;
-
-    assert(pindexPrev);
 
     for (int i = 0; i < static_cast<int>(Consensus::MAX_VERSION_BITS_DEPLOYMENTS); i++) {
         ThresholdState state = VersionBitsState(pindexPrev, params, (Consensus::DeploymentPos)i, versionbitscache);
@@ -3828,7 +3826,7 @@ void static UpdateTip(CBlockIndex *pindexNew, const CChainParams& chainParams) {
             }
         }
         // Check the version of the last 100 blocks to see if we need to upgrade:
-        for (int i = 0; i < 100 && pindex->pprev != nullptr; i++)
+        for (int i = 0; i < 100 && pindex != nullptr; i++)
         {
             int32_t nExpectedVersion = ComputeBlockVersion(pindex->pprev, chainParams.GetConsensus());
             if (pindex->nVersion > VERSIONBITS_LAST_OLD_BLOCK_VERSION && (pindex->nVersion & ~nExpectedVersion) != 0)
