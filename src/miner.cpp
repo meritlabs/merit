@@ -367,7 +367,7 @@ bool BlockAssembler::TestPackageContent(
             return false;
         if (fNeedSizeAccounting) {
 
-            uint64_t nTxSize = 
+            uint64_t nTxSize =
                 ::GetSerializeSize(
                         it->GetEntryValue(),
                         SER_NETWORK,
@@ -384,7 +384,7 @@ bool BlockAssembler::TestPackageContent(
     if (fNeedSizeAccounting) {
         for (const auto& it : referrals) {
 
-            uint64_t nRefSize = 
+            uint64_t nRefSize =
                 ::GetSerializeSize(
                     it->GetEntryValue(),
                     SER_NETWORK, PROTOCOL_VERSION);
@@ -760,8 +760,8 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
 
         while (true) {
             if (chainparams.MiningRequiresPeers()) {
-                // Busy-wait for the network to come online so we don't waste 
-                // time mining n an obsolete chain. In regtest mode we expect 
+                // Busy-wait for the network to come online so we don't waste
+                // time mining n an obsolete chain. In regtest mode we expect
                 // to fly solo.
                 if (!g_connman) {
                     throw std::runtime_error(
@@ -769,7 +769,7 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
                 }
 
                 do {
-                    bool fvNodesEmpty = 
+                    bool fvNodesEmpty =
                         g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0;
 
                     if (!fvNodesEmpty && !IsInitialBlockDownload())
@@ -816,7 +816,6 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
 
             while (true) {
                 // Check if something found
-
                 if (cuckoo::FindProofOfWorkAdvanced(
                             pblock->GetHash(),
                             pblock->nBits,
@@ -834,10 +833,11 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
 
                     LogPrintf("MeritMiner:\n");
                     LogPrintf(
-                            "proof-of-work found within %8.3f seconds \n  block"
-                            " hash: %s  \n  cycle hash: %s  \ntarget: %s\n",
+                            "\n\n\nproof-of-work found within %8.3f seconds \n"
+                            "\tblock hash: %s\n\tnonce: %d\n\tcycle hash: %s\n\ttarget: %s\n\n\n",
                         elapsed.count(),
                         pblock->GetHash().GetHex(),
+                        pblock->nNonce,
                         cycleHash.GetHex(),
                         hashTarget.GetHex());
 
@@ -855,7 +855,7 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
                 boost::this_thread::interruption_point();
 
                 // Regtest mode doesn't require peers
-                if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0 && 
+                if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0 &&
                         chainparams.MiningRequiresPeers()) {
                     break;
                 }
@@ -864,7 +864,7 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
                     break;
                 }
 
-                if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && 
+                if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast &&
                         GetTime() - nStart > chainparams.MininBlockStaleTime()) {
                     break;
                 }
