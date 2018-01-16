@@ -3123,7 +3123,7 @@ static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
 
-bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos, uint pos_offset)
+bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos, unsigned int pos_offset)
 {
     // Update offsets for referrals so they can be recorded.
     CDiskTxPos pos{cur_block_pos, GetSizeOfCompactSize(block.m_vRef.size()) + pos_offset};
