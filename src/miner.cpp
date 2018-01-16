@@ -265,6 +265,10 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     //Include invites if we are mining a daudalus block
     if((pblock->nVersion & DAEDALUS_BIT) != 0) {
         CMutableTransaction coinbaseInvites;
+        coinbaseInvites.vin.resize(1);
+        coinbaseInvites.vin[0].prevout.SetNull();
+        coinbaseInvites.vin[0].scriptSig = CScript() << nHeight << OP_0;
+
         coinbaseInvites.nVersion = CTransaction::INVITE_VERSION;
 
         const auto invites = RewardInvites(

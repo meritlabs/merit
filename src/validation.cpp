@@ -2859,7 +2859,7 @@ void BuildConfirmationSet(
         ConfirmationSet& confirmations_in_block)
 {
     for(const auto& invite : block.invites) {
-        assert((invite->nVersion & DAEDALUS_BIT) != 0);
+        assert(invite->nVersion == CTransaction::INVITE_VERSION);
         BuildConfirmationSet(invite, confirmations_in_block);
     }
 }
@@ -2906,7 +2906,7 @@ bool ValidateInvites(
                 "first invite is not coinbase");
     }
 
-    bool check_coinbase = false;
+    bool coinbase = true;
     for (const auto& inv : block.invites) {
 
         assert(inv);
@@ -2932,8 +2932,13 @@ bool ValidateInvites(
                         state.GetDebugMessage()));
         }
 
+        if(coinbase)  {
+            coinbase = false;
+            continue;
+        }
+
         //Only the first invite can be a coinbase
-        if (check_coinbase && inv->IsCoinBase()) {
+        if (inv->IsCoinBase()) {
             return state.DoS(
                     100,
                     false,
@@ -2973,8 +2978,6 @@ bool ValidateInvites(
                         "Invites cannot have an input that is not an invite");
             }
         }
-
-        check_coinbase = true;
     }
 
     if(!InvitesAreBeaconed(block)) {
@@ -3005,6 +3008,10 @@ bool ValidateTransactionInputsNotInvites(
                     false,
                     "Normal transaction cannot be an invite");
         }
+
+        if(tx->IsCoinBase()) {
+            continue;
+        } 
 
         for(const auto& in : tx->vin) {
             CTransactionRef prev;
@@ -3104,13 +3111,8 @@ bool ValidateContextualDaedalusBlock(
     }
 
     if(!ValidateTransactionInputsNotInvites(block, params, state)) {
-        return state.DoS(
-                100,
-                false,
-                REJECT_INVALID,
-                "bad-bad-txn-unconfirmed",
-                false,
-                "Transaction has inputs that are invites");
+        //state is assumed set
+        return false;
     }
 
     return true;
