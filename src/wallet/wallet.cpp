@@ -320,8 +320,8 @@ bool CWallet::AddKeyPubKeyWithDB(CWalletDB &walletdb, const CKey& secret, const 
 
     if (!IsCrypted()) {
         return walletdb.WriteKey(pubkey,
-                                                 secret.GetPrivKey(),
-                                                 mapKeyMetadata[pubkey.GetID()]);
+            secret.GetPrivKey(),
+            mapKeyMetadata[pubkey.GetID()]);
     }
     return true;
 }
@@ -4292,7 +4292,6 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
         walletInstance->SetBestChain(chainActive.GetLocator());
     }
 
-    LogPrintf(" wallet      %15dms\n", GetTimeMillis() - nStart);
     LogPrintf(" wallet      %15dms\n", GetTimeMillis() - nStart);
 
     RegisterValidationInterface(walletInstance);

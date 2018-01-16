@@ -99,36 +99,6 @@ static CBlock CreateGenesisBlock(
     genesis.hashPrevBlock.SetNull();
     genesis.hashMerkleRoot = BlockMerkleRoot(genesis);
 
-    // if (true) {
-    //     std::set<uint32_t> pow;
-
-    //     uint32_t nMaxTries = 10000000;
-    //     genesis.nNonce = 0;
-
-    //     ctpl::thread_pool pool{8};
-
-    //     while (nMaxTries > 0 && !cuckoo::FindProofOfWorkAdvanced(genesis.GetHash(), genesis.nBits, genesis.nEdgeBits, pow, params, pool)) {
-    //         ++genesis.nNonce;
-    //         --nMaxTries;
-    //     }
-
-    //     if (nMaxTries == 0) {
-    //         printf("Could not find cycle for genesis block");
-    //     } else {
-    //         printf("Genesis block generated!!!\n");
-    //         printf("hash: %s\nmerkelHash: %s\nnonce: %d\nedges bits: %d\nnodes:\n",
-    //             genesis.GetHash().GetHex().c_str(),
-    //             genesis.hashMerkleRoot.GetHex().c_str(),
-    //             genesis.nNonce,
-    //             genesis.nEdgeBits); // use pkPrefix here as it differs for different nets
-    //         for (const auto& node : pow) {
-    //             printf("0x%x, ", node);
-    //         }
-    //     }
-
-    //     exit(1);
-    // }
-
     return genesis;
 }
 
@@ -368,30 +338,20 @@ public:
             "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
             "f967f5b6895626";
 
-        genesis = CreateGenesisBlock(
-            genesisKeys,
-            referralSig,
-            TIMESTAMP_MESSAGE,
-            1514332800,
-            226,
-            0x207fffff,
-            24,
-            1 << VERSIONBITS_NUM_BITS,
-            genesisReward,
-            consensus);
+        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800, 381, 0x207fffff, 24, 1, genesisReward, consensus);
 
         genesis.sCycle = {
-            0xe9cd, 0x4aafb, 0x66eb8, 0xd77ed, 0x18c83a, 0x20920a, 0x27b203, 0x31aa2f,
-            0x35d655, 0x3a9648, 0x42c61d, 0x4a99e9, 0x4d27d3, 0x5b63ea, 0x62d7f1,
-            0x650a53, 0x65b660, 0x6c2dc3, 0x6d39e7, 0x7229d4, 0x81fa88, 0x85da2d,
-            0x8ba0c1, 0x92f694, 0x98f93e, 0x9d13a1, 0xa119a6, 0xa1dde1, 0xa5a518,
-            0xa66594, 0xa73180, 0xa91a66, 0xac82d2, 0xaf349d, 0xbd0ebd, 0xd23dbb,
-            0xd930b0, 0xdf5bba, 0xea32ca, 0xf14360, 0xf4e3e9, 0xf8a6c5
+            0x13529, 0xb3ef1, 0xf3211, 0x166f1d, 0x1fe182, 0x229740, 0x2704c2, 0x2a3b1b,
+            0x32053c, 0x39fee1, 0x3ed8ff, 0x3f079d, 0x408b98, 0x40b31d, 0x434ea2, 0x463eaa,
+            0x482bb4, 0x49eae3, 0x4bb609, 0x545752, 0x5a2d5b, 0x5e3999, 0x6ca1d2, 0x76c4f7,
+            0x826245, 0x82d44d, 0xad2cd4, 0xafd7be, 0xb5792b, 0xb593a2, 0xb7f4fb, 0xc2a540,
+            0xcec41e, 0xd33967, 0xdbb0b8, 0xdc9ce4, 0xdf509e, 0xe04520, 0xe187ef, 0xe30157,
+            0xed068f, 0xfd58fe
         };
 
         consensus.hashGenesisBlock = genesis.GetHash();
 
-        assert(consensus.hashGenesisBlock == uint256S("84ad50555ce1c28a2dc532ffe71622f3087db16f021e5d47925a56175384d088"));
+        assert(consensus.hashGenesisBlock == uint256S("448f31e47f5daabfd1984f03a64723c7f50b2306961e6f0e7f482e0b49f2dbea"));
         assert(genesis.hashMerkleRoot == uint256S("8be99a68b2514e86f17368e9cce63d302aa0f29ed91654b7c90dc9f7201fb69f"));
     }
 };

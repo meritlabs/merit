@@ -2482,9 +2482,9 @@ bool InvitesAreBeaconed(const CBlock& block)
 {
     assert(prefviewdb);
 
-    ReferralSet confirmations_in_block;
-    BuildReferralSet(block, confirmations_in_block);
-    return TransactionsAreBeaconed(confirmations_in_block, block.invites);
+    ReferralSet referrals_in_block;
+    BuildReferralSet(block, referrals_in_block);
+    return TransactionsAreBeaconed(referrals_in_block, block.invites);
 }
 
 bool UpdateLotteryEntrants(

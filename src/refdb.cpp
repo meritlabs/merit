@@ -266,9 +266,11 @@ MaybeAddressANV ReferralsViewDB::GetANV(const Address& address) const
     }
 
     const auto anv_pub = AnvInToAnvPub(std::get<2>(anv));
-    return MaybeAddressANV({std::get<0>(anv),
+    return MaybeAddressANV({
+        std::get<0>(anv),
         std::get<1>(anv),
-        anv_pub});
+        anv_pub
+    });
 }
 
 AddressANVs ReferralsViewDB::GetAllANVs() const
