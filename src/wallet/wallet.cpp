@@ -3613,8 +3613,6 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<referral::Addres
             return false;
         }
 
-        debug("TopUpKeyPool");
-
         // do not derive new keys while in daedalus generation
         if (DaedalusGeneration()) {
             return true;
@@ -3679,7 +3677,6 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool)
 {
     nIndex = -1;
     keypool.vchPubKey = CPubKey();
-    debug("ReserveKeyFromKeyPool");
 
     if (!IsLocked() && IsReferred()) {
         TopUpKeyPool();
@@ -3710,7 +3707,6 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool)
 
         // do not remove key from pool
         if (DaedalusGeneration()) {
-            debug("do not remove key from pool");
             return;
         }
 
@@ -3724,7 +3720,6 @@ void CWallet::KeepKey(int64_t nIndex)
 {
     // do not remove key from pool
     if (DaedalusGeneration()) {
-        debug("do not remove key from db pool");
         return;
     }
 
@@ -3738,7 +3733,6 @@ void CWallet::ReturnKey(int64_t nIndex, const CPubKey& pubkey)
 {
     // do not put key back to pool as it was not removed
     if (DaedalusGeneration()) {
-        debug("do not remove key from db pool");
         return;
     }
 
@@ -3945,8 +3939,6 @@ std::set<CTxDestination> CWallet::GetAccountAddresses(const std::string& strAcco
 
 bool CReserveKey::GetReservedKey(CPubKey& pubkey)
 {
-    debug("GetReservedKey");
-
     if (nIndex == -1)
     {
         CKeyPool keypool;
@@ -4008,7 +4000,6 @@ void CWallet::GetScriptForMining(std::shared_ptr<CReserveScript> &script)
 {
     std::shared_ptr<CReserveKey> rKey = std::make_shared<CReserveKey>(this);
     CPubKey pubkey;
-    debug("GetScriptForMining");
     if (!rKey->GetReservedKey(pubkey)) {
         return;
     }
