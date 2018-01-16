@@ -20,16 +20,26 @@ ThresholdState AbstractThresholdConditionChecker::GetStateFor(const CBlockIndex*
     int64_t nTimeStart = BeginTime(params);
     int64_t nTimeTimeout = EndTime(params);
 
-    int begin_block = BeginBlock(params); 
-    int end_block = EndBlock(params); 
+    int begin_block = BeginBlock(params);
+    int end_block = EndBlock(params);
 
-    //Use explicit block height instead of time if begin and end block height are
-    //defined. Clients must update their version as there is no threshold to meet.
-    //We expect them to be locked in.
-    if(begin_block != 0 && end_block != 0 && end_block >= begin_block) {
+    // Use explicit block height instead of time if begin and end block height are
+    // defined. Clients must update their version as there is no threshold to meet.
+    // We expect them to be locked in.
+    if (begin_block != 0 && end_block != 0) {
+        assert(end_block >= begin_block);
+
+        if (pindexPrev == nullptr) {
+            return THRESHOLD_DEFINED;
+        }
+
         const auto height = pindexPrev->nHeight + 1;
-        return height >= begin_block && height < end_block ?
-            THRESHOLD_LOCKED_IN : THRESHOLD_FAILED;
+
+        if (height >= begin_block && height < end_block) {
+            return Condition(pindexPrev, params) ? THRESHOLD_STARTED : THRESHOLD_LOCKED_IN;
+        } else {
+            return THRESHOLD_FAILED;
+        }
     }
 
     // A block's state is always the same as that of the first of its period, so it is computed based on a pindexPrev whose height equals a multiple of nPeriod - 1.
@@ -188,7 +198,7 @@ protected:
 
     bool Condition(const CBlockIndex* pindex, const Consensus::Params& params) const override
     {
-        return (((pindex->nVersion & VERSIONBITS_TOP_MASK) == VERSIONBITS_TOP_BITS) && 
+        return (((pindex->nVersion & VERSIONBITS_TOP_MASK) == VERSIONBITS_TOP_BITS) &&
                 (pindex->nVersion & Mask(params)) != 0);
     }
 

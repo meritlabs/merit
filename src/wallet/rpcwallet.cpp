@@ -261,7 +261,7 @@ UniValue getrawchangeaddress(const JSONRPCRequest& request)
 
     CReserveKey reservekey(pwallet);
     CPubKey vchPubKey;
-    if (!reservekey.GetReservedKey(vchPubKey, true))
+    if (!reservekey.GetReservedKey(vchPubKey))
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
     reservekey.KeepKey();
@@ -492,7 +492,7 @@ static UniValue EasySend(
     CReserveKey reserve_key(&pwallet);
 
     CPubKey sender_pub;
-    if (!reserve_key.GetReservedKey(sender_pub, true)) {
+    if (!reserve_key.GetReservedKey(sender_pub)) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Keypool ran out, please call keypoolrefill first");
@@ -753,7 +753,7 @@ static UniValue EasyReceive(
     CReserveKey reserve_key(&pwallet);
 
     CPubKey receiver_pub;
-    if (!reserve_key.GetReservedKey(receiver_pub, true)) {
+    if (!reserve_key.GetReservedKey(receiver_pub)) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Keypool ran out, please call keypoolrefill first");
@@ -1153,7 +1153,7 @@ UniValue createvault(const JSONRPCRequest& request)
         if(options.exists("spend_key")) {
             spend_pub_key = CPubKey{ParseHex(options["spend_key"].get_str())};
         } else {
-            if (!reserve_key.GetReservedKey(spend_pub_key, true)) {
+            if (!reserve_key.GetReservedKey(spend_pub_key)) {
                 throw JSONRPCError(
                         RPC_WALLET_ERROR,
                         "Keypool ran out, please call keypoolrefill first");
@@ -4080,8 +4080,7 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
             "  \"immature_balance\": xxxxxx,      (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"txcount\": xxxxxxx,              (numeric) the total number of transactions in the wallet\n"
             "  \"keypoololdest\": xxxxxx,         (numeric) the timestamp (seconds since Unix epoch) of the oldest pre-generated key in the key pool\n"
-            "  \"keypoolsize\": xxxx,             (numeric) how many new keys are pre-generated (only counts external keys)\n"
-            "  \"keypoolsize_hd_internal\": xxxx, (numeric) how many new keys are pre-generated for internal use (used for change outputs, only appears if the wallet is using this feature, otherwise external keys are used)\n"
+            "  \"keypoolsize\": xxxx,             (numeric) how many new keys are pre-generated\n"
             "  \"unlocked_until\": ttt,           (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
             "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
             "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
@@ -4098,7 +4097,6 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
 
     UniValue obj(UniValue::VOBJ);
 
-    size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
     obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
@@ -4106,17 +4104,16 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
     obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
     obj.push_back(Pair("txcount",       (int)pwallet->mapWallet.size()));
     obj.push_back(Pair("keypoololdest", pwallet->GetOldestKeyPoolTime()));
-    obj.push_back(Pair("keypoolsize", (int64_t)kpExternalSize));
-    CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
-    if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT)) {
-        obj.push_back(Pair("keypoolsize_hd_internal",   (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
-    }
+    obj.push_back(Pair("keypoolsize", (int64_t)pwallet->GetKeyPoolSize()));
     if (pwallet->IsCrypted()) {
         obj.push_back(Pair("unlocked_until", pwallet->nRelockTime));
     }
     obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
-    if (!masterKeyID.IsNull())
+
+    CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
+    if (!masterKeyID.IsNull()) {
          obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
+    }
 
     if (!pwallet->IsReferred()) {
         obj.push_back(Pair("referred", false));
@@ -4810,7 +4807,6 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     // TODO: Make this check more robust.
     UniValue obj(UniValue::VOBJ);
 
-    size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
     obj.push_back(Pair("address", EncodeDestination(CKeyID{referral->GetAddress()})));
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
@@ -4819,11 +4815,8 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     obj.push_back(Pair("immature_balance", ValueFromAmount(pwallet->GetImmatureBalance())));
     obj.push_back(Pair("txcount", (int)pwallet->mapWallet.size()));
     obj.push_back(Pair("keypoololdest", pwallet->GetOldestKeyPoolTime()));
-    obj.push_back(Pair("keypoolsize", (int64_t)kpExternalSize));
+    obj.push_back(Pair("keypoolsize", (int64_t)pwallet->GetKeyPoolSize()));
     CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
-
-    if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT))
-        obj.push_back(Pair("keypoolsize_hd_internal", (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
 
     if (pwallet->IsCrypted())
         obj.push_back(Pair("unlocked_until", pwallet->nRelockTime));

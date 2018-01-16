@@ -1706,7 +1706,7 @@ void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& t
 struct RewardComp
 {
     bool operator()(const pog::AmbassadorReward& a, const pog::AmbassadorReward& b) {
-        if(a.amount == b.amount) { 
+        if(a.amount == b.amount) {
             return a.address < b.address;
         }
         return a.amount < b.amount;
@@ -1721,7 +1721,7 @@ void SortRewards(pog::Rewards& rewards)
 struct InviteComp
 {
     bool operator()(const pog::InviteReward& a, const pog::InviteReward& b) {
-        if(a.invites == b.invites) { 
+        if(a.invites == b.invites) {
             return a.address < b.address;
         }
         return a.invites < b.invites;
@@ -1778,9 +1778,10 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
 
 bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, const CTransaction& coinbase) {
     assert(coinbase.IsCoinBase());
+    assert(coinbase.nVersion == CTransaction::INVITE_VERSION);
 
     //quick test before doing more expensive validation
-    if(coinbase.vout.size() != expected_invites.size()) { 
+    if(coinbase.vout.size() != expected_invites.size()) {
         return false;
     }
 
@@ -2431,7 +2432,7 @@ bool RemoveReferrals(const CBlock& block)
 
 using ReferralSet = std::set<uint160>;
 
-void BuildReferralSet(const CBlock& block, ReferralSet& referrals_in_block) 
+void BuildReferralSet(const CBlock& block, ReferralSet& referrals_in_block)
 {
     std::transform(block.m_vRef.begin(), block.m_vRef.end(),
             std::inserter(referrals_in_block, referrals_in_block.end()),
@@ -2707,8 +2708,6 @@ int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Para
     LOCK(cs_main);
     int32_t nVersion = VERSIONBITS_TOP_BITS;
 
-    assert(pindexPrev);
-
     for (int i = 0; i < static_cast<int>(Consensus::MAX_VERSION_BITS_DEPLOYMENTS); i++) {
         ThresholdState state = VersionBitsState(pindexPrev, params, (Consensus::DeploymentPos)i, versionbitscache);
         if (state == THRESHOLD_LOCKED_IN || state == THRESHOLD_STARTED) {
@@ -2719,7 +2718,7 @@ int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Para
     return nVersion;
 }
 
-bool ExpectDaedalus(const CBlockIndex* pindex, const Consensus::Params& params) 
+bool ExpectDaedalus(const CBlockIndex* pindex, const Consensus::Params& params)
 {
     const auto expected_version = ComputeBlockVersion(pindex, params);
     return (expected_version & DAEDALUS_BIT) != 0;
@@ -2782,12 +2781,12 @@ bool ConfirmAllPreDaedalusAddresses(
 {
     const auto height = pindexPrev->nHeight + 1;
 
-    //Don't do the indexing if we are not on the block before the daedalus deployment.
-    if(height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block - 1) { 
+    // Don't do the indexing if we are not on the block before the daedalus deployment.
+    if (height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block - 1) {
         return true;
     }
 
-    if(height > consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block - 1) { 
+    if (height > consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block - 1) {
         return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
     }
 
@@ -2817,7 +2816,7 @@ bool ConfirmAddresses(const CBlock& block)
             if(!maybe_referral) {
                 if(referrals_in_block.count(address.first)) {
                     auto ref = std::find_if(
-                            block.m_vRef.begin(), block.m_vRef.end(), 
+                            block.m_vRef.begin(), block.m_vRef.end(),
                             [&address](const referral::ReferralRef ref) {
                                 return ref->GetAddress() == address.first;
                             });
@@ -2833,7 +2832,7 @@ bool ConfirmAddresses(const CBlock& block)
                 return false;
             }
 
-            if(!prefviewdb->ConfirmReferral(*ref_to_confirm, *tx, i)) {
+            if(!prefviewdb->ConfirmReferral(*ref_to_confirm, tx->GetHash(), i)) {
                 return false;
             }
         }
@@ -2880,7 +2879,7 @@ bool ValidateAddressesAreConfirmed(const CBlock& block)
                 else return false;
             }
 
-            //Check block or blockchain if the address is confirmed. 
+            //Check block or blockchain if the address is confirmed.
             if(confirmations_in_block.count(address.first) == 0 &&
                     !prefviewdb->IsConfirmed(address.first)) {
                 return false;
@@ -2971,7 +2970,7 @@ bool ValidateInvites(
             assert(prev);
             if(!prev->IsInvite()) {
                 return state.DoS(
-                        100, 
+                        100,
                         false,
                         REJECT_INVALID,
                         "bad-invite-input-is-not-invite",
@@ -2997,7 +2996,7 @@ bool ValidateInvites(
 bool ValidateTransactionInputsNotInvites(
         const CBlock& block,
         const Consensus::Params& params,
-        CValidationState& state) 
+        CValidationState& state)
 {
     for(const auto& tx : block.vtx) {
         if(tx->IsInvite()) {
@@ -3012,7 +3011,7 @@ bool ValidateTransactionInputsNotInvites(
 
         if(tx->IsCoinBase()) {
             continue;
-        } 
+        }
 
         for(const auto& in : tx->vin) {
             CTransactionRef prev;
@@ -3036,7 +3035,7 @@ bool ValidateTransactionInputsNotInvites(
             assert(prev);
             if(prev->IsInvite()) {
                 return state.DoS(
-                        100, 
+                        100,
                         false,
                         REJECT_INVALID,
                         "bad-transaction-input-is-invite",
@@ -3054,7 +3053,7 @@ bool ValidateContextualDaedalusBlock(
         const Consensus::Params& params,
         const CBlockIndex* pindexPrev)
 {
-    if(!ExpectDaedalus(pindexPrev, params)) {
+    if (!ExpectDaedalus(pindexPrev, params)) {
 
         // Make sure we confirm all pre daedalus addresses. This is a one time event.
         if(!ConfirmAllPreDaedalusAddresses(state, params, pindexPrev)) {
@@ -3063,13 +3062,13 @@ bool ValidateContextualDaedalusBlock(
 
         // During the Daedalus deployment, no other block types will be accepted.
         // This is unique to the daedalus deployment.
-        return !(block.nVersion & DAEDALUS_BIT); 
-    } 
+        return !(block.nVersion & DAEDALUS_BIT);
+    }
 
     // This is a daedalus block; so let's be sure that the block conforms to:
     // 1) All recipients have confirmed invitations
     // 2) The coinbase includes invitation rewards
-    if((block.nVersion & DAEDALUS_BIT) == 0) {
+    if ((block.nVersion & DAEDALUS_BIT) == 0) {
         return state.DoS(100,
                 false,
                 REJECT_INVALID,
@@ -3079,9 +3078,9 @@ bool ValidateContextualDaedalusBlock(
     }
 
     // Size limits are larger in the case of daedalus
-    if (block.vtx.empty() || 
-            block.invites.empty() || 
-            (block.vtx.size() + block.invites.size()) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT || 
+    if (block.vtx.empty() ||
+            block.invites.empty() ||
+            (block.vtx.size() + block.invites.size()) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT ||
             ::GetSerializeSize(
                 block,
                 SER_NETWORK,
@@ -3095,23 +3094,22 @@ bool ValidateContextualDaedalusBlock(
                 false,
                 "size limits failed");
 
-    if(!ValidateInvites(block, params, state)) {
+    if (!ValidateInvites(block, params, state)) {
         //state is assumed to be set.
         return false;
     }
 
-    if(!ValidateAddressesAreConfirmed(block)) {
+    if (!ValidateAddressesAreConfirmed(block)) {
         return state.DoS(
                 100,
                 false,
                 REJECT_INVALID,
-                "bad-bad-txn-unconfirmed",
+                "bad-txn-unconfirmed",
                 false,
                 "Transaction has unconfirmed address");
-
     }
 
-    if(!ValidateTransactionInputsNotInvites(block, params, state)) {
+    if (!ValidateTransactionInputsNotInvites(block, params, state)) {
         //state is assumed set
         return false;
     }
@@ -3828,7 +3826,7 @@ void static UpdateTip(CBlockIndex *pindexNew, const CChainParams& chainParams) {
             }
         }
         // Check the version of the last 100 blocks to see if we need to upgrade:
-        for (int i = 0; i < 100 && pindex->pprev != nullptr; i++)
+        for (int i = 0; i < 100 && pindex != nullptr; i++)
         {
             int32_t nExpectedVersion = ComputeBlockVersion(pindex->pprev, chainParams.GetConsensus());
             if (pindex->nVersion > VERSIONBITS_LAST_OLD_BLOCK_VERSION && (pindex->nVersion & ~nExpectedVersion) != 0)

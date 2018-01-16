@@ -7,13 +7,9 @@
 #include <algorithm>
 #include <numeric>
 
-namespace pog 
+namespace pog
 {
-
-    namespace
-    {
-        const int BLOCKS_PER_DAY = 24 * 60; //minutes in a day.
-    }
+    const int DAY = 24 * 60 * 60;
 
     AmbassadorLottery RewardAmbassadors(
             int height,
@@ -25,17 +21,17 @@ namespace pog
          */
         CAmount fixed_precision = height < 16000 ? 100 : 1000;
 
-        CAmount total_anv = 
-            std::accumulate(std::begin(winners), std::end(winners), CAmount{0}, 
-                    [](CAmount acc, const referral::AddressANV& v) 
-                    { 
+        CAmount total_anv =
+            std::accumulate(std::begin(winners), std::end(winners), CAmount{0},
+                    [](CAmount acc, const referral::AddressANV& v)
+                    {
                         return acc + v.anv;
                     });
 
         Rewards rewards(winners.size());
         std::transform(std::begin(winners), std::end(winners), std::begin(rewards),
-                [total_reward, total_anv, fixed_precision](const referral::AddressANV& v) 
-                { 
+                [total_reward, total_anv, fixed_precision](const referral::AddressANV& v)
+                {
                     double percent = (v.anv*fixed_precision) / total_anv;
                     CAmount reward = (total_reward * percent) / fixed_precision;
                     assert(reward <= total_reward);
@@ -44,16 +40,16 @@ namespace pog
 
         Rewards filtered_rewards;
         filtered_rewards.reserve(rewards.size());
-        std::copy_if(std::begin(rewards), std::end(rewards), 
+        std::copy_if(std::begin(rewards), std::end(rewards),
                 std::back_inserter(filtered_rewards),
                 [](const AmbassadorReward& reward) {
                     return reward.amount > 0;
                 });
 
-        CAmount total_rewarded = 
-            std::accumulate(std::begin(filtered_rewards), std::end(filtered_rewards), CAmount{0}, 
-                    [](CAmount acc, const AmbassadorReward& reward) 
-                    { 
+        CAmount total_rewarded =
+            std::accumulate(std::begin(filtered_rewards), std::end(filtered_rewards), CAmount{0},
+                    [](CAmount acc, const AmbassadorReward& reward)
+                    {
                         return acc + reward.amount;
                     });
 
@@ -76,14 +72,15 @@ namespace pog
         assert(height >= start_block);
 
         const auto blocks = height - start_block;
-        const auto days = blocks / BLOCKS_PER_DAY;
+        const auto blocks_per_day = DAY / params.nPowTargetSpacing;
+        const auto days = blocks / blocks_per_day;
 
         const auto mult = 1 + (days / 30); //increase rate every 30 days
 
         assert(mult > 0);
-        const auto invites_per_block = params.daedalus_base_invites_per_block * mult;
+        const int invites_per_block = params.daedalus_base_invites_per_block * mult;
 
-        const auto total_winners = 
+        const auto total_winners =
             std::min(invites_per_block, params.daedalus_max_winners_per_block);
 
         return { total_winners, invites_per_block};
@@ -95,8 +92,8 @@ namespace pog
     {
         assert(winners.size() == params.total_winners);
 
-        const auto invites_per_winner = 
-            params.total_invites / 
+        const auto invites_per_winner =
+            params.total_invites /
             params.total_winners;
 
         assert(invites_per_winner > 0);
@@ -112,7 +109,7 @@ namespace pog
                 });
 
         const auto remaining_invites =
-            params.total_invites - (invites_per_winner * params.total_winners); 
+            params.total_invites - (invites_per_winner * params.total_winners);
 
         assert(remaining_invites >= 0);
 
