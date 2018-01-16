@@ -2781,17 +2781,17 @@ bool ConfirmAllPreDaedalusAddresses(
 {
     const auto height = pindexPrev->nHeight + 1;
 
-    //Don't do the indexing if we are not on the first block during the daedalus deployment.
-    if(height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) { 
+    //Don't do the indexing if we are not on the block before the daedalus deployment.
+    if(height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block - 1) { 
         return true;
     }
 
-    if(height > consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) { 
+    if(height > consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block - 1) { 
         return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
     }
 
     //One time confirmation of all addresses before the daedalus block
-    prefviewdb->ConfirmAllPreDaedalusAddresses();
+    return prefviewdb->ConfirmAllPreDaedalusAddresses();
 }
 
 bool ConfirmAddresses(const CBlock& block)
@@ -3047,15 +3047,16 @@ bool ValidateContextualDaedalusBlock(
         const CBlockIndex* pindexPrev)
 {
     if(!ExpectDaedalus(pindexPrev, params)) {
+
+        // Make sure we confirm all pre daedalus addresses. This is a one time event.
+        if(!ConfirmAllPreDaedalusAddresses(state, params, pindexPrev)) {
+            throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
+        }
+
         // During the Daedalus deployment, no other block types will be accepted.
         // This is unique to the daedalus deployment.
         return !(block.nVersion & DAEDALUS_BIT); 
     } 
-
-    // Make sure we confirm all pre daedalus addresses. This is a one time event.
-    if(!ConfirmAllPreDaedalusAddresses(state, params, pindexPrev)) {
-        throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
-    }
 
     // This is a daedalus block; so let's be sure that the block conforms to:
     // 1) All recipients have confirmed invitations

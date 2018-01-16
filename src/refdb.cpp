@@ -823,6 +823,7 @@ bool ReferralsViewDB::ConfirmAllPreDaedalusAddresses()
     tag[0] = 'd';
 
     const int confirmed_index = 0;
+    size_t total_confirmations = 0;
 
     auto address = std::make_pair(DB_REFERRALS, Address{});
     while(iter->Valid())
@@ -840,22 +841,34 @@ bool ReferralsViewDB::ConfirmAllPreDaedalusAddresses()
 
         MutableReferral referral;
         if(!iter->GetValue(referral)) {
-            iter->Next();
             return false;
         }
 
         auto referral_address = referral.GetAddress();
 
         if(!m_db.Write(
-                    std::make_pair(DB_CONFIRMATION, referral_address),
+                    std::make_pair(DB_CONFIRMATION_IDX, total_confirmations), 
                     std::make_tuple(
                         referral.addressType,
+                        referral_address,
                         confirmed_tag,
                         confirmed_index))) {
             return false;
         }
 
+        if(!m_db.Write(
+                    std::make_pair(DB_CONFIRMATION, referral_address),
+                    total_confirmations)) {
+            return false;
+        }
+
+        total_confirmations++;
+
         iter->Next();
+    }
+
+    if(!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations)) {
+        return false;
     }
 
     //Mark state in DB that all addresses before daedalus have been confirmed.

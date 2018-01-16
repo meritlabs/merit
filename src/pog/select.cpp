@@ -302,6 +302,7 @@ namespace pog
         auto requested = n;
 
         const auto total = db.GetTotalConfirmations();
+        assert(total > 0);
 
         referral::ConfirmedAddresses addresses;
 
