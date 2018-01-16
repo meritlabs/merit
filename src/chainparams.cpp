@@ -68,6 +68,7 @@ static CBlock CreateGenesisBlock(
     referral::Referral ref{mutRef};
 
     const CMeritAddress address{2, ref.GetAddress()};
+
     const auto genesisOutputScript = GetScriptForDestination(address.Get());
 
     CMutableTransaction txNew;
@@ -145,13 +146,6 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
-        
-        consensus.daedalus_base_invites_per_block = 1;
-        consensus.daedalus_max_winners_per_block = 5;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 28000; // About January 19, 2018
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 291520;   // About July 19, 2008
-        
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000002");
@@ -259,15 +253,7 @@ public:
 
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
-        consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008 
-
-        consensus.daedalus_base_invites_per_block = 1;
-        consensus.daedalus_max_winners_per_block = 5;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 15; // About January 19, 2018
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 30;   // About July 19, 2008
-        
-        
+        consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
@@ -344,6 +330,7 @@ public:
         };
 
         consensus.hashGenesisBlock = genesis.GetHash();
+
         assert(consensus.hashGenesisBlock == uint256S("448f31e47f5daabfd1984f03a64723c7f50b2306961e6f0e7f482e0b49f2dbea"));
         assert(genesis.hashMerkleRoot == uint256S("8be99a68b2514e86f17368e9cce63d302aa0f29ed91654b7c90dc9f7201fb69f"));
 
@@ -381,14 +368,6 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 0;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 999999999999ULL;
-
-        consensus.daedalus_base_invites_per_block = 1;
-        consensus.daedalus_max_winners_per_block = 5;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 15; // About January 19, 2018
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 30;   // About July 19, 2008
-        
-        
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");

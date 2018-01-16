@@ -65,9 +65,8 @@ Referral::Referral(const MutableReferral &ref) :
     addressType{ref.addressType},
     pubkey{ref.pubkey},
     signature{ref.signature},
-    address{ref.address},
-    hash{ComputeHash()},
-    computed_address{ref.GetAddress()} {}
+    address{ref.GetAddress()},
+    hash{ComputeHash()} {}
 
 Referral::Referral(MutableReferral &&ref) :
     version{ref.version},
@@ -75,8 +74,7 @@ Referral::Referral(MutableReferral &&ref) :
     addressType{ref.addressType},
     pubkey{std::move(ref.pubkey)},
     signature{std::move(ref.signature)},
-    address{std::move(ref.address)},
-    computed_address{ref.GetAddress()},
+    address{ref.GetAddress()},
     hash{ComputeHash()} {}
 
 unsigned int Referral::GetTotalSize() const

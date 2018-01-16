@@ -13,7 +13,9 @@
 #include "uint256.h"
 #include <set>
 
-const int32_t DAEDALUS_BIT = 1 << 27;
+#include <iostream>
+
+const uint32_t DAEDALUS_BIT = static_cast<uint32_t>(1) << 27;
 
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work
@@ -111,7 +113,7 @@ public:
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
         READWRITE(m_vRef);
-        if(nVersion & DAEDALUS_BIT) {
+        if((nVersion & DAEDALUS_BIT) != 0) {
             READWRITE(invites);
         }
     }

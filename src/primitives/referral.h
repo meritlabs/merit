@@ -53,9 +53,6 @@ public:
     // Type of address. 1 == Key ID, 2 = Script ID, 3 = Parameterized Script ID
     const char addressType;
 
-    // address that this referral is related to.
-    const Address address;
-
     // pubky used to sign referral
     // pubkey of beaconed address in case addressType = 1
     // signer pubkey otherwise
@@ -65,7 +62,7 @@ public:
     const valtype signature;
 
 private:
-    const Address computed_address;
+    const Address address;
 
     /** Memory only. */
     const uint256 hash;
@@ -95,7 +92,7 @@ public:
 
     const Address& GetAddress() const
     {
-        return computed_address;
+        return address;
     }
 
     /**
