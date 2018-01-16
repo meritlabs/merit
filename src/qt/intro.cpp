@@ -23,7 +23,7 @@
 
 static const uint64_t GB_BYTES = 1000000000LL;
 /* Minimum free space (in GB) needed for data directory */
-static const uint64_t BLOCK_CHAIN_SIZE = 150;
+static const uint64_t BLOCK_CHAIN_SIZE = 1;
 /* Minimum free space (in GB) needed for data directory when pruned; Does not include prune target */
 static const uint64_t CHAIN_STATE_SIZE = 3;
 /* Total required space (in GB) depending on user choice (prune, not prune) */
@@ -127,7 +127,7 @@ Intro::Intro(QWidget *parent) :
     ui->lblExplanation1->setText(ui->lblExplanation1->text()
         .arg(tr(PACKAGE_NAME))
         .arg(BLOCK_CHAIN_SIZE)
-        .arg(2009)
+        .arg(tr("January"))
         .arg(tr("Merit"))
     );
     ui->lblExplanation2->setText(ui->lblExplanation2->text().arg(tr(PACKAGE_NAME)));
