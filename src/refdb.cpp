@@ -748,7 +748,7 @@ bool ReferralsViewDB::ConfirmReferral(
     const auto& address = referral.GetAddress();
 
     if(IsConfirmed(address)) {
-        return false;
+        return true;
      } 
 
     size_t total_confirmations = 0;

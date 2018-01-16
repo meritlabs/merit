@@ -1780,8 +1780,9 @@ bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, cons
     assert(coinbase.IsCoinBase());
 
     //quick test before doing more expensive validation
-    if(coinbase.vout.size() != expected_invites.size())
+    if(coinbase.vout.size() != expected_invites.size()) { 
         return false;
+    }
 
     //Transform vouts to rewards
     pog::InviteRewards sorted_outs(coinbase.vout.size());
@@ -3530,12 +3531,20 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     }
 
     if((block.nVersion & DAEDALUS_BIT) != 0) {
+        if(block.invites.empty()) {
+            return state.DoS(100,
+                    error("ConnectBlock(): Expected Invites but got none."),
+                    REJECT_INVALID, "bad-cb-no-invites");
+        }
+
         const auto invite_rewards = RewardInvites(
                 pindex->nHeight,
                 hashPrevBlock,
                 chainparams.GetConsensus());
 
-        if(!AreExpectedInvitesRewarded(invite_rewards, coinbase_tx)) {
+        const CTransaction& coinbase_invites = *block.invites[0];
+
+        if(!AreExpectedInvitesRewarded(invite_rewards, coinbase_invites)) {
             return state.DoS(100,
                     error("ConnectBlock(): coinbase did not reward expected invites."),
                     REJECT_INVALID, "bad-cb-bad-invites");
