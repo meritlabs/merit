@@ -93,10 +93,7 @@ enum WalletFeature
 {
     FEATURE_BASE = 10000, // the earliest version new wallets supports (only useful for getinfo's clientversion output)
 
-    FEATURE_WALLETCRYPT = 10000, // wallet encryption
-    FEATURE_COMPRPUBKEY = 10000, // compressed public keys
-
-    FEATURE_LATEST = FEATURE_COMPRPUBKEY // HD is optional, use FEATURE_COMPRPUBKEY as latest version
+    FEATURE_LATEST = FEATURE_BASE // HD is optional, use FEATURE_COMPRPUBKEY as latest version
 };
 
 /** A key pool entry */

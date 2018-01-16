@@ -3104,7 +3104,7 @@ bool ValidateContextualDaedalusBlock(
                 100,
                 false,
                 REJECT_INVALID,
-                "bad-bad-txn-unconfirmed",
+                "bad-txn-unconfirmed",
                 false,
                 "Transaction has unconfirmed address");
     }

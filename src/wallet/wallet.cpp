@@ -226,7 +226,6 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress)
 CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb)
 {
     AssertLockHeld(cs_wallet); // mapKeyMetadata
-    bool fCompressed = CanSupportFeature(FEATURE_COMPRPUBKEY); // default to compressed public keys if we want 0.6.0 wallets
 
     debug("[WARNING] GENERATING NEW KEY\n");
 
@@ -240,11 +239,6 @@ CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb)
     assert(IsHDEnabled());
 
     DeriveNewChildKey(walletdb, metadata, secret);
-
-    // Compressed public keys were introduced in version 0.6.0
-    if (fCompressed) {
-        SetMinVersion(FEATURE_COMPRPUBKEY);
-    }
 
     CPubKey pubkey = secret.GetPubKey();
     assert(secret.VerifyPubKey(pubkey));
@@ -724,9 +718,6 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
             // die and let the user reload the unencrypted wallet.
             assert(false);
         }
-
-        // Encryption was introduced in version 0.4.0
-        SetMinVersion(FEATURE_WALLETCRYPT, pwalletdbEncryption, true);
 
         if (!pwalletdbEncryption->TxnCommit()) {
             delete pwalletdbEncryption;
