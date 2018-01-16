@@ -26,7 +26,6 @@ MutableReferral::MutableReferral(
     pubkey{pubkeyIn},
     signature{valtype()}
     {
-        Address address;
         if (addressType == 1) {
             address = addressIn;
         } else {

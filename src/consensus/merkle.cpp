@@ -160,18 +160,23 @@ uint256 BlockMerkleRoot(const CBlock& block, bool* mutated)
 {
     std::vector<uint256> leaves(
             block.vtx.size() + block.invites.size() + block.m_vRef.size());
+    std::cerr << "LEAVES " << block.vtx.size()  << " i " << block.invites.size() << " ref " << block.m_vRef.size() << std::endl;
 
     size_t i = 0;
     for (size_t s = 0; s < block.vtx.size(); s++, i++) {
         leaves[i] = block.vtx[s]->GetHash();
+        std::cerr << "vtx: " << block.vtx[s]->nVersion << "   " << leaves[i].GetHex() << std::endl;
     }
 
+    std::cerr << "I " << i << std::endl;
     for (size_t s = 0; s < block.invites.size(); s++, i++) {
         leaves[i] = block.invites[s]->GetHash();
     };
 
+    std::cerr << "R " << i << std::endl;
     for (size_t s = 0; s < block.m_vRef.size(); s++, i++) {
         leaves[i] = block.m_vRef[s]->GetHash();
+        std::cerr << "ref: " << block.m_vRef[s]->version << "   " << leaves[i].GetHex() << std::endl;
     };
 
     return ComputeMerkleRoot(leaves, mutated);
