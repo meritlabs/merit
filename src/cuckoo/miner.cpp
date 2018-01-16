@@ -77,7 +77,7 @@ bool FindProofOfWorkAdvanced(
     ctpl::thread_pool& pool)
 {
     assert(cycle.empty());
-    bool cycleFound = 
+    bool cycleFound =
         FindCycleAdvanced(hash, edgeBits, params.nCuckooProofSize, cycle, pool);
 
     if (cycleFound && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {

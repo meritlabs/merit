@@ -15,9 +15,9 @@
 namespace cuckoo
 {
 
-/** 
- * Find cycle for block that satisfies the proof-of-work requirement specified 
- * by block hash 
+/**
+ * Find cycle for block that satisfies the proof-of-work requirement specified
+ * by block hash
  */
 bool FindProofOfWork(
         uint256 hash,
@@ -26,9 +26,9 @@ bool FindProofOfWork(
         std::set<uint32_t>& cycle,
         const Consensus::Params& params);
 
-/** 
- * Check that provided cycle satisfies the proof-of-work requirement specified 
- * by block hash 
+/**
+ * Check that provided cycle satisfies the proof-of-work requirement specified
+ * by block hash
  */
 bool VerifyProofOfWork(
         uint256 hash,
@@ -37,9 +37,9 @@ bool VerifyProofOfWork(
         const std::set<uint32_t>& cycle,
         const Consensus::Params& params);
 
-/** 
- * Find cycle for block that satisfies the proof-of-work requirement 
- * specified by block hash with advanced edge trimming and matrix solver 
+/**
+ * Find cycle for block that satisfies the proof-of-work requirement
+ * specified by block hash with advanced edge trimming and matrix solver
  */
 bool FindProofOfWorkAdvanced(
         uint256 hash,

@@ -281,7 +281,7 @@ libmerit_wallet_a_SOURCES = \
   $(MERIT_CORE_H)
 
 # crypto primitives library
-crypto_libmerit_crypto_a_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libmerit_crypto_a_CPPFLAGS = $(AM_CPPFLAGS) $(PIC_FLAGS)
 crypto_libmerit_crypto_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 crypto_libmerit_crypto_a_SOURCES = \
   crypto/aes.cpp \

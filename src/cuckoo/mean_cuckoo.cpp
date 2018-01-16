@@ -300,9 +300,8 @@ public:
     zbucket8P* tdegs;
     offset_t* tcounts;
     uint8_t nThreads;
-    uint32_t nTrims;
-    Params<EDGEBITS, XBITS> params;
     ctpl::thread_pool& pool;
+    uint32_t nTrims;
     Barrier* barry;
 
     using BIGTYPE0 = offset_t;
@@ -315,9 +314,8 @@ public:
 
     edgetrimmer(
             ctpl::thread_pool& poolIn,
-            const uint32_t nTrimsIn,
-            const Params<EDGEBITS, XBITS>& paramsIn) : 
-        pool{poolIn}, nTrims{nTrimsIn}, params{paramsIn}
+            const uint32_t nTrimsIn) :
+        pool{poolIn}, nTrims{nTrimsIn}
     {
         assert(sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucketZ));
         assert(sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucketZ));
@@ -1052,20 +1050,17 @@ public:
     std::vector<uint32_t> cyclevs;
     std::bitset<P::NXY> uxymap;
     std::vector<uint32_t> sols; // concatanation of all proof's indices
-    uint8_t proofSize;
-    Params<EDGEBITS, XBITS> params;
     ctpl::thread_pool& pool;
+    uint8_t proofSize;
 
     solver_ctx(
             ctpl::thread_pool& poolIn,
             const char* header,
             const uint32_t headerlen,
             const uint32_t nTrims,
-            const uint8_t proofSizeIn,
-            const Params<EDGEBITS,
-            XBITS>& paramsIn) : proofSize{proofSizeIn}, params{paramsIn}, pool{poolIn}
+            const uint8_t proofSizeIn) : pool{poolIn}, proofSize{proofSizeIn}
     {
-        trimmer = new edgetrimmer<offset_t, EDGEBITS, XBITS>(pool, nTrims, paramsIn);
+        trimmer = new edgetrimmer<offset_t, EDGEBITS, XBITS>(pool, nTrims);
 
         cycleus.reserve(proofSize);
         cyclevs.reserve(proofSize);
@@ -1324,19 +1319,17 @@ public:
 };
 
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
-bool run(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle, ctpl::thread_pool& pool)
+bool run(const uint256& hash, uint8_t proofSize, std::set<uint32_t>& cycle, ctpl::thread_pool& pool)
 {
     // TODO: modify checks in the algorith the way we would be able to generate more edges
     // should require changes of BUCKETSIZE values
-    assert(edgeBits >= MIN_EDGE_BITS && edgeBits <= MAX_EDGE_BITS);
+    assert(EDGEBITS >= MIN_EDGE_BITS && EDGEBITS <= MAX_EDGE_BITS);
 
-    uint32_t nTrims = edgeBits >= 30 ? 96 : 68;
+    uint32_t nTrims = EDGEBITS >= 30 ? 96 : 68;
 
     auto hashStr = hash.GetHex();
 
-    Params<EDGEBITS, XBITS> params;
-
-    solver_ctx<offset_t, EDGEBITS, XBITS> ctx(pool, hashStr.c_str(), hashStr.size(), nTrims, proofSize, params);
+    solver_ctx<offset_t, EDGEBITS, XBITS> ctx(pool, hashStr.c_str(), hashStr.size(), nTrims, proofSize);
 
     bool found = ctx.solve();
 
@@ -1351,37 +1344,37 @@ bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t proofSize,
 {
     switch (edgeBits) {
     case 16:
-        return run<uint32_t, 16u, 0u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 16u, 0u>(hash, proofSize, cycle, pool);
     case 17:
-        return run<uint32_t, 17u, 1u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 17u, 1u>(hash, proofSize, cycle, pool);
     case 18:
-        return run<uint32_t, 18u, 1u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 18u, 1u>(hash, proofSize, cycle, pool);
     case 19:
-        return run<uint32_t, 19u, 2u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 19u, 2u>(hash, proofSize, cycle, pool);
     case 20:
-        return run<uint32_t, 20u, 2u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 20u, 2u>(hash, proofSize, cycle, pool);
     case 21:
-        return run<uint32_t, 21u, 3u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 21u, 3u>(hash, proofSize, cycle, pool);
     case 22:
-        return run<uint32_t, 22u, 3u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 22u, 3u>(hash, proofSize, cycle, pool);
     case 23:
-        return run<uint32_t, 23u, 4u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 23u, 4u>(hash, proofSize, cycle, pool);
     case 24:
-        return run<uint32_t, 24u, 4u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 24u, 4u>(hash, proofSize, cycle, pool);
     case 25:
-        return run<uint32_t, 25u, 5u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 25u, 5u>(hash, proofSize, cycle, pool);
     case 26:
-        return run<uint32_t, 26u, 5u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 26u, 5u>(hash, proofSize, cycle, pool);
     case 27:
-        return run<uint32_t, 27u, 6u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 27u, 6u>(hash, proofSize, cycle, pool);
     case 28:
-        return run<uint32_t, 28u, 6u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 28u, 6u>(hash, proofSize, cycle, pool);
     case 29:
-        return run<uint32_t, 29u, 7u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint32_t, 29u, 7u>(hash, proofSize, cycle, pool);
     case 30:
-        return run<uint64_t, 30u, 8u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint64_t, 30u, 8u>(hash, proofSize, cycle, pool);
     case 31:
-        return run<uint64_t, 31u, 8u>(hash, edgeBits, proofSize, cycle, pool);
+        return run<uint64_t, 31u, 8u>(hash, proofSize, cycle, pool);
 
     default:
         throw std::runtime_error(strprintf("%s: EDGEBITS equal to %d is not suppoerted", __func__, edgeBits));

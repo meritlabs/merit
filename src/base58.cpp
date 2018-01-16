@@ -340,7 +340,7 @@ std::string CMeritAddress::GetTypeStr() const
         case 1: return "pubkey";
         case 2: return "script";
         case 3: return "parameterized_script";
-        default: "unknown";
+        default: return "unknown";
     }
 }
 
