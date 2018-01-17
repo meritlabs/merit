@@ -455,6 +455,42 @@ static void SendMoneyToDest(
             coin_control);
 }
 
+static void ConfirmAddress(
+        CWallet * const pwallet,
+        const CScript &scriptPubKey,
+        CWalletTx& wtxNew,
+        const CCoinControl& coin_control)
+{
+    const int available_invites = pwallet->GetBalance(true);
+
+    // Check amount
+    if (available_invites <= 0)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "No invites available");
+
+    if (pwallet->GetBroadcastTransactions() && !g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
+
+    // Create and send the transaction
+    CReserveKey reservekey(pwallet);
+    CAmount nFeeRequired = 0;
+    std::string strError;
+    std::vector<CRecipient> vecSend;
+    int nChangePosRet = -1;
+    CRecipient recipient = {scriptPubKey, 1, false};
+    vecSend.push_back(recipient);
+
+    if (!pwallet->CreateTransaction(vecSend, wtxNew, reservekey, nFeeRequired, nChangePosRet, strError, coin_control)) {
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+
+    CValidationState state;
+    if (!pwallet->CommitTransaction(wtxNew, reservekey, g_connman.get(), state)) {
+        strError = strprintf("Error: The transaction was rejected! Reason given: %s", state.GetRejectReason());
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+}
+
 static UniValue EasySend(
         CWallet&  pwallet,
         CAmount value,
@@ -879,6 +915,47 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
     EnsureWalletIsUnlocked(pwallet);
 
     SendMoneyToDest(pwallet, dest, nAmount, fSubtractFeeFromAmount, wtx, coin_control);
+
+    return wtx.GetHash().GetHex();
+}
+
+UniValue confirmaddress(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 1)
+        throw std::runtime_error(
+            "confirmaddress \"address\""
+            "\nSend an amount to a given address.\n"
+            + HelpRequiringPassphrase(pwallet) +
+            "\nArguments:\n"
+            "1. \"address\"            (string, required) The merit address to send to.\n"
+            "\nResult:\n"
+            "\"txid\"                  (string) The invite transaction id.\n"
+            "\nExamples:\n"
+            + HelpExampleCli("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+        );
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    if (!IsValidDestination(dest)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+    }
+
+    // Wallet comments
+    CWalletTx wtx(true);
+
+    CCoinControl coin_control;
+    EnsureWalletIsUnlocked(pwallet);
+
+    CScript scriptPubKey = GetScriptForDestination(dest);
+
+    ConfirmAddress(pwallet, scriptPubKey, wtx, coin_control);
 
     return wtx.GetHash().GetHex();
 }
@@ -4381,6 +4458,134 @@ UniValue listunspent(const JSONRPCRequest& request)
     return results;
 }
 
+UniValue listinvites(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() > 5)
+        throw std::runtime_error(
+            "listinvites ( [\"addresses\",...] )\n"
+            "\nReturns array of unspent invite outputs\n"
+            "Optionally filter specified addresses.\n"
+            "\nArguments:\n"
+            "1. \"addresses\"      (string) A json array of merit addresses to filter\n"
+            "    [\n"
+            "      \"address\"     (string) merit address\n"
+            "      ,...\n"
+            "    ]\n"
+            "\nResult\n"
+            "[                   (array of json object)\n"
+            "  {\n"
+            "    \"id\" : \"id\",          (string) the invite id \n"
+            "    \"vout\" : n,               (numeric) the vout value\n"
+            "    \"address\" : \"address\",    (string) the merit address\n"
+            "    \"account\" : \"account\",    (string) DEPRECATED. The associated account, or \"\" for the default account\n"
+            "    \"scriptPubKey\" : \"key\",   (string) the script key\n"
+            "    \"amount\" : x.xxx,         (numeric) amount of invites\n"
+            "    \"confirmations\" : n,      (numeric) The number of confirmations\n"
+            "    \"redeemScript\" : n        (string) The redeemScript if scriptPubKey is P2SH\n"
+            "    \"spendable\" : xxx,        (bool) Whether we have the private keys to spend this output\n"
+            "    \"solvable\" : xxx,         (bool) Whether we know how to spend this output, ignoring the lack of keys\n"
+            "  }\n"
+            "  ,...\n"
+            "]\n"
+
+            "\nExamples\n"
+            + HelpExampleCli("listinvites", "")
+            + HelpExampleCli("listinvites", "\"[\\\"1PGFqEzfmQch1gKD3ra4k18PNj3tTUUSqg\\\",\\\"1LtvqCaApEdUGFkpKMM4MstjcaL4dKg8SP\\\"]\"")
+        );
+
+    ObserveSafeMode();
+
+    std::set<CTxDestination> destinations;
+    if (!request.params[0].isNull()) {
+        RPCTypeCheckArgument(request.params[0], UniValue::VARR);
+        UniValue inputs = request.params[0].get_array();
+        for (unsigned int idx = 0; idx < inputs.size(); idx++) {
+            const UniValue& input = inputs[idx];
+            CTxDestination dest = DecodeDestination(input.get_str());
+            if (!IsValidDestination(dest)) {
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Merit address: ") + input.get_str());
+            }
+            if (!destinations.insert(dest).second) {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ") + input.get_str());
+            }
+        }
+    }
+
+    const int min_depth = 1;
+    const int max_depth = 9999999;
+    const bool include_unsafe = true;
+    const CAmount minimum_amount = 0;
+    const CAmount maximum_amount = MAX_MONEY;
+    const CAmount minimum_sum_amount = MAX_MONEY;
+    uint64_t maximum_count = 0;
+
+    UniValue results(UniValue::VARR);
+    std::vector<COutput> outputs;
+    assert(pwallet != nullptr);
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    pwallet->AvailableCoins(
+            outputs,
+            !include_unsafe,
+            nullptr,
+            minimum_amount,
+            maximum_amount,
+            minimum_sum_amount,
+            maximum_count,
+            min_depth,
+            max_depth,
+            true);
+
+    for (const COutput& out : outputs) {
+        CTxDestination address;
+        const CScript& scriptPubKey = out.tx->tx->vout[out.i].scriptPubKey;
+        bool fValidAddress = ExtractDestination(scriptPubKey, address);
+
+        if (destinations.size() && (!fValidAddress || !destinations.count(address)))
+            continue;
+
+        UniValue entry(UniValue::VOBJ);
+        entry.push_back(Pair("id", out.tx->GetHash().GetHex()));
+        entry.push_back(Pair("vout", out.i));
+
+        if (fValidAddress) {
+            entry.push_back(Pair("address", EncodeDestination(address)));
+
+            if (pwallet->mapAddressBook.count(address)) {
+                entry.push_back(
+                        Pair("account", pwallet->mapAddressBook[address].name));
+            }
+
+            CScript redeemScript;
+            if (scriptPubKey.IsPayToScriptHash()) {
+                const CScriptID& hash = boost::get<CScriptID>(address);
+                pwallet->GetCScript(hash, redeemScript);
+            } else if (scriptPubKey.IsParameterizedPayToScriptHash()) {
+                const CParamScriptID& hash = boost::get<CParamScriptID>(address);
+                pwallet->GetParamScript(hash, redeemScript);
+            }
+
+            if (!redeemScript.empty()) {
+                entry.push_back(Pair("redeemScript", HexStr(redeemScript.begin(), redeemScript.end())));
+            }
+        }
+
+        entry.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
+        entry.push_back(Pair("amount", out.tx->tx->vout[out.i].nValue));
+        entry.push_back(Pair("confirmations", out.nDepth));
+        entry.push_back(Pair("spendable", out.fSpendable));
+        entry.push_back(Pair("solvable", out.fSolvable));
+        results.push_back(entry);
+    }
+
+    return results;
+}
+
 UniValue fundrawtransaction(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
@@ -5096,6 +5301,8 @@ static const CRPCCommand commands[] =
     { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress"} },
     { "referral",           "beaconaddress",            &beaconaddress,            {"address", "key", "parentaddress"} },
     { "referral",           "getanv",                   &getanv,                   {} },
+    { "wallet",             "confirmaddress",           &confirmaddress,           {"address"} },
+    { "wallet",             "listinvites",              &listinvites,              {"addresses"} },
 
     { "wallet",             "getrewards",               &getrewards,               {} },
 };

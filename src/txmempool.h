@@ -230,8 +230,8 @@ public:
         const auto& btx = b.GetEntryValue();
 
         // We prioritize invites over other transactions.
-        bool ai = atx.nVersion == CTransaction::INVITE_VERSION;
-        bool bi = btx.nVersion == CTransaction::INVITE_VERSION;
+        const bool ai = atx.IsInvite();
+        const bool bi = btx.IsInvite();
 
         if(ai) { 
             if(bi) { 

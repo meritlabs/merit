@@ -427,7 +427,7 @@ bool BlockAssembler::TestPackageContent(
 void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 {
     const auto& tx = iter->GetEntryValue();
-    if(tx.nVersion == CTransaction::INVITE_VERSION) {
+    if(tx.IsInvite()) {
         pblock->invites.emplace_back(iter->GetSharedEntryValue());
     } else {
         pblock->vtx.emplace_back(iter->GetSharedEntryValue());
@@ -646,7 +646,7 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
             packageSigOpsCost = modit->nSigOpCostWithAncestors;
         }
 
-        if (iter->GetEntryValue().nVersion != CTransaction::INVITE_VERSION && 
+        if (!iter->GetEntryValue().IsInvite() && 
                 packageFees < blockMinFeeRate.GetFee(packageSize)) {
             // Everything else we might consider has a lower fee rate
             return;

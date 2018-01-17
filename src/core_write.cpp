@@ -146,7 +146,7 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry,
 
         UniValue out(UniValue::VOBJ);
 
-        if(tx.nVersion == CTransaction::INVITE_VERSION) {
+        if(tx.IsInvite()) {
             out.pushKV("value", txout.nValue);
         } else {
             out.pushKV("value", ValueFromAmount(txout.nValue));

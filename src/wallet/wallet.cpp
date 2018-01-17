@@ -1415,12 +1415,15 @@ void CWallet::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const 
     for (const CTransactionRef& ptx : vtxConflicted) {
         SyncTransaction(ptx);
     }
+
     for (size_t i = 0; i < pblock->vtx.size(); i++) {
         SyncTransaction(pblock->vtx[i], pindex, i);
     }
+
     for (size_t i = 0; i < pblock->invites.size(); i++) {
         SyncTransaction(pblock->invites[i], pindex, i);
     }
+
     for (size_t i = 0; i < pblock->m_vRef.size(); i++) {
         SyncTransaction(pblock->m_vRef[i], pindex, i);
     }
@@ -1432,6 +1435,11 @@ void CWallet::BlockDisconnected(const std::shared_ptr<const CBlock>& pblock) {
     for (const auto& ptx : pblock->vtx) {
         SyncTransaction(ptx);
     }
+
+    for (const auto& inv : pblock->invites) {
+        SyncTransaction(inv);
+    }
+
     for (const auto& pref : pblock->m_vRef) {
         SyncTransaction(pref);
     }
@@ -2257,7 +2265,7 @@ void CWallet::ResendWalletTransactions(int64_t nBestBlockTime, CConnman* connman
  */
 
 
-CAmount CWallet::GetBalance() const
+CAmount CWallet::GetBalance(bool invite) const
 {
     CAmount nTotal = 0;
     {
@@ -2265,7 +2273,7 @@ CAmount CWallet::GetBalance() const
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-            if (pcoin->IsTrusted())
+            if (pcoin->IsTrusted() && pcoin->IsInvite() == invite)
                 nTotal += pcoin->GetAvailableCredit();
         }
     }
@@ -2303,7 +2311,7 @@ pog::RewardsAmount CWallet::GetRewards() const
         });
 }
 
-CAmount CWallet::GetUnconfirmedBalance() const
+CAmount CWallet::GetUnconfirmedBalance(bool invite) const
 {
     CAmount nTotal = 0;
     {
@@ -2311,14 +2319,18 @@ CAmount CWallet::GetUnconfirmedBalance() const
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-            if (!pcoin->IsTrusted() && pcoin->GetDepthInMainChain() == 0 && pcoin->InMempool())
+            if (!pcoin->IsTrusted() &&
+                    pcoin->GetDepthInMainChain() == 0 &&
+                    pcoin->InMempool() &&
+                    pcoin->IsInvite() == invite)
+
                 nTotal += pcoin->GetAvailableCredit();
         }
     }
     return nTotal;
 }
 
-CAmount CWallet::GetImmatureBalance() const
+CAmount CWallet::GetImmatureBalance(bool invite) const
 {
     CAmount nTotal = 0;
     {
@@ -2326,13 +2338,14 @@ CAmount CWallet::GetImmatureBalance() const
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-            nTotal += pcoin->GetImmatureCredit();
+            if(pcoin->IsInvite() == invite)
+                nTotal += pcoin->GetImmatureCredit();
         }
     }
     return nTotal;
 }
 
-CAmount CWallet::GetWatchOnlyBalance() const
+CAmount CWallet::GetWatchOnlyBalance(bool invite) const
 {
     CAmount nTotal = 0;
     {
@@ -2340,7 +2353,7 @@ CAmount CWallet::GetWatchOnlyBalance() const
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-            if (pcoin->IsTrusted())
+            if (pcoin->IsTrusted() && pcoin->IsInvite() == invite)
                 nTotal += pcoin->GetAvailableWatchOnlyCredit();
         }
     }
@@ -2348,7 +2361,7 @@ CAmount CWallet::GetWatchOnlyBalance() const
     return nTotal;
 }
 
-CAmount CWallet::GetUnconfirmedWatchOnlyBalance() const
+CAmount CWallet::GetUnconfirmedWatchOnlyBalance(bool invite) const
 {
     CAmount nTotal = 0;
     {
@@ -2356,14 +2369,17 @@ CAmount CWallet::GetUnconfirmedWatchOnlyBalance() const
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-            if (!pcoin->IsTrusted() && pcoin->GetDepthInMainChain() == 0 && pcoin->InMempool())
+            if (!pcoin->IsTrusted() &&
+                    pcoin->GetDepthInMainChain() == 0 &&
+                    pcoin->InMempool() && 
+                    pcoin->IsInvite() == invite)
                 nTotal += pcoin->GetAvailableWatchOnlyCredit();
         }
     }
     return nTotal;
 }
 
-CAmount CWallet::GetImmatureWatchOnlyBalance() const
+CAmount CWallet::GetImmatureWatchOnlyBalance(bool invite) const
 {
     CAmount nTotal = 0;
     {
@@ -2371,7 +2387,8 @@ CAmount CWallet::GetImmatureWatchOnlyBalance() const
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-            nTotal += pcoin->GetImmatureWatchOnlyCredit();
+            if(pcoin->IsInvite() == invite)
+                nTotal += pcoin->GetImmatureWatchOnlyCredit();
         }
     }
     return nTotal;
@@ -2420,13 +2437,15 @@ CAmount CWallet::GetLegacyBalance(const isminefilter& filter, int minDepth, cons
     return balance;
 }
 
-CAmount CWallet::GetAvailableBalance(const CCoinControl* coinControl) const
+CAmount CWallet::GetAvailableBalance(const CCoinControl* coinControl, bool invite) const
 {
     LOCK2(cs_main, cs_wallet);
 
     CAmount balance = 0;
     std::vector<COutput> vCoins;
-    AvailableCoins(vCoins, true, coinControl);
+
+    AvailableCoins( vCoins, true, coinControl, invite); 
+
     for (const COutput& out : vCoins) {
         if (out.fSpendable) {
             balance += out.tx->tx->vout[out.i].nValue;
@@ -2448,7 +2467,7 @@ void CWallet::AvailableInvites(std::vector<COutput> &invites)
             auto safeTx = it.second.IsTrusted();
             auto nDepth = it.second.GetDepthInMainChain();
 
-            if (invite_tx->nVersion == CTransaction::INVITE_VERSION) {
+            if (invite_tx->IsInvite()) {
                 for (unsigned int i = 0; i < invite_tx->vout.size(); i++) {
                     if (IsLockedCoin(it.first, i) || IsSpent(it.first, i)) {
                         continue;
@@ -2465,7 +2484,36 @@ void CWallet::AvailableInvites(std::vector<COutput> &invites)
     }
 }
 
-void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const CCoinControl *coinControl, const CAmount &nMinimumAmount, const CAmount &nMaximumAmount, const CAmount &nMinimumSumAmount, const uint64_t &nMaximumCount, const int &nMinDepth, const int &nMaxDepth) const
+void CWallet::AvailableCoins(
+        std::vector<COutput> &vCoins,
+        bool fOnlySafe,
+        const CCoinControl *coinControl,
+        bool invite) const
+{
+    AvailableCoins(
+            vCoins,
+            fOnlySafe,
+            coinControl,
+            1,
+            MAX_MONEY,
+            MAX_MONEY,
+            0,
+            0,
+            99999999,
+            invite);
+}
+
+void CWallet::AvailableCoins(
+        std::vector<COutput> &vCoins,
+        bool fOnlySafe,
+        const CCoinControl *coinControl,
+        const CAmount &nMinimumAmount,
+        const CAmount &nMaximumAmount,
+        const CAmount &nMinimumSumAmount,
+        const uint64_t &nMaximumCount,
+        const int &nMinDepth,
+        const int &nMaxDepth,
+        bool invite) const
 {
     vCoins.clear();
 
@@ -2483,6 +2531,9 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
                 continue;
 
             if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+                continue;
+
+            if (pcoin->IsInvite() != invite)
                 continue;
 
             int nDepth = pcoin->GetDepthInMainChain();
@@ -2947,6 +2998,8 @@ bool CWallet::CreateTransaction(
         const CCoinControl& coin_control,
         bool sign)
 {
+    const bool invite = wtxNew.tx->IsInvite();
+
     CAmount nValue = 0;
     int nChangePosRequest = nChangePosInOut;
     unsigned int nSubtractFeeFromAmount = 0;
@@ -2959,7 +3012,7 @@ bool CWallet::CreateTransaction(
         }
         nValue += recipient.nAmount;
 
-        if (recipient.fSubtractFeeFromAmount)
+        if (!invite && recipient.fSubtractFeeFromAmount)
             nSubtractFeeFromAmount++;
 
         CTxDestination dest;
@@ -2987,6 +3040,7 @@ bool CWallet::CreateTransaction(
     wtxNew.fTimeReceivedIsTxTime = true;
     wtxNew.BindWallet(this);
     CMutableTransaction txNew;
+    txNew.nVersion = wtxNew.tx->nVersion;
 
     // Discourage fee sniping.
     //
@@ -3027,7 +3081,7 @@ bool CWallet::CreateTransaction(
         LOCK2(cs_main, cs_wallet);
         {
             std::vector<COutput> vAvailableCoins;
-            AvailableCoins(vAvailableCoins, true, &coin_control);
+            AvailableCoins(vAvailableCoins, true, &coin_control, invite);
 
             // Create change script that will be used if we need change
             // TODO: pass in scriptChange instead of reservekey so

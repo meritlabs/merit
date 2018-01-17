@@ -13,33 +13,41 @@
 
 struct CAddressUnspentKey {
     unsigned int type;
+    unsigned int encoded_type;
     uint160 hashBytes;
     uint256 txhash;
     uint32_t index;
     bool isCoinbase;
+    bool isInvite;
 
     size_t GetSerializeSize() const {
         return 57;
     }
     template<typename Stream>
     void Serialize(Stream& s) const {
-        ser_writedata8(s, type);
+        ser_writedata8(s, encoded_type);
         hashBytes.Serialize(s);
         txhash.Serialize(s);
         ser_writedata32(s, index);
         ser_writedata8(s, isCoinbase); //TODO: Make this even more compact than a byte.
     }
+
     template<typename Stream>
     void Unserialize(Stream& s) {
-        type = ser_readdata8(s);
+        encoded_type = ser_readdata8(s);
+        type = encoded_type >= 10 ? encoded_type - 10 : encoded_type;
         hashBytes.Unserialize(s);
         txhash.Unserialize(s);
         index = ser_readdata32(s);
         isCoinbase = ser_readdata8(s);
+        if(encoded_type > 10) {
+            isInvite = true;
+        }
     }
 
-    CAddressUnspentKey(unsigned int addressType, uint160 addressHash, uint256 txid, size_t indexValue, bool isCoinbaseIn) {
-        type = addressType;
+    CAddressUnspentKey(unsigned int addressType, uint160 addressHash, uint256 txid, size_t indexValue, bool isCoinbaseIn, bool isInviteIn) {
+        isInvite = isInviteIn;
+        type = isInvite ? addressType + 10 : addressType;
         hashBytes = addressHash;
         txhash = txid;
         index = indexValue;
@@ -56,6 +64,7 @@ struct CAddressUnspentKey {
         txhash.SetNull();
         index = 0;
         isCoinbase = false;
+        isInvite = false;
     }
 };
 

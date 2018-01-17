@@ -226,6 +226,7 @@ public:
     void setAbandoned() { hashBlock = ABANDON_HASH; }
 
     virtual bool IsCoinBase() const { return false; }
+    virtual bool IsInvite() const { return false; }
 
 };
 
@@ -350,6 +351,7 @@ public:
     int64_t nOrderPos; //!< position in ordered transaction list
 
     // memory only
+    mutable int nVersion;
     mutable bool fDebitCached;
     mutable bool fCreditCached;
     mutable bool fImmatureCreditCached;
@@ -369,9 +371,12 @@ public:
     mutable CAmount nAvailableWatchCreditCached;
     mutable CAmount nChangeCached;
 
-    CWalletTx()
+    CWalletTx(bool invite = false)
     {
-        SetTx(MakeTransactionRef());
+        CMutableTransaction t;
+        if(invite) t.nVersion = CTransaction::INVITE_VERSION;
+
+        SetTx(MakeTransactionRef(t));
         Init(nullptr);
     }
 
@@ -415,6 +420,7 @@ public:
 
     const uint256& GetHash() const { return tx->GetHash(); }
     bool IsCoinBase() const override { return tx->IsCoinBase(); }
+    bool IsInvite() const override { return tx->IsInvite(); }
 
     void SetTx(CTransactionRef arg)
     {
@@ -874,7 +880,23 @@ public:
     /**
      * populate vCoins with vector of available COutputs.
      */
-    void AvailableCoins(std::vector<COutput>& vCoins, bool fOnlySafe=true, const CCoinControl *coinControl = nullptr, const CAmount& nMinimumAmount = 1, const CAmount& nMaximumAmount = MAX_MONEY, const CAmount& nMinimumSumAmount = MAX_MONEY, const uint64_t& nMaximumCount = 0, const int& nMinDepth = 0, const int& nMaxDepth = 9999999) const;
+    void AvailableCoins(
+            std::vector<COutput>& vCoins,
+            bool fOnlySafe=true,
+            const CCoinControl *coinControl = nullptr,
+            const CAmount& nMinimumAmount = 1,
+            const CAmount& nMaximumAmount = MAX_MONEY,
+            const CAmount& nMinimumSumAmount = MAX_MONEY,
+            const uint64_t& nMaximumCount = 0,
+            const int& nMinDepth = 0,
+            const int& nMaxDepth = 9999999,
+            bool invite = false) const;
+    
+    void AvailableCoins(
+            std::vector<COutput>& vCoins,
+            bool fOnlySafe,
+            const CCoinControl *coinControl,
+            bool invite = false) const;
 
     /**
      * Return list of available coins and locked coins grouped by non-change output address.
@@ -988,14 +1010,14 @@ public:
 
     // ResendWalletTransactionsBefore may only be called if fBroadcastTransactions!
     std::vector<uint256> ResendWalletTransactionsBefore(int64_t nTime, CConnman* connman);
-    CAmount GetBalance() const;
-    CAmount GetUnconfirmedBalance() const;
-    CAmount GetImmatureBalance() const;
-    CAmount GetWatchOnlyBalance() const;
-    CAmount GetUnconfirmedWatchOnlyBalance() const;
-    CAmount GetImmatureWatchOnlyBalance() const;
+    CAmount GetBalance(bool invite = false) const;
+    CAmount GetUnconfirmedBalance(bool invite = false) const;
+    CAmount GetImmatureBalance(bool invite = false) const;
+    CAmount GetWatchOnlyBalance(bool invite = false) const;
+    CAmount GetUnconfirmedWatchOnlyBalance(bool invite = false) const;
+    CAmount GetImmatureWatchOnlyBalance(bool invite = false) const;
     CAmount GetLegacyBalance(const isminefilter& filter, int minDepth, const std::string* account) const;
-    CAmount GetAvailableBalance(const CCoinControl* coinControl = nullptr) const;
+    CAmount GetAvailableBalance(const CCoinControl* coinControl = nullptr, bool invite = false) const;
     pog::RewardsAmount GetRewards() const;
     /**
      * Insert additional inputs into the transaction by
