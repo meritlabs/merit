@@ -413,6 +413,11 @@ WalletModel::EncryptionStatus WalletModel::getEncryptionStatus() const
     }
 }
 
+bool WalletModel::IsReferred() const
+{
+    return wallet->IsReferred();
+}
+
 bool WalletModel::setWalletEncrypted(bool encrypted, const SecureString &passphrase)
 {
     if(encrypted)

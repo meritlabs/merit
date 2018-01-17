@@ -533,7 +533,7 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *walletModel)
 {
     if(!walletFrame)
         return false;
-    setWalletActionsEnabled(true);
+    setWalletActionsEnabled(true, walletModel->IsReferred());
     return walletFrame->addWallet(name, walletModel);
 }
 
@@ -555,18 +555,23 @@ void MeritGUI::removeAllWallets()
 
 void MeritGUI::setWalletActionsEnabled(bool enabled)
 {
+    setWalletActionsEnabled(enabled, true);
+}
+
+void MeritGUI::setWalletActionsEnabled(bool enabled, bool isReferred)
+{
     overviewAction->setEnabled(enabled);
-    sendCoinsAction->setEnabled(enabled);
-    sendCoinsMenuAction->setEnabled(enabled);
-    receiveCoinsAction->setEnabled(enabled);
-    receiveCoinsMenuAction->setEnabled(enabled);
+    sendCoinsAction->setEnabled(enabled && isReferred);
+    sendCoinsMenuAction->setEnabled(enabled && isReferred);
+    receiveCoinsAction->setEnabled(enabled && isReferred);
+    receiveCoinsMenuAction->setEnabled(enabled && isReferred);
     historyAction->setEnabled(enabled);
     encryptWalletAction->setEnabled(enabled);
     backupWalletAction->setEnabled(enabled);
     changePassphraseAction->setEnabled(enabled);
-    signMessageAction->setEnabled(enabled);
-    verifyMessageAction->setEnabled(enabled);
-    usedSendingAddressesAction->setEnabled(enabled);
+    signMessageAction->setEnabled(enabled && isReferred);
+    verifyMessageAction->setEnabled(enabled && isReferred);
+    usedSendingAddressesAction->setEnabled(enabled && isReferred);
     usedReceivingAddressesAction->setEnabled(enabled);
     openAction->setEnabled(enabled);
 }

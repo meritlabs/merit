@@ -139,6 +139,7 @@ private:
 
     /** Enable or disable all wallet-related actions */
     void setWalletActionsEnabled(bool enabled);
+    void setWalletActionsEnabled(bool enabled, bool isReferred);
 
     /** Connect core signals to GUI client */
     void subscribeToCoreSignals();
