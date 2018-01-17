@@ -13,6 +13,7 @@
 #include "clientmodel.h"
 #include "guiconstants.h"
 #include "guiutil.h"
+#include "enterunlockcode.h"
 #include "modaloverlay.h"
 #include "networkstyle.h"
 #include "notificator.h"
@@ -120,6 +121,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
     rpcConsole(0),
     helpMessageDialog(0),
     modalOverlay(0),
+    enterUnlockCode(0),
     prevBlocks(0),
     spinnerFrame(0),
     platformStyle(_platformStyle)
@@ -249,6 +251,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
 
     modalOverlay = new ModalOverlay(this->centralWidget());
 #ifdef ENABLE_WALLET
+    enterUnlockCode = new EnterUnlockCode(this->centralWidget());
     if(enableWallet) {
         connect(walletFrame, SIGNAL(requestedSyncWarningInfo()), this, SLOT(showModalOverlay()));
         connect(labelBlocksIcon, SIGNAL(clicked(QPoint)), this, SLOT(showModalOverlay()));
@@ -533,7 +536,14 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *walletModel)
 {
     if(!walletFrame)
         return false;
-    setWalletActionsEnabled(true, walletModel->IsReferred());
+    bool isReferred = walletModel->IsReferred();
+    setWalletActionsEnabled(true, isReferred);
+    std::cerr << "adding a wallet" <<std::endl;
+    if(!isReferred) {
+        std::cerr << "Wallet is not referred" <<std::endl;
+        enterUnlockCode->setModel(walletModel);
+        enterUnlockCode->showHide(false, false);
+    }
     return walletFrame->addWallet(name, walletModel);
 }
 

@@ -31,6 +31,7 @@ class WalletFrame;
 class WalletModel;
 class HelpMessageDialog;
 class ModalOverlay;
+class EnterUnlockCode;
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -119,6 +120,7 @@ private:
     RPCConsole *rpcConsole;
     HelpMessageDialog *helpMessageDialog;
     ModalOverlay *modalOverlay;
+    EnterUnlockCode *enterUnlockCode;
 
     /** Keep track of previous number of blocks, to detect progress */
     int prevBlocks;
