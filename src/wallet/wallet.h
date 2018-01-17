@@ -870,6 +870,7 @@ public:
     //! check whether we are allowed to upgrade (or already support) to the named feature
     bool CanSupportFeature(enum WalletFeature wf) const { AssertLockHeld(cs_wallet); return nWalletMaxVersion >= wf; }
 
+    void AvailableInvites(std::vector<COutput> &invites);
     /**
      * populate vCoins with vector of available COutputs.
      */

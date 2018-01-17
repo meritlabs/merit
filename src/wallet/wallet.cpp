@@ -1157,6 +1157,8 @@ bool CWallet::LoadToWallet(const referral::ReferralTx& rtxIn)
  */
 bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const CBlockIndex* pIndex, int posInBlock, bool fUpdate)
 {
+
+    debug("AddToWalletIfInvolvingMe");
     const CTransaction& tx = *ptx;
     {
         AssertLockHeld(cs_wallet);
@@ -1415,6 +1417,9 @@ void CWallet::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const 
     }
     for (size_t i = 0; i < pblock->vtx.size(); i++) {
         SyncTransaction(pblock->vtx[i], pindex, i);
+    }
+    for (size_t i = 0; i < pblock->invites.size(); i++) {
+        SyncTransaction(pblock->invites[i], pindex, i);
     }
     for (size_t i = 0; i < pblock->m_vRef.size(); i++) {
         SyncTransaction(pblock->m_vRef[i], pindex, i);
@@ -2428,6 +2433,36 @@ CAmount CWallet::GetAvailableBalance(const CCoinControl* coinControl) const
         }
     }
     return balance;
+}
+
+void CWallet::AvailableInvites(std::vector<COutput> &invites)
+{
+    invites.clear();
+
+    {
+        LOCK2(cs_main, cs_wallet);
+
+        for (const auto& it: mapWallet) {
+            const auto invite_tx = it.second.tx;
+
+            auto safeTx = it.second.IsTrusted();
+            auto nDepth = it.second.GetDepthInMainChain();
+
+            if (invite_tx->nVersion == CTransaction::INVITE_VERSION) {
+                for (unsigned int i = 0; i < invite_tx->vout.size(); i++) {
+                    if (IsLockedCoin(it.first, i) || IsSpent(it.first, i)) {
+                        continue;
+                    }
+
+                    if (IsMine(invite_tx->vout[i]) == ISMINE_NO) {
+                        continue;
+                    }
+
+                    invites.push_back(COutput(&it.second, i, nDepth, true, true, safeTx));
+                }
+            }
+        }
+    }
 }
 
 void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const CCoinControl *coinControl, const CAmount &nMinimumAmount, const CAmount &nMaximumAmount, const CAmount &nMinimumSumAmount, const uint64_t &nMaximumCount, const int &nMinDepth, const int &nMaxDepth) const

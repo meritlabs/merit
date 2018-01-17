@@ -4086,6 +4086,7 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
             "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
             "  \"referred\": true|false           (boolean) if wallet is referred\n"
             "  \"referraladdress\": xxxxxx        (string) referral address to use to share with other users\n"
+            "  \"invites\": xxxxxx                (numeric) number of available invites\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getwalletinfo", "")
@@ -4124,6 +4125,13 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
 
         obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{referral->GetAddress()})));
     }
+
+    std::vector<COutput> invites;
+
+    pwallet->AvailableInvites(invites);
+
+    obj.push_back(Pair("invites", static_cast<uint64_t>(invites.size())));
+
 
     return obj;
 }
