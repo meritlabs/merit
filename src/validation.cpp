@@ -822,48 +822,51 @@ static bool AcceptToMemoryPoolWorker(
                               fSpendsCoinbase, nSigOpsCost, lp);
         unsigned int nSize = entry.GetSize();
 
-        // Check that the transaction doesn't have an excessive number of
-        // sigops, making it impossible to mine. Since the coinbase transaction
-        // itself can contain sigops MAX_STANDARD_TX_SIGOPS is less than
-        // MAX_BLOCK_SIGOPS; we still consider this an invalid rather than
-        // merely non-standard transaction.
-        if (nSigOpsCost > MAX_STANDARD_TX_SIGOPS_COST) {
-            return state.DoS(
-                    0,
-                    false,
-                    REJECT_NONSTANDARD,
-                    "bad-txns-too-many-sigops",
-                    false,
-                    strprintf("%d", nSigOpsCost));
+        if(!tx.IsInvite()) {
+
+            // Check that the transaction doesn't have an excessive number of
+            // sigops, making it impossible to mine. Since the coinbase transaction
+            // itself can contain sigops MAX_STANDARD_TX_SIGOPS is less than
+            // MAX_BLOCK_SIGOPS; we still consider this an invalid rather than
+            // merely non-standard transaction.
+            if (nSigOpsCost > MAX_STANDARD_TX_SIGOPS_COST) {
+                return state.DoS(
+                        0,
+                        false,
+                        REJECT_NONSTANDARD,
+                        "bad-txns-too-many-sigops",
+                        false,
+                        strprintf("%d", nSigOpsCost));
+            }
+
+            CAmount mempoolRejectFee =
+                pool.GetMinFee(
+                        gArgs.GetArg( "-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE)
+                        * 1000000)
+                .GetFee(nSize);
+
+            if (mempoolRejectFee > 0 && nModifiedFees < mempoolRejectFee) {
+                return state.DoS(
+                        0,
+                        false,
+                        REJECT_INSUFFICIENTFEE,
+                        "mempool min fee not met",
+                        false,
+                        strprintf("%d < %d", nFees, mempoolRejectFee));
+            }
+
+            // No transactions are allowed below minRelayTxFee except from disconnected blocks
+            if (fLimitFree && nModifiedFees < ::minRelayTxFee.GetFee(nSize)) {
+                return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "min relay fee not met");
+            }
+
+            if (nAbsurdFee && nFees > nAbsurdFee)
+                return state.Invalid(
+                        false,
+                        REJECT_HIGHFEE,
+                        "absurdly-high-fee",
+                        strprintf("%d > %d", nFees, nAbsurdFee));
         }
-
-        CAmount mempoolRejectFee =
-            pool.GetMinFee(
-                    gArgs.GetArg( "-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE)
-                    * 1000000)
-            .GetFee(nSize);
-
-        if (mempoolRejectFee > 0 && nModifiedFees < mempoolRejectFee) {
-            return state.DoS(
-                    0,
-                    false,
-                    REJECT_INSUFFICIENTFEE,
-                    "mempool min fee not met",
-                    false,
-                    strprintf("%d < %d", nFees, mempoolRejectFee));
-        }
-
-        // No transactions are allowed below minRelayTxFee except from disconnected blocks
-        if (fLimitFree && nModifiedFees < ::minRelayTxFee.GetFee(nSize)) {
-            return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "min relay fee not met");
-        }
-
-        if (nAbsurdFee && nFees > nAbsurdFee)
-            return state.Invalid(
-                    false,
-                    REJECT_HIGHFEE,
-                    "absurdly-high-fee",
-                    strprintf("%d > %d", nFees, nAbsurdFee));
 
         // Calculate in-mempool ancestors, up to a limit.
         CTxMemPool::setEntries setAncestors;
@@ -1376,13 +1379,19 @@ bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, const Consensus
 
     if (fAllowSlow) { // use coin database to locate block that contains transaction, and scan it
         const Coin& coin = AccessByTxid(*pcoinsTip, hash);
-        if (!coin.IsSpent()) pindexSlow = chainActive[coin.nHeight];
+        //if (!coin.IsSpent()) pindexSlow = chainActive[coin.nHeight];
+        pindexSlow = chainActive[coin.nHeight];
     }
 
     if (pindexSlow) {
         CBlock block;
         if (ReadBlockFromDisk(block, pindexSlow, consensusParams)) {
-            for (const auto& tx : block.vtx) {
+            std::vector<CTransactionRef> vtx;
+            vtx.reserve(block.vtx.size() +  block.invites.size());
+            vtx.insert(vtx.end(), block.vtx.begin(), block.vtx.end());
+            vtx.insert(vtx.end(), block.invites.begin(), block.invites.end());
+
+            for (const auto& tx : vtx) {
                 if (tx->GetHash() == hash) {
                     txOut = tx;
                     hashBlock = pindexSlow->GetBlockHash();
@@ -2591,6 +2600,45 @@ void UnIndexTransactions(
     }
 }
 
+bool DisconnectOutputs(
+        int height,
+        const CTransaction& tx,
+        CCoinsViewCache& view)
+{
+    bool clean = true;
+    bool is_coinbase = tx.IsCoinBase();
+    uint256 hash = tx.GetHash();
+
+    for (size_t o = 0; o < tx.vout.size(); o++) {
+        if (!tx.vout[o].scriptPubKey.IsUnspendable()) {
+            COutPoint out(hash, o);
+            Coin coin;
+            bool is_spent = view.SpendCoin(out, &coin);
+            if (!is_spent 
+                    || tx.vout[o] != coin.out 
+                    || height != coin.nHeight 
+                    || is_coinbase != coin.fCoinBase) {
+                clean = false;
+            }
+        }
+    }
+    return clean;
+}
+ 
+bool DisconnectInputs(
+        CTxUndo &txundo,
+        const std::vector<CTxIn> vin, 
+        CCoinsViewCache& view)
+{
+    bool clean = true;
+    for (unsigned int j = vin.size(); j-- > 0;) {
+        const COutPoint &out = vin[j].prevout;
+        int res = ApplyTxInUndo(std::move(txundo.vprevout[j]), view, out);
+        if (res == DISCONNECT_FAILED) return DISCONNECT_FAILED;
+        clean &= res != DISCONNECT_UNCLEAN;
+    }
+    return clean;
+}
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  When FAILED is returned, view is left in an indeterminate state. */
 static DisconnectResult DisconnectBlock(
@@ -2615,7 +2663,7 @@ static DisconnectResult DisconnectBlock(
         return DISCONNECT_FAILED;
     }
 
-    if (blockUndo.vtxundo.size() + 1 != block.vtx.size()) {
+    if (blockUndo.vtxundo.size() + 1 != (block.vtx.size() + block.invites.size())) {
         error("DisconnectBlock(): block and undo data inconsistent");
         return DISCONNECT_FAILED;
     }
@@ -2628,21 +2676,10 @@ static DisconnectResult DisconnectBlock(
     // undo transactions in reverse order
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
         const CTransaction &tx = *(block.vtx[i]);
-        uint256 hash = tx.GetHash();
-        bool is_coinbase = tx.IsCoinBase();
 
         // Check that all outputs are available and match the outputs in the block itself
         // exactly.
-        for (size_t o = 0; o < tx.vout.size(); o++) {
-            if (!tx.vout[o].scriptPubKey.IsUnspendable()) {
-                COutPoint out(hash, o);
-                Coin coin;
-                bool is_spent = view.SpendCoin(out, &coin);
-                if (!is_spent || tx.vout[o] != coin.out || pindex->nHeight != coin.nHeight || is_coinbase != coin.fCoinBase) {
-                    fClean = false; // transaction output mismatch
-                }
-            }
-        }
+        fClean &= DisconnectOutputs(pindex->nHeight, tx, view);
 
         // restore inputs
         if (i > 0) { // not coinbases
@@ -2651,15 +2688,25 @@ static DisconnectResult DisconnectBlock(
                 error("DisconnectBlock(): transaction and undo data inconsistent");
                 return DISCONNECT_FAILED;
             }
-            for (unsigned int j = tx.vin.size(); j-- > 0;) {
-                const COutPoint &out = tx.vin[j].prevout;
-                int res = ApplyTxInUndo(std::move(txundo.vprevout[j]), view, out);
-                if (res == DISCONNECT_FAILED) return DISCONNECT_FAILED;
-                fClean = fClean && res != DISCONNECT_UNCLEAN;
-            }
+            fClean &= DisconnectInputs(txundo, tx.vin, view);
             // At this point, all of txundo.vprevout should have been moved out.
         }
         fClean &= GetDebitsAndCredits(debits_and_credits, tx, view, true);
+    }
+
+    for (int i = block.invites.size() - 1; i >= 0; i--) {
+        const CTransaction &tx = *(block.invites[i]);
+
+        fClean &= DisconnectOutputs(pindex->nHeight, tx, view);
+
+        if (i > 0) { // not coinbases
+            CTxUndo &txundo = blockUndo.vtxundo[i-1];
+            if (txundo.vprevout.size() != tx.vin.size()) {
+                error("DisconnectBlock(): invite and undo data inconsistent");
+                return DISCONNECT_FAILED;
+            }
+            fClean &= DisconnectInputs(txundo, tx.vin, view);
+        }
     }
 
     UnIndexTransactions(pindex, block.vtx, addressIndex, addressUnspentIndex);
@@ -3499,16 +3546,22 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    for (int i = 0; i < static_cast<int>(block.invites.size()); i++)
-    {
-        const CTransaction &inv = *(block.invites[i]);
+    if(block.invites.empty()) {
+        pos.nTxOffset += GetSizeOfCompactSize(block.invites.size());
+        for (int i = 0; i < static_cast<int>(block.invites.size()); i++)
+        {
+            const CTransaction &inv = *(block.invites[i]);
 
-        CTxUndo undoDummy;
-        if (i > 0) {
-            blockundo.vtxundo.push_back(CTxUndo());
+            CTxUndo undoDummy;
+            if (i > 0) {
+                blockundo.vtxundo.push_back(CTxUndo());
+            }
+
+            vPos.push_back(std::make_pair(inv.GetHash(), pos));
+            pos.nTxOffset += ::GetSerializeSize(inv, SER_DISK, CLIENT_VERSION);
+
+            UpdateCoins(inv, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
         }
-
-        UpdateCoins(inv, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
     }
 
     IndexTransactions(

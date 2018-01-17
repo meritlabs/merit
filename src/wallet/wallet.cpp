@@ -2999,6 +2999,7 @@ bool CWallet::CreateTransaction(
         bool sign)
 {
     const bool invite = wtxNew.tx->IsInvite();
+    assert(!invite);
 
     CAmount nValue = 0;
     int nChangePosRequest = nChangePosInOut;
@@ -3012,7 +3013,7 @@ bool CWallet::CreateTransaction(
         }
         nValue += recipient.nAmount;
 
-        if (!invite && recipient.fSubtractFeeFromAmount)
+        if (recipient.fSubtractFeeFromAmount)
             nSubtractFeeFromAmount++;
 
         CTxDestination dest;
@@ -3081,7 +3082,7 @@ bool CWallet::CreateTransaction(
         LOCK2(cs_main, cs_wallet);
         {
             std::vector<COutput> vAvailableCoins;
-            AvailableCoins(vAvailableCoins, true, &coin_control, invite);
+            AvailableCoins(vAvailableCoins, true, &coin_control, false);
 
             // Create change script that will be used if we need change
             // TODO: pass in scriptChange instead of reservekey so
@@ -3137,21 +3138,17 @@ bool CWallet::CreateTransaction(
                 {
                     CTxOut txout(recipient.nAmount, recipient.scriptPubKey);
 
-                    if (recipient.fSubtractFeeFromAmount)
-                    {
+                    if (recipient.fSubtractFeeFromAmount) {
                         txout.nValue -= nFeeRet / nSubtractFeeFromAmount; // Subtract fee equally from each selected recipient
 
-                        if (fFirst) // first receiver pays the remainder not divisible by output count
-                        {
+                        if (fFirst) { // first receiver pays the remainder not divisible by output count
                             fFirst = false;
                             txout.nValue -= nFeeRet % nSubtractFeeFromAmount;
                         }
                     }
 
-                    if (IsDust(txout, ::dustRelayFee))
-                    {
-                        if (recipient.fSubtractFeeFromAmount && nFeeRet > 0)
-                        {
+                    if (IsDust(txout, ::dustRelayFee)) {
+                        if (recipient.fSubtractFeeFromAmount && nFeeRet > 0) {
                             if (txout.nValue < 0)
                                 strFailReason = _("The transaction amount is too small to pay the fee");
                             else
@@ -3370,6 +3367,211 @@ bool CWallet::CreateTransaction(
               feeCalc.est.fail.start, feeCalc.est.fail.end,
               100 * feeCalc.est.fail.withinTarget / (feeCalc.est.fail.totalConfirmed + feeCalc.est.fail.inMempool + feeCalc.est.fail.leftMempool),
               feeCalc.est.fail.withinTarget, feeCalc.est.fail.totalConfirmed, feeCalc.est.fail.inMempool, feeCalc.est.fail.leftMempool);
+    return true;
+}
+
+bool CWallet::CreateInviteTransaction(
+        const std::vector<CRecipient>& vecSend,
+        CWalletTx& wtxNew,
+        CReserveKey& reservekey,
+        int& nChangePosInOut,
+        std::string& strFailReason,
+        const CCoinControl& coin_control,
+        bool sign)
+{
+    const bool invite = wtxNew.tx->IsInvite();
+    assert(invite);
+
+    CAmount nValue = 0;
+    int nChangePosRequest = nChangePosInOut;
+    unsigned int nSubtractFeeFromAmount = 0;
+
+    if (vecSend.empty()) {
+        strFailReason = _("Transaction must have at least one recipient");
+        return false;
+    }
+
+    for (const auto& recipient : vecSend) {
+        if (nValue < 0 || recipient.nAmount < 0) {
+            strFailReason = _("Transaction amounts must not be negative");
+            return false;
+        }
+        nValue += recipient.nAmount;
+
+        CTxDestination dest;
+        ExtractDestination(recipient.scriptPubKey, dest);
+
+        //check blockchain and mempool for beacon
+        if (!CheckAddressBeaconed(dest, true)) {
+            std::stringstream e;
+            e << _("Transaction recipient address \"")
+              << EncodeDestination(dest)
+              << _("\" is not beaconed");
+
+            strFailReason = e.str();
+
+            return false;
+        }
+    }
+
+    wtxNew.fTimeReceivedIsTxTime = true;
+    wtxNew.BindWallet(this);
+
+    CMutableTransaction txNew;
+    txNew.nVersion = wtxNew.tx->nVersion;
+    txNew.nLockTime = chainActive.Height();
+    if (GetRandInt(10) == 0)
+        txNew.nLockTime = std::max(0, (int)txNew.nLockTime - GetRandInt(100));
+
+    assert(txNew.nLockTime <= (unsigned int)chainActive.Height());
+    assert(txNew.nLockTime < LOCKTIME_THRESHOLD);
+
+    unsigned int nBytes;
+    {
+        std::set<CInputCoin> setCoins;
+        LOCK2(cs_main, cs_wallet);
+        {
+            std::vector<COutput> vAvailableCoins;
+            AvailableCoins(vAvailableCoins, true, &coin_control, invite);
+
+            // Create change script that will be used if we need change
+            // TODO: pass in scriptChange instead of reservekey so
+            // change transaction isn't always pay-to-merit-address
+            CScript scriptChange;
+
+            // coin control: send change to custom address
+            if (!boost::get<CNoDestination>(&coin_control.destChange)) {
+                scriptChange = GetScriptForDestination(coin_control.destChange);
+            } else { // no coin control: send change to newly generated address
+                // Note: We use a new key here to keep it from being obvious which side is the change.
+                //  The drawback is that by not reusing a previous key, the change may be lost if a
+                //  backup is restored, if the backup doesn't have the new private key for the change.
+                //  If we reused the old key, it would be possible to add code to look for and
+                //  rediscover unknown transactions that were written with keys of ours to recover
+                //  post-backup change.
+
+                // Reserve a new key pair from key pool
+                CPubKey vchPubKey;
+                bool ret;
+                ret = reservekey.GetReservedKey(vchPubKey);
+                if (!ret)
+                {
+                    strFailReason = _("Keypool ran out, please call keypoolrefill first");
+                    return false;
+                }
+
+                scriptChange = GetScriptForDestination(vchPubKey.GetID());
+            }
+
+            CTxOut change_prototype_txout(0, scriptChange);
+            size_t change_prototype_size = GetSerializeSize(change_prototype_txout, SER_DISK, 0);
+
+            CAmount nValueIn = 0;
+
+            // Start with no fee and loop until there is enough fee
+            nChangePosInOut = nChangePosRequest;
+            wtxNew.fFromMe = true;
+            bool fFirst = true;
+
+            CAmount nValueToSelect = nValue;
+
+            // vouts to the payees
+            for (const auto& recipient : vecSend)
+            {
+                CTxOut txout(recipient.nAmount, recipient.scriptPubKey);
+                txNew.vout.push_back(txout);
+            }
+
+            nValueIn = 0;
+            if (!SelectCoins(vAvailableCoins, nValueToSelect, setCoins, nValueIn, &coin_control))
+            {
+                strFailReason = _("Insufficient funds");
+                return false;
+            }
+
+            const CAmount nChange = nValueIn - nValueToSelect;
+
+            if (nChange > 0)
+            {
+                // Fill a vout to ourself
+                CTxOut newTxOut(nChange, scriptChange);
+
+                if (nChangePosInOut == -1)
+                {
+                    // Insert change txn at random position:
+                    nChangePosInOut = GetRandInt(txNew.vout.size()+1);
+                }
+                else if ((unsigned int)nChangePosInOut > txNew.vout.size())
+                {
+                    strFailReason = _("Change index out of range");
+                    return false;
+                }
+
+                std::vector<CTxOut>::iterator position = txNew.vout.begin()+nChangePosInOut;
+                txNew.vout.insert(position, newTxOut);
+            } else {
+                nChangePosInOut = -1;
+            }
+
+            const uint32_t nSequence = coin_control.signalRbf ? MAX_BIP125_RBF_SEQUENCE : (CTxIn::SEQUENCE_FINAL - 1);
+            for (const auto& coin : setCoins)
+                txNew.vin.push_back(CTxIn(coin.outpoint,CScript(),
+                            nSequence));
+
+            nBytes = GetVirtualTransactionSize(txNew);
+
+        }
+
+        if (nChangePosInOut == -1) reservekey.ReturnKey(); // Return any reserved key if we don't have change
+
+        if (sign)
+        {
+            CTransaction txNewConst(txNew);
+            int nIn = 0;
+            for (const auto& coin : setCoins)
+            {
+                const CScript& scriptPubKey = coin.txout.scriptPubKey;
+                SignatureData sigdata;
+
+                if (!ProduceSignature(TransactionSignatureCreator(this, &txNewConst, nIn, coin.txout.nValue, SIGHASH_ALL), scriptPubKey, sigdata))
+                {
+                    strFailReason = _("Signing transaction failed");
+                    return false;
+                } else {
+                    UpdateTransaction(txNew, nIn, sigdata);
+                }
+
+                nIn++;
+            }
+        }
+
+        // Embed the constructed transaction data in wtxNew.
+        wtxNew.SetTx(MakeTransactionRef(std::move(txNew)));
+
+        // Limit size
+        if (GetTransactionWeight(wtxNew) >= MAX_STANDARD_TX_WEIGHT)
+        {
+            strFailReason = _("Transaction too large");
+            return false;
+        }
+    }
+
+    if (gArgs.GetBoolArg("-walletrejectlongchains", DEFAULT_WALLET_REJECT_LONG_CHAINS)) {
+        // Lastly, ensure this tx will pass the mempool's chain limits
+        LockPoints lp;
+        CTxMemPoolEntry entry(*wtxNew.tx, 0, 0, 0, false, 0, lp);
+        CTxMemPool::setEntries setAncestors;
+        size_t nLimitAncestors = gArgs.GetArg("-limitancestorcount", DEFAULT_ANCESTOR_LIMIT);
+        size_t nLimitAncestorSize = gArgs.GetArg("-limitancestorsize", DEFAULT_ANCESTOR_SIZE_LIMIT)*1000;
+        size_t nLimitDescendants = gArgs.GetArg("-limitdescendantcount", DEFAULT_DESCENDANT_LIMIT);
+        size_t nLimitDescendantSize = gArgs.GetArg("-limitdescendantsize", DEFAULT_DESCENDANT_SIZE_LIMIT)*1000;
+        std::string errString;
+        if (!mempool.CalculateMemPoolAncestors(entry, setAncestors, nLimitAncestors, nLimitAncestorSize, nLimitDescendants, nLimitDescendantSize, errString)) {
+            strFailReason = _("Transaction has too long of a mempool chain");
+            return false;
+        }
+    }
+
     return true;
 }
 

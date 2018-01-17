@@ -473,19 +473,28 @@ static void ConfirmAddress(
 
     // Create and send the transaction
     CReserveKey reservekey(pwallet);
-    CAmount nFeeRequired = 0;
     std::string strError;
     std::vector<CRecipient> vecSend;
     int nChangePosRet = -1;
     CRecipient recipient = {scriptPubKey, 1, false};
     vecSend.push_back(recipient);
 
-    if (!pwallet->CreateTransaction(vecSend, wtxNew, reservekey, nFeeRequired, nChangePosRet, strError, coin_control)) {
+    if (!pwallet->CreateInviteTransaction(
+                vecSend,
+                wtxNew,
+                reservekey,
+                nChangePosRet,
+                strError,
+                coin_control)) {
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
 
     CValidationState state;
-    if (!pwallet->CommitTransaction(wtxNew, reservekey, g_connman.get(), state)) {
+    if (!pwallet->CommitTransaction(
+                wtxNew,
+                reservekey,
+                g_connman.get(),
+                state)) {
         strError = strprintf("Error: The transaction was rejected! Reason given: %s", state.GetRejectReason());
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }

@@ -1041,6 +1041,15 @@ public:
             const CCoinControl& coin_control,
             bool sign = true);
 
+    bool CreateInviteTransaction(
+            const std::vector<CRecipient>& vecSend,
+            CWalletTx& wtxNew,
+            CReserveKey& reservekey,
+            int& nChangePosInOut,
+            std::string& strFailReason,
+            const CCoinControl& coin_control,
+            bool sign = true);
+
     bool CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef& referral, CKey& key);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CConnman* connman, CValidationState& state);
     bool CommitTransaction(referral::ReferralTx& rtxNew, CConnman* connman, CValidationState& state);
