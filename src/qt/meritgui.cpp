@@ -13,6 +13,7 @@
 #include "clientmodel.h"
 #include "guiconstants.h"
 #include "guiutil.h"
+#include "enterunlockcode.h"
 #include "modaloverlay.h"
 #include "networkstyle.h"
 #include "notificator.h"
@@ -82,44 +83,45 @@ const QString MeritGUI::DEFAULT_WALLET = "~Default";
 MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *networkStyle, QWidget *parent) :
     QMainWindow(parent),
     enableWallet(false),
-    clientModel(0),
-    walletFrame(0),
-    unitDisplayControl(0),
-    labelWalletEncryptionIcon(0),
-    labelWalletHDStatusIcon(0),
-    connectionsControl(0),
-    labelBlocksIcon(0),
-    progressBarLabel(0),
-    progressBar(0),
-    progressDialog(0),
-    appMenuBar(0),
-    overviewAction(0),
-    historyAction(0),
-    quitAction(0),
-    sendCoinsAction(0),
-    sendCoinsMenuAction(0),
-    usedSendingAddressesAction(0),
-    usedReceivingAddressesAction(0),
-    signMessageAction(0),
-    verifyMessageAction(0),
-    aboutAction(0),
-    receiveCoinsAction(0),
-    receiveCoinsMenuAction(0),
-    optionsAction(0),
-    toggleHideAction(0),
-    encryptWalletAction(0),
-    backupWalletAction(0),
-    changePassphraseAction(0),
-    aboutQtAction(0),
-    openRPCConsoleAction(0),
-    openAction(0),
-    showHelpMessageAction(0),
-    trayIcon(0),
-    trayIconMenu(0),
-    notificator(0),
-    rpcConsole(0),
-    helpMessageDialog(0),
-    modalOverlay(0),
+    clientModel(nullptr),
+    walletFrame(nullptr),
+    unitDisplayControl(nullptr),
+    labelWalletEncryptionIcon(nullptr),
+    labelWalletHDStatusIcon(nullptr),
+    connectionsControl(nullptr),
+    labelBlocksIcon(nullptr),
+    progressBarLabel(nullptr),
+    progressBar(nullptr),
+    progressDialog(nullptr),
+    appMenuBar(nullptr),
+    overviewAction(nullptr),
+    historyAction(nullptr),
+    quitAction(nullptr),
+    sendCoinsAction(nullptr),
+    sendCoinsMenuAction(nullptr),
+    usedSendingAddressesAction(nullptr),
+    usedReceivingAddressesAction(nullptr),
+    signMessageAction(nullptr),
+    verifyMessageAction(nullptr),
+    aboutAction(nullptr),
+    receiveCoinsAction(nullptr),
+    receiveCoinsMenuAction(nullptr),
+    optionsAction(nullptr),
+    toggleHideAction(nullptr),
+    encryptWalletAction(nullptr),
+    backupWalletAction(nullptr),
+    changePassphraseAction(nullptr),
+    aboutQtAction(nullptr),
+    openRPCConsoleAction(nullptr),
+    openAction(nullptr),
+    showHelpMessageAction(nullptr),
+    trayIcon(nullptr),
+    trayIconMenu(nullptr),
+    notificator(nullptr),
+    rpcConsole(nullptr),
+    helpMessageDialog(nullptr),
+    modalOverlay(nullptr),
+    enterUnlockCode(nullptr),
     prevBlocks(0),
     spinnerFrame(0),
     platformStyle(_platformStyle)
@@ -249,10 +251,12 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
 
     modalOverlay = new ModalOverlay(this->centralWidget());
 #ifdef ENABLE_WALLET
+    enterUnlockCode = new EnterUnlockCode(this->centralWidget());
     if(enableWallet) {
         connect(walletFrame, SIGNAL(requestedSyncWarningInfo()), this, SLOT(showModalOverlay()));
         connect(labelBlocksIcon, SIGNAL(clicked(QPoint)), this, SLOT(showModalOverlay()));
         connect(progressBar, SIGNAL(clicked(QPoint)), this, SLOT(showModalOverlay()));
+        connect(enterUnlockCode, SIGNAL(walletReferred()), this, SLOT(walletReferred()));
     }
 #endif
 }
@@ -533,7 +537,12 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *walletModel)
 {
     if(!walletFrame)
         return false;
-    setWalletActionsEnabled(true);
+    bool isReferred = walletModel->IsReferred();
+    setWalletActionsEnabled(true, isReferred);
+    if(!isReferred) {
+        enterUnlockCode->setModel(walletModel);
+        enterUnlockCode->showHide(false, false);
+    }
     return walletFrame->addWallet(name, walletModel);
 }
 
@@ -551,22 +560,33 @@ void MeritGUI::removeAllWallets()
     setWalletActionsEnabled(false);
     walletFrame->removeAllWallets();
 }
+
+void MeritGUI::walletReferred()
+{
+    setWalletActionsEnabled(true);
+    enterUnlockCode->showHide(true, true);
+}
 #endif // ENABLE_WALLET
 
 void MeritGUI::setWalletActionsEnabled(bool enabled)
 {
+    setWalletActionsEnabled(enabled, true);
+}
+
+void MeritGUI::setWalletActionsEnabled(bool enabled, bool isReferred)
+{
     overviewAction->setEnabled(enabled);
-    sendCoinsAction->setEnabled(enabled);
-    sendCoinsMenuAction->setEnabled(enabled);
-    receiveCoinsAction->setEnabled(enabled);
-    receiveCoinsMenuAction->setEnabled(enabled);
+    sendCoinsAction->setEnabled(enabled && isReferred);
+    sendCoinsMenuAction->setEnabled(enabled && isReferred);
+    receiveCoinsAction->setEnabled(enabled && isReferred);
+    receiveCoinsMenuAction->setEnabled(enabled && isReferred);
     historyAction->setEnabled(enabled);
     encryptWalletAction->setEnabled(enabled);
     backupWalletAction->setEnabled(enabled);
     changePassphraseAction->setEnabled(enabled);
-    signMessageAction->setEnabled(enabled);
-    verifyMessageAction->setEnabled(enabled);
-    usedSendingAddressesAction->setEnabled(enabled);
+    signMessageAction->setEnabled(enabled && isReferred);
+    verifyMessageAction->setEnabled(enabled && isReferred);
+    usedSendingAddressesAction->setEnabled(enabled && isReferred);
     usedReceivingAddressesAction->setEnabled(enabled);
     openAction->setEnabled(enabled);
 }

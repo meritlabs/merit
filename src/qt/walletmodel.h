@@ -139,6 +139,8 @@ public:
     CAmount getWatchUnconfirmedBalance() const;
     CAmount getWatchImmatureBalance() const;
     EncryptionStatus getEncryptionStatus() const;
+    bool IsReferred() const;
+    referral::ReferralRef Unlock(const referral::Address& parentAddress);
 
     // Check address for validity
     bool validateAddress(const QString &address);

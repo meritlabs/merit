@@ -31,6 +31,7 @@ class WalletFrame;
 class WalletModel;
 class HelpMessageDialog;
 class ModalOverlay;
+class EnterUnlockCode;
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -119,6 +120,7 @@ private:
     RPCConsole *rpcConsole;
     HelpMessageDialog *helpMessageDialog;
     ModalOverlay *modalOverlay;
+    EnterUnlockCode *enterUnlockCode;
 
     /** Keep track of previous number of blocks, to detect progress */
     int prevBlocks;
@@ -139,6 +141,7 @@ private:
 
     /** Enable or disable all wallet-related actions */
     void setWalletActionsEnabled(bool enabled);
+    void setWalletActionsEnabled(bool enabled, bool isReferred);
 
     /** Connect core signals to GUI client */
     void subscribeToCoreSignals();
@@ -208,6 +211,9 @@ private Q_SLOTS:
 
     /** Show open dialog */
     void openClicked();
+
+    /** Enable actions when wallet gets referred */
+    void walletReferred();
 #endif // ENABLE_WALLET
     /** Show configuration dialog */
     void optionsClicked();
@@ -242,6 +248,7 @@ private Q_SLOTS:
     void toggleNetworkActive();
 
     void showModalOverlay();
+
 };
 
 class UnitDisplayStatusBarControl : public QLabel
