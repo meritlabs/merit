@@ -25,6 +25,8 @@ struct MutableReferral;
 
 static const int SERIALIZE_REFERRAL = 0x40000000;
 
+static const int MAX_TAG_LENGTH = 20;
+
 struct MutableReferral;
 
 /** The basic referral that is broadcast on the network and contained in
@@ -38,12 +40,13 @@ friend struct MutableReferral;
 public:
     // Default referral version.
     static const int32_t CURRENT_VERSION = 0;
+    static const int32_t INVITE_VERSION = 1;
 
     // Changing the default referral version requires a two step process: first
     // adapting relay policy by bumping MAX_STANDARD_VERSION, and then later date
     // bumping the default CURRENT_VERSION at which point both CURRENT_VERSION and
     // MAX_STANDARD_VERSION will be equal.
-    static const int32_t MAX_STANDARD_VERSION = 0;
+    static const int32_t MAX_STANDARD_VERSION = 1;
 
     const int32_t version;
 
@@ -60,6 +63,9 @@ public:
 
     // signature of parentAddress + address
     const valtype signature;
+
+    // referral tag aka name
+    const std::string tag;
 
 private:
     const Address address;
@@ -133,8 +139,11 @@ public:
     char addressType;
     CPubKey pubkey;
     valtype signature;
+    std::string tag;
 
-    MutableReferral() : version(Referral::CURRENT_VERSION), addressType{0} {}
+    MutableReferral(int32_t versionIn = Referral::CURRENT_VERSION) : version(versionIn),
+                                                                     addressType{0},
+                                                                     tag{""} {}
 
     MutableReferral(const Referral& ref);
 
@@ -142,7 +151,9 @@ public:
         char addressTypeIn,
         const Address& addressIn,
         const CPubKey& pubkeyIn,
-        const Address& parentAddressIn);
+        const Address& parentAddressIn,
+        std::string tagIn = "",
+        int32_t versionIn = Referral::CURRENT_VERSION);
 
     Address GetAddress() const;
 
@@ -201,6 +212,9 @@ inline void UnserializeReferral(RefType& ref, Stream& s)
     s >> ref.address;
     s >> ref.pubkey;
     s >> ref.signature;
+    if (ref.version >= Referral::INVITE_VERSION) {
+        s >> ref.tag;
+    }
 
     assert(ref.pubkey.IsValid());
 }
@@ -216,6 +230,10 @@ inline void SerializeReferral(const RefType& ref, Stream& s)
     s << ref.address;
     s << ref.pubkey;
     s << ref.signature;
+    if (ref.version >= Referral::INVITE_VERSION) {
+        s << ref.tag;
+    }
+
 }
 
 typedef std::shared_ptr<const Referral> ReferralRef;

@@ -871,7 +871,7 @@ public:
     const CWalletTx* GetWalletTx(const uint256& hash) const;
 
     // Sets the referral address to unlock the wallet and sends referral tx to the network
-    referral::ReferralRef Unlock(const referral::Address& parentAddress);
+    referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string tag = "");
 
     //! check whether we are allowed to upgrade (or already support) to the named feature
     bool CanSupportFeature(enum WalletFeature wf) const { AssertLockHeld(cs_wallet); return nWalletMaxVersion >= wf; }
@@ -891,7 +891,7 @@ public:
             const int& nMinDepth = 0,
             const int& nMaxDepth = 9999999,
             bool invite = false) const;
-    
+
     void AvailableCoins(
             std::vector<COutput>& vCoins,
             bool fOnlySafe,
@@ -1225,26 +1225,35 @@ public:
         return m_unlockReferralTx.GetReferral();
     }
 
+    std::string GetTag() const
+    {
+        return GetRootReferral()->tag;
+    }
+
     referral::ReferralRef GenerateNewReferral(
             char addressType,
             const referral::Address& addr,
             const CPubKey& signPubKey,
             const referral::Address& parentAddress,
+            const std::string tag = "",
             CKey key = CKey{});
 
     referral::ReferralRef GenerateNewReferral(
             const CScriptID& id,
             const referral::Address& parentAddress,
-            const CPubKey& signPubKey);
+            const CPubKey& signPubKey,
+            const std::string tag = "");
 
     referral::ReferralRef GenerateNewReferral(
             const CParamScriptID& id,
             const referral::Address& parentAddress,
-            const CPubKey& signPubKey);
+            const CPubKey& signPubKey,
+            const std::string tag = "");
 
     referral::ReferralRef GenerateNewReferral(
             const CPubKey& pubkey,
             const referral::Address& parentAddress,
+            const std::string tag = "",
             CKey key = CKey{});
 
     bool IsReferred() const;

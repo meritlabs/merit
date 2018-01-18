@@ -183,7 +183,7 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
     return &(it->second);
 }
 
-referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress)
+referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, const std::string tag)
 {
     // check wallet is not unlocked yet
     if (IsReferred()) {
@@ -216,7 +216,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress)
     LoadKeyPool(nIndex, keypool);
 
     // generate new referral associated with new pubkey
-    auto referral = GenerateNewReferral(pubkey, parentAddress);
+    auto referral = GenerateNewReferral(pubkey, parentAddress, tag);
 
     LogPrintf("Generated new unlock referral. Address: %s\n", referral->GetAddress().ToString());
 
@@ -1157,8 +1157,6 @@ bool CWallet::LoadToWallet(const referral::ReferralTx& rtxIn)
  */
 bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const CBlockIndex* pIndex, int posInBlock, bool fUpdate)
 {
-
-    debug("AddToWalletIfInvolvingMe");
     const CTransaction& tx = *ptx;
     {
         AssertLockHeld(cs_wallet);
@@ -1660,17 +1658,26 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const referral::Address& address,
         const CPubKey& signPubKey,
         const referral::Address& parentAddress,
+        const std::string tag,
         CKey key)
 {
     if(!signPubKey.IsValid()) {
         throw std::runtime_error("Cannot generate referral, the public key used is invalid");
     }
 
+    auto referral_version = referral::Referral::CURRENT_VERSION;
+
+    // check if we need to set new version of referrals
+    auto expected_block_version = ComputeBlockVersion(chainActive.Tip(), Params().GetConsensus());
+    if ((expected_block_version & DAEDALUS_BIT) != 0) {
+        referral_version = referral::Referral::INVITE_VERSION;
+    }
+
     // generate referral for given public key
     auto referral =
         referral::MakeReferralRef(
                 referral::MutableReferral(
-                    addressType, address, signPubKey, parentAddress));
+                    addressType, address, signPubKey, parentAddress, tag, referral_version));
 
     AddReferralAddressPubKey(referral->GetAddress(), signPubKey.GetID());
 
@@ -1692,26 +1699,29 @@ referral::ReferralRef CWallet::GenerateNewReferral(
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CScriptID& id,
         const referral::Address& parentAddress,
-        const CPubKey& signPubKey)
+        const CPubKey& signPubKey,
+        const std::string tag)
 {
-    return GenerateNewReferral(2, id, signPubKey, parentAddress);
+    return GenerateNewReferral(2, id, signPubKey, parentAddress, tag);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CParamScriptID& id,
         const referral::Address& parentAddress,
-        const CPubKey& signPubKey)
+        const CPubKey& signPubKey,
+        const std::string tag)
 {
-    return GenerateNewReferral(3, id, signPubKey, parentAddress);
+    return GenerateNewReferral(3, id, signPubKey, parentAddress, tag);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CPubKey& pubkey,
         const referral::Address& parentAddress,
+        const std::string tag,
         CKey key)
 {
     const referral::Address key_id = pubkey.GetID();
-    return GenerateNewReferral(1, key_id, pubkey, parentAddress, key);
+    return GenerateNewReferral(1, key_id, pubkey, parentAddress, tag, key);
 }
 
 bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool)
@@ -2371,7 +2381,7 @@ CAmount CWallet::GetUnconfirmedWatchOnlyBalance(bool invite) const
             const CWalletTx* pcoin = &(*it).second;
             if (!pcoin->IsTrusted() &&
                     pcoin->GetDepthInMainChain() == 0 &&
-                    pcoin->InMempool() && 
+                    pcoin->InMempool() &&
                     pcoin->IsInvite() == invite)
                 nTotal += pcoin->GetAvailableWatchOnlyCredit();
         }
@@ -2444,7 +2454,7 @@ CAmount CWallet::GetAvailableBalance(const CCoinControl* coinControl, bool invit
     CAmount balance = 0;
     std::vector<COutput> vCoins;
 
-    AvailableCoins( vCoins, true, coinControl, invite); 
+    AvailableCoins( vCoins, true, coinControl, invite);
 
     for (const COutput& out : vCoins) {
         if (out.fSpendable) {
@@ -2530,7 +2540,7 @@ void CWallet::AvailableCoins(
             if (!CheckFinalTx(*pcoin))
                 continue;
 
-            if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
+            if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0 && !invite)
                 continue;
 
             if (pcoin->IsInvite() != invite)
@@ -3384,7 +3394,6 @@ bool CWallet::CreateInviteTransaction(
 
     CAmount nValue = 0;
     int nChangePosRequest = nChangePosInOut;
-    unsigned int nSubtractFeeFromAmount = 0;
 
     if (vecSend.empty()) {
         strFailReason = _("Transaction must have at least one recipient");
@@ -3464,14 +3473,11 @@ bool CWallet::CreateInviteTransaction(
             }
 
             CTxOut change_prototype_txout(0, scriptChange);
-            size_t change_prototype_size = GetSerializeSize(change_prototype_txout, SER_DISK, 0);
-
             CAmount nValueIn = 0;
 
             // Start with no fee and loop until there is enough fee
             nChangePosInOut = nChangePosRequest;
             wtxNew.fFromMe = true;
-            bool fFirst = true;
 
             CAmount nValueToSelect = nValue;
 
@@ -3940,8 +3946,6 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<referral::Addres
             if (!walletdb.WritePool(index, CKeyPool(pubkey, outReferral))) {
                 throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
             }
-
-            LogPrintf("Generated new referral. Address: %s\n", referral->GetAddress().ToString());
 
             setKeyPool.insert(index);
             m_pool_key_to_index[pubkey.GetID()] = index;

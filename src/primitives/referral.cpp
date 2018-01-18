@@ -19,13 +19,18 @@ MutableReferral::MutableReferral(
         char addressTypeIn,
         const Address& addressIn,
         const CPubKey& pubkeyIn,
-        const Address& parentAddressIn) :
-    version{Referral::CURRENT_VERSION},
+        const Address& parentAddressIn,
+        std::string tagIn,
+        int32_t versionIn) :
+    version{versionIn},
     parentAddress{parentAddressIn},
     addressType{addressTypeIn},
     pubkey{pubkeyIn},
-    signature{valtype()}
+    signature{valtype()},
+    tag{tagIn}
     {
+        assert(tagIn.size() <= MAX_TAG_LENGTH);
+
         if (addressType == 1) {
             address = addressIn;
         } else {
@@ -41,7 +46,8 @@ MutableReferral::MutableReferral(const Referral& ref) :
     parentAddress{ref.parentAddress},
     addressType{ref.addressType},
     pubkey{ref.pubkey},
-    signature{ref.signature} {}
+    signature{ref.signature},
+    tag{ref.tag} {}
 
 Address MutableReferral::GetAddress() const
 {
@@ -64,6 +70,7 @@ Referral::Referral(const MutableReferral &ref) :
     addressType{ref.addressType},
     pubkey{ref.pubkey},
     signature{ref.signature},
+    tag{ref.tag},
     address{ref.address},
     hash{ComputeHash()} {}
 
@@ -73,6 +80,7 @@ Referral::Referral(MutableReferral &&ref) :
     addressType{ref.addressType},
     pubkey{std::move(ref.pubkey)},
     signature{std::move(ref.signature)},
+    tag{std::move(ref.tag)},
     address{std::move(ref.address)},
     hash{ComputeHash()} {}
 
@@ -84,12 +92,11 @@ unsigned int Referral::GetTotalSize() const
 std::string Referral::ToString() const
 {
     std::string str;
-    str += strprintf("Referral(hash=%s, ver=%d, parentAddress=%s, address=%s, addressType=%d)\n",
+    str += strprintf("Referral(hash=%s, ver=%d, addressType=%d, tag=%s)\n",
         GetHash().GetHex(),
         version,
-        parentAddress.GetHex(),
-        address.GetHex(),
-        static_cast<int>(addressType));
+        static_cast<int>(addressType),
+        tag);
     return str;
 }
 

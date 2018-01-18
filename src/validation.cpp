@@ -4216,7 +4216,7 @@ bool static ConnectTip(CValidationState& state,
 
             return error("ConnectTip(): ConnectBlock %s failed: %s",
                 pindexNew->GetBlockHash().ToString(),
-                state.GetRejectReason());
+                FormatStateMessage(state));
         }
         nTime3 = GetTimeMicros(); nTimeConnectTotal += nTime3 - nTime2;
         LogPrint(BCLog::BENCH, "  - Connect total: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime3 - nTime2) * MILLI, nTimeConnectTotal * MICRO, nTimeConnectTotal * MILLI / nBlocksTotal);

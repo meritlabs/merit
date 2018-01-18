@@ -567,6 +567,7 @@ static UniValue EasySend(
     if(!pwallet.GenerateNewReferral(
                 receiver_pub,
                 pwallet.ReferralAddress(),
+                "",
                 receiver_key)) {
 
         throw JSONRPCError(
@@ -4161,6 +4162,7 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
             "{\n"
             "  \"walletname\": xxxxx,             (string) the wallet name\n"
             "  \"walletversion\": xxxxx,          (numeric) the wallet version\n"
+            "  \"tag\": xxxxx,                    (string, optional) the wallet tag\n"
             "  \"balance\": xxxxxxx,              (numeric) the total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"unconfirmed_balance\": xxx,      (numeric) the total unconfirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"immature_balance\": xxxxxx,      (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
@@ -4173,6 +4175,7 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
             "  \"referred\": true|false           (boolean) if wallet is referred\n"
             "  \"referraladdress\": xxxxxx        (string) referral address to use to share with other users\n"
             "  \"invites\": xxxxxx                (numeric) number of available invites\n"
+            "  \"immature_invites\": xxxxxx       (numeric) number of immature invites\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getwalletinfo", "")
@@ -4186,6 +4189,7 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
 
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
+    obj.push_back(Pair("tag", pwallet->GetTag()));
     obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
     obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
     obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
@@ -4212,12 +4216,8 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
         obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{referral->GetAddress()})));
     }
 
-    std::vector<COutput> invites;
-
-    pwallet->AvailableInvites(invites);
-
-    obj.push_back(Pair("invites", static_cast<uint64_t>(invites.size())));
-
+    obj.push_back(Pair("invites", pwallet->GetAvailableBalance(nullptr, true)));
+    obj.push_back(Pair("immature_invites", pwallet->GetImmatureBalance(true)));
 
     return obj;
 }
@@ -4984,18 +4984,20 @@ UniValue unlockwallet(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() != 1 || request.params[0].get_str().empty()) {
+    if (request.fHelp || request.params.size() < 1 || request.params[0].get_str().empty() || request.params.size() > 2) {
         throw std::runtime_error(
             "unlockwallet \"parentaddress\"\n"
             "Updates the wallet with referral code and beacons first key with associated referral.\n"
             "Returns an object containing various wallet state info.\n"
             "\nArguments:\n"
             "1. parentaddress   (string, required) Parent address needed to unlock the wallet.\n"
+            "2. tag             (stirng, optional) wallet unique id"
             "\nResult:\n"
             "{\n"
-            "  \"address\": xxxxx,                (string) the wallet's root address\n"
-            "  \"walletname\": xxxxx,             (string) the wallet name\n"
+            "  \"address\": xxxxx,                (string) the wallet's root address. it's a referral address to use to share with other users\n"
+            "  \"walletname\": xxxxx,             (string) the wallet db file name\n"
             "  \"walletversion\": xxxxx,          (numeric) the wallet version\n"
+            "  \"tag\": xxxxx,                    (string, optional) the wallet tag\n"
             "  \"balance\": xxxxxxx,              (numeric) the total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"unconfirmed_balance\": xxx,      (numeric) the total unconfirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"immature_balance\": xxxxxx,      (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
@@ -5006,6 +5008,10 @@ UniValue unlockwallet(const JSONRPCRequest& request)
             "  \"unlocked_until\": ttt,           (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
             "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
             "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
+            "  \"referred\": true|false           (boolean) if wallet is referred\n"
+            "  \"referraladdress\": xxxxxx        (string) referral address to use to share with other users\n"
+            "  \"invites\": xxxxxx                (numeric) number of available invites\n"
+            "  \"immature_invites\": xxxxxx       (numeric) number of immature invites\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("unlockwallet", "\"parentaddress\"")
@@ -5024,14 +5030,16 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     auto parentAddressUint160 = parentAddress.GetUint160();
     assert(parentAddressUint160);
 
-    referral::ReferralRef referral = pwallet->Unlock(*parentAddressUint160);
+    auto tag = request.params.size() == 2 ? request.params[1].get_str() : "";
+
+    referral::ReferralRef referral = pwallet->Unlock(*parentAddressUint160, tag);
 
     // TODO: Make this check more robust.
     UniValue obj(UniValue::VOBJ);
 
-    obj.push_back(Pair("address", EncodeDestination(CKeyID{referral->GetAddress()})));
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
+    obj.push_back(Pair("tag", pwallet->GetTag()));
     obj.push_back(Pair("balance", ValueFromAmount(pwallet->GetBalance())));
     obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
     obj.push_back(Pair("immature_balance", ValueFromAmount(pwallet->GetImmatureBalance())));
@@ -5048,6 +5056,11 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     if (!masterKeyID.IsNull())
         obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
 
+    obj.push_back(Pair("referred", true));
+    obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{referral->GetAddress()})));
+    obj.push_back(Pair("invites", pwallet->GetAvailableBalance(nullptr, true)));
+    obj.push_back(Pair("immature_invites", pwallet->GetImmatureBalance(true)));
+
     return obj;
 }
 
@@ -5063,9 +5076,10 @@ UniValue beaconaddress(const JSONRPCRequest& request)
             "beaconaddress \"address\" \"signingkey\" \"parentaddress\"\n"
             "signs and beacons an address with the signing key specified\n"
             "\nArguments:\n"
-            "1. address   (string, required) Parent address needed to unlock the wallet.\n"
-            "2. signingkey   (string, required) key used to sign the referral in WIF format.\n"
+            "1. address         (string, required) Parent address needed to unlock the wallet.\n"
+            "2. signingkey      (string, required) key used to sign the referral in WIF format.\n"
             "3. parentaddress   (string, required) Parent address needed to unlock the wallet.\n"
+            "4. tag             (string, optional) address unique id"
             "\nResult:\n"
             "{\n"
             "  \"beaconid\": xxxxx,               (string) id of the beacon\n"
@@ -5115,6 +5129,7 @@ UniValue beaconaddress(const JSONRPCRequest& request)
                 *address.GetUint160(),
                 key.GetPubKey(),
                 *parent_address.GetUint160(),
+                request.params[3].get_str(),
                 key);
 
         if(!referral) {
@@ -5307,7 +5322,7 @@ static const CRPCCommand commands[] =
     { "generating",         "generate",                 &generate,                 {"nblocks","maxtries"} },
 
     // merit specific commands
-    { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress"} },
+    { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress", "tag"} },
     { "referral",           "beaconaddress",            &beaconaddress,            {"address", "key", "parentaddress"} },
     { "referral",           "getanv",                   &getanv,                   {} },
     { "wallet",             "confirmaddress",           &confirmaddress,           {"address"} },
