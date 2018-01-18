@@ -12,7 +12,6 @@
 #include "sync.h"
 #include "utiltime.h"
 
-#include <QDebug>
 #include <QList>
 
 bool BannedNodeLessThan::operator()(const CCombinedBan& left, const CCombinedBan& right) const

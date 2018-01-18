@@ -43,7 +43,6 @@
 #include <boost/thread.hpp>
 
 #include <QApplication>
-#include <QDebug>
 #include <QLibraryInfo>
 #include <QLocale>
 #include <QMessageBox>
@@ -475,7 +474,7 @@ void MeritApplication::initializeResult(bool success)
     if(success)
     {
         // Log this only after AppInitMain finishes, as then logging setup is guaranteed complete
-        qWarning() << "Platform customization:" << platformStyle->getName();
+        // qWarning() << "Platform customization:" << platformStyle->getName();
 #ifdef ENABLE_WALLET
         PaymentServer::LoadRootCAs();
         paymentServer->setOptionsModel(optionsModel);

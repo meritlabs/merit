@@ -12,7 +12,6 @@
 #include "validation.h" // for cs_main
 #include "sync.h"
 
-#include <QDebug>
 #include <QList>
 #include <QTimer>
 

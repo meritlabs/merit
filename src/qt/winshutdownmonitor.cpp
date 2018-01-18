@@ -11,8 +11,6 @@
 
 #include <windows.h>
 
-#include <QDebug>
-
 #include <openssl/rand.h>
 
 // If we don't want a message to be processed by Qt, return true and set result to
@@ -59,13 +57,13 @@ void WinShutdownMonitor::registerShutdownBlockReason(const QString& strReason, c
     typedef BOOL (WINAPI *PSHUTDOWNBRCREATE)(HWND, LPCWSTR);
     PSHUTDOWNBRCREATE shutdownBRCreate = (PSHUTDOWNBRCREATE)GetProcAddress(GetModuleHandleA("User32.dll"), "ShutdownBlockReasonCreate");
     if (shutdownBRCreate == nullptr) {
-        qWarning() << "registerShutdownBlockReason: GetProcAddress for ShutdownBlockReasonCreate failed";
+        //qWarning() << "registerShutdownBlockReason: GetProcAddress for ShutdownBlockReasonCreate failed";
         return;
     }
 
     if (shutdownBRCreate(mainWinId, strReason.toStdWString().c_str()))
-        qWarning() << "registerShutdownBlockReason: Successfully registered: " + strReason;
+        //qWarning() << "registerShutdownBlockReason: Successfully registered: " + strReason;
     else
-        qWarning() << "registerShutdownBlockReason: Failed to register: " + strReason;
+        //qWarning() << "registerShutdownBlockReason: Failed to register: " + strReason;
 }
 #endif

@@ -23,7 +23,6 @@
 
 #include <stdint.h>
 
-#include <QDebug>
 #include <QTimer>
 
 class CBlockIndex;

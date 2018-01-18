@@ -24,7 +24,6 @@
 #include <QByteArray>
 #include <QDataStream>
 #include <QDateTime>
-#include <QDebug>
 #include <QFile>
 #include <QFileOpenEvent>
 #include <QHash>
@@ -179,7 +178,7 @@ void PaymentServer::LoadRootCAs(X509_STORE* _store)
             continue;
         }
     }
-    // qWarning() << "PaymentServer::LoadRootCAs: Loaded " << nRootCerts << " root certificates";
+    // //qWarning() << "PaymentServer::LoadRootCAs: Loaded " << nRootCerts << " root certificates";
 
     // Project for another day:
     // Fetch certificate revocation lists, and add them to certStore.
@@ -252,7 +251,7 @@ void PaymentServer::ipcParseCommandLine(int argc, char* argv[])
         {
             // Printing to debug.log is about the best we can do here, the
             // GUI hasn't started yet so we can't pop up a message box.
-            // qWarning() << "PaymentServer::ipcSendCommandLine: Payment request file does not exist: " << arg;
+            // //qWarning() << "PaymentServer::ipcSendCommandLine: Payment request file does not exist: " << arg;
         }
     }
 }
@@ -427,7 +426,7 @@ void PaymentServer::handleURIOrFile(const QString& s)
             }
             else
             {
-                qWarning() << "PaymentServer::handleURIOrFile: Invalid URL: " << fetchUrl;
+                //qWarning() << "PaymentServer::handleURIOrFile: Invalid URL: " << fetchUrl;
                 Q_EMIT message(tr("URI handling"),
                     tr("Payment request fetch URL is invalid: %1").arg(fetchUrl.toString()),
                     CClientUIInterface::ICON_WARNING);
@@ -502,7 +501,7 @@ bool PaymentServer::readPaymentRequestFromFile(const QString& filename, PaymentR
 {
     QFile f(filename);
     if (!f.open(QIODevice::ReadOnly)) {
-        qWarning() << QString("PaymentServer::%1: Failed to open %2").arg(__func__).arg(filename);
+        //qWarning() << QString("PaymentServer::%1: Failed to open %2").arg(__func__).arg(filename);
         return false;
     }
 
@@ -657,7 +656,7 @@ void PaymentServer::fetchPaymentACK(CWallet* wallet, const SendCoinsRecipient& r
         else {
             // This should never happen, because sending coins should have
             // just unlocked the wallet and refilled the keypool.
-            qWarning() << "PaymentServer::fetchPaymentACK: Error getting refund key, refund_to not set";
+            //qWarning() << "PaymentServer::fetchPaymentACK: Error getting refund key, refund_to not set";
         }
     }
 
@@ -669,7 +668,7 @@ void PaymentServer::fetchPaymentACK(CWallet* wallet, const SendCoinsRecipient& r
     }
     else {
         // This should never happen, either.
-        qWarning() << "PaymentServer::fetchPaymentACK: Error serializing payment message";
+        //qWarning() << "PaymentServer::fetchPaymentACK: Error serializing payment message";
     }
 }
 
@@ -693,7 +692,7 @@ void PaymentServer::netRequestFinished(QNetworkReply* reply)
             .arg(reply->request().url().toString())
             .arg(reply->errorString());
 
-        qWarning() << "PaymentServer::netRequestFinished: " << msg;
+        //qWarning() << "PaymentServer::netRequestFinished: " << msg;
         Q_EMIT message(tr("Payment request error"), msg, CClientUIInterface::MSG_ERROR);
         return;
     }
@@ -707,7 +706,7 @@ void PaymentServer::netRequestFinished(QNetworkReply* reply)
         SendCoinsRecipient recipient;
         if (!request.parse(data))
         {
-            qWarning() << "PaymentServer::netRequestFinished: Error parsing payment request";
+            //qWarning() << "PaymentServer::netRequestFinished: Error parsing payment request";
             Q_EMIT message(tr("Payment request error"),
                 tr("Payment request cannot be parsed!"),
                 CClientUIInterface::MSG_ERROR);
@@ -725,7 +724,7 @@ void PaymentServer::netRequestFinished(QNetworkReply* reply)
             QString msg = tr("Bad response from server %1")
                 .arg(reply->request().url().toString());
 
-            qWarning() << "PaymentServer::netRequestFinished: " << msg;
+            //qWarning() << "PaymentServer::netRequestFinished: " << msg;
             Q_EMIT message(tr("Payment request error"), msg, CClientUIInterface::MSG_ERROR);
         }
         else
@@ -741,7 +740,7 @@ void PaymentServer::reportSslErrors(QNetworkReply* reply, const QList<QSslError>
 
     QString errString;
     for (const QSslError& err : errs) {
-        qWarning() << "PaymentServer::reportSslErrors: " << err;
+        //qWarning() << "PaymentServer::reportSslErrors: " << err;
         errString += err.errorString() + "\n";
     }
     Q_EMIT message(tr("Network request error"), errString, CClientUIInterface::MSG_ERROR);
@@ -762,10 +761,10 @@ bool PaymentServer::verifyNetwork(const payments::PaymentDetails& requestDetails
 {
     bool fVerified = requestDetails.network() == Params().NetworkIDString();
     if (!fVerified) {
-        qWarning() << QString("PaymentServer::%1: Payment request network \"%2\" doesn't match client network \"%3\".")
-            .arg(__func__)
-            .arg(QString::fromStdString(requestDetails.network()))
-            .arg(QString::fromStdString(Params().NetworkIDString()));
+        //qWarning() << QString("PaymentServer::%1: Payment request network \"%2\" doesn't match client network \"%3\".")
+            // .arg(__func__)
+            // .arg(QString::fromStdString(requestDetails.network()))
+            // .arg(QString::fromStdString(Params().NetworkIDString()));
     }
     return fVerified;
 }
@@ -775,9 +774,9 @@ bool PaymentServer::verifyExpired(const payments::PaymentDetails& requestDetails
     bool fVerified = (requestDetails.has_expires() && (int64_t)requestDetails.expires() < GetTime());
     if (fVerified) {
         const QString requestExpires = QString::fromStdString(DateTimeStrFormat("%Y-%m-%d %H:%M:%S", (int64_t)requestDetails.expires()));
-        qWarning() << QString("PaymentServer::%1: Payment request expired \"%2\".")
-            .arg(__func__)
-            .arg(requestExpires);
+        //qWarning() << QString("PaymentServer::%1: Payment request expired \"%2\".")
+            // .arg(__func__)
+            // .arg(requestExpires);
     }
     return fVerified;
 }
@@ -786,10 +785,10 @@ bool PaymentServer::verifySize(qint64 requestSize)
 {
     bool fVerified = (requestSize <= BIP70_MAX_PAYMENTREQUEST_SIZE);
     if (!fVerified) {
-        qWarning() << QString("PaymentServer::%1: Payment request too large (%2 bytes, allowed %3 bytes).")
-            .arg(__func__)
-            .arg(requestSize)
-            .arg(BIP70_MAX_PAYMENTREQUEST_SIZE);
+        //qWarning() << QString("PaymentServer::%1: Payment request too large (%2 bytes, allowed %3 bytes).")
+            // .arg(__func__)
+            // .arg(requestSize)
+            // .arg(BIP70_MAX_PAYMENTREQUEST_SIZE);
     }
     return fVerified;
 }
@@ -798,10 +797,10 @@ bool PaymentServer::verifyAmount(const CAmount& requestAmount)
 {
     bool fVerified = MoneyRange(requestAmount);
     if (!fVerified) {
-        qWarning() << QString("PaymentServer::%1: Payment request amount out of allowed range (%2, allowed 0 - %3).")
-            .arg(__func__)
-            .arg(requestAmount)
-            .arg(MAX_MONEY);
+        //qWarning() << QString("PaymentServer::%1: Payment request amount out of allowed range (%2, allowed 0 - %3).")
+            // .arg(__func__)
+            // .arg(requestAmount)
+            // .arg(MAX_MONEY);
     }
     return fVerified;
 }

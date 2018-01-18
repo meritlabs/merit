@@ -23,7 +23,6 @@
 
 #include <QColor>
 #include <QDateTime>
-#include <QDebug>
 #include <QIcon>
 #include <QList>
 
@@ -124,7 +123,7 @@ public:
         case CT_NEW:
             if(inModel)
             {
-                qWarning() << "TransactionTablePriv::updateWallet: Warning: Got CT_NEW, but transaction is already in model";
+                //qWarning() << "TransactionTablePriv::updateWallet: Warning: Got CT_NEW, but transaction is already in model";
                 break;
             }
             if(showTransaction)
@@ -134,7 +133,7 @@ public:
                 std::map<uint256, CWalletTx>::iterator mi = wallet->mapWallet.find(hash);
                 if(mi == wallet->mapWallet.end())
                 {
-                    qWarning() << "TransactionTablePriv::updateWallet: Warning: Got CT_NEW, but transaction is not in wallet";
+                    //qWarning() << "TransactionTablePriv::updateWallet: Warning: Got CT_NEW, but transaction is not in wallet";
                     break;
                 }
                 // Added -- insert at the right position
@@ -156,7 +155,7 @@ public:
         case CT_DELETED:
             if(!inModel)
             {
-                qWarning() << "TransactionTablePriv::updateWallet: Warning: Got CT_DELETED, but transaction is not in model";
+                //qWarning() << "TransactionTablePriv::updateWallet: Warning: Got CT_DELETED, but transaction is not in model";
                 break;
             }
             // Removed -- remove entire transaction from table
