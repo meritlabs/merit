@@ -11,6 +11,7 @@
 
 #include <QResizeEvent>
 #include <QPropertyAnimation>
+#include <QMessageBox>
 
 EnterUnlockCode::EnterUnlockCode(QWidget *parent) :
 QWidget(parent),
@@ -63,13 +64,6 @@ bool EnterUnlockCode::event(QEvent* ev) {
     return QWidget::event(ev);
 }
 
-void EnterUnlockCode::toggleVisibility()
-{
-    showHide(layerIsVisible, true);
-    if (!layerIsVisible)
-        userClosed = true;
-}
-
 void EnterUnlockCode::showHide(bool hide, bool userRequested)
 {
     if ( (layerIsVisible && !hide) || (!layerIsVisible && hide) || (!hide && userClosed && !userRequested))
@@ -94,12 +88,6 @@ void EnterUnlockCode::setModel(WalletModel *model)
     this->walletModel = model;
 }
 
-void EnterUnlockCode::closeClicked()
-{
-    showHide(true);
-    userClosed = true;
-}
-
 void EnterUnlockCode::submitButtonClicked()
 {
     CMeritAddress parentAddress
@@ -108,7 +96,8 @@ void EnterUnlockCode::submitButtonClicked()
     };
 
     if (!parentAddress.IsValid()) {
-        // TODO: handle it
+        InvalidAddressMessageBox();
+        return;
     }
 
     auto parentAddressUint160 = parentAddress.GetUint160();
@@ -116,6 +105,16 @@ void EnterUnlockCode::submitButtonClicked()
         referral::ReferralRef referral = walletModel->Unlock(*parentAddressUint160);
         if(referral) {
             Q_EMIT walletReferred();
+        } else {
+          InvalidAddressMessageBox();
         }
     }
+}
+
+void EnterUnlockCode::InvalidAddressMessageBox()
+{
+    QMessageBox msgBox;
+    msgBox.setText(tr("Sorry, that address is invalid."));
+    msgBox.setIcon(QMessageBox::Warning);
+    msgBox.exec();
 }

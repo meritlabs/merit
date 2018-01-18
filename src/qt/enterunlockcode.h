@@ -22,11 +22,9 @@ Q_SIGNALS:
 
 public Q_SLOTS:
     void submitButtonClicked();
-    void toggleVisibility();
     void setModel(WalletModel *model);
     // will show or hide the modal layer
     void showHide(bool hide = false, bool userRequested = false);
-    void closeClicked();
     bool isLayerVisible() const { return layerIsVisible; }
 
 protected:
@@ -38,6 +36,8 @@ private:
     WalletModel *walletModel;
     bool layerIsVisible;
     bool userClosed;
+
+    void InvalidAddressMessageBox();
 };
 
 #endif // MERIT_QT_ENTERUNLOCKCODE_H

@@ -420,6 +420,7 @@ bool WalletModel::IsReferred() const
 
 referral::ReferralRef WalletModel::Unlock(const referral::Address& parentAddress)
 {
+    assert(wallet);
     return wallet->Unlock(parentAddress);
 }
 
