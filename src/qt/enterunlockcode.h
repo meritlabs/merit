@@ -17,6 +17,9 @@ public:
     explicit EnterUnlockCode(QWidget *parent);
     ~EnterUnlockCode();
 
+Q_SIGNALS:
+    void walletReferred();
+
 public Q_SLOTS:
     void submitButtonClicked();
     void toggleVisibility();

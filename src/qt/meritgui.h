@@ -211,6 +211,9 @@ private Q_SLOTS:
 
     /** Show open dialog */
     void openClicked();
+
+    /** Enable actions when wallet gets referred */
+    void walletReferred();
 #endif // ENABLE_WALLET
     /** Show configuration dialog */
     void optionsClicked();
@@ -245,6 +248,7 @@ private Q_SLOTS:
     void toggleNetworkActive();
 
     void showModalOverlay();
+
 };
 
 class UnitDisplayStatusBarControl : public QLabel

@@ -112,6 +112,10 @@ void EnterUnlockCode::submitButtonClicked()
     }
 
     auto parentAddressUint160 = parentAddress.GetUint160();
-    if(parentAddressUint160)
+    if(parentAddressUint160) {
         referral::ReferralRef referral = walletModel->Unlock(*parentAddressUint160);
+        if(referral) {
+            Q_EMIT walletReferred();
+        }
+    }
 }

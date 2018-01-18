@@ -256,6 +256,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
         connect(walletFrame, SIGNAL(requestedSyncWarningInfo()), this, SLOT(showModalOverlay()));
         connect(labelBlocksIcon, SIGNAL(clicked(QPoint)), this, SLOT(showModalOverlay()));
         connect(progressBar, SIGNAL(clicked(QPoint)), this, SLOT(showModalOverlay()));
+        connect(enterUnlockCode, SIGNAL(walletReferred()), this, SLOT(walletReferred()));
     }
 #endif
 }
@@ -538,9 +539,7 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *walletModel)
         return false;
     bool isReferred = walletModel->IsReferred();
     setWalletActionsEnabled(true, isReferred);
-    std::cerr << "adding a wallet" <<std::endl;
     if(!isReferred) {
-        std::cerr << "Wallet is not referred" <<std::endl;
         enterUnlockCode->setModel(walletModel);
         enterUnlockCode->showHide(false, false);
     }
@@ -560,6 +559,12 @@ void MeritGUI::removeAllWallets()
         return;
     setWalletActionsEnabled(false);
     walletFrame->removeAllWallets();
+}
+
+void MeritGUI::walletReferred()
+{
+    setWalletActionsEnabled(true);
+    enterUnlockCode->showHide(true, true);
 }
 #endif // ENABLE_WALLET
 

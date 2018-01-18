@@ -49,10 +49,16 @@
       </property>
       <item alignment="Qt::AlignHCenter">
        <widget class="QWidget" name="contentWidget" native="true">
+        <property name="minimumSize">
+         <size>
+          <width>486</width>
+          <height>300</height>
+         </size>
+        </property>
         <property name="maximumSize">
          <size>
-          <width>400</width>
-          <height>300</height>
+          <width>648</width>
+          <height>400</height>
          </size>
         </property>
         <property name="styleSheet">
@@ -143,13 +149,6 @@ QLabel { color: rgb(40,40,40);  }</string>
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="label">
-               <property name="text">
-                <string>TextLabel</string>
                </property>
               </widget>
              </item>
