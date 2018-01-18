@@ -131,13 +131,12 @@ UniValue generateBlocks(
     UniValue blockHashes(UniValue::VARR);
     auto consensusParams = Params().GetConsensus();
 
-    std::unique_ptr<CBlockTemplate> pblocktemplate{
-            BlockAssembler{Params()}.CreateNewBlock(coinbaseScript->reserveScript)};
-
     ctpl::thread_pool pool{nThreads};
 
-    while (nHeight < nHeightEnd)
-    {
+    do {
+        const auto pblocktemplate =
+            BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript);
+
         if (!pblocktemplate.get())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't create new block");
         CBlock *pblock = &pblocktemplate->block;
@@ -186,10 +185,7 @@ UniValue generateBlocks(
         if (keepScript) {
             coinbaseScript->KeepScript();
         }
-
-        pblocktemplate =
-            BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript);
-    }
+    } while (nHeight < nHeightEnd);
     return blockHashes;
 }
 
