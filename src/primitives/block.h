@@ -86,7 +86,6 @@ public:
     {
         return (nVersion & DAEDALUS_BIT) != 0;
     }
-
 };
 
 class CBlock : public CBlockHeader

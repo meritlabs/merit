@@ -267,7 +267,7 @@ public:
         consensus.daedalus_max_winners_per_block = 6;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 4;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 3;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 30;
 
         // The best chain should have at least this much work.

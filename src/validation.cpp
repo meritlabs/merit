@@ -2614,9 +2614,9 @@ bool DisconnectOutputs(
             COutPoint out(hash, o);
             Coin coin;
             bool is_spent = view.SpendCoin(out, &coin);
-            if (!is_spent 
-                    || tx.vout[o] != coin.out 
-                    || height != coin.nHeight 
+            if (!is_spent
+                    || tx.vout[o] != coin.out
+                    || height != coin.nHeight
                     || is_coinbase != coin.fCoinBase) {
                 clean = false;
             }
@@ -2624,10 +2624,10 @@ bool DisconnectOutputs(
     }
     return clean;
 }
- 
+
 bool DisconnectInputs(
         CTxUndo &txundo,
-        const std::vector<CTxIn> vin, 
+        const std::vector<CTxIn> vin,
         CCoinsViewCache& view)
 {
     bool clean = true;
@@ -2663,7 +2663,7 @@ static DisconnectResult DisconnectBlock(
         return DISCONNECT_FAILED;
     }
 
-    if(block.IsDaedalus()) {
+    if (block.IsDaedalus()) {
         if (blockUndo.vtxundo.size() + 2 != (block.vtx.size() + block.invites.size())) {
             error("DisconnectBlock(): block and undo data inconsistent");
             return DISCONNECT_FAILED;
@@ -2863,20 +2863,16 @@ bool ConfirmAllPreDaedalusAddresses(
         const Consensus::Params& consensus,
         const CBlockIndex* pindex)
 {
-    const auto height = pindex->nHeight;
-    LogPrintf("%d: HEIGHT\n", height);
-
     // Don't do the indexing if we are not on the block before the daedalus deployment.
-    if (height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block- 1) {
+    if (pindex->nHeight < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block - 1) {
         return true;
     }
 
-    if (height > consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block - 1) {
+    if (pindex->nHeight >= consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) {
         return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
     }
 
-    LogPrintf("%d: CONFIRMING ALL PRE\n", height);
-    //One time confirmation of all addresses before the daedalus block
+    // One time confirmation of all addresses before the daedalus block
     return prefviewdb->ConfirmAllPreDaedalusAddresses();
 }
 
@@ -3066,16 +3062,6 @@ bool ValidateInvites(
         }
     }
 
-    if(!InvitesAreBeaconed(block)) {
-        return state.DoS(
-                100,
-                false,
-                REJECT_INVALID,
-                "bad-invite-not-beaconed",
-                false,
-                "an invite is not beaconed.");
-    }
-
     return true;
 }
 
@@ -3137,15 +3123,9 @@ bool ValidateContextualDaedalusBlock(
         const CBlock& block,
         CValidationState& state,
         const Consensus::Params& params,
-        const CBlockIndex* pindex)
+        const CBlockIndex* pindexPrev)
 {
-    if (!ExpectDaedalus(pindex->pprev, params)) {
-
-        // Make sure we confirm all pre daedalus addresses. This is a one time event.
-        if(!ConfirmAllPreDaedalusAddresses(state, params, pindex)) {
-            throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
-        }
-
+    if (!ExpectDaedalus(pindexPrev, params)) {
         // During the Daedalus deployment, no other block types will be accepted.
         // This is unique to the daedalus deployment.
         return !(block.nVersion & DAEDALUS_BIT);
@@ -3183,16 +3163,6 @@ bool ValidateContextualDaedalusBlock(
     if (!ValidateInvites(block, params, state)) {
         //state is assumed to be set.
         return false;
-    }
-
-    if (!ValidateAddressesAreConfirmed(block)) {
-        return state.DoS(
-                100,
-                false,
-                REJECT_INVALID,
-                "bad-txn-unconfirmed",
-                false,
-                "Transaction has unconfirmed address");
     }
 
     if (!ValidateTransactionInputsNotInvites(block, params, state)) {
@@ -3236,7 +3206,7 @@ void IndexTransactions(
         const std::vector<CTransactionRef>& vtx,
         KeyActivity addressIndex,
         AddressUnspentIndex& addressUnspentIndex,
-        SpentIndex& spentIndex) 
+        SpentIndex& spentIndex)
 {
     for (int i = 0; i < static_cast<int>(vtx.size()); i++)
     {
@@ -3343,10 +3313,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                   CCoinsViewCache& view, const CChainParams& chainparams, bool fJustCheck = false)
 {
     debug("ConnectBlock%s: %s", fJustCheck ? " (check)" : "", block.GetHash().GetHex());
-
-    if(!ValidateContextualDaedalusBlock(block, state, chainparams.GetConsensus(), pindex)) {
-        return false; // state is expected to be set by ValidateDaedalus();
-    }
 
     AssertLockHeld(cs_main);
     assert(pindex);
@@ -3479,7 +3445,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     for (int i = 0; i < static_cast<int>(block.vtx.size()); i++)
     {
         const CTransaction &tx = *(block.vtx[i]);
-        const uint256 txhash = tx.GetHash();
 
         nInputs += tx.vin.size();
 
@@ -3560,7 +3525,44 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    if(block.IsDaedalus()) {
+    if (!TransactionsAreBeaconed(block)) {
+        return state.DoS(
+            100,
+            error("ConnectBlock(): There are transactions that are not beaconed"),
+            REJECT_INVALID,
+            "bad-transaction-not-beaconed");
+    }
+
+    if (ExpectDaedalus(pindex->pprev, chainparams.GetConsensus())) {
+        if (!ValidateAddressesAreConfirmed(block)) {
+            return state.DoS(
+                    100,
+                    false,
+                    REJECT_INVALID,
+                    "bad-txn-unconfirmed",
+                    false,
+                    "Transaction has unconfirmed address");
+        }
+    }
+
+    IndexTransactions(
+            pindex,
+            view,
+            block.vtx,
+            addressIndex,
+            addressUnspentIndex,
+            spentIndex);
+
+    int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
+    LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n",
+            (unsigned)block.vtx.size(),
+            MILLI * (nTime3 - nTime2),
+            MILLI * (nTime3 - nTime2) / block.vtx.size(),
+            nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1),
+            nTimeConnect * MICRO,
+            nTimeConnect * MILLI / nBlocksTotal);
+
+    if (!block.invites.empty()) {
         pos.nTxOffset += GetSizeOfCompactSize(block.invites.size());
         for (int i = 0; i < static_cast<int>(block.invites.size()); i++)
         {
@@ -3578,13 +3580,21 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         }
     }
 
-    IndexTransactions(
-            pindex,
-            view,
-            block.vtx,
-            addressIndex,
-            addressUnspentIndex,
-            spentIndex);
+    if (!InvitesAreBeaconed(block)) {
+        return state.DoS(
+            100,
+            error("ConnectBlock(): There are inveites that are not beaconed"),
+            REJECT_INVALID,
+            "bad-invite-not-beaconed");
+    }
+
+    int64_t nTime4 = GetTimeMicros(); nTimeConnect += nTime4 - nTime3;
+    LogPrint(BCLog::BENCH, "      - Connect %u invites: %.2fms (%.3fms/inv) [%.2fs (%.2fms/blk)]\n",
+            (unsigned)block.invites.size(),
+            MILLI * (nTime4 - nTime3),
+            MILLI * (nTime4 - nTime3) / block.invites.size(),
+            nTimeConnect * MICRO,
+            nTimeConnect * MILLI / nBlocksTotal);
 
     IndexTransactions(
             pindex,
@@ -3593,16 +3603,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             addressIndex,
             addressUnspentIndex,
             spentIndex);
-
-
-    int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
-    LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n",
-            (unsigned)block.vtx.size(),
-            MILLI * (nTime3 - nTime2),
-            MILLI * (nTime3 - nTime2) / block.vtx.size(),
-            nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1),
-            nTimeConnect * MICRO,
-            nTimeConnect * MILLI / nBlocksTotal);
 
     for (const auto& ref: block.m_vRef) {
         if (CheckAddressBeaconed(ref->GetAddress(), false)) {
@@ -3624,11 +3624,11 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         return error("ConnectBlock(): Referrals are not unique");
     }
 
-    int64_t nTime4 = GetTimeMicros(); nTimeConnect += nTime4 - nTime3;
+    int64_t nTime5 = GetTimeMicros(); nTimeConnect += nTime5 - nTime4;
     LogPrint(BCLog::BENCH, "      - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n",
             block.m_vRef.size(),
-            MILLI * (nTime4 - nTime3),
-            MILLI * (nTime4 - nTime3) / block.m_vRef.size(),
+            MILLI * (nTime5 - nTime4),
+            MILLI * (nTime5 - nTime4) / block.m_vRef.size(),
             nTimeConnect * MICRO,
             nTimeConnect * MILLI / nBlocksTotal);
 
@@ -3648,13 +3648,14 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                coinbase_tx.GetValueOut(), block_reward),
                                REJECT_INVALID, "bad-cb-amount");
 
-    int64_t nTime5 = GetTimeMicros(); nTimeVerify += nTime5 - nTime4;
+    int64_t nTime6 = GetTimeMicros();
+    nTimeVerify += nTime6 - nTime5;
     LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n",
-            nInputs - 1,
-            MILLI * (nTime5 - nTime4),
-            nInputs <= 1 ? 0 : MILLI * (nTime5 - nTime4) / (nInputs-1),
-            nTimeVerify * MICRO,
-            nTimeVerify * MILLI / nBlocksTotal);
+        nInputs - 1,
+        MILLI * (nTime6 - nTime5),
+        nInputs <= 1 ? 0 : MILLI * (nTime6 - nTime5) / (nInputs - 1),
+        nTimeVerify * MICRO,
+        nTimeVerify * MILLI / nBlocksTotal);
 
     // Figure out which ambassadors should be rewarded and check to make sure
     // they are paid the expected amount.
@@ -3675,22 +3676,12 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
     }
 
-    int64_t nTime6 = GetTimeMicros(); nTimeVerify += nTime6 - nTime5;
-    LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime6 - nTime5), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
-
-    //order referrals so they are inserted into database in correct order.
-    referral::ReferralRefs ordered_referrals = block.m_vRef;
-    if(!prefviewdb->OrderReferrals(ordered_referrals)) {
-        return state.DoS(100,
-                error("ConnectBlock(): There are orphan referrals in the block"),
-                REJECT_INVALID, "bad-cb-orphan-referrals");
-    }
-
-    if(!TransactionsAreBeaconed(block)) {
-        return state.DoS(100,
-                error("ConnectBlock(): There are transactions that are not beaconed"),
-                REJECT_INVALID, "bad-cb-orphan-transactions");
-    }
+    int64_t nTime7 = GetTimeMicros();
+    nTimeVerify += nTime7 - nTime6;
+    LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n",
+        MILLI * (nTime7 - nTime5),
+        nTimeVerify * MICRO,
+        nTimeVerify * MILLI / nBlocksTotal);
 
     if((block.nVersion & DAEDALUS_BIT) != 0) {
         if(block.invites.empty()) {
@@ -3717,11 +3708,24 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         return true;
     }
 
+    //order referrals so they are inserted into database in correct order.
+    referral::ReferralRefs ordered_referrals = block.m_vRef;
+    if(!prefviewdb->OrderReferrals(ordered_referrals)) {
+        return state.DoS(100,
+                error("ConnectBlock(): There are orphan referrals in the block"),
+                REJECT_INVALID, "bad-cb-orphan-referrals");
+    }
+
     //The order is important here. We must insert the referrals so that
     //the referral tree is updated to be correct before we debit/credit
     //the ANV to the appropriate addresses.
     if(!IndexReferrals(ordered_referrals)) {
         return AbortNode(state, "Failed to write referrals");
+    }
+
+    // Make sure we confirm all pre daedalus addresses. This is a one time event.
+    if(!ConfirmAllPreDaedalusAddresses(state, chainparams.GetConsensus(), pindex)) {
+        throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
     }
 
     if((block.nVersion & DAEDALUS_BIT) != 0) {
@@ -3806,11 +3810,19 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
 
-    int64_t nTime7 = GetTimeMicros(); nTimeIndex += nTime7 - nTime6;
-    LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime7 - nTime6), nTimeIndex * MICRO, nTimeIndex * MILLI / nBlocksTotal);
+    int64_t nTime8 = GetTimeMicros();
+    nTimeIndex += nTime8 - nTime7;
+    LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs (%.2fms/blk)]\n",
+        MILLI * (nTime8 - nTime7),
+        nTimeIndex * MICRO,
+        nTimeIndex * MILLI / nBlocksTotal);
 
-    int64_t nTime8 = GetTimeMicros(); nTimeCallbacks += nTime8 - nTime7;
-    LogPrint(BCLog::BENCH, "    - Callbacks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime8 - nTime7), nTimeCallbacks * MICRO, nTimeCallbacks * MILLI / nBlocksTotal);
+    int64_t nTime9 = GetTimeMicros();
+    nTimeCallbacks += nTime9 - nTime8;
+    LogPrint(BCLog::BENCH, "    - Callbacks: %.2fms [%.2fs (%.2fms/blk)]\n",
+        MILLI * (nTime9 - nTime8),
+        nTimeCallbacks * MICRO,
+        nTimeCallbacks * MILLI / nBlocksTotal);
 
     return true;
 }
@@ -4198,9 +4210,13 @@ bool static ConnectTip(CValidationState& state,
         bool rv = ConnectBlock(blockConnecting, state, pindexNew, view, chainparams);
         GetMainSignals().BlockChecked(blockConnecting, state);
         if (!rv) {
-            if (state.IsInvalid())
+            if (state.IsInvalid()) {
                 InvalidBlockFound(pindexNew, state);
-            return error("ConnectTip(): ConnectBlock %s failed", pindexNew->GetBlockHash().ToString());
+            }
+
+            return error("ConnectTip(): ConnectBlock %s failed: %s",
+                pindexNew->GetBlockHash().ToString(),
+                state.GetRejectReason());
         }
         nTime3 = GetTimeMicros(); nTimeConnectTotal += nTime3 - nTime2;
         LogPrint(BCLog::BENCH, "  - Connect total: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime3 - nTime2) * MILLI, nTimeConnectTotal * MICRO, nTimeConnectTotal * MILLI / nBlocksTotal);
@@ -4835,6 +4851,13 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
                                  strprintf("Transaction check failed (tx hash %s) %s", tx->GetHash().ToString(), state.GetDebugMessage()));
 
+    // Check invites
+    for (const auto& invite_tx : block.invites)
+        if (!CheckTransaction(*invite_tx, state, false))
+            return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
+                                 strprintf("Invite transaction check failed (tx hash %s) %s", invite_tx->GetHash().ToString(), state.GetDebugMessage()));
+
+    // Check referrals
     for (const auto& ref : block.m_vRef) {
         if (!CheckReferral(*ref, state)) {
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
@@ -4983,6 +5006,10 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
 
 static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
 {
+    if (!ValidateContextualDaedalusBlock(block, state, consensusParams, pindexPrev)) {
+        return false; // state is expected to be set by ValidateDaedalus();
+    }
+
     const int nHeight = pindexPrev == nullptr ? 0 : pindexPrev->nHeight + 1;
 
     int64_t nLockTimeCutoff = pindexPrev != nullptr ?
@@ -5122,6 +5149,7 @@ bool ProcessNewBlockHeaders(const std::vector<CBlockHeader>& headers, CValidatio
 static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidationState& state, const CChainParams& chainparams, CBlockIndex** ppindex, bool fRequested, const CDiskBlockPos* dbp, bool* fNewBlock)
 {
     const CBlock& block = *pblock;
+    debug("AcceptBlock: %s. prev block: %s", block.GetHash().GetHex(), block.hashPrevBlock.GetHex());
 
     if (fNewBlock) *fNewBlock = false;
     AssertLockHeld(cs_main);
