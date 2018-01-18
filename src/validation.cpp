@@ -2663,9 +2663,16 @@ static DisconnectResult DisconnectBlock(
         return DISCONNECT_FAILED;
     }
 
-    if (blockUndo.vtxundo.size() + 1 != (block.vtx.size() + block.invites.size())) {
-        error("DisconnectBlock(): block and undo data inconsistent");
-        return DISCONNECT_FAILED;
+    if(block.IsDaedalus()) {
+        if (blockUndo.vtxundo.size() + 2 != (block.vtx.size() + block.invites.size())) {
+            error("DisconnectBlock(): block and undo data inconsistent");
+            return DISCONNECT_FAILED;
+        }
+    } else {
+        if (blockUndo.vtxundo.size() + 1 != block.vtx.size()) {
+            error("DisconnectBlock(): block and undo data inconsistent");
+            return DISCONNECT_FAILED;
+        }
     }
 
     KeyActivity addressIndex;
@@ -2854,12 +2861,13 @@ static unsigned int GetBlockScriptFlags(const CBlockIndex* pindex, const Consens
 bool ConfirmAllPreDaedalusAddresses(
         CValidationState& state,
         const Consensus::Params& consensus,
-        const CBlockIndex* pindexPrev)
+        const CBlockIndex* pindex)
 {
-    const auto height = pindexPrev->nHeight + 1;
+    const auto height = pindex->nHeight;
+    LogPrintf("%d: HEIGHT\n", height);
 
     // Don't do the indexing if we are not on the block before the daedalus deployment.
-    if (height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block - 1) {
+    if (height < consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block- 1) {
         return true;
     }
 
@@ -2867,6 +2875,7 @@ bool ConfirmAllPreDaedalusAddresses(
         return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
     }
 
+    LogPrintf("%d: CONFIRMING ALL PRE\n", height);
     //One time confirmation of all addresses before the daedalus block
     return prefviewdb->ConfirmAllPreDaedalusAddresses();
 }
@@ -3128,12 +3137,12 @@ bool ValidateContextualDaedalusBlock(
         const CBlock& block,
         CValidationState& state,
         const Consensus::Params& params,
-        const CBlockIndex* pindexPrev)
+        const CBlockIndex* pindex)
 {
-    if (!ExpectDaedalus(pindexPrev, params)) {
+    if (!ExpectDaedalus(pindex->pprev, params)) {
 
         // Make sure we confirm all pre daedalus addresses. This is a one time event.
-        if(!ConfirmAllPreDaedalusAddresses(state, params, pindexPrev)) {
+        if(!ConfirmAllPreDaedalusAddresses(state, params, pindex)) {
             throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
         }
 
@@ -3334,6 +3343,11 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                   CCoinsViewCache& view, const CChainParams& chainparams, bool fJustCheck = false)
 {
     debug("ConnectBlock%s: %s", fJustCheck ? " (check)" : "", block.GetHash().GetHex());
+
+    if(!ValidateContextualDaedalusBlock(block, state, chainparams.GetConsensus(), pindex)) {
+        return false; // state is expected to be set by ValidateDaedalus();
+    }
+
     AssertLockHeld(cs_main);
     assert(pindex);
     // pindex->phashBlock can be null if called by CreateNewBlock/TestBlockValidity
@@ -3546,7 +3560,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    if(block.invites.empty()) {
+    if(block.IsDaedalus()) {
         pos.nTxOffset += GetSizeOfCompactSize(block.invites.size());
         for (int i = 0; i < static_cast<int>(block.invites.size()); i++)
         {
@@ -3557,10 +3571,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 blockundo.vtxundo.push_back(CTxUndo());
             }
 
+            UpdateCoins(inv, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
+
             vPos.push_back(std::make_pair(inv.GetHash(), pos));
             pos.nTxOffset += ::GetSerializeSize(inv, SER_DISK, CLIENT_VERSION);
-
-            UpdateCoins(inv, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
         }
     }
 
@@ -4969,10 +4983,6 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
 
 static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
 {
-    if(!ValidateContextualDaedalusBlock(block, state, consensusParams, pindexPrev)) {
-        return false; // state is expected to be set by ValidateDaedalus();
-    }
-
     const int nHeight = pindexPrev == nullptr ? 0 : pindexPrev->nHeight + 1;
 
     int64_t nLockTimeCutoff = pindexPrev != nullptr ?

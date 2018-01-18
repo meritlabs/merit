@@ -27,15 +27,21 @@ uint64_t BlockHeaderAndShortIDs::GetShortID(const uint256& hash) const
 BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTXID) :
         m_nonce(GetRand(std::numeric_limits<uint64_t>::max())),
         m_short_tx_ids(block.vtx.size() - 1),
-        m_short_inv_ids(block.invites.size() - 1),
         m_short_ref_ids(block.m_vRef.size()),
         m_prefilled_txn(1), m_prefilled_inv(1), 
         header(block)
 {
+    if(block.IsDaedalus()) {
+        m_short_inv_ids.resize(block.invites.size() - 1);
+    }
+
     FillShortIDSelector();
     //TODO: Use our mempool prior to block acceptance to predictively fill more than just the coinbase
     m_prefilled_txn[0] = {0, block.vtx[0]};
-    m_prefilled_inv[0] = {0, block.invites[0]};
+
+    if(block.IsDaedalus()) {
+        m_prefilled_inv[0] = {0, block.invites[0]};
+    }
 
     std::transform(
             std::begin(block.vtx) + 1, std::end(block.vtx), std::begin(m_short_tx_ids),
@@ -43,11 +49,13 @@ BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTX
                 return GetShortID(fUseWTXID ? tx->GetWitnessHash() : tx->GetHash());
             });
 
-    std::transform(
-            std::begin(block.invites) + 1, std::end(block.invites), std::begin(m_short_inv_ids),
-            [this,fUseWTXID](const CTransactionRef& inv) {
+    if(block.IsDaedalus()) {
+        std::transform(
+                std::begin(block.invites) + 1, std::end(block.invites), std::begin(m_short_inv_ids),
+                [this,fUseWTXID](const CTransactionRef& inv) {
                 return GetShortID(fUseWTXID ? inv->GetWitnessHash() : inv->GetHash());
-            });
+                });
+    }
 
     std::transform(
             std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(m_short_ref_ids),
@@ -222,10 +230,6 @@ ReadStatus PartiallyDownloadedBlock::InitData(
         return READ_STATUS_INVALID;
     }
 
-    if (cmpctblock.header.IsNull() || (cmpctblock.m_short_inv_ids.empty() && cmpctblock.m_prefilled_inv.empty())) {
-        return READ_STATUS_INVALID;
-    }
-
     if (txn_and_inv_size > MAX_BLOCK_WEIGHT / MIN_SERIALIZABLE_TRANSACTION_WEIGHT) {
         return READ_STATUS_INVALID;
     }
@@ -239,32 +243,32 @@ ReadStatus PartiallyDownloadedBlock::InitData(
     m_refs_available.resize(cmpctblock.BlockRefCount());
 
     const auto txn_read_status = InitTxnData(
-         m_txn_available,
-        cmpctblock.BlockTxCount(),
-        cmpctblock.m_prefilled_txn,
-        cmpctblock.m_short_tx_ids,
-        cmpctblock,
-        extra_txn, 
-        m_txn_pool,
-        m_mempool_txn_count,
-        m_prefilled_txn_count,
-        m_extra_txn_count);
+            m_txn_available,
+            cmpctblock.BlockTxCount(),
+            cmpctblock.m_prefilled_txn,
+            cmpctblock.m_short_tx_ids,
+            cmpctblock,
+            extra_txn, 
+            m_txn_pool,
+            m_mempool_txn_count,
+            m_prefilled_txn_count,
+            m_extra_txn_count);
 
     if(txn_read_status != READ_STATUS_OK) {
         return txn_read_status;
     }
 
     const auto inv_read_status = InitTxnData(
-         m_inv_available,
-        cmpctblock.BlockInvCount(),
-        cmpctblock.m_prefilled_inv,
-        cmpctblock.m_short_inv_ids,
-        cmpctblock,
-        extra_inv, 
-        m_txn_pool,
-        m_mempool_inv_count,
-        m_prefilled_inv_count,
-        m_extra_inv_count);
+            m_inv_available,
+            cmpctblock.BlockInvCount(),
+            cmpctblock.m_prefilled_inv,
+            cmpctblock.m_short_inv_ids,
+            cmpctblock,
+            extra_inv, 
+            m_txn_pool,
+            m_mempool_inv_count,
+            m_prefilled_inv_count,
+            m_extra_inv_count);
 
     if(inv_read_status != READ_STATUS_OK) {
         return inv_read_status;

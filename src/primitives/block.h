@@ -81,6 +81,12 @@ public:
     {
         return (int64_t)nTime;
     }
+
+    bool IsDaedalus() const
+    {
+        return (nVersion & DAEDALUS_BIT) != 0;
+    }
+
 };
 
 class CBlock : public CBlockHeader
