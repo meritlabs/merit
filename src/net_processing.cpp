@@ -798,12 +798,9 @@ PeerLogicValidation::PeerLogicValidation(CConnman* connmanIn) : connman(connmanI
     recentRejects.reset(new CRollingBloomFilter(120000, 0.000001));
 }
 
-void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex* pindex, const std::vector<CTransactionRef>& vtxConflicted) {
-    LOCK(cs_main);
-
-    std::vector<uint256> vOrphanErase;
-
-    for (const auto& ptx : pblock->vtx) {
+void FindOrphans(const std::vector<CTransactionRef>& vtx, std::vector<uint256>& vOrphanErase)
+{
+    for (const auto& ptx : vtx) {
         assert(ptx);
         const CTransaction& tx = *ptx;
 
@@ -822,6 +819,20 @@ void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pb
                     });
         }
     }
+}
+
+void PeerLogicValidation::BlockConnected(
+        const std::shared_ptr<const CBlock>& pblock,
+        const CBlockIndex* pindex,
+        const std::vector<CTransactionRef>& vtxConflicted)
+{
+    assert(pblock);
+    LOCK(cs_main);
+
+    std::vector<uint256> vOrphanErase;
+
+    FindOrphans(pblock->vtx, vOrphanErase);
+    FindOrphans(pblock->invites, vOrphanErase);
 
     // Erase orphan transactions include or precluded by this block
     {
@@ -1301,6 +1312,15 @@ inline void static SendBlockTransactions(const CBlock& block, const BlockTransac
             return;
         }
         resp.refs[i] = block.m_vRef[req.m_referral_indices[i]];
+    }
+    for (size_t i = 0; i < req.m_invite_indices.size(); i++) {
+        if (req.m_invite_indices[i] >= block.invites.size()) {
+            LOCK(cs_main);
+            Misbehaving(pfrom->GetId(), 100);
+            LogPrintf("Peer %d sent us a getblocktxn with out-of-bounds invite indices", pfrom->GetId());
+            return;
+        }
+        resp.invites[i] = block.invites[req.m_invite_indices[i]];
     }
     LOCK(cs_main);
     const CNetMsgMaker msgMaker(pfrom->GetSendVersion());
@@ -2339,7 +2359,13 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                     if (!partialBlock.IsTxAvailable(i))
                         req.m_transaction_indices.push_back(i);
                 }
-                if (req.m_transaction_indices.empty()) {
+
+                for (size_t i = 0; i < cmpctblock.BlockInvCount(); i++) {
+                    if (!partialBlock.IsInviteAvailable(i))
+                        req.m_invite_indices.push_back(i);
+                }
+
+                if (req.m_transaction_indices.empty() && req.m_invite_indices.empty()) {
                     // Dirty hack to jump to BLOCKTXN code (TODO: move message handling into their own functions)
                     BlockTransactions txn;
                     txn.blockhash = cmpctblock.header.GetHash();
@@ -2362,8 +2388,9 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                     return true;
                 }
                 std::vector<CTransactionRef> dummyTxns;
+                std::vector<CTransactionRef> dummyInvites;
                 std::vector<referral::ReferralRef> dummyRefs;
-                status = tempBlock.FillBlock(*pblock, dummyTxns, dummyRefs);
+                status = tempBlock.FillBlock(*pblock, dummyTxns, dummyInvites, dummyRefs);
                 if (status == READ_STATUS_OK) {
                     fBlockReconstructed = true;
                 }
@@ -2438,7 +2465,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             }
 
             PartiallyDownloadedBlock& partialBlock = *it->second.second->partialBlock;
-            ReadStatus status = partialBlock.FillBlock(*pblock, resp.txn, resp.refs);
+            ReadStatus status = partialBlock.FillBlock(*pblock, resp.txn, resp.invites, resp.refs);
             if (status == READ_STATUS_INVALID) {
                 MarkBlockAsReceived(resp.blockhash); // Reset in-flight state in case of whitelist
                 Misbehaving(pfrom->GetId(), 100);
