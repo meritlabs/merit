@@ -300,7 +300,7 @@ void MeritCore::initialize()
 {
     try
     {
-        qDebug() << __func__ << ": Running initialization in thread";
+        // qDebug() << __func__ << ": Running initialization in thread";
         bool rv = AppInitMain(threadGroup, scheduler);
         Q_EMIT initializeResult(rv);
     } catch (const std::exception& e) {
@@ -314,11 +314,11 @@ void MeritCore::shutdown()
 {
     try
     {
-        qDebug() << __func__ << ": Running Shutdown in thread";
+        // qDebug() << __func__ << ": Running Shutdown in thread";
         Interrupt(threadGroup);
         threadGroup.join_all();
         Shutdown();
-        qDebug() << __func__ << ": Shutdown finished";
+        // qDebug() << __func__ << ": Shutdown finished";
         Q_EMIT shutdownResult();
     } catch (const std::exception& e) {
         handleRunawayException(&e);
@@ -357,10 +357,10 @@ MeritApplication::~MeritApplication()
 {
     if(coreThread)
     {
-        qDebug() << __func__ << ": Stopping thread";
+        // qDebug() << __func__ << ": Stopping thread";
         Q_EMIT stopThread();
         coreThread->wait();
-        qDebug() << __func__ << ": Stopped thread";
+        // qDebug() << __func__ << ": Stopped thread";
     }
 
     delete window;
@@ -435,7 +435,7 @@ void MeritApplication::parameterSetup()
 
 void MeritApplication::requestInitialize()
 {
-    qDebug() << __func__ << ": Requesting initialize";
+    // qDebug() << __func__ << ": Requesting initialize";
     startThread();
     Q_EMIT requestedInitialize();
 }
@@ -447,7 +447,7 @@ void MeritApplication::requestShutdown()
     // for example the RPC console may still be executing a command.
     shutdownWindow.reset(ShutdownWindow::showShutdownWindow(window));
 
-    qDebug() << __func__ << ": Requesting shutdown";
+    // qDebug() << __func__ << ": Requesting shutdown";
     startThread();
     window->hide();
     window->setClientModel(0);
@@ -469,7 +469,7 @@ void MeritApplication::requestShutdown()
 
 void MeritApplication::initializeResult(bool success)
 {
-    qDebug() << __func__ << ": Initialization result: " << success;
+    // qDebug() << __func__ << ": Initialization result: " << success;
     // Set exit result.
     returnValue = success ? EXIT_SUCCESS : EXIT_FAILURE;
     if(success)
