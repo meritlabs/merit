@@ -224,13 +224,13 @@ AC_ARG_ENABLE([werror],
 AC_LANG_PUSH([C++])
 AX_CHECK_COMPILE_FLAG([-Werror],[CXXFLAG_WERROR="-Werror"],[CXXFLAG_WERROR=""])
 
-if test "x$GCC" = xyes; then
-    CFLAGS="$CFLAGS -march=native"
-fi
+#if test "x$GCC" = xyes; then
+#    CFLAGS="$CFLAGS -march=native"
+#fi
 
-if test "x$GXX" = xyes; then
-    CXXFLAGS="$CXXFLAGS -march=native"
-fi
+#if test "x$GXX" = xyes; then
+#    CXXFLAGS="$CXXFLAGS -march=native"
+#fi
 
 if test "x$enable_debug" = xyes; then
     CPPFLAGS="$CPPFLAGS -DDEBUG -DDEBUG_LOCKORDER"
@@ -239,9 +239,9 @@ if test "x$enable_debug" = xyes; then
       CFLAGS="$CFLAGS -g3 -O0"
     fi
 
-    if test "x$GXX" = xyes; then
-        CXXFLAGS="$CXXFLAGS -march=native -g3 -O0"
-    fi
+#    if test "x$GXX" = xyes; then
+#        CXXFLAGS="$CXXFLAGS -march=native -g3 -O0"
+#    fi
 fi
 
 ERROR_CXXFLAGS=
