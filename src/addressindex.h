@@ -47,7 +47,8 @@ struct CAddressUnspentKey {
 
     CAddressUnspentKey(unsigned int addressType, uint160 addressHash, uint256 txid, size_t indexValue, bool isCoinbaseIn, bool isInviteIn) {
         isInvite = isInviteIn;
-        type = isInvite ? addressType + 10 : addressType;
+        type = addressType;
+        encoded_type = isInvite ? addressType + 10 : addressType;
         hashBytes = addressHash;
         txhash = txid;
         index = indexValue;
@@ -60,6 +61,7 @@ struct CAddressUnspentKey {
 
     void SetNull() {
         type = 0;
+        encoded_type = 0;
         hashBytes.SetNull();
         txhash.SetNull();
         index = 0;
