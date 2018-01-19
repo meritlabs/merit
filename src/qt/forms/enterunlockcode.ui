@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>640</width>
-    <height>404</height>
+    <height>420</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -188,26 +188,23 @@ QLabel { color: rgb(40,40,40);  }</string>
             <number>10</number>
            </property>
            <item>
-            <widget class="QTextEdit" name="unlockCodeTextInput">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>16777215</width>
-               <height>24</height>
-              </size>
+            <widget class="QLineEdit" name="unlockCodeTextInput">
+             <property name="maxLength">
+              <number>34</number>
              </property>
              <property name="placeholderText">
               <string>Enter your unlock code here</string>
+             </property>
+             <property name="clearButtonEnabled">
+              <bool>true</bool>
              </property>
             </widget>
            </item>
            <item>
             <widget class="QPushButton" name="submitButton">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
              <property name="text">
               <string>Submit</string>
              </property>
