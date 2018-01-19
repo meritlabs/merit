@@ -66,7 +66,7 @@
 
 QLabel { color: rgb(40,40,40);  }</string>
         </property>
-        <layout class="QVBoxLayout" name="verticalLayoutSub" stretch="1,0,0">
+        <layout class="QVBoxLayout" name="verticalLayoutSub" stretch="0,0">
          <property name="spacing">
           <number>0</number>
          </property>
@@ -83,9 +83,15 @@ QLabel { color: rgb(40,40,40);  }</string>
           <number>10</number>
          </property>
          <item>
-          <layout class="QHBoxLayout" name="horizontalLayoutIconText" stretch="0,1">
+          <layout class="QHBoxLayout" name="horizontalLayoutIconText" stretch="0,0,0">
+           <property name="spacing">
+            <number>-1</number>
+           </property>
            <property name="topMargin">
-            <number>20</number>
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
            </property>
            <item>
             <layout class="QVBoxLayout" name="verticalLayoutIcon">
@@ -96,6 +102,12 @@ QLabel { color: rgb(40,40,40);  }</string>
               <widget class="QPushButton" name="warningIcon">
                <property name="enabled">
                 <bool>false</bool>
+               </property>
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
                </property>
                <property name="text">
                 <string/>
@@ -116,19 +128,6 @@ QLabel { color: rgb(40,40,40);  }</string>
                </property>
               </widget>
              </item>
-             <item>
-              <spacer name="verticalSpacerWarningIcon">
-               <property name="orientation">
-                <enum>Qt::Vertical</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>20</width>
-                 <height>40</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
             </layout>
            </item>
            <item>
@@ -142,73 +141,126 @@ QLabel { color: rgb(40,40,40);  }</string>
              <item>
               <widget class="QLabel" name="infoText">
                <property name="text">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Merit is an invite-only network. Enter your unlock code below to unlock your wallet and start using Merit. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:18pt; font-weight:600;&quot;&gt;Merit is an invite-only network.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="textFormat">
                 <enum>Qt::RichText</enum>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignCenter</set>
+               </property>
+               <property name="wordWrap">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QVBoxLayout" name="verticalLayoutUnlockCode">
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <spacer name="verticalSpacer">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayoutAlias">
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="QLabel" name="aliasDescription">
+               <property name="text">
+                <string>You can choose to pick an Alias that others can use to send you Merit. (Optional)</string>
                </property>
                <property name="wordWrap">
                 <bool>true</bool>
                </property>
               </widget>
              </item>
-             <item>
-              <spacer name="verticalSpacerInTextSpace">
-               <property name="orientation">
-                <enum>Qt::Vertical</enum>
+             <item alignment="Qt::AlignLeft">
+              <widget class="QLineEdit" name="aliasTextInput">
+               <property name="placeholderText">
+                <string>Enter an alias here (optional)</string>
                </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>20</width>
-                 <height>40</height>
-                </size>
+               <property name="clearButtonEnabled">
+                <bool>true</bool>
                </property>
-              </spacer>
+              </widget>
              </item>
             </layout>
            </item>
-          </layout>
-         </item>
-         <item>
-          <spacer name="verticalSpacerAfterText">
-           <property name="orientation">
-            <enum>Qt::Vertical</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>20</width>
-             <height>40</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-         <item>
-          <layout class="QHBoxLayout" name="horizontalLayout">
-           <property name="topMargin">
-            <number>10</number>
-           </property>
            <item>
-            <widget class="QLineEdit" name="unlockCodeTextInput">
-             <property name="maxLength">
-              <number>34</number>
+            <widget class="QLabel" name="unlockCodeDescription">
+             <property name="text">
+              <string>Enter the Merit address of the person who has invited you to use Merit (required)</string>
              </property>
-             <property name="placeholderText">
-              <string>Enter your unlock code here</string>
-             </property>
-             <property name="clearButtonEnabled">
+             <property name="wordWrap">
               <bool>true</bool>
              </property>
             </widget>
            </item>
            <item>
-            <widget class="QPushButton" name="submitButton">
-             <property name="enabled">
-              <bool>false</bool>
+            <layout class="QHBoxLayout" name="horizontalLayout">
+             <property name="topMargin">
+              <number>0</number>
              </property>
-             <property name="text">
-              <string>Submit</string>
-             </property>
-            </widget>
+             <item>
+              <widget class="QLineEdit" name="unlockCodeTextInput">
+               <property name="accessibleDescription">
+                <string/>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+               <property name="maxLength">
+                <number>34</number>
+               </property>
+               <property name="placeholderText">
+                <string>Enter a valid Merit address here</string>
+               </property>
+               <property name="clearButtonEnabled">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="submitButton">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>Submit</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
            </item>
           </layout>
          </item>

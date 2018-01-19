@@ -24,7 +24,7 @@ Q_SIGNALS:
     void CanSubmitChanged(bool);
 
 public Q_SLOTS:
-    void textInputChanged(const QString &text);
+    void unlockCodeChanged(const QString &text);
     void submit();
     void setModel(WalletModel *model);
     // will show or hide the modal layer

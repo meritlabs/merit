@@ -18,7 +18,7 @@ layerIsVisible(false),
 userClosed(false)
 {
     ui->setupUi(this);
-    connect(ui->unlockCodeTextInput, SIGNAL(textChanged(QString)), this, SLOT(textInputChanged(QString)));
+    connect(ui->unlockCodeTextInput, SIGNAL(textChanged(QString)), this, SLOT(unlockCodeChanged(QString)));
     connect(this, SIGNAL(CanSubmitChanged(bool)), ui->submitButton, SLOT(setEnabled(bool)));
     connect(ui->submitButton, SIGNAL(clicked()), this, SLOT(submit()));
     connect(ui->unlockCodeTextInput, SIGNAL(returnPressed()), this, SLOT(submit()));
@@ -89,7 +89,7 @@ void EnterUnlockCode::setModel(WalletModel *model)
     this->walletModel = model;
 }
 
-void EnterUnlockCode::textInputChanged(const QString &newText)
+void EnterUnlockCode::unlockCodeChanged(const QString &newText)
 {
     if(newText.length() < 34) {
         SetCanSubmit(false);
@@ -114,19 +114,18 @@ void EnterUnlockCode::submit()
 
     auto parentAddressUint160 = parentAddress.GetUint160();
     if(parentAddressUint160) {
-        referral::ReferralRef referral = walletModel->Unlock(*parentAddressUint160);
-        if(referral) {
+        try {
+            auto alias = ui->aliasTextInput->text().toStdString();
+
+            referral::ReferralRef referral =
+                walletModel->Unlock(*parentAddressUint160, alias);
+
             Q_EMIT WalletReferred();
-        } else {
-          InvalidAddressMessageBox();
+        } catch (const std::runtime_error &err) {
+            QMessageBox::warning(
+                this, 
+                tr("Sorry, there was a problem."), 
+                tr(err.what()));
         }
     }
-}
-
-void EnterUnlockCode::InvalidAddressMessageBox()
-{
-    QMessageBox msgBox;
-    msgBox.setText(tr("Sorry, that address is invalid."));
-    msgBox.setIcon(QMessageBox::Warning);
-    msgBox.exec();
 }
