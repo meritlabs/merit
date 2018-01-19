@@ -8,6 +8,10 @@
 
 #include "net.h"
 
+#if defined(__MINGW__)
+#undef debug
+#endif
+
 #include <QAbstractTableModel>
 #include <QStringList>
 

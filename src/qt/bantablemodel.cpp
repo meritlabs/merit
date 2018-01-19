@@ -12,6 +12,10 @@
 #include "sync.h"
 #include "utiltime.h"
 
+#if defined(__MINGW__)
+#undef debug
+#endif
+
 #include <QDebug>
 #include <QList>
 
