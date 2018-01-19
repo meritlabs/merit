@@ -1258,6 +1258,8 @@ public:
             const std::string alias = "",
             CKey key = CKey{});
 
+    CTransactionRef ConfirmAddress(CTxDestination& dest);
+
     bool IsReferred() const;
     referral::Address ReferralAddress() const;
     CPubKey ReferralPubKey() const;

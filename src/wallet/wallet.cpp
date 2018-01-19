@@ -1730,6 +1730,64 @@ referral::ReferralRef CWallet::GenerateNewReferral(
     return GenerateNewReferral(1, key_id, pubkey, parentAddress, alias, key);
 }
 
+CTransactionRef CWallet::ConfirmAddress(CTxDestination& dest)
+{
+    CWalletTx wtx(true);
+
+    CCoinControl coin_control;
+    CScript scriptPubKey = GetScriptForDestination(dest);
+
+    const int available_invites = GetBalance(true);
+
+    // Check amount
+    if (available_invites <= 0) {
+        std::stringstream e;
+        const auto immature_invites = GetImmatureBalance(true);
+        if(immature_invites > 0) {
+            e << "No mature invites available. There are immature "
+              << immature_invites
+              << " invites awating confirmations" << std::endl;
+            throw std::runtime_error{e.str()};
+        } else {
+            throw std::runtime_error{"No mature invites available"};
+        }
+    }
+
+    // Create and send the transaction
+    CReserveKey reservekey(this);
+    std::string strError;
+    std::vector<CRecipient> vecSend;
+    int nChangePosRet = -1;
+    CRecipient recipient = {scriptPubKey, 1, false};
+    vecSend.push_back(recipient);
+
+    if (!CreateInviteTransaction(
+                vecSend,
+                wtx,
+                reservekey,
+                nChangePosRet,
+                strError,
+                coin_control)) {
+        throw std::runtime_error{strError};
+    }
+
+    CValidationState state;
+    if (!CommitTransaction(
+                wtx,
+                reservekey,
+                g_connman.get(),
+                state)) {
+
+        strError = strprintf(
+                "Error: The transaction was rejected! Reason given: %s",
+                state.GetRejectReason());
+
+        throw std::runtime_error{strError};
+    }
+
+    return wtx.tx;
+}
+
 bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool)
 {
     if (IsReferred() || !rtx.IsUnlockTx()) {
@@ -4754,3 +4812,4 @@ bool CWalletTx::AcceptToMemoryPool(const CAmount& nAbsurdFee, CValidationState& 
 {
     return ::AcceptToMemoryPool(mempool, state, tx, true, nullptr, nullptr, false, nAbsurdFee);
 }
+

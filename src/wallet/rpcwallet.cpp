@@ -455,60 +455,6 @@ static void SendMoneyToDest(
             coin_control);
 }
 
-static void ConfirmAddress(
-        CWallet * const pwallet,
-        const CScript &scriptPubKey,
-        CWalletTx& wtxNew,
-        const CCoinControl& coin_control)
-{
-    const int available_invites = pwallet->GetBalance(true);
-
-    // Check amount
-    if (available_invites <= 0) {
-        std::stringstream e;
-        const auto immature_invites = pwallet->GetImmatureBalance(true);
-        if(immature_invites > 0) {
-            e << "No mature invites available. There are immature "
-              << immature_invites
-              << " invites awating confirmations" << std::endl;
-            throw JSONRPCError(RPC_INVALID_PARAMETER, e.str());
-        } else {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "No mature invites available");
-        }
-    }
-
-    if (pwallet->GetBroadcastTransactions() && !g_connman) {
-        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
-    }
-
-    // Create and send the transaction
-    CReserveKey reservekey(pwallet);
-    std::string strError;
-    std::vector<CRecipient> vecSend;
-    int nChangePosRet = -1;
-    CRecipient recipient = {scriptPubKey, 1, false};
-    vecSend.push_back(recipient);
-
-    if (!pwallet->CreateInviteTransaction(
-                vecSend,
-                wtxNew,
-                reservekey,
-                nChangePosRet,
-                strError,
-                coin_control)) {
-        throw JSONRPCError(RPC_WALLET_ERROR, strError);
-    }
-
-    CValidationState state;
-    if (!pwallet->CommitTransaction(
-                wtxNew,
-                reservekey,
-                g_connman.get(),
-                state)) {
-        strError = strprintf("Error: The transaction was rejected! Reason given: %s", state.GetRejectReason());
-        throw JSONRPCError(RPC_WALLET_ERROR, strError);
-    }
-}
 
 static UniValue EasySend(
         CWallet&  pwallet,
@@ -967,17 +913,19 @@ UniValue confirmaddress(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
 
-    // Wallet comments
-    CWalletTx wtx(true);
-
-    CCoinControl coin_control;
     EnsureWalletIsUnlocked(pwallet);
 
-    CScript scriptPubKey = GetScriptForDestination(dest);
+    if (pwallet->GetBroadcastTransactions() && !g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
 
-    ConfirmAddress(pwallet, scriptPubKey, wtx, coin_control);
+    auto tx = pwallet->ConfirmAddress(dest);
+    if(!tx) {
+       throw JSONRPCError(RPC_WALLET_ERROR, "Unable to confirm the address");
+    }
 
-    return wtx.GetHash().GetHex();
+    // Wallet comments
+    return tx->GetHash().GetHex();
 }
 
 UniValue easysend(const JSONRPCRequest& request)
@@ -1813,8 +1761,9 @@ UniValue spendvault(const JSONRPCRequest& request)
     std::string vault_address = request.params[0].get_str();
 
     CAmount amount = AmountFromValue(request.params[1]);
-    if (amount <= 0)
+    if (amount <= 0) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
+    }
 
     std::string dest_address = request.params[2].get_str();
 
