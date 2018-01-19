@@ -464,8 +464,18 @@ static void ConfirmAddress(
     const int available_invites = pwallet->GetBalance(true);
 
     // Check amount
-    if (available_invites <= 0)
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "No invites available");
+    if (available_invites <= 0) {
+        std::stringstream e;
+        const auto immature_invites = pwallet->GetImmatureBalance(true);
+        if(immature_invites > 0) {
+            e << "No mature invites available. There are immature " 
+              << immature_invites
+              << " invites awating confirmations" << std::endl;
+            throw JSONRPCError(RPC_INVALID_PARAMETER, e.str());
+        } else {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "No mature invites available");
+        }
+    }
 
     if (pwallet->GetBroadcastTransactions() && !g_connman) {
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");

@@ -111,10 +111,9 @@ public:
             const uint64_t max_reservoir_size);
 
     //Daedalus code.
-    bool ConfirmReferral(const Referral&, const TransactionHash&, int output_index);
     bool Exists(const Address&) const;
     bool IsConfirmed(const Address&) const;
-    bool RemoveReferralConfirmation(const Address&);
+    bool UpdateConfirmation(char address_type, const Address&, CAmount amount);
 
     bool ConfirmAllPreDaedalusAddresses();
     bool AreAllPreDaedalusAddressesConfirmed() const;

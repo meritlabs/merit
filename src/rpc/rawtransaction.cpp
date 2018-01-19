@@ -46,6 +46,9 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
     entry.push_back(Pair("size", (int)::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION)));
     entry.push_back(Pair("vsize", (int)::GetVirtualTransactionSize(tx)));
     entry.push_back(Pair("version", tx.nVersion));
+    if (tx.IsInvite()) {
+        entry.push_back(Pair("invite", true));
+    }
     entry.push_back(Pair("locktime", (int64_t)tx.nLockTime));
     UniValue vin(UniValue::VARR);
     for (unsigned int i = 0; i < tx.vin.size(); i++) {
@@ -65,8 +68,13 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
             CSpentIndexValue spentInfo;
             CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
             if (GetSpentIndex(spentKey, spentInfo)) {
-                in.push_back(Pair("value", ValueFromAmount(spentInfo.satoshis)));
-                in.push_back(Pair("valueSat", spentInfo.satoshis));
+                if (tx.IsInvite()) {
+                    //invites are not demoninated in sotoshi.
+                    in.push_back(Pair("value", spentInfo.satoshis));
+                } else {
+                    in.push_back(Pair("value", ValueFromAmount(spentInfo.satoshis)));
+                    in.push_back(Pair("valueSat", spentInfo.satoshis));
+                }
                 if (spentInfo.addressType == 1) {
                     in.push_back(Pair("address", CMeritAddress(CKeyID(spentInfo.addressHash)).ToString()));
                 } else if (spentInfo.addressType == 2)  {
@@ -96,8 +104,12 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
     for (unsigned int i = 0; i < tx.vout.size(); i++) {
         const CTxOut& txout = tx.vout[i];
         UniValue out(UniValue::VOBJ);
-        out.push_back(Pair("value", ValueFromAmount(txout.nValue)));
-        out.push_back(Pair("valueSat", txout.nValue));
+        if (tx.IsInvite()) {
+            out.push_back(Pair("value", txout.nValue));
+        } else {
+            out.push_back(Pair("value", ValueFromAmount(txout.nValue)));
+            out.push_back(Pair("valueSat", txout.nValue));
+        }
         out.push_back(Pair("n", (int64_t)i));
         UniValue o(UniValue::VOBJ);
         ScriptPubKeyToUniv(txout.scriptPubKey, o, true);

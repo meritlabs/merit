@@ -245,7 +245,7 @@ referral::MaybeReferral LookupReferral(
     }
 
     // otherwise lookupt extraReferrals vector for the needle
-    auto it = std::find_if(
+    auto it = std::find_if (
         extraReferrals.begin(), extraReferrals.end(),
         [&address](const referral::ReferralRef& ref) {
             assert(ref);
@@ -257,7 +257,7 @@ referral::MaybeReferral LookupReferral(
 
 bool CheckReferralSignature(const referral::Referral& ref, const std::vector<referral::ReferralRef>& extraReferrals)
 {
-    if(!ref.pubkey.IsValid()) {
+    if (!ref.pubkey.IsValid()) {
         return false;
     }
 
@@ -822,7 +822,7 @@ static bool AcceptToMemoryPoolWorker(
                               fSpendsCoinbase, nSigOpsCost, lp);
         unsigned int nSize = entry.GetSize();
 
-        if(!tx.IsInvite()) {
+        if (!tx.IsInvite()) {
 
             // Check that the transaction doesn't have an excessive number of
             // sigops, making it impossible to mine. Since the coinbase transaction
@@ -1517,7 +1517,7 @@ CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params)
      * In order to keep the block chain without forking, we will enable the correct
      * amount on block 2300 when the bug was discovered.
      */
-    if(height >= 2300) {
+    if (height >= 2300) {
         nSubsidy = consensus_params.initial_block_reward;
     } else {
         nSubsidy = 50 * COIN;
@@ -1555,7 +1555,7 @@ void TreeToForest(
     }
 
     entrants.erase(
-            std::remove_if(entrants.begin(), entrants.end(),
+            std::remove_if (entrants.begin(), entrants.end(),
                 [&params](const referral::AddressANV& e) {
                     return e.address == params.genesis_address;
                 }), entrants.end());
@@ -1585,7 +1585,7 @@ pog::AmbassadorLottery RewardAmbassadors(
 
     // If we have an empty distribution, for example in some of the unit
     // tests, we return the whole ambassador amount back to the miner
-    if(desired_winners == 0) return {{}, total};
+    if (desired_winners == 0) return {{}, total};
 
     // validate sane winner amount
     assert(desired_winners > 0);
@@ -1622,7 +1622,7 @@ pog::InviteRewards RewardInvites(
             previous_block_hash,
             lottery_params.total_winners);
 
-    if(winners.size() != lottery_params.total_winners) {
+    if (winners.size() != lottery_params.total_winners) {
         return {};
     }
 
@@ -1692,7 +1692,7 @@ void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& t
 struct RewardComp
 {
     bool operator()(const pog::AmbassadorReward& a, const pog::AmbassadorReward& b) {
-        if(a.amount == b.amount) {
+        if (a.amount == b.amount) {
             return a.address < b.address;
         }
         return a.amount < b.amount;
@@ -1707,7 +1707,7 @@ void SortRewards(pog::Rewards& rewards)
 struct InviteComp
 {
     bool operator()(const pog::InviteReward& a, const pog::InviteReward& b) {
-        if(a.invites == b.invites) {
+        if (a.invites == b.invites) {
             return a.address < b.address;
         }
         return a.invites < b.invites;
@@ -1723,7 +1723,7 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
     assert(coinbase.IsCoinBase());
 
     //quick test before doing more expensive validation
-    if(coinbase.vout.size() < 1 + lottery.winners.size())
+    if (coinbase.vout.size() < 1 + lottery.winners.size())
         return false;
 
     //Transform vouts to rewards
@@ -1731,17 +1731,17 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
     std::transform(std::begin(coinbase.vout), std::end(coinbase.vout), std::begin(sorted_outs),
             [](const CTxOut& out) -> pog::AmbassadorReward {
                 CTxDestination dest;
-                if(!ExtractDestination(out.scriptPubKey, dest)) {
+                if (!ExtractDestination(out.scriptPubKey, dest)) {
                     return {0, {}, out.nValue};
                 }
 
                 uint160 address;
-                if(!GetUint160(dest, address)) {
+                if (!GetUint160(dest, address)) {
                     return {0, {}, out.nValue};
                 }
 
                 auto addressType = AddressTypeFromDestination(dest);
-                if(addressType == 0) {
+                if (addressType == 0) {
                     return {0, {}, out.nValue};
                 }
 
@@ -1767,7 +1767,7 @@ bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, cons
     assert(coinbase.IsInvite());
 
     //quick test before doing more expensive validation
-    if(coinbase.vout.size() != expected_invites.size()) {
+    if (coinbase.vout.size() != expected_invites.size()) {
         return false;
     }
 
@@ -1776,17 +1776,17 @@ bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, cons
     std::transform(std::begin(coinbase.vout), std::end(coinbase.vout), std::begin(sorted_outs),
             [](const CTxOut& out) -> pog::InviteReward {
                 CTxDestination dest;
-                if(!ExtractDestination(out.scriptPubKey, dest)) {
+                if (!ExtractDestination(out.scriptPubKey, dest)) {
                     return {0, {}, out.nValue};
                 }
 
                 uint160 address;
-                if(!GetUint160(dest, address)) {
+                if (!GetUint160(dest, address)) {
                     return {0, {}, out.nValue};
                 }
 
                 auto addressType = AddressTypeFromDestination(dest);
-                if(addressType == 0) {
+                if (addressType == 0) {
                     return {0, {}, out.nValue};
                 }
 
@@ -2313,7 +2313,7 @@ AddressPair ExtractAddress(const CTxOut& tout)
 
     CTxDestination dest;
     txnouttype destType;
-    if(ExtractDestination(tout.scriptPubKey, dest, destType)) {
+    if (ExtractDestination(tout.scriptPubKey, dest, destType)) {
         addressType = AddressTypeFromDestination(dest);
         GetUint160(dest, address);
     }
@@ -2336,8 +2336,8 @@ bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
         for (const auto& in :  tx.vin) {
             const auto &in_out = view.AccessCoin(in.prevout).out;
             const auto address = ExtractAddress(in_out);
-            if(address.second == 0) {
-                if(in_out.nValue == 0) continue;
+            if (address.second == 0) {
+                if (in_out.nValue == 0) continue;
                 else return false;
             }
 
@@ -2349,8 +2349,8 @@ bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
     //credit recipients
     for (const auto& out : tx.vout) {
         const auto address = ExtractAddress(out);
-        if(address.second == 0) {
-            if(out.nValue == 0) continue;
+        if (address.second == 0) {
+            if (out.nValue == 0) continue;
             else return false;
         }
 
@@ -2369,7 +2369,7 @@ bool UpdateANV(const DebitsAndCredits& debits_and_credits)
         const auto addressType = std::get<0>(t);
         const auto& address = std::get<1>(t);
         const auto amount = std::get<2>(t);
-        if(!prefviewdb->UpdateANV(addressType, address, amount)) {
+        if (!prefviewdb->UpdateANV(addressType, address, amount)) {
             return false;
         }
     }
@@ -2379,9 +2379,9 @@ bool UpdateANV(const DebitsAndCredits& debits_and_credits)
 
 bool UpdateANV(const CBlock& block, CCoinsViewCache& view) {
     DebitsAndCredits debits_and_credits;
-    for(const auto& tx: block.vtx) {
+    for (const auto& tx: block.vtx) {
         assert(tx);
-        if(!GetDebitsAndCredits(debits_and_credits, *tx, view)) {
+        if (!GetDebitsAndCredits(debits_and_credits, *tx, view)) {
             return false;
         }
     }
@@ -2396,7 +2396,7 @@ bool IndexReferrals(
 
     // Update offset and Record referrals into the referral DB
     for (const auto& rtx : ordered_referrals) {
-        if(!prefviewdb->InsertReferral(*rtx, allow_no_parent)) {
+        if (!prefviewdb->InsertReferral(*rtx, allow_no_parent)) {
             return false;
         }
     }
@@ -2410,7 +2410,7 @@ bool RemoveReferrals(const CBlock& block)
 
     // Update offset and Record referrals into the referral DB
     for (const auto& rtx : block.m_vRef) {
-        if(!prefviewdb->RemoveReferral(*rtx))
+        if (!prefviewdb->RemoveReferral(*rtx))
             return false;
     }
     return true;
@@ -2427,6 +2427,23 @@ void BuildReferralSet(const CBlock& block, ReferralSet& referrals_in_block)
             });
 }
 
+bool UpdateConfirmations(const CBlock& block, const DebitsAndCredits debits_and_credits)
+{
+    ReferralSet referrals_in_block;
+    BuildReferralSet(block, referrals_in_block);
+
+    for (const auto& entry : debits_and_credits) {
+        const char type = std::get<0>(entry);
+        const auto& address = std::get<1>(entry);
+        const CAmount amount = std::get<2>(entry);
+
+        if(!prefviewdb->UpdateConfirmation(type, address, amount)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool TransactionsAreBeaconed(
         const ReferralSet& referrals_in_block,
         const std::vector<CTransactionRef>& vtx)
@@ -2434,18 +2451,18 @@ bool TransactionsAreBeaconed(
     //Check and make sure each transaction outputs are sending merit
     //to beaconed currencies.
     for (const auto& tx : vtx) {
-        for(const auto& out : tx->vout) {
+        for (const auto& out : tx->vout) {
 
             const auto address = ExtractAddress(out);
 
             //Cannot send merit to a non-standard address.
-            if(address.second == 0) {
-                if(out.nValue == 0) continue;
+            if (address.second == 0) {
+                if (out.nValue == 0) continue;
                 else return false;
             }
 
             //Must be in either the block or blockchain.
-            if(!referrals_in_block.count(address.first) &&
+            if (!referrals_in_block.count(address.first) &&
                !prefviewdb->Exists(address.first)) {
                 return false;
             }
@@ -2494,7 +2511,7 @@ bool UpdateLotteryEntrants(
         hash = hasher.GetHash();
 
         referral::LotteryUndos undos;
-        if(!prefviewdb->AddAddressToLottery(
+        if (!prefviewdb->AddAddressToLottery(
                     height,
                     hash,
                     address_type,
@@ -2514,8 +2531,8 @@ bool UndoLotteryEntrants(const CBlockUndo& undo, const size_t max_reservoir_size
 {
     assert(prefviewdb);
 
-    for(const auto& entrant : reverse_iterate(undo.lottery)) {
-        if(!prefviewdb->UndoLotteryEntrant(entrant, max_reservoir_size)) {
+    for (const auto& entrant : reverse_iterate(undo.lottery)) {
+        if (!prefviewdb->UndoLotteryEntrant(entrant, max_reservoir_size)) {
             return false;
         }
     }
@@ -2639,6 +2656,36 @@ bool DisconnectInputs(
     }
     return clean;
 }
+
+DisconnectResult DisconnectTransactions(
+        const CBlockIndex* pindex,
+        const std::vector<CTransactionRef>& vtx,
+        DebitsAndCredits& debits_and_credits,
+        CCoinsViewCache& view,
+        CBlockUndo& block_undo)
+{
+    bool clean = true;
+    for (int i = vtx.size() - 1; i >= 0; i--) {
+        const CTransaction &tx = *(vtx[i]);
+
+        clean &= DisconnectOutputs(pindex->nHeight, tx, view);
+
+        // restore inputs
+        if (i > 0) { // not coinbases
+            CTxUndo &txundo = block_undo.vtxundo[i-1];
+            if (txundo.vprevout.size() != tx.vin.size()) {
+                error("DisconnectBlock(): transaction and undo data inconsistent");
+                return DISCONNECT_FAILED;
+            }
+            clean &= DisconnectInputs(txundo, tx.vin, view);
+            // At this point, all of txundo.vprevout should have been moved out.
+        }
+        clean &= GetDebitsAndCredits(debits_and_credits, tx, view, true);
+    }
+
+    return clean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
+}
+
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  When FAILED is returned, view is left in an indeterminate state. */
 static DisconnectResult DisconnectBlock(
@@ -2652,24 +2699,24 @@ static DisconnectResult DisconnectBlock(
 
     bool fClean = true;
 
-    CBlockUndo blockUndo;
+    CBlockUndo block_undo;
     CDiskBlockPos pos = pindex->GetUndoPos();
     if (pos.IsNull()) {
         error("DisconnectBlock(): no undo data available");
         return DISCONNECT_FAILED;
     }
-    if (!UndoReadFromDisk(blockUndo, pos, pindex->pprev->GetBlockHash())) {
+    if (!UndoReadFromDisk(block_undo, pos, pindex->pprev->GetBlockHash())) {
         error("DisconnectBlock(): failure reading undo data");
         return DISCONNECT_FAILED;
     }
 
     if (block.IsDaedalus()) {
-        if (blockUndo.vtxundo.size() + 2 != (block.vtx.size() + block.invites.size())) {
+        if (block_undo.vtxundo.size() + 2 != (block.vtx.size() + block.invites.size())) {
             error("DisconnectBlock(): block and undo data inconsistent");
             return DISCONNECT_FAILED;
         }
     } else {
-        if (blockUndo.vtxundo.size() + 1 != block.vtx.size()) {
+        if (block_undo.vtxundo.size() + 1 != block.vtx.size()) {
             error("DisconnectBlock(): block and undo data inconsistent");
             return DISCONNECT_FAILED;
         }
@@ -2681,43 +2728,43 @@ static DisconnectResult DisconnectBlock(
     DebitsAndCredits debits_and_credits;
 
     // undo transactions in reverse order
-    for (int i = block.vtx.size() - 1; i >= 0; i--) {
-        const CTransaction &tx = *(block.vtx[i]);
+    const auto disconnect_txn_status = 
+        DisconnectTransactions(
+                pindex,
+                block.vtx,
+                debits_and_credits,
+                view,
+                block_undo);
 
-        // Check that all outputs are available and match the outputs in the block itself
-        // exactly.
-        fClean &= DisconnectOutputs(pindex->nHeight, tx, view);
-
-        // restore inputs
-        if (i > 0) { // not coinbases
-            CTxUndo &txundo = blockUndo.vtxundo[i-1];
-            if (txundo.vprevout.size() != tx.vin.size()) {
-                error("DisconnectBlock(): transaction and undo data inconsistent");
-                return DISCONNECT_FAILED;
-            }
-            fClean &= DisconnectInputs(txundo, tx.vin, view);
-            // At this point, all of txundo.vprevout should have been moved out.
-        }
-        fClean &= GetDebitsAndCredits(debits_and_credits, tx, view, true);
+    if (disconnect_txn_status == DISCONNECT_FAILED) {
+        return disconnect_txn_status;
+    } else if (disconnect_txn_status == DISCONNECT_UNCLEAN) {
+        fClean = false;
     }
 
-    for (int i = block.invites.size() - 1; i >= 0; i--) {
-        const CTransaction &tx = *(block.invites[i]);
+    DebitsAndCredits invite_debits_and_credits;
 
-        fClean &= DisconnectOutputs(pindex->nHeight, tx, view);
+    if (block.IsDaedalus()) {
+        const auto disconnect_inv_status = 
+            DisconnectTransactions(
+                    pindex,
+                    block.invites,
+                    invite_debits_and_credits,
+                    view,
+                    block_undo);
 
-        if (i > 0) { // not coinbases
-            CTxUndo &txundo = blockUndo.vtxundo[i-1];
-            if (txundo.vprevout.size() != tx.vin.size()) {
-                error("DisconnectBlock(): invite and undo data inconsistent");
-                return DISCONNECT_FAILED;
-            }
-            fClean &= DisconnectInputs(txundo, tx.vin, view);
+        if (disconnect_inv_status == DISCONNECT_FAILED) {
+            return disconnect_inv_status;
+        } else if (disconnect_inv_status == DISCONNECT_UNCLEAN) {
+            fClean = false;
         }
     }
 
     UnIndexTransactions(pindex, block.vtx, addressIndex, addressUnspentIndex);
-    UnIndexTransactions(pindex, block.invites, addressIndex, addressUnspentIndex);
+
+    if (block.IsDaedalus()) {
+        UnIndexTransactions(pindex, block.invites, addressIndex, addressUnspentIndex);
+    }
 
     fClean &= pblocktree->WriteAddressIndex(addressIndex);
     fClean &= pblocktree->UpdateAddressUnspentIndex(addressUnspentIndex);
@@ -2725,23 +2772,31 @@ static DisconnectResult DisconnectBlock(
     // move best block pointer to prevout block
     view.SetBestBlock(pindex->pprev->GetBlockHash());
 
-    if(!memory_only) {
+    if (!memory_only) {
+
+        if (block.IsDaedalus()) {
+            if (!UpdateConfirmations(block, invite_debits_and_credits)) {
+                error("DisconnectBlock(): unable to undo confirmations");
+                return DISCONNECT_FAILED;
+            }
+        }
+
         // The order here is important. The ANV values must be updated
         // before the tree is manipulated to properly debit and credit the
         // correct addresses because RemoveReferrals will change referral
         // tree.
-        if(!UpdateANV(debits_and_credits)) {
+        if (!UpdateANV(debits_and_credits)) {
             error("DisconnectBlock(): unable to undo referrals");
             return DISCONNECT_FAILED;
         }
 
-        if(!RemoveReferrals(block)){
+        if (!RemoveReferrals(block)){
             error("DisconnectBlock(): unable to undo referrals");
             return DISCONNECT_FAILED;
         }
 
-        if(!UndoLotteryEntrants(
-                    blockUndo,
+        if (!UndoLotteryEntrants(
+                    block_undo,
                     consensus_params.max_lottery_reservoir_size)) {
 
             error("DisconnectBlock(): unable to undo lottery");
@@ -2876,53 +2931,6 @@ bool ConfirmAllPreDaedalusAddresses(
     return prefviewdb->ConfirmAllPreDaedalusAddresses();
 }
 
-bool ConfirmAddresses(const CBlock& block)
-{
-    ReferralSet referrals_in_block;
-    BuildReferralSet(block, referrals_in_block);
-
-    for(const auto& tx : block.invites) {
-        assert(tx);
-
-        for (int i = 0; i < tx->vout.size(); i++) {
-            const auto& out = tx->vout[i];
-            const auto address = ExtractAddress(out);
-            if(address.second == 0) {
-                if(out.nValue == 0) continue;
-                else return false;
-            }
-
-            const referral::Referral* ref_to_confirm = nullptr;
-            auto maybe_referral = prefviewdb->GetReferral(address.first);
-
-            if(!maybe_referral) {
-                if(referrals_in_block.count(address.first)) {
-                    auto ref = std::find_if(
-                            block.m_vRef.begin(), block.m_vRef.end(),
-                            [&address](const referral::ReferralRef ref) {
-                                return ref->GetAddress() == address.first;
-                            });
-                    if(ref != block.m_vRef.end()) {
-                        ref_to_confirm = ref->get();
-                    }
-                }
-            } else {
-                ref_to_confirm = maybe_referral.get_ptr();
-            }
-
-            if(ref_to_confirm == nullptr) {
-                return false;
-            }
-
-            if(!prefviewdb->ConfirmReferral(*ref_to_confirm, tx->GetHash(), i)) {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
 using ConfirmationSet = std::set<uint160>;
 
 void BuildConfirmationSet(const CTransactionRef& invite,
@@ -2940,7 +2948,7 @@ void BuildConfirmationSet(
         const CBlock& block,
         ConfirmationSet& confirmations_in_block)
 {
-    for(const auto& invite : block.invites) {
+    for (const auto& invite : block.invites) {
         assert(invite->nVersion == CTransaction::INVITE_VERSION);
         BuildConfirmationSet(invite, confirmations_in_block);
     }
@@ -2951,18 +2959,18 @@ bool ValidateAddressesAreConfirmed(const CBlock& block)
     ConfirmationSet confirmations_in_block;
     BuildConfirmationSet(block, confirmations_in_block);
 
-    for(const auto& tx : block.vtx) {
+    for (const auto& tx : block.vtx) {
         assert(tx);
 
         for (const auto& out : tx->vout) {
             const auto address = ExtractAddress(out);
-            if(address.second == 0) {
-                if(out.nValue == 0) continue;
+            if (address.second == 0) {
+                if (out.nValue == 0) continue;
                 else return false;
             }
 
             //Check block or blockchain if the address is confirmed.
-            if(confirmations_in_block.count(address.first) == 0 &&
+            if (confirmations_in_block.count(address.first) == 0 &&
                     !prefviewdb->IsConfirmed(address.first)) {
                 return false;
             }
@@ -2993,7 +3001,7 @@ bool ValidateInvites(
 
         assert(inv);
 
-        if(!inv->IsInvite()) {
+        if (!inv->IsInvite()) {
             return state.DoS(
                     100,
                     false,
@@ -3014,7 +3022,7 @@ bool ValidateInvites(
                         state.GetDebugMessage()));
         }
 
-        if(coinbase)  {
+        if (coinbase)  {
             coinbase = false;
             continue;
         }
@@ -3030,10 +3038,10 @@ bool ValidateInvites(
                     "more than one invite coinbase");
         }
 
-        for(const auto& in : inv->vin) {
+        for (const auto& in : inv->vin) {
             CTransactionRef prev;
             uint256 block_inv_is_in;
-            if(!GetTransaction(
+            if (!GetTransaction(
                         in.prevout.hash,
                         prev,
                         params,
@@ -3050,7 +3058,7 @@ bool ValidateInvites(
             }
 
             assert(prev);
-            if(!prev->IsInvite()) {
+            if (!prev->IsInvite()) {
                 return state.DoS(
                         100,
                         false,
@@ -3070,8 +3078,8 @@ bool ValidateTransactionInputsNotInvites(
         const Consensus::Params& params,
         CValidationState& state)
 {
-    for(const auto& tx : block.vtx) {
-        if(tx->IsInvite()) {
+    for (const auto& tx : block.vtx) {
+        if (tx->IsInvite()) {
             return state.DoS(
                     100,
                     false,
@@ -3081,14 +3089,14 @@ bool ValidateTransactionInputsNotInvites(
                     "Normal transaction cannot be an invite");
         }
 
-        if(tx->IsCoinBase()) {
+        if (tx->IsCoinBase()) {
             continue;
         }
 
-        for(const auto& in : tx->vin) {
+        for (const auto& in : tx->vin) {
             CTransactionRef prev;
             uint256 block_transaction_is_in;
-            if(!GetTransaction(
+            if (!GetTransaction(
                         in.prevout.hash,
                         prev,
                         params,
@@ -3105,7 +3113,7 @@ bool ValidateTransactionInputsNotInvites(
             }
 
             assert(prev);
-            if(prev->IsInvite()) {
+            if (prev->IsInvite()) {
                 return state.DoS(
                         100,
                         false,
@@ -3267,7 +3275,7 @@ void IndexTransactions(
             for (unsigned int k = 0; k < tx.vout.size(); k++) {
                 const CTxOut &out = tx.vout[k];
                 auto address = ExtractAddress(out);
-                if(address.second == 0) continue;
+                if (address.second == 0) continue;
 
                 const uint160& hashBytes = address.first;
                 const unsigned int addressType = address.second;
@@ -3338,15 +3346,15 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if(!IndexReferrals(block.m_vRef, true)) {
+            if (!IndexReferrals(block.m_vRef, true)) {
                 return AbortNode(state, "Failed to write referral index");
             }
 
-            if(!UpdateANV(block, view)) {
+            if (!UpdateANV(block, view)) {
                 return AbortNode(state, "Failed to write ANV index");
             }
 
-            for(const auto& tx : block.vtx) {
+            for (const auto& tx : block.vtx) {
                 UpdateCoins(*tx, view, 0);
             }
         }
@@ -3513,7 +3521,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             blockundo.vtxundo.push_back(CTxUndo());
         }
 
-        if(!GetDebitsAndCredits(debits_and_credits, tx, view)) {
+        if (!GetDebitsAndCredits(debits_and_credits, tx, view)) {
             return state.DoS(100,
                     error("ConnectBlock(): merit was sent to addresses that are non standard"),
                     REJECT_INVALID, "bad-cb-bad-outputs");
@@ -3562,11 +3570,18 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             nTimeConnect * MICRO,
             nTimeConnect * MILLI / nBlocksTotal);
 
-    if (!block.invites.empty()) {
+    DebitsAndCredits invite_debits_and_credits;
+    if (block.IsDaedalus()) {
         pos.nTxOffset += GetSizeOfCompactSize(block.invites.size());
         for (int i = 0; i < static_cast<int>(block.invites.size()); i++)
         {
             const CTransaction &inv = *(block.invites[i]);
+
+            if (!GetDebitsAndCredits(invite_debits_and_credits, inv, view)) {
+                return state.DoS(100,
+                        error("ConnectBlock(): merit was sent to addresses that are non standard"),
+                        REJECT_INVALID, "bad-cb-bad-outputs");
+            }
 
             CTxUndo undoDummy;
             if (i > 0) {
@@ -3578,14 +3593,22 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             vPos.push_back(std::make_pair(inv.GetHash(), pos));
             pos.nTxOffset += ::GetSerializeSize(inv, SER_DISK, CLIENT_VERSION);
         }
-    }
 
-    if (!InvitesAreBeaconed(block)) {
-        return state.DoS(
-            100,
-            error("ConnectBlock(): There are inveites that are not beaconed"),
-            REJECT_INVALID,
-            "bad-invite-not-beaconed");
+        if (!InvitesAreBeaconed(block)) {
+            return state.DoS(
+                    100,
+                    error("ConnectBlock(): There are inveites that are not beaconed"),
+                    REJECT_INVALID,
+                    "bad-invite-not-beaconed");
+        }
+
+        IndexTransactions(
+                pindex,
+                view,
+                block.invites,
+                addressIndex,
+                addressUnspentIndex,
+                spentIndex);
     }
 
     int64_t nTime4 = GetTimeMicros(); nTimeConnect += nTime4 - nTime3;
@@ -3595,14 +3618,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             MILLI * (nTime4 - nTime3) / block.invites.size(),
             nTimeConnect * MICRO,
             nTimeConnect * MILLI / nBlocksTotal);
-
-    IndexTransactions(
-            pindex,
-            view,
-            block.invites,
-            addressIndex,
-            addressUnspentIndex,
-            spentIndex);
 
     for (const auto& ref: block.m_vRef) {
         if (CheckAddressBeaconed(ref->GetAddress(), false)) {
@@ -3666,7 +3681,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             chainparams.GetConsensus());
     assert(lottery.remainder >= 0);
 
-    if(!AreExpectedLotteryWinnersPaid(lottery, coinbase_tx)) {
+    if (!AreExpectedLotteryWinnersPaid(lottery, coinbase_tx)) {
         return state.DoS(100,
                 error("ConnectBlock(): coinbase did not pay the expected ambassadors."),
                 REJECT_INVALID, "bad-cb-bad-ambassadors");
@@ -3683,8 +3698,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         nTimeVerify * MICRO,
         nTimeVerify * MILLI / nBlocksTotal);
 
-    if((block.nVersion & DAEDALUS_BIT) != 0) {
-        if(block.invites.empty()) {
+    if (block.IsDaedalus()) {
+        if (block.invites.empty()) {
             return state.DoS(100,
                     error("ConnectBlock(): Expected Invites but got none."),
                     REJECT_INVALID, "bad-cb-no-invites");
@@ -3697,48 +3712,48 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
         const CTransaction& coinbase_invites = *block.invites[0];
 
-        if(!AreExpectedInvitesRewarded(invite_rewards, coinbase_invites)) {
+        if (!AreExpectedInvitesRewarded(invite_rewards, coinbase_invites)) {
             return state.DoS(100,
                     error("ConnectBlock(): coinbase did not reward expected invites."),
                     REJECT_INVALID, "bad-cb-bad-invites");
         }
     }
 
-    if (fJustCheck) {
-        return true;
-    }
-
     //order referrals so they are inserted into database in correct order.
     referral::ReferralRefs ordered_referrals = block.m_vRef;
-    if(!prefviewdb->OrderReferrals(ordered_referrals)) {
+    if (!prefviewdb->OrderReferrals(ordered_referrals)) {
         return state.DoS(100,
                 error("ConnectBlock(): There are orphan referrals in the block"),
                 REJECT_INVALID, "bad-cb-orphan-referrals");
     }
 
+    if (fJustCheck) {
+        return true;
+    }
+
     //The order is important here. We must insert the referrals so that
     //the referral tree is updated to be correct before we debit/credit
     //the ANV to the appropriate addresses.
-    if(!IndexReferrals(ordered_referrals)) {
+    if (!IndexReferrals(ordered_referrals)) {
         return AbortNode(state, "Failed to write referrals");
     }
 
     // Make sure we confirm all pre daedalus addresses. This is a one time event.
-    if(!ConfirmAllPreDaedalusAddresses(state, chainparams.GetConsensus(), pindex)) {
+    if (!ConfirmAllPreDaedalusAddresses(state, chainparams.GetConsensus(), pindex)) {
         throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
     }
 
-    if((block.nVersion & DAEDALUS_BIT) != 0) {
-        if(!ConfirmAddresses(block)) {
+    if (block.IsDaedalus()) {
+        if (!UpdateConfirmations(block, invite_debits_and_credits)) {
             return AbortNode(state, "Failed to confirm addresses");
         }
     }
 
-    if(!UpdateANV(debits_and_credits)) {
+    if (!UpdateANV(debits_and_credits)) {
         return AbortNode(state, "Failed to write ANV");
     }
 
-    if(!UpdateLotteryEntrants(
+    if (!UpdateLotteryEntrants(
                 pindex->nHeight,
                 block,
                 debits_and_credits,
@@ -4323,7 +4338,7 @@ static void PruneBlockIndexCandidates() {
  */
 static bool ActivateBestChainStep(CValidationState& state, const CChainParams& chainparams, CBlockIndex* pindexMostWork, const std::shared_ptr<const CBlock>& pblock, bool& fInvalidFound, ConnectTrace& connectTrace)
 {
-    if(pblock) {
+    if (pblock) {
         debug("ActivateBestChainStep: %s", pblock->GetHash().GetHex());
     }
 
@@ -4365,7 +4380,7 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
         // Connect new blocks.
         for (CBlockIndex *pindexConnect : reverse_iterate(vpindexToConnect)) {
 
-            if(pblock) {
+            if (pblock) {
                 debug("TestValidity: %s", pblock->GetHash().GetHex());
             }
 
@@ -4443,7 +4458,7 @@ bool ActivateBestChain(CValidationState &state, const CChainParams& chainparams,
     // far from a guarantee. Things in the P2P/RPC will often end up calling
     // us in the middle of ProcessNewBlock - do not assume pblock is set
     // sanely for performance or correctness!
-    if(pblock) {
+    if (pblock) {
         debug("ActivateBestChain: %s", pblock->GetHash().GetHex());
     }
 
@@ -4890,7 +4905,7 @@ bool CheckAddressBeaconed(const uint160& addr, bool checkMempool)
     if (!beaconed && checkMempool) {
         // check mempool referrals for beaconed address
         const auto it =
-            std::find_if(mempoolReferral.mapRTx.begin(), mempoolReferral.mapRTx.end(),
+            std::find_if (mempoolReferral.mapRTx.begin(), mempoolReferral.mapRTx.end(),
                 [&addr](const referral::RefMemPoolEntry& entry) {
                     return entry.GetSharedEntryValue()->GetAddress() == addr;
                 });
@@ -5023,7 +5038,7 @@ static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, c
         }
     }
 
-    if(nHeight > 0) {
+    if (nHeight > 0) {
         // Enforce rule that the coinbase starts with serialized block height
         CScript expect = CScript() << nHeight;
         if (block.vtx[0]->vin[0].scriptSig.size() < expect.size() ||
@@ -5985,11 +6000,11 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if(!IndexReferrals(block.m_vRef, true)) {
+            if (!IndexReferrals(block.m_vRef, true)) {
                 return error("%s: IndexReferrals failed", __func__);
             }
 
-            if(!UpdateANV(block, *pcoinsTip)) {
+            if (!UpdateANV(block, *pcoinsTip)) {
                 return error("%s: UpdateANV failed", __func__);
             }
         }
@@ -6533,8 +6548,9 @@ void DumpReferralMempool()
         LOCK(mempoolReferral.cs);
         auto map = &mempoolReferral.mapRTx;
 
-        for(const auto& it: *map)
+        for (const auto& it: *map) {
             vEntries.push_back(it);
+        }
     }
 
     int64_t mid = GetTimeMicros();
