@@ -736,158 +736,338 @@ static bool ProcessBlockFound(const CBlock* pblock, const CChainParams& chainpar
     return true;
 }
 
+void MinerWorker(int thread_id, int threads_number, int nonces_per_thread, const CChainParams& chainparams, std::shared_ptr<CReserveScript>& coinbase_script, ctpl::thread_pool& pool)
+{
+    auto start_nonce = thread_id * nonces_per_thread;
+    unsigned int nExtraNonce = 0;
+
+    while (true) {
+        if (chainparams.MiningRequiresPeers()) {
+            // Busy-wait for the network to come online so we don't waste
+            // time mining n an obsolete chain. In regtest mode we expect
+            // to fly solo.
+            if (!g_connman) {
+                throw std::runtime_error(
+                        "Peer-to-peer functionality missing or disabled");
+            }
+
+            do {
+                bool fvNodesEmpty =
+                    g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0;
+
+                if (!fvNodesEmpty && !IsInitialBlockDownload())
+                    break;
+                MilliSleep(1000);
+            } while (true);
+        }
+
+        //
+        // Create new block
+        //
+        unsigned int nTransactionsUpdatedLast = mempool.GetTransactionsUpdated();
+        CBlockIndex* pindexPrev = chainActive.Tip();
+
+        std::unique_ptr<CBlockTemplate> pblocktemplate{
+            BlockAssembler(Params()).CreateNewBlock(coinbase_script->reserveScript)};
+
+        if (!pblocktemplate.get()) {
+            LogPrintf(
+                    "Error in MeritMiner: Keypool ran out, please call "
+                    "keypoolrefill before restarting the mining thread\n");
+            return;
+        }
+
+        CBlock* pblock = &pblocktemplate->block;
+        pblock->nNonce = start_nonce;
+        IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
+
+        LogPrintf(
+                "Running MeritMiner with %u transactions and %u referrals "
+                "in block (%u bytes)\n",
+            pblock->vtx.size(),
+            pblock->m_vRef.size(),
+            ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION));
+
+        //
+        // Search
+        //
+        int64_t nStart = GetTime();
+        arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
+        uint256 hash;
+        std::set<uint32_t> cycle;
+
+        auto start = std::chrono::system_clock::now();
+
+        while (true) {
+            // Check if something found
+            if (cuckoo::FindProofOfWorkAdvanced(
+                        pblock->GetHash(),
+                        pblock->nBits,
+                        pblock->nEdgeBits,
+                        cycle,
+                        chainparams.GetConsensus(),
+                        pool)) {
+                // Found a solution
+                pblock->sCycle = cycle;
+
+                auto end = std::chrono::system_clock::now();
+                std::chrono::duration<double> elapsed = end - start;
+
+                auto cycleHash = SerializeHash(cycle);
+
+                LogPrintf("MeritMiner:\n");
+                LogPrintf(
+                        "\n\n\nproof-of-work found within %8.3f seconds \n"
+                        "\tblock hash: %s\n\tnonce: %d\n\tcycle hash: %s\n\ttarget: %s\n\n\n",
+                    elapsed.count(),
+                    pblock->GetHash().GetHex(),
+                    pblock->nNonce,
+                    cycleHash.GetHex(),
+                    hashTarget.GetHex());
+
+                ProcessBlockFound(pblock, chainparams);
+                coinbase_script->KeepScript();
+
+                // In regression test mode, stop mining after a block is found.
+                if (chainparams.MineBlocksOnDemand())
+                    throw boost::thread_interrupted();
+
+                break;
+            }
+
+            // Check for stop or if block needs to be rebuilt
+            boost::this_thread::interruption_point();
+
+            // Regtest mode doesn't require peers
+            if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0 &&
+                    chainparams.MiningRequiresPeers()) {
+                break;
+            }
+
+            if (pblock->nNonce >= 0xfffff) {
+                break;
+            }
+
+            if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast &&
+                    GetTime() - nStart > chainparams.MininBlockStaleTime()) {
+                break;
+            }
+
+            if (pindexPrev != chainActive.Tip()) {
+                break;
+            }
+
+            // Update nTime every few seconds
+            if (UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev) < 0) {
+                // Recreate the block if the clock has run backwards,
+                // so that we can use the correct time.
+                break;
+            }
+
+            if (chainparams.GetConsensus().fPowAllowMinDifficultyBlocks) {
+                // Changing pblock->nTime can change work required on testnet:
+                hashTarget.SetCompact(pblock->nBits);
+            }
+
+            pblock->nNonce++;
+
+            if (pblock->nNonce % nonces_per_thread == 0) {
+                pblock->nNonce += pblock->nNonce * threads_number;
+            }
+            debug("\t\tthread id: %d; nonce: %d; total threads: %d; per thread: %d", thread_id, pblock->nNonce, threads_number, nonces_per_thread);
+        }
+    }
+}
+
 void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
 {
     LogPrintf("MeritMiner started. nThreads: %d\n", nThreads);
     RenameThread("merit-miner");
 
-    unsigned int nExtraNonce = 0;
+    std::shared_ptr<CReserveScript> coinbase_script;
+    GetMainSignals().ScriptForMining(coinbase_script);
 
-    std::shared_ptr<CReserveScript> coinbaseScript;
-    GetMainSignals().ScriptForMining(coinbaseScript);
+    using pool_ptr = std::unique_ptr<ctpl::thread_pool>;
+    auto parallel_pool_size = 2;
+    ctpl::thread_pool parallel_pool(parallel_pool_size);
+    std::vector<pool_ptr>* cuckoo_pools = new std::vector<pool_ptr>();
 
-    ctpl::thread_pool pool{nThreads};
+    for (int i = 0; i < parallel_pool_size; i++) {
+        cuckoo_pools->push_back(pool_ptr(new ctpl::thread_pool(4)));
+    }
+
+    std::vector<int>* ints = new std::vector<int>{1,2,3,4};
+
+    int nonces_per_thread = 10;
+
+    debug("ints size: %d", ints->size());
+    debug("cuckoo_pools size: %d", cuckoo_pools->size());
 
     try {
         // Throw an error if no script was provided.  This can happen
         // due to some internal error but also if the keypool is empty.
         // In the latter case, already the pointer is NULL.
-        if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
+        if (!coinbase_script || coinbase_script->reserveScript.empty()) {
             throw std::runtime_error(
                     "No coinbase script available "
                     "(mining requires a wallet)");
         }
 
-        while (true) {
-            if (chainparams.MiningRequiresPeers()) {
-                // Busy-wait for the network to come online so we don't waste
-                // time mining n an obsolete chain. In regtest mode we expect
-                // to fly solo.
-                if (!g_connman) {
-                    throw std::runtime_error(
-                            "Peer-to-peer functionality missing or disabled");
-                }
 
-                do {
-                    bool fvNodesEmpty =
-                        g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0;
+        for (int t = 0; t < parallel_pool_size; t++) {
+            parallel_pool.push([&cuckoo_pools, &ints, parallel_pool_size, nonces_per_thread, &chainparams, &coinbase_script](int id) {
 
-                    if (!fvNodesEmpty && !IsInitialBlockDownload())
-                        break;
-                    MilliSleep(1000);
-                } while (true);
-            }
+                debug("#%d: running miner worker", id);
+                debug("#%d: ints size: %d", id, ints->size());
+                debug("#%d: cuckoo_pools size: %d", id, cuckoo_pools->size());
 
-            //
-            // Create new block
-            //
-            unsigned int nTransactionsUpdatedLast = mempool.GetTransactionsUpdated();
-            CBlockIndex* pindexPrev = chainActive.Tip();
+                debug("#%d: cuckoo_pools[%d].size: %d; address: %p", id, id, cuckoo_pools->at(id)->size(), (void *)&*(cuckoo_pools->at(id)));
 
-            std::unique_ptr<CBlockTemplate> pblocktemplate{
-                BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript)};
+                auto start_nonce = id * nonces_per_thread;
+                unsigned int nExtraNonce = 0;
 
-            if (!pblocktemplate.get()) {
-                LogPrintf(
-                        "Error in MeritMiner: Keypool ran out, please call "
-                        "keypoolrefill before restarting the mining thread\n");
-                return;
-            }
+                while (true) {
+                    if (chainparams.MiningRequiresPeers()) {
+                        // Busy-wait for the network to come online so we don't waste
+                        // time mining n an obsolete chain. In regtest mode we expect
+                        // to fly solo.
+                        if (!g_connman) {
+                            throw std::runtime_error(
+                                    "Peer-to-peer functionality missing or disabled");
+                        }
 
-            CBlock* pblock = &pblocktemplate->block;
-            IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
+                        do {
+                            bool fvNodesEmpty =
+                                g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0;
 
-            LogPrintf(
-                    "Running MeritMiner with %u transactions and %u referrals "
-                    "in block (%u bytes)\n",
-                pblock->vtx.size(),
-                pblock->m_vRef.size(),
-                ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION));
+                            if (!fvNodesEmpty && !IsInitialBlockDownload())
+                                break;
+                            MilliSleep(1000);
+                        } while (true);
+                    }
 
-            //
-            // Search
-            //
-            int64_t nStart = GetTime();
-            arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
-            uint256 hash;
-            std::set<uint32_t> cycle;
+                    //
+                    // Create new block
+                    //
+                    unsigned int nTransactionsUpdatedLast = mempool.GetTransactionsUpdated();
+                    CBlockIndex* pindexPrev = chainActive.Tip();
 
-            auto start = std::chrono::system_clock::now();
+                    std::unique_ptr<CBlockTemplate> pblocktemplate{
+                        BlockAssembler(Params()).CreateNewBlock(coinbase_script->reserveScript)};
 
-            while (true) {
-                // Check if something found
-                if (cuckoo::FindProofOfWorkAdvanced(
-                            pblock->GetHash(),
-                            pblock->nBits,
-                            pblock->nEdgeBits,
-                            cycle,
-                            chainparams.GetConsensus(),
-                            pool)) {
-                    // Found a solution
-                    pblock->sCycle = cycle;
+                    if (!pblocktemplate.get()) {
+                        LogPrintf(
+                                "Error in MeritMiner: Keypool ran out, please call "
+                                "keypoolrefill before restarting the mining thread\n");
+                        return;
+                    }
 
-                    auto end = std::chrono::system_clock::now();
-                    std::chrono::duration<double> elapsed = end - start;
+                    CBlock* pblock = &pblocktemplate->block;
+                    pblock->nNonce = start_nonce;
+                    IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
-                    auto cycleHash = SerializeHash(cycle);
-
-                    LogPrintf("MeritMiner:\n");
                     LogPrintf(
-                            "\n\n\nproof-of-work found within %8.3f seconds \n"
-                            "\tblock hash: %s\n\tnonce: %d\n\tcycle hash: %s\n\ttarget: %s\n\n\n",
-                        elapsed.count(),
-                        pblock->GetHash().GetHex(),
-                        pblock->nNonce,
-                        cycleHash.GetHex(),
-                        hashTarget.GetHex());
+                            "Running MeritMiner with %u transactions and %u referrals "
+                            "in block (%u bytes)\n",
+                        pblock->vtx.size(),
+                        pblock->m_vRef.size(),
+                        ::GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION));
 
-                    ProcessBlockFound(pblock, chainparams);
-                    coinbaseScript->KeepScript();
+                    //
+                    // Search
+                    //
+                    int64_t nStart = GetTime();
+                    arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
+                    uint256 hash;
+                    std::set<uint32_t> cycle;
 
-                    // In regression test mode, stop mining after a block is found.
-                    if (chainparams.MineBlocksOnDemand())
-                        throw boost::thread_interrupted();
+                    auto start = std::chrono::system_clock::now();
 
-                    break;
+                    auto& pool = *(cuckoo_pools->at(id));
+
+                    while (true) {
+
+                        // Check if something found
+                        if (cuckoo::FindProofOfWorkAdvanced(
+                                    pblock->GetHash(),
+                                    pblock->nBits,
+                                    pblock->nEdgeBits,
+                                    cycle,
+                                    chainparams.GetConsensus(),
+                                    pool)) {
+                            // Found a solution
+                            pblock->sCycle = cycle;
+
+                            auto end = std::chrono::system_clock::now();
+                            std::chrono::duration<double> elapsed = end - start;
+
+                            auto cycleHash = SerializeHash(cycle);
+
+                            LogPrintf("MeritMiner:\n");
+                            LogPrintf(
+                                    "\n\n\nproof-of-work found within %8.3f seconds \n"
+                                    "\tblock hash: %s\n\tnonce: %d\n\tcycle hash: %s\n\ttarget: %s\n\n\n",
+                                elapsed.count(),
+                                pblock->GetHash().GetHex(),
+                                pblock->nNonce,
+                                cycleHash.GetHex(),
+                                hashTarget.GetHex());
+
+                            ProcessBlockFound(pblock, chainparams);
+                            coinbase_script->KeepScript();
+
+                            // In regression test mode, stop mining after a block is found.
+                            if (chainparams.MineBlocksOnDemand())
+                                throw boost::thread_interrupted();
+
+                            break;
+                        }
+
+                        // Check for stop or if block needs to be rebuilt
+                        boost::this_thread::interruption_point();
+
+                        // Regtest mode doesn't require peers
+                        if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0 &&
+                                chainparams.MiningRequiresPeers()) {
+                            break;
+                        }
+
+                        if (pblock->nNonce >= 0xfffff) {
+                            break;
+                        }
+
+                        if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast &&
+                                GetTime() - nStart > chainparams.MininBlockStaleTime()) {
+                            break;
+                        }
+
+                        if (pindexPrev != chainActive.Tip()) {
+                            break;
+                        }
+
+                        // Update nTime every few seconds
+                        if (UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev) < 0) {
+                            // Recreate the block if the clock has run backwards,
+                            // so that we can use the correct time.
+                            break;
+                        }
+
+                        if (chainparams.GetConsensus().fPowAllowMinDifficultyBlocks) {
+                            // Changing pblock->nTime can change work required on testnet:
+                            hashTarget.SetCompact(pblock->nBits);
+                        }
+
+                        pblock->nNonce++;
+
+                        if (pblock->nNonce % nonces_per_thread == 0) {
+                            pblock->nNonce += nonces_per_thread * (parallel_pool_size - 1);
+                        }
+                        debug("\t\tthread id: %d; nonce: %d; total threads: %d; per thread: %d", id, pblock->nNonce, parallel_pool_size, nonces_per_thread);
+                    }
                 }
-
-                // Check for stop or if block needs to be rebuilt
-                boost::this_thread::interruption_point();
-
-                // Regtest mode doesn't require peers
-                if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0 &&
-                        chainparams.MiningRequiresPeers()) {
-                    break;
-                }
-
-                if (pblock->nNonce >= 0xfffff) {
-                    break;
-                }
-
-                if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast &&
-                        GetTime() - nStart > chainparams.MininBlockStaleTime()) {
-                    break;
-                }
-
-                if (pindexPrev != chainActive.Tip()) {
-                    break;
-                }
-
-                // Update nTime every few seconds
-                if (UpdateTime(pblock, chainparams.GetConsensus(), pindexPrev) < 0) {
-                    // Recreate the block if the clock has run backwards,
-                    // so that we can use the correct time.
-                    break;
-                }
-
-                if (chainparams.GetConsensus().fPowAllowMinDifficultyBlocks) {
-                    // Changing pblock->nTime can change work required on testnet:
-                    hashTarget.SetCompact(pblock->nBits);
-                }
-
-                ++pblock->nNonce;
-            }
+            });
         }
+
     } catch (const boost::thread_interrupted&) {
         LogPrintf("MeritMiner terminated\n");
         throw;
