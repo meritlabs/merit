@@ -18,6 +18,12 @@
 
 namespace referral
 {
+
+std::string GetTag(const RefMemPoolEntry& entry)
+{
+    return entry.GetSharedEntryValue()->tag;
+}
+
 RefMemPoolEntry::RefMemPoolEntry(const Referral& _entry, int64_t _nTime, unsigned int _entryHeight) : MemPoolEntry(_entry, _nTime, _entryHeight)
 {
     nWeight = GetReferralWeight(_entry);

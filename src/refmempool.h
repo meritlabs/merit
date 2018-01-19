@@ -74,10 +74,7 @@ public:
 struct referral_tag {
 };
 
-std::string GetTag(const RefMemPoolEntry& entry)
-{
-    return entry.GetSharedEntryValue()->tag;
-}
+std::string GetTag(const RefMemPoolEntry& entry);
 
 class ReferralTxMemPool
 {
