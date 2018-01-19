@@ -1661,8 +1661,12 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const std::string tag,
         CKey key)
 {
-    if(!signPubKey.IsValid()) {
+    if (!signPubKey.IsValid()) {
         throw std::runtime_error("Cannot generate referral, the public key used is invalid");
+    }
+
+    if (tag.size() > referral::MAX_TAG_LENGTH) {
+        throw std::runtime_error(std::string("Cannot generate referral, tag length is more than " + referral::MAX_TAG_LENGTH));
     }
 
     auto referral_version = referral::Referral::CURRENT_VERSION;

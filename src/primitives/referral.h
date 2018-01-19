@@ -214,6 +214,7 @@ inline void UnserializeReferral(RefType& ref, Stream& s)
     s >> ref.signature;
     if (ref.version >= Referral::INVITE_VERSION) {
         s >> ref.tag;
+        assert(ref.tag.size() <= MAX_TAG_LENGTH);
     }
 
     assert(ref.pubkey.IsValid());
@@ -233,7 +234,6 @@ inline void SerializeReferral(const RefType& ref, Stream& s)
     if (ref.version >= Referral::INVITE_VERSION) {
         s << ref.tag;
     }
-
 }
 
 typedef std::shared_ptr<const Referral> ReferralRef;

@@ -170,7 +170,7 @@ void ReferralTxMemPool::TrimToSize(size_t limit) {
 
     CFeeRate maxFeeRateRemoved(0);
     while (!mapRTx.empty() && DynamicMemoryUsage() > limit) {
-        indexed_referrals_set::index<descendants_count>::type::iterator it = mapRTx.get<descendants_count>().begin();
+        auto it = mapRTx.get<descendants_count>().begin();
 
         RemoveRecursive(it->GetEntryValue(), MemPoolRemovalReason::SIZELIMIT);
     }
@@ -179,7 +179,7 @@ void ReferralTxMemPool::TrimToSize(size_t limit) {
 int ReferralTxMemPool::Expire(int64_t time) {
     LOCK(cs);
 
-    indexed_referrals_set::index<entry_time>::type::iterator it = mapRTx.get<entry_time>().begin();
+    auto it = mapRTx.get<entry_time>().begin();
     setEntries toRemove;
     while (it != mapRTx.get<entry_time>().end() && it->GetTime() < time) {
         toRemove.insert(mapRTx.project<0>(it));

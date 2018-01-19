@@ -593,6 +593,11 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
 
+        // is it already in the memory pool?
+        if (pool.Exists(hash)) {
+            return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
+        }
+
         if (!(prefviewcache->Exists(referral->parentAddress) ||
             pool.ExistsWithAddress(referral->parentAddress))) {
             missingReferrer = true;
