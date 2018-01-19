@@ -593,10 +593,10 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
 
-        // is referral tag already occupied?
-        if (referral->tag.size() > 0 &&
-            (prefviewcache->Exists(referral->tag) || pool.Exists(referral->tag))) {
-            return state.Invalid(false, REJECT_DUPLICATE, "ref-tag-occupied");
+        // is referral alias already occupied?
+        if (referral->alias.size() > 0 &&
+            (prefviewcache->Exists(referral->alias) || pool.Exists(referral->alias))) {
+            return state.Invalid(false, REJECT_DUPLICATE, "ref-alias-occupied");
         }
 
         if (!(prefviewcache->Exists(referral->parentAddress) ||

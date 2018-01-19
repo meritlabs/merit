@@ -47,7 +47,7 @@ struct by_address {
 };
 struct by_hash {
 };
-struct by_tag {
+struct by_alias {
 };
 
 
@@ -62,7 +62,7 @@ using ReferralIndex = multi_index_container<
         // uniqueness is provided by validation
         hashed_non_unique<tag<by_hash>, const_mem_fun<Referral, const uint256&, &Referral::GetHash>, SaltedHasher<256>>,
         // stored by tag
-        hashed_unique<tag<by_tag>, member<Referral, const std::string, &Referral::tag>>>>;
+        hashed_unique<tag<by_alias>, member<Referral, const std::string, &Referral::alias>>>>;
 
 class ReferralsViewCache
 {
@@ -85,7 +85,7 @@ public:
     /** Check if referral exists by hash */
     bool Exists(const uint256&) const;
 
-    /** Check if referral tag occupied */
+    /** Check if referral alias occupied */
     bool Exists(const std::string&) const;
 
     /** Remove referral from cache */
