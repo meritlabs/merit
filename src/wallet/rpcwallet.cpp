@@ -520,17 +520,6 @@ static UniValue EasySend(
 
     CScriptID script_id = easy_send_script;
 
-    if(!pwallet.GenerateNewReferral(
-                receiver_pub,
-                pwallet.ReferralAddress(),
-                "",
-                receiver_key)) {
-
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Unable to generate referral for receiver key");
-    }
-
     referral::ReferralRef script_referral=
         pwallet.GenerateNewReferral(
                     script_id,
@@ -542,6 +531,17 @@ static UniValue EasySend(
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Unable to generate referral for easy send script");
+    }
+
+    if(ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
+        auto invite_transaction =
+            pwallet.ConfirmAddress(CParamScriptID{script_referral->GetAddress()});
+
+        if(!invite_transaction) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Unable to confirm the vault. Vaults require invites");
+        }
     }
 
     CScriptID easy_send_address{script_referral->GetAddress()};
@@ -892,6 +892,10 @@ UniValue confirmaddress(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
+    if(!ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Address confirmation is currently not required.");
+    }
+
     if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
             "confirmaddress \"address\""
@@ -1229,7 +1233,7 @@ UniValue createvault(const JSONRPCRequest& request)
 
         CParamScriptID script_id = vault_script;
 
-        referral::ReferralRef script_referral =
+        auto script_referral =
             pwallet->GenerateNewReferral(
                         script_id,
                         pwallet->ReferralAddress(),
@@ -1239,6 +1243,17 @@ UniValue createvault(const JSONRPCRequest& request)
             throw JSONRPCError(
                     RPC_WALLET_ERROR,
                     "Unable to generate referral for the vault script");
+        }
+
+        if(ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
+            auto invite_transaction =
+                pwallet->ConfirmAddress(CParamScriptID{script_referral->GetAddress()});
+
+            if(!invite_transaction) {
+                throw JSONRPCError(
+                        RPC_WALLET_ERROR,
+                        "Unable to confirm the vault. Vaults require invites");
+            }
         }
 
         CParamScriptID vault_address{script_referral->GetAddress()};

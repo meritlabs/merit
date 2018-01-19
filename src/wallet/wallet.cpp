@@ -1730,7 +1730,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
     return GenerateNewReferral(1, key_id, pubkey, parentAddress, alias, key);
 }
 
-CTransactionRef CWallet::ConfirmAddress(CTxDestination& dest)
+CTransactionRef CWallet::ConfirmAddress(const CTxDestination& dest)
 {
     CWalletTx wtx(true);
 
