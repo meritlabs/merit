@@ -71,10 +71,10 @@ public:
     }
 };
 
-struct referral_tag {
+struct referral_alias {
 };
 
-std::string GetTag(const RefMemPoolEntry& entry);
+std::string GetAlias(const RefMemPoolEntry& entry);
 
 class ReferralTxMemPool
 {
@@ -94,11 +94,11 @@ public:
             // otherwise it won't add such referrals to index
             // uniqueness is provided by validation
             boost::multi_index::hashed_non_unique<
-                boost::multi_index::tag<referral_tag>,
+                boost::multi_index::tag<referral_alias>,
                 boost::multi_index::global_fun<
                     const RefMemPoolEntry&,
                     std::string,
-                    &GetTag>>,
+                    &GetAlias>>,
             // sorted by descendants count
             boost::multi_index::ordered_non_unique<
                 boost::multi_index::tag<descendants_count>,
@@ -190,9 +190,9 @@ public:
     bool Exists(const uint256& hash) const;
 
     /**
-     * Check if referral with a given tag exists in mempoll
+     * Check if referral with a given alias exists in mempoll
      */
-    bool Exists(const std::string& tag) const;
+    bool Exists(const std::string& alias) const;
 
     ReferralRef Get(const uint256& hash) const;
 

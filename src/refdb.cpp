@@ -24,7 +24,7 @@ const char DB_CONFIRMATION = 'i';
 const char DB_CONFIRMATION_IDX = 'n';
 const char DB_CONFIRMATION_TOTAL = 'u';
 const char DB_PRE_DAEDALUS_CONFIRMED = 'd';
-const char DB_TAG = 't';
+const char DB_ALIAS = 'l';
 
 const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
 }
@@ -60,14 +60,14 @@ MaybeReferral ReferralsViewDB::GetReferral(const uint256& hash) const
     return {};
 }
 
-MaybeReferral ReferralsViewDB::GetReferral(const std::string& tag) const
+MaybeReferral ReferralsViewDB::GetReferral(const std::string& alias) const
 {
-    if (tag.size() == 0) {
+    if (alias.size() == 0) {
         return {};
     }
 
     Address address;
-    if (m_db.Read(std::make_pair(DB_TAG, tag), address)) {
+    if (m_db.Read(std::make_pair(DB_ALIAS, alias), address)) {
         return GetReferral(address);
     }
 
@@ -123,9 +123,9 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
     if (!m_db.Write(std::make_pair(DB_PUBKEY, referral.pubkey), referral.GetAddress()))
         return false;
 
-    if (referral.version >= Referral::INVITE_VERSION && referral.tag.size() > 0) {
-        // write referral referral address by tag
-        if (!m_db.Write(std::make_pair(DB_TAG, referral.tag), referral.GetAddress()))
+    if (referral.version >= Referral::INVITE_VERSION && referral.alias.size() > 0) {
+        // write referral referral address by alias
+        if (!m_db.Write(std::make_pair(DB_ALIAS, referral.alias), referral.GetAddress()))
             return false;
     }
 
@@ -752,7 +752,7 @@ bool ReferralsViewDB::OrderReferrals(referral::ReferralRefs& refs)
 }
 
 //Confirmation pair is an index plus count
-using ConfirmationPair = std::pair<size_t, int>;
+using ConfirmationPair = std::pair<uint64_t, int>;
 
 bool ReferralsViewDB::UpdateConfirmation(
         char address_type,
@@ -803,9 +803,9 @@ bool ReferralsViewDB::Exists(const referral::Address& address) const
     return m_db.Exists(std::make_pair(DB_REFERRALS, address));
 }
 
-bool ReferralsViewDB::Exists(const std::string& tag) const
+bool ReferralsViewDB::Exists(const std::string& alias) const
 {
-    return tag.size() > 0 && m_db.Exists(std::make_pair(DB_TAG, tag));
+    return alias.size() > 0 && m_db.Exists(std::make_pair(DB_ALIAS, alias));
 }
 
 bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const

@@ -468,7 +468,7 @@ static void ConfirmAddress(
         std::stringstream e;
         const auto immature_invites = pwallet->GetImmatureBalance(true);
         if(immature_invites > 0) {
-            e << "No mature invites available. There are immature " 
+            e << "No mature invites available. There are immature "
               << immature_invites
               << " invites awating confirmations" << std::endl;
             throw JSONRPCError(RPC_INVALID_PARAMETER, e.str());
@@ -949,14 +949,14 @@ UniValue confirmaddress(const JSONRPCRequest& request)
     if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
             "confirmaddress \"address\""
-            "\nSend an amount to a given address.\n"
+            "\nConfirm given address's referral.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
-            "1. \"address\"            (string, required) The merit address to send to.\n"
+            "1. \"address\"  (string, required) The merit address to confirm.\n"
             "\nResult:\n"
-            "\"txid\"                  (string) The invite transaction id.\n"
+            "\"txid\"        (string) The invite transaction id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+            + HelpExampleCli("confirmaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
         );
 
     ObserveSafeMode();
@@ -4172,7 +4172,7 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
             "{\n"
             "  \"walletname\": xxxxx,             (string) the wallet name\n"
             "  \"walletversion\": xxxxx,          (numeric) the wallet version\n"
-            "  \"tag\": xxxxx,                    (string, optional) the wallet tag\n"
+            "  \"alias\": xxxxx,                  (string, optional) address alias that can be used as destination\n"
             "  \"balance\": xxxxxxx,              (numeric) the total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"unconfirmed_balance\": xxx,      (numeric) the total unconfirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"immature_balance\": xxxxxx,      (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
@@ -4199,7 +4199,7 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
 
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
-    obj.push_back(Pair("tag", pwallet->GetTag()));
+    obj.push_back(Pair("alias", pwallet->GetAlias()));
     obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
     obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
     obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
@@ -4226,7 +4226,7 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
         obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{referral->GetAddress()})));
     }
 
-    obj.push_back(Pair("invites", pwallet->GetAvailableBalance(nullptr, true)));
+    obj.push_back(Pair("invites", pwallet->GetBalance(true)));
     obj.push_back(Pair("immature_invites", pwallet->GetImmatureBalance(true)));
 
     return obj;
@@ -5001,13 +5001,13 @@ UniValue unlockwallet(const JSONRPCRequest& request)
             "Returns an object containing various wallet state info.\n"
             "\nArguments:\n"
             "1. parentaddress   (string, required) Parent address needed to unlock the wallet.\n"
-            "2. tag             (stirng, optional) wallet unique id"
+            "2. alias           (stirng, optional) wallet alias"
             "\nResult:\n"
             "{\n"
             "  \"address\": xxxxx,                (string) the wallet's root address. it's a referral address to use to share with other users\n"
             "  \"walletname\": xxxxx,             (string) the wallet db file name\n"
             "  \"walletversion\": xxxxx,          (numeric) the wallet version\n"
-            "  \"tag\": xxxxx,                    (string, optional) the wallet tag\n"
+            "  \"alias\": xxxxx,                  (string, optional) address alias that can be used as destination\n"
             "  \"balance\": xxxxxxx,              (numeric) the total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"unconfirmed_balance\": xxx,      (numeric) the total unconfirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"immature_balance\": xxxxxx,      (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
@@ -5040,16 +5040,16 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     auto parentAddressUint160 = parentAddress.GetUint160();
     assert(parentAddressUint160);
 
-    auto tag = request.params.size() == 2 ? request.params[1].get_str() : "";
+    auto alias = request.params.size() == 2 ? request.params[1].get_str() : "";
 
-    referral::ReferralRef referral = pwallet->Unlock(*parentAddressUint160, tag);
+    referral::ReferralRef referral = pwallet->Unlock(*parentAddressUint160, alias);
 
     // TODO: Make this check more robust.
     UniValue obj(UniValue::VOBJ);
 
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
-    obj.push_back(Pair("tag", pwallet->GetTag()));
+    obj.push_back(Pair("alias", pwallet->GetAlias()));
     obj.push_back(Pair("balance", ValueFromAmount(pwallet->GetBalance())));
     obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
     obj.push_back(Pair("immature_balance", ValueFromAmount(pwallet->GetImmatureBalance())));
@@ -5070,107 +5070,6 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{referral->GetAddress()})));
     obj.push_back(Pair("invites", pwallet->GetAvailableBalance(nullptr, true)));
     obj.push_back(Pair("immature_invites", pwallet->GetImmatureBalance(true)));
-
-    return obj;
-}
-
-UniValue beaconaddress(const JSONRPCRequest& request)
-{
-    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
-    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
-        return NullUniValue;
-    }
-
-    if (request.fHelp || (request.params.size() != 3 && request.params.size() != 4)) {
-        throw std::runtime_error(
-            "beaconaddress \"address\" \"signingkey\" \"parentaddress\"\n"
-            "signs and beacons an address with the signing key specified\n"
-            "\nArguments:\n"
-            "1. address         (string, required) Parent address needed to unlock the wallet.\n"
-            "2. signingkey      (string, required) key used to sign the referral in WIF format.\n"
-            "3. parentaddress   (string, required) Parent address needed to unlock the wallet.\n"
-            "4. tag             (string, optional) address unique id"
-            "\nResult:\n"
-            "{\n"
-            "  \"beaconid\": xxxxx,               (string) id of the beacon\n"
-            "  \"address\": xxxxx,                (string) address beaconed\n"
-            "}\n"
-            "\nExamples:\n"
-            + HelpExampleCli("beaconaddress", "\"address\" \"key\" \"parentaddress\"")
-            + HelpExampleRpc("beaconaddress", "\"address\" \"key\" \"parentaddress\"")
-        );
-    }
-
-    LOCK2(cs_main, pwallet->cs_wallet);
-
-    UniValue obj(UniValue::VOBJ);
-    if(request.params.size() == 3) {
-
-        CMeritAddress address(request.params[0].get_str());
-
-        CMeritSecret signing_key_secret;
-        signing_key_secret.SetString(request.params[1].get_str());
-
-        CMeritAddress parent_address(request.params[2].get_str());
-
-        if (!address.IsValid()) {
-            std::stringstream e;
-            e << "Address " << address.ToString() << " is not valid or in wrong format.";
-            throw std::runtime_error(e.str());
-        }
-
-        if(signing_key_secret.GetSize() < 32) {
-            std::stringstream e;
-            e << "The signing key needs to be greater or equal to 32 bytes in size. Got " << signing_key_secret.GetSize() << " instead.";
-            throw std::runtime_error(e.str());
-        }
-
-        auto key = signing_key_secret.GetKey();
-        if (!key.IsValid()) {
-            throw std::runtime_error("The signing key needs to be in the Wallet Import Format");
-        }
-
-        if (!parent_address.IsValid()) {
-            throw std::runtime_error(strprintf("Parent address \"%s\" is not valid or in wrong format.", parent_address.ToString().c_str()));
-        }
-
-        auto referral = pwallet->GenerateNewReferral(
-                address.GetType(),
-                *address.GetUint160(),
-                key.GetPubKey(),
-                *parent_address.GetUint160(),
-                request.params[3].get_str(),
-                key);
-
-        if(!referral) {
-            throw JSONRPCError(
-                    RPC_WALLET_ERROR,
-                    "Unable to generate referral for receiver key");
-        }
-
-        // TODO: Make this check more robust.
-        UniValue obj(UniValue::VOBJ);
-
-        obj.push_back(Pair("beaconid", referral->GetHash().GetHex()));
-        obj.push_back(Pair("address", CMeritAddress{referral->addressType, referral->GetAddress()}.ToString()));
-    } else {
-
-        CMeritAddress address(request.params[0].get_str());
-        CPubKey pub_key{ParseHex(request.params[1].get_str())};
-        CMeritAddress parent_address(request.params[2].get_str());
-
-        auto parent_addr_uint160 = parent_address.GetUint160() ?
-            * parent_address.GetUint160() : referral::Address{};
-
-        referral::Referral ref{
-            referral::MutableReferral(
-                address.GetType(), *address.GetUint160(), pub_key, parent_addr_uint160)
-        };
-
-        auto hash = (CHashWriter(SER_GETHASH, 0) << parent_addr_uint160 << ref.GetAddress()).GetHash();
-
-        obj.push_back(Pair("referral_data_to_sign", hash.GetHex()));
-    }
 
     return obj;
 }
@@ -5332,8 +5231,7 @@ static const CRPCCommand commands[] =
     { "generating",         "generate",                 &generate,                 {"nblocks","maxtries"} },
 
     // merit specific commands
-    { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress", "tag"} },
-    { "referral",           "beaconaddress",            &beaconaddress,            {"address", "key", "parentaddress"} },
+    { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress", "alias"} },
     { "referral",           "getanv",                   &getanv,                   {} },
     { "wallet",             "confirmaddress",           &confirmaddress,           {"address"} },
     { "wallet",             "listinvites",              &listinvites,              {"addresses"} },

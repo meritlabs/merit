@@ -25,7 +25,7 @@ struct MutableReferral;
 
 static const int SERIALIZE_REFERRAL = 0x40000000;
 
-static const int MAX_TAG_LENGTH = 20;
+static const int MAX_ALIAS_LENGTH = 20;
 
 struct MutableReferral;
 
@@ -64,8 +64,8 @@ public:
     // signature of parentAddress + address
     const valtype signature;
 
-    // referral tag aka name
-    const std::string tag;
+    // referral alias aka name
+    const std::string alias;
 
 private:
     const Address address;
@@ -139,11 +139,11 @@ public:
     char addressType;
     CPubKey pubkey;
     valtype signature;
-    std::string tag;
+    std::string alias;
 
     MutableReferral(int32_t versionIn = Referral::CURRENT_VERSION) : version(versionIn),
                                                                      addressType{0},
-                                                                     tag{""} {}
+                                                                     alias{""} {}
 
     MutableReferral(const Referral& ref);
 
@@ -152,7 +152,7 @@ public:
         const Address& addressIn,
         const CPubKey& pubkeyIn,
         const Address& parentAddressIn,
-        std::string tagIn = "",
+        std::string aliasIn = "",
         int32_t versionIn = Referral::CURRENT_VERSION);
 
     Address GetAddress() const;
@@ -213,8 +213,8 @@ inline void UnserializeReferral(RefType& ref, Stream& s)
     s >> ref.pubkey;
     s >> ref.signature;
     if (ref.version >= Referral::INVITE_VERSION) {
-        s >> ref.tag;
-        assert(ref.tag.size() <= MAX_TAG_LENGTH);
+        s >> ref.alias;
+        assert(ref.alias.size() <= MAX_ALIAS_LENGTH);
     }
 
     assert(ref.pubkey.IsValid());
@@ -232,7 +232,7 @@ inline void SerializeReferral(const RefType& ref, Stream& s)
     s << ref.pubkey;
     s << ref.signature;
     if (ref.version >= Referral::INVITE_VERSION) {
-        s << ref.tag;
+        s << ref.alias;
     }
 }
 

@@ -183,27 +183,27 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
     return &(it->second);
 }
 
-referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, const std::string tag)
+referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, const std::string alias)
 {
     // check wallet is not unlocked yet
     if (IsReferred()) {
         throw std::runtime_error(std::string(__func__) + ": wallet is already unlocked");
     }
 
-    // check parent address and tag not to generate keys
+    // check parent address and alias not to generate keys
     // TODO: remove generated key from map if referral transaction failed and remove this checks
     if (!prefviewcache->Exists(parentAddress) && !mempoolReferral.ExistsWithAddress(parentAddress)) {
         throw std::runtime_error(std::string(__func__) + ": provided address does not exist in the chain");
     }
 
-    // check if provided referral's tag is valid and not yet occupied
-    if (tag.size() > 0) {
-        if (tag.size() > referral::MAX_TAG_LENGTH) {
-            throw std::runtime_error(strprintf("%s: tag length should not be more than %d characters.", __func__, referral::MAX_TAG_LENGTH));
+    // check if provided referral's alias is valid and not yet occupied
+    if (alias.size() > 0) {
+        if (alias.size() > referral::MAX_ALIAS_LENGTH) {
+            throw std::runtime_error(strprintf("%s: alias length should not be more than %d characters.", __func__, referral::MAX_ALIAS_LENGTH));
         }
 
-        if (prefviewcache->Exists(tag) || mempoolReferral.Exists(tag)) {
-            throw std::runtime_error(strprintf("%s: provided tag is already occupied", __func__));
+        if (prefviewcache->Exists(alias) || mempoolReferral.Exists(alias)) {
+            throw std::runtime_error(strprintf("%s: provided alias is already occupied", __func__));
         }
     }
 
@@ -218,7 +218,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
     CKeyPool keypool(pubkey, true);
 
     // generate new referral associated with new pubkey
-    auto referral = GenerateNewReferral(pubkey, parentAddress, tag);
+    auto referral = GenerateNewReferral(pubkey, parentAddress, alias);
 
     LogPrintf("Generated new unlock referral. Address: %s\n", referral->GetAddress().ToString());
 
@@ -1664,7 +1664,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const referral::Address& address,
         const CPubKey& signPubKey,
         const referral::Address& parentAddress,
-        const std::string tag,
+        const std::string alias,
         CKey key)
 {
     if (!signPubKey.IsValid()) {
@@ -1683,7 +1683,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
     auto referral =
         referral::MakeReferralRef(
                 referral::MutableReferral(
-                    addressType, address, signPubKey, parentAddress, tag, referral_version));
+                    addressType, address, signPubKey, parentAddress, alias, referral_version));
 
     AddReferralAddressPubKey(referral->GetAddress(), signPubKey.GetID());
 
@@ -1706,28 +1706,28 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const CScriptID& id,
         const referral::Address& parentAddress,
         const CPubKey& signPubKey,
-        const std::string tag)
+        const std::string alias)
 {
-    return GenerateNewReferral(2, id, signPubKey, parentAddress, tag);
+    return GenerateNewReferral(2, id, signPubKey, parentAddress, alias);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CParamScriptID& id,
         const referral::Address& parentAddress,
         const CPubKey& signPubKey,
-        const std::string tag)
+        const std::string alias)
 {
-    return GenerateNewReferral(3, id, signPubKey, parentAddress, tag);
+    return GenerateNewReferral(3, id, signPubKey, parentAddress, alias);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CPubKey& pubkey,
         const referral::Address& parentAddress,
-        const std::string tag,
+        const std::string alias,
         CKey key)
 {
     const referral::Address key_id = pubkey.GetID();
-    return GenerateNewReferral(1, key_id, pubkey, parentAddress, tag, key);
+    return GenerateNewReferral(1, key_id, pubkey, parentAddress, alias, key);
 }
 
 bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKeyPool)
