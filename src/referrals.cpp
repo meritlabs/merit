@@ -85,7 +85,7 @@ bool ReferralsViewCache::Exists(const std::string& alias) const
 void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
-    assert(ref.alias.size() == 0 || !Exists(ref.alias));
+    assert(ref.alias.size() == 0 || referrals_index.get<by_alias>().count(ref.alias) == 0);
 
     referrals_index.insert(ref);
 }

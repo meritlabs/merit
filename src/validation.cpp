@@ -2733,7 +2733,7 @@ static DisconnectResult DisconnectBlock(
     DebitsAndCredits debits_and_credits;
 
     // undo transactions in reverse order
-    const auto disconnect_txn_status = 
+    const auto disconnect_txn_status =
         DisconnectTransactions(
                 pindex,
                 block.vtx,
@@ -2750,7 +2750,7 @@ static DisconnectResult DisconnectBlock(
     DebitsAndCredits invite_debits_and_credits;
 
     if (block.IsDaedalus()) {
-        const auto disconnect_inv_status = 
+        const auto disconnect_inv_status =
             DisconnectTransactions(
                     pindex,
                     block.invites,
@@ -3576,6 +3576,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             nTimeConnect * MILLI / nBlocksTotal);
 
     DebitsAndCredits invite_debits_and_credits;
+    int64_t nTime4 = GetTimeMicros();
+
     if (block.IsDaedalus()) {
         pos.nTxOffset += GetSizeOfCompactSize(block.invites.size());
         for (int i = 0; i < static_cast<int>(block.invites.size()); i++)
@@ -3614,15 +3616,16 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 addressIndex,
                 addressUnspentIndex,
                 spentIndex);
+
+        nTime4 = GetTimeMicros(); nTimeConnect += nTime4 - nTime3;
+        LogPrint(BCLog::BENCH, "      - Connect %u invites: %.2fms (%.3fms/inv) [%.2fs (%.2fms/blk)]\n",
+                (unsigned)block.invites.size(),
+                MILLI * (nTime4 - nTime3),
+                MILLI * (nTime4 - nTime3) / block.invites.size(),
+                nTimeConnect * MICRO,
+                nTimeConnect * MILLI / nBlocksTotal);
     }
 
-    int64_t nTime4 = GetTimeMicros(); nTimeConnect += nTime4 - nTime3;
-    LogPrint(BCLog::BENCH, "      - Connect %u invites: %.2fms (%.3fms/inv) [%.2fs (%.2fms/blk)]\n",
-            (unsigned)block.invites.size(),
-            MILLI * (nTime4 - nTime3),
-            MILLI * (nTime4 - nTime3) / block.invites.size(),
-            nTimeConnect * MICRO,
-            nTimeConnect * MILLI / nBlocksTotal);
 
     for (const auto& ref: block.m_vRef) {
         if (CheckAddressBeaconed(ref->GetAddress(), false)) {

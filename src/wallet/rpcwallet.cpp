@@ -468,7 +468,7 @@ static void ConfirmAddress(
         std::stringstream e;
         const auto immature_invites = pwallet->GetImmatureBalance(true);
         if(immature_invites > 0) {
-            e << "No mature invites available. There are immature " 
+            e << "No mature invites available. There are immature "
               << immature_invites
               << " invites awating confirmations" << std::endl;
             throw JSONRPCError(RPC_INVALID_PARAMETER, e.str());
@@ -949,14 +949,14 @@ UniValue confirmaddress(const JSONRPCRequest& request)
     if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
             "confirmaddress \"address\""
-            "\nSend an amount to a given address.\n"
+            "\nConfirm given address's referral.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
-            "1. \"address\"            (string, required) The merit address to send to.\n"
+            "1. \"address\"  (string, required) The merit address to confirm.\n"
             "\nResult:\n"
-            "\"txid\"                  (string) The invite transaction id.\n"
+            "\"txid\"        (string) The invite transaction id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("sendtoaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+            + HelpExampleCli("confirmaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
         );
 
     ObserveSafeMode();
@@ -4226,7 +4226,7 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
         obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{referral->GetAddress()})));
     }
 
-    obj.push_back(Pair("invites", pwallet->GetAvailableBalance(nullptr, true)));
+    obj.push_back(Pair("invites", pwallet->GetBalance(true)));
     obj.push_back(Pair("immature_invites", pwallet->GetImmatureBalance(true)));
 
     return obj;

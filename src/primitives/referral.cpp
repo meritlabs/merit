@@ -26,14 +26,17 @@ MutableReferral::MutableReferral(
     parentAddress{parentAddressIn},
     addressType{addressTypeIn},
     pubkey{pubkeyIn},
-    signature{valtype()},
-    alias{aliasIn}
+    signature{valtype()}
     {
         if (addressType == 1) {
             address = addressIn;
         } else {
             uint160 pubkeyHash = pubkey.GetID();
             MixAddresses(addressIn, pubkeyHash, address);
+        }
+
+        if (version >= Referral::INVITE_VERSION) {
+            alias = aliasIn;
         }
     }
 

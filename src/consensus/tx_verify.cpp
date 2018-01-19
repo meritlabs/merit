@@ -243,8 +243,8 @@ bool Consensus::CheckTxOutputs(
             return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-beaconed");
         }
 
-        if(!tx.IsInvite() && ExpectDaedalus(chainActive.Tip(), ::Params().GetConsensus())) {
-            if(!referralsCache.IsConfirmed(addr)) {
+        if (!tx.IsInvite() && ExpectDaedalus(chainActive.Tip(), ::Params().GetConsensus())) {
+            if (!referralsCache.IsConfirmed(addr)) {
                 //TODO: Check Mempool
                 return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-invited");
             }
