@@ -784,7 +784,13 @@ bool ReferralsViewDB::Exists(const referral::Address& address) const
 
 bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const
 {
-    return m_db.Exists(std::make_pair(DB_CONFIRMATION, address));
+    ConfirmationPair confirmation;
+    if(!m_db.Read(
+            std::make_pair(DB_CONFIRMATION, address),
+            confirmation)) {
+        return false;
+    }
+    return confirmation.second > 0;
 }
 
 bool ReferralsViewDB::ConfirmAllPreDaedalusAddresses()
