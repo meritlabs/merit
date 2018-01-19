@@ -3745,7 +3745,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     // Make sure we confirm all pre daedalus addresses. This is a one time event.
     if (!ConfirmAllPreDaedalusAddresses(state, chainparams.GetConsensus(), pindex)) {
-        throw std::runtime_error{"Failed to confirm all pre daedalus addresses"};
+        return AbortNode(state, "Failed to confirm all pre daedalus addresses");
     }
 
     if (block.IsDaedalus()) {
