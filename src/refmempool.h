@@ -71,11 +71,12 @@ public:
     }
 };
 
-struct referral_tag {};
+struct referral_tag {
+};
 
 std::string GetTag(const RefMemPoolEntry& entry)
 {
-  return entry.GetSharedEntryValue()->tag;
+    return entry.GetSharedEntryValue()->tag;
 }
 
 class ReferralTxMemPool
@@ -92,7 +93,10 @@ public:
             boost::multi_index::hashed_unique<
                 MemPoolEntryHash<Referral>,
                 SaltedTxidHasher>,
-            boost::multi_index::hashed_unique<
+            // use non-unique here to support empty tags.
+            // otherwise it won't add such referrals to index
+            // uniqueness is provided by validation
+            boost::multi_index::hashed_non_unique<
                 boost::multi_index::tag<referral_tag>,
                 boost::multi_index::global_fun<
                     const RefMemPoolEntry&,
@@ -186,24 +190,16 @@ public:
     /**
      * Check if referral with a given hash exists in mempoll
      */
-    bool Exists(const uint256& hash) const
-    {
-        LOCK(cs);
-        return (mapRTx.count(hash) != 0);
-    }
+    bool Exists(const uint256& hash) const;
 
     /**
      * Check if referral with a given tag exists in mempoll
      */
-    bool Exists(const std::string& tag) const
-    {
-        LOCK(cs);
-        return (mapRTx.get<referral_tag>().count(tag) != 0);
-    }
+    bool Exists(const std::string& tag) const;
 
     ReferralRef Get(const uint256& hash) const;
 
-    unsigned long Size()
+    unsigned long Size() const
     {
         LOCK(cs);
         return mapRTx.size();

@@ -60,6 +60,20 @@ MaybeReferral ReferralsViewDB::GetReferral(const uint256& hash) const
     return {};
 }
 
+MaybeReferral ReferralsViewDB::GetReferral(const std::string& tag) const
+{
+    if (tag.size() == 0) {
+        return {};
+    }
+
+    Address address;
+    if (m_db.Read(std::make_pair(DB_TAG, tag), address)) {
+        return GetReferral(address);
+    }
+
+    return {};
+}
+
 MaybeAddress ReferralsViewDB::GetAddressByPubKey(const CPubKey& pubkey) const
 {
     Address address;
@@ -777,7 +791,7 @@ bool ReferralsViewDB::Exists(const referral::Address& address) const
 
 bool ReferralsViewDB::Exists(const std::string& tag) const
 {
-    return m_db.Exists(std::make_pair(DB_TAG, tag));
+    return tag.size() > 0 && m_db.Exists(std::make_pair(DB_TAG, tag));
 }
 
 bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const

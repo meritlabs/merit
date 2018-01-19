@@ -1227,7 +1227,9 @@ public:
 
     std::string GetTag() const
     {
-        return GetRootReferral()->tag;
+        auto ref = GetRootReferral();
+
+        return ref != nullptr ? ref->tag : "";
     }
 
     referral::ReferralRef GenerateNewReferral(

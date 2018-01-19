@@ -5032,10 +5032,6 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     auto tag = request.params.size() == 2 ? request.params[1].get_str() : "";
 
-    if (tag.size() > referral::MAX_TAG_LENGTH) {
-        throw std::runtime_error(strprintf("Tag length should not be more than %d.", referral::MAX_TAG_LENGTH));
-    }
-
     referral::ReferralRef referral = pwallet->Unlock(*parentAddressUint160, tag);
 
     // TODO: Make this check more robust.

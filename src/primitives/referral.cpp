@@ -29,8 +29,6 @@ MutableReferral::MutableReferral(
     signature{valtype()},
     tag{tagIn}
     {
-        assert(tagIn.size() <= MAX_TAG_LENGTH);
-
         if (addressType == 1) {
             address = addressIn;
         } else {

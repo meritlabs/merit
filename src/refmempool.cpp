@@ -219,6 +219,18 @@ bool ReferralTxMemPool::ExistsWithAddress(const Address& address) const
     return GetWithAddress(address) != nullptr;
 }
 
+bool ReferralTxMemPool::Exists(const uint256& hash) const
+{
+    LOCK(cs);
+    return mapRTx.count(hash) != 0;
+}
+
+bool ReferralTxMemPool::Exists(const std::string& tag) const
+{
+    LOCK(cs);
+    return tag.size() > 0 && mapRTx.get<referral_tag>().count(tag) != 0;
+}
+
 void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, referral::ReferralTxMemPool::setEntries& txReferrals)
 {
     // check addresses used for vouts are beaconed

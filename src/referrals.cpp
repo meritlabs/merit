@@ -63,9 +63,29 @@ bool ReferralsViewCache::Exists(const Address& address) const
     return false;
 }
 
+bool ReferralsViewCache::Exists(const std::string& tag) const
+{
+    if (tag.size() == 0) {
+        return false;
+    }
+
+    {
+        LOCK(m_cs_cache);
+        if (referrals_index.get<by_tag>().count(tag) > 0) {
+            return true;
+        }
+    }
+    if (auto ref = m_db->GetReferral(tag)) {
+        InsertReferralIntoCache(*ref);
+        return true;
+    }
+    return false;
+}
+
 void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
+    assert(ref.tag.size() == 0 || !Exists(ref.tag));
 
     referrals_index.insert(ref);
 }

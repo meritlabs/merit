@@ -190,14 +190,21 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
         throw std::runtime_error(std::string(__func__) + ": wallet is already unlocked");
     }
 
-    // check that there is no unlock referral transactions in the wallet yet
-    if (!mapWalletRTx.empty()) {
-        throw std::runtime_error(std::string(__func__) + ": wallet alredy have unconfirmed unlock referral transaction");
-    }
-
-    // check if provided referral address is valid, i.e. exists in the blockchain or mempool
+    // check parent address and tag not to generate keys
+    // TODO: remove generated key from map if referral transaction failed and remove this checks
     if (!prefviewcache->Exists(parentAddress) && !mempoolReferral.ExistsWithAddress(parentAddress)) {
         throw std::runtime_error(std::string(__func__) + ": provided address does not exist in the chain");
+    }
+
+    // check if provided referral's tag is valid and not yet occupied
+    if (tag.size() > 0) {
+        if (tag.size() > referral::MAX_TAG_LENGTH) {
+            throw std::runtime_error(strprintf("%s: tag length should not be more than %d characters.", __func__, referral::MAX_TAG_LENGTH));
+        }
+
+        if (prefviewcache->Exists(tag) || mempoolReferral.Exists(tag)) {
+            throw std::runtime_error(strprintf("%s: provided tag is already occupied", __func__));
+        }
     }
 
     int64_t nIndex = ++m_max_keypool_index;
@@ -210,15 +217,15 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
     CPubKey pubkey(GenerateNewKey(walletdb));
     CKeyPool keypool(pubkey, true);
 
-    if (!walletdb.WritePool(nIndex, keypool)) {
-        throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
-    }
-    LoadKeyPool(nIndex, keypool);
-
     // generate new referral associated with new pubkey
     auto referral = GenerateNewReferral(pubkey, parentAddress, tag);
 
     LogPrintf("Generated new unlock referral. Address: %s\n", referral->GetAddress().ToString());
+
+    if (!walletdb.WritePool(nIndex, keypool)) {
+        throw std::runtime_error(std::string(__func__) + ": writing generated key failed");
+    }
+    LoadKeyPool(nIndex, keypool);
 
     return referral;
 }
@@ -226,6 +233,8 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
 CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb)
 {
     AssertLockHeld(cs_wallet); // mapKeyMetadata
+    // check that hd master key is set
+    assert(IsHDEnabled());
 
     debug("[WARNING] GENERATING NEW KEY\n");
 
@@ -234,9 +243,6 @@ CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb)
     // Create new metadata
     int64_t nCreationTime = GetTime();
     CKeyMetadata metadata(nCreationTime);
-
-    // check that hd master key is set
-    assert(IsHDEnabled());
 
     DeriveNewChildKey(walletdb, metadata, secret);
 
@@ -1665,10 +1671,6 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         throw std::runtime_error("Cannot generate referral, the public key used is invalid");
     }
 
-    if (tag.size() > referral::MAX_TAG_LENGTH) {
-        throw std::runtime_error(std::string("Cannot generate referral, tag length is more than " + referral::MAX_TAG_LENGTH));
-    }
-
     auto referral_version = referral::Referral::CURRENT_VERSION;
 
     // check if we need to set new version of referrals
@@ -1692,7 +1694,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
     if(!CommitTransaction(rtx, g_connman.get(), state)) {
         std::stringstream e;
         e << "Unable to submit the beacon message: "
-          << state.GetDebugMessage();
+          << FormatStateMessage(state);
 
         throw std::runtime_error(e.str());
     }
