@@ -9,9 +9,7 @@
 #include "net_processing.h" // For CNodeStateStats
 #include "net.h"
 
-#if defined(__MINGW__)
 #undef debug
-#endif
 
 #include <QAbstractTableModel>
 #include <QStringList>

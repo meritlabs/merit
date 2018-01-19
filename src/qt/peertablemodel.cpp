@@ -12,9 +12,7 @@
 #include "validation.h" // for cs_main
 #include "sync.h"
 
-#if defined(__MINGW__)
 #undef debug
-#endif
 
 #include <QDebug>
 #include <QList>
