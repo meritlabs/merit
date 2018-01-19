@@ -221,16 +221,14 @@ AC_ARG_ENABLE([werror],
     [enable_werror=$enableval],
     [enable_werror=no])
 
+AC_ARG_ENABLE([wmarch],
+    [AS_HELP_STRING([--enable-march],
+                    [Use native CPU instructions for mining (default is no)])],
+    [enable_wmarch=$enableval],
+    [enable_wmarch=no])
+
 AC_LANG_PUSH([C++])
 AX_CHECK_COMPILE_FLAG([-Werror],[CXXFLAG_WERROR="-Werror"],[CXXFLAG_WERROR=""])
-
-#if test "x$GCC" = xyes; then
-#    CFLAGS="$CFLAGS -march=native"
-#fi
-
-#if test "x$GXX" = xyes; then
-#    CXXFLAGS="$CXXFLAGS -march=native"
-#fi
 
 if test "x$enable_debug" = xyes; then
     CPPFLAGS="$CPPFLAGS -DDEBUG -DDEBUG_LOCKORDER"
@@ -238,10 +236,11 @@ if test "x$enable_debug" = xyes; then
     if test "x$GCC" = xyes; then
       CFLAGS="$CFLAGS -g3 -O0"
     fi
+fi
 
-#    if test "x$GXX" = xyes; then
-#        CXXFLAGS="$CXXFLAGS -march=native -g3 -O0"
-#    fi
+if test "x$enable_march" = xyes; then
+  CXXFLAGS="$CXXFLAGS -march=native"
+  CFLAGS="$CFLAGS -march=native"
 fi
 
 ERROR_CXXFLAGS=
@@ -1308,6 +1307,7 @@ echo "  with upnp     = $use_upnp"
 echo "  use asm       = $use_asm"
 echo "  debug enabled = $enable_debug"
 echo "  werror        = $enable_werror"
+echo "  native march  = $enable_march"
 echo
 echo "  target os     = $TARGET_OS"
 echo "  build os      = $BUILD_OS"
