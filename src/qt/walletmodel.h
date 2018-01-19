@@ -131,16 +131,16 @@ public:
     TransactionTableModel *getTransactionTableModel();
     RecentRequestsTableModel *getRecentRequestsTableModel();
 
-    CAmount getBalance(const CCoinControl *coinControl = nullptr) const;
-    CAmount getUnconfirmedBalance() const;
-    CAmount getImmatureBalance() const;
+    CAmount getBalance(const CCoinControl *coinControl = nullptr, bool invite = false) const;
+    CAmount getUnconfirmedBalance(bool invite = false) const;
+    CAmount getImmatureBalance(bool invite = false) const;
     bool haveWatchOnly() const;
-    CAmount getWatchBalance() const;
-    CAmount getWatchUnconfirmedBalance() const;
-    CAmount getWatchImmatureBalance() const;
+    CAmount getWatchBalance(bool invite = false) const;
+    CAmount getWatchUnconfirmedBalance(bool invite = false) const;
+    CAmount getWatchImmatureBalance(bool invite = false) const;
     EncryptionStatus getEncryptionStatus() const;
     bool IsReferred() const;
-    referral::ReferralRef Unlock(const referral::Address& parentAddress);
+    referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string tag = "");
 
     // Check address for validity
     bool validateAddress(const QString &address);

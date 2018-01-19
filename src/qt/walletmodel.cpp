@@ -66,24 +66,24 @@ WalletModel::~WalletModel()
     unsubscribeFromCoreSignals();
 }
 
-CAmount WalletModel::getBalance(const CCoinControl *coinControl) const
+CAmount WalletModel::getBalance(const CCoinControl *coinControl, bool invite) const
 {
     if (coinControl)
     {
-        return wallet->GetAvailableBalance(coinControl);
+        return wallet->GetAvailableBalance(coinControl, invite);
     }
 
-    return wallet->GetBalance();
+    return wallet->GetBalance(invite);
 }
 
-CAmount WalletModel::getUnconfirmedBalance() const
+CAmount WalletModel::getUnconfirmedBalance(bool invite) const
 {
-    return wallet->GetUnconfirmedBalance();
+    return wallet->GetUnconfirmedBalance(invite);
 }
 
-CAmount WalletModel::getImmatureBalance() const
+CAmount WalletModel::getImmatureBalance(bool invite) const
 {
-    return wallet->GetImmatureBalance();
+    return wallet->GetImmatureBalance(invite);
 }
 
 bool WalletModel::haveWatchOnly() const
@@ -91,19 +91,19 @@ bool WalletModel::haveWatchOnly() const
     return fHaveWatchOnly;
 }
 
-CAmount WalletModel::getWatchBalance() const
+CAmount WalletModel::getWatchBalance(bool invite) const
 {
-    return wallet->GetWatchOnlyBalance();
+    return wallet->GetWatchOnlyBalance(invite);
 }
 
-CAmount WalletModel::getWatchUnconfirmedBalance() const
+CAmount WalletModel::getWatchUnconfirmedBalance(bool invite) const
 {
-    return wallet->GetUnconfirmedWatchOnlyBalance();
+    return wallet->GetUnconfirmedWatchOnlyBalance(invite);
 }
 
-CAmount WalletModel::getWatchImmatureBalance() const
+CAmount WalletModel::getWatchImmatureBalance(bool invite) const
 {
-    return wallet->GetImmatureWatchOnlyBalance();
+    return wallet->GetImmatureWatchOnlyBalance(invite);
 }
 
 void WalletModel::updateStatus()
@@ -418,10 +418,10 @@ bool WalletModel::IsReferred() const
     return wallet->IsReferred();
 }
 
-referral::ReferralRef WalletModel::Unlock(const referral::Address& parentAddress)
+referral::ReferralRef WalletModel::Unlock(const referral::Address& parentAddress, const std::string tag)
 {
     assert(wallet);
-    return wallet->Unlock(parentAddress);
+    return wallet->Unlock(parentAddress, tag);
 }
 
 bool WalletModel::setWalletEncrypted(bool encrypted, const SecureString &passphrase)
