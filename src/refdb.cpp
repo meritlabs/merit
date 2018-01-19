@@ -23,7 +23,8 @@ const char DB_LOT_VAL = 'v';
 const char DB_CONFIRMATION = 'i';
 const char DB_CONFIRMATION_IDX = 'n';
 const char DB_CONFIRMATION_TOTAL = 'u';
-const char DB_PRE_DAEDALUS_CONFIRMED = 'k';
+const char DB_PRE_DAEDALUS_CONFIRMED = 'd';
+const char DB_TAG = 't';
 
 const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
 }
@@ -53,6 +54,20 @@ MaybeReferral ReferralsViewDB::GetReferral(const uint256& hash) const
 {
     Address address;
     if (m_db.Read(std::make_pair(DB_HASH, hash), address)) {
+        return GetReferral(address);
+    }
+
+    return {};
+}
+
+MaybeReferral ReferralsViewDB::GetReferral(const std::string& tag) const
+{
+    if (tag.size() == 0) {
+        return {};
+    }
+
+    Address address;
+    if (m_db.Read(std::make_pair(DB_TAG, tag), address)) {
         return GetReferral(address);
     }
 
@@ -107,6 +122,12 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
     // write referral address by pubkey
     if (!m_db.Write(std::make_pair(DB_PUBKEY, referral.pubkey), referral.GetAddress()))
         return false;
+
+    if (referral.version >= Referral::INVITE_VERSION && referral.tag.size() > 0) {
+        // write referral referral address by tag
+        if (!m_db.Write(std::make_pair(DB_TAG, referral.tag), referral.GetAddress()))
+            return false;
+    }
 
     // Typically because the referral should be written in order we should
     // be able to find the parent referral. We can then write the child->parent
@@ -780,6 +801,11 @@ bool ReferralsViewDB::UpdateConfirmation(
 bool ReferralsViewDB::Exists(const referral::Address& address) const
 {
     return m_db.Exists(std::make_pair(DB_REFERRALS, address));
+}
+
+bool ReferralsViewDB::Exists(const std::string& tag) const
+{
+    return tag.size() > 0 && m_db.Exists(std::make_pair(DB_TAG, tag));
 }
 
 bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const

@@ -84,6 +84,7 @@ public:
 
     MaybeReferral GetReferral(const Address&) const;
     MaybeReferral GetReferral(const uint256&) const;
+    MaybeReferral GetReferral(const std::string&) const;
     MaybeAddressPair GetParentAddress(const Address&) const;
     MaybeAddress GetAddressByPubKey(const CPubKey&) const;
     ChildAddresses GetChildren(const Address&) const;
@@ -112,6 +113,7 @@ public:
 
     //Daedalus code.
     bool Exists(const Address&) const;
+    bool Exists(const std::string&) const;
     bool IsConfirmed(const Address&) const;
     bool UpdateConfirmation(char address_type, const Address&, CAmount amount);
 

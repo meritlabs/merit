@@ -593,6 +593,12 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
 
+        // is referral tag already occupied?
+        if (referral->tag.size() > 0 &&
+            (prefviewcache->Exists(referral->tag) || pool.Exists(referral->tag))) {
+            return state.Invalid(false, REJECT_DUPLICATE, "ref-tag-occupied");
+        }
+
         if (!(prefviewcache->Exists(referral->parentAddress) ||
             pool.ExistsWithAddress(referral->parentAddress))) {
             missingReferrer = true;
@@ -1639,7 +1645,6 @@ bool IsValidAmbassadorDestination(const CTxDestination& dest)
 void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx)
 {
     debug("Lottery Results");
-
 
     // Pay them by adding a txout to the coinbase transaction;
     std::transform(

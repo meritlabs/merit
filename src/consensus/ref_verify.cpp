@@ -26,6 +26,10 @@ bool CheckReferral(const Referral& referral, CValidationState& state)
         }
     }
 
+    if (referral.version >= Referral::INVITE_VERSION && referral.tag.size() > MAX_TAG_LENGTH) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-ref-invalid-tag");
+    }
+
     return true;
 }
 
