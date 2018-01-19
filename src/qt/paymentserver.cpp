@@ -100,9 +100,9 @@ static QList<QString> savedPaymentRequests;
 static void ReportInvalidCertificate(const QSslCertificate& cert)
 {
 #if QT_VERSION < 0x050000
-    // qDebug() << QString("%1: Payment server found an invalid certificate: ").arg(__func__) << cert.serialNumber() << cert.subjectInfo(QSslCertificate::CommonName) << cert.subjectInfo(QSslCertificate::OrganizationalUnitName);
+    qDebug() << QString("%1: Payment server found an invalid certificate: ").arg(__func__) << cert.serialNumber() << cert.subjectInfo(QSslCertificate::CommonName) << cert.subjectInfo(QSslCertificate::OrganizationalUnitName);
 #else
-    // qDebug() << QString("%1: Payment server found an invalid certificate: ").arg(__func__) << cert.serialNumber() << cert.subjectInfo(QSslCertificate::CommonName) << cert.subjectInfo(QSslCertificate::DistinguishedNameQualifier) << cert.subjectInfo(QSslCertificate::OrganizationalUnitName);
+    qDebug() << QString("%1: Payment server found an invalid certificate: ").arg(__func__) << cert.serialNumber() << cert.subjectInfo(QSslCertificate::CommonName) << cert.subjectInfo(QSslCertificate::DistinguishedNameQualifier) << cert.subjectInfo(QSslCertificate::OrganizationalUnitName);
 #endif
 }
 
@@ -127,14 +127,14 @@ void PaymentServer::LoadRootCAs(X509_STORE* _store)
 
     // Empty store
     if (certFile.isEmpty()) {
-        // qDebug() << QString("PaymentServer::%1: Payment request authentication via X.509 certificates disabled.").arg(__func__);
+        qDebug() << QString("PaymentServer::%1: Payment request authentication via X.509 certificates disabled.").arg(__func__);
         return;
     }
 
     QList<QSslCertificate> certList;
 
     if (certFile != "-system-") {
-            // qDebug() << QString("PaymentServer::%1: Using \"%2\" as trusted root certificate.").arg(__func__).arg(certFile);
+            qDebug() << QString("PaymentServer::%1: Using \"%2\" as trusted root certificate.").arg(__func__).arg(certFile);
 
         certList = QSslCertificate::fromPath(certFile);
         // Use those certificates when fetching payment requests, too:
@@ -375,10 +375,10 @@ void PaymentServer::initNetManager()
     if (optionsModel->getProxySettings(proxy)) {
         netManager->setProxy(proxy);
 
-        // qDebug() << "PaymentServer::initNetManager: Using SOCKS5 proxy" << proxy.hostName() << ":" << proxy.port();
+        qDebug() << "PaymentServer::initNetManager: Using SOCKS5 proxy" << proxy.hostName() << ":" << proxy.port();
+    } else {
+        qDebug() << "PaymentServer::initNetManager: No active proxy server found.";
     }
-    /*else
-        qDebug() << "PaymentServer::initNetManager: No active proxy server found."; */
 
     connect(netManager, SIGNAL(finished(QNetworkReply*)),
             this, SLOT(netRequestFinished(QNetworkReply*)));
@@ -422,7 +422,7 @@ void PaymentServer::handleURIOrFile(const QString& s)
 
             if (fetchUrl.isValid())
             {
-                // qDebug() << "PaymentServer::handleURIOrFile: fetchRequest(" << fetchUrl << ")";
+                qDebug() << "PaymentServer::handleURIOrFile: fetchRequest(" << fetchUrl << ")";
                 fetchRequest(fetchUrl);
             }
             else
@@ -598,14 +598,12 @@ bool PaymentServer::processPaymentRequest(const PaymentRequestPlus& request, Sen
     // Store addresses and format them to fit nicely into the GUI
     recipient.address = addresses.join("<br />");
 
-    /*
     if (!recipient.authenticatedMerchant.isEmpty()) {
         qDebug() << "PaymentServer::processPaymentRequest: Secure payment request from " << recipient.authenticatedMerchant;
     }
     else {
         qDebug() << "PaymentServer::processPaymentRequest: Insecure payment request to " << addresses.join(", ");
     }
-    */
 
     return true;
 }
