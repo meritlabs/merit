@@ -244,6 +244,14 @@ static inline ReferralRef MakeReferralRef(Ref&& referralIn)
     return std::make_shared<const Referral>(std::forward<Ref>(referralIn));
 }
 
+/**
+ * Returns true if the referral's alias passes validation.
+ * It must not be greater than a certain size and not use certain
+ * blacklisted words
+ */
+bool CheckReferralAlias(std::string ref);
+
 } //namespace referral
+
 
 #endif // MERIT_PRIMITIVES_REFERRAL_H

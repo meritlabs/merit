@@ -27,6 +27,7 @@
 #include "utilstrencodings.h"
 #include "validation.h"
 #include "validationinterface.h"
+#include "wallet/wallet.h"
 #include "warnings.h"
 
 #include <numeric>
@@ -220,7 +221,7 @@ UniValue generatetoaddress(const JSONRPCRequest& request)
         nThreads = request.params[3].get_int();
     }
 
-    CTxDestination destination = DecodeDestination(request.params[1].get_str());
+    CTxDestination destination = LookupDestination(prefviewdb, request.params[1].get_str());
     if (!IsValidDestination(destination)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Error: Invalid address");
     }

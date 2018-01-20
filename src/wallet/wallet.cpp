@@ -202,8 +202,12 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
             throw std::runtime_error(strprintf("%s: alias length should not be more than %d characters.", __func__, referral::MAX_ALIAS_LENGTH));
         }
 
+        if(!referral::CheckReferralAlias(alias)) {
+            throw std::runtime_error(std::string(__func__) + ": the alias doesn't pass validation");
+        }
+
         if (prefviewcache->Exists(alias) || mempoolReferral.Exists(alias)) {
-            throw std::runtime_error(strprintf("%s: provided alias is already occupied", __func__));
+            throw std::runtime_error(std::string(__func__) + ": provided alias is already occupied");
         }
     }
 
@@ -1671,13 +1675,11 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         throw std::runtime_error("Cannot generate referral, the public key used is invalid");
     }
 
-    auto referral_version = referral::Referral::CURRENT_VERSION;
-
     // check if we need to set new version of referrals
-    auto expected_block_version = ComputeBlockVersion(chainActive.Tip(), Params().GetConsensus());
-    if ((expected_block_version & DAEDALUS_BIT) != 0) {
-        referral_version = referral::Referral::INVITE_VERSION;
-    }
+    auto referral_version = 
+        ExpectDaedalus(chainActive.Tip(), Params().GetConsensus()) ?
+        referral::Referral::INVITE_VERSION :
+        referral::Referral::CURRENT_VERSION;
 
     // generate referral for given public key
     auto referral =
@@ -4811,5 +4813,19 @@ int CMerkleTx::GetBlocksToMaturity() const
 bool CWalletTx::AcceptToMemoryPool(const CAmount& nAbsurdFee, CValidationState& state)
 {
     return ::AcceptToMemoryPool(mempool, state, tx, true, nullptr, nullptr, false, nAbsurdFee);
+}
+
+CTxDestination LookupDestination(
+        referral::ReferralsViewDB *prefviewdb,
+        const std::string& address)
+{
+    assert(prefviewdb);
+
+    const auto maybe_referral = prefviewdb->GetReferral(address);
+    return maybe_referral ?
+        CMeritAddress{
+            maybe_referral->addressType,
+            maybe_referral->GetAddress()}.Get() :
+        DecodeDestination(address);
 }
 

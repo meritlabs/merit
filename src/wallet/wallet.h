@@ -21,6 +21,7 @@
 #include "wallet/rpcwallet.h"
 #include "primitives/referral.h"
 #include "pog/reward.h"
+#include "refdb.h"
 
 #include <algorithm>
 #include <atomic>
@@ -1351,5 +1352,13 @@ bool CWallet::DummySignTx(CMutableTransaction &txNew, const ContainerType &coins
     }
     return true;
 }
+
+/**
+ * Try to decide if the address is an alias or an address.
+ * If it is an alias, lookup the address.
+ */
+CTxDestination LookupDestination(
+        referral::ReferralsViewDB *prefviewdb,
+        const std::string& address);
 
 #endif // MERIT_WALLET_WALLET_H

@@ -524,7 +524,7 @@ UniValue createrawtransaction(const JSONRPCRequest& request)
             CTxOut out(0, CScript() << OP_RETURN << data);
             rawTx.vout.push_back(out);
         } else {
-            CTxDestination destination = DecodeDestination(name_);
+            CTxDestination destination = LookupDestination(prefviewdb, name_);
             if (!IsValidDestination(destination)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Merit address: ") + name_);
             }
@@ -992,7 +992,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
                     });
                 UniValue v = find_value(prevOut, "redeemScript");
                 if (!v.isNull()) {
-                    auto beaconDest = DecodeDestination(find_value(prevOut, "beaconKey").get_str());
+                    auto beaconDest = LookupDestination(prefviewdb, find_value(prevOut, "beaconKey").get_str());
                     CKeyID beaconId;
                     GetUint160(beaconDest, beaconId);
 

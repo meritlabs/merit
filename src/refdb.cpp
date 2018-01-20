@@ -62,7 +62,7 @@ MaybeReferral ReferralsViewDB::GetReferral(const uint256& hash) const
 
 MaybeReferral ReferralsViewDB::GetReferral(const std::string& alias) const
 {
-    if (alias.size() == 0) {
+    if (alias.size() == 0 || alias.size() > MAX_ALIAS_LENGTH) {
         return {};
     }
 
@@ -100,6 +100,10 @@ bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_par
     debug("Inserting referral %s parent %s",
         CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
         referral.parentAddress.GetHex());
+
+    if(referral.alias.size() > MAX_ALIAS_LENGTH) {
+        return false;
+    }
 
     if (Exists(referral.GetAddress())) {
         return true;

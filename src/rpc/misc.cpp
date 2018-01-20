@@ -159,7 +159,7 @@ UniValue validateaddress(const JSONRPCRequest& request)
     LOCK(cs_main);
 #endif
 
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(prefviewdb, request.params[0].get_str());
     bool isValid = IsValidDestination(dest);
 
     UniValue ret(UniValue::VOBJ);
@@ -230,7 +230,7 @@ UniValue isaddressbeaconed(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VOBJ);
 
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(prefviewdb, request.params[0].get_str());
     bool isValid = IsValidDestination(dest);
 
     ret.push_back(Pair("isvalid", isValid));
@@ -267,7 +267,7 @@ CScript _createmultisig_redeemScript(CWallet * const pwallet, const UniValue& pa
         const std::string& ks = keys[i].get_str();
 #ifdef ENABLE_WALLET
         // Case 1: Merit address and we have full public key:
-        CTxDestination dest = DecodeDestination(ks);
+        CTxDestination dest = LookupDestination(prefviewdb, ks);
         if (pwallet && IsValidDestination(dest)) {
             const CKeyID *keyID = boost::get<CKeyID>(&dest);
             if (!keyID) {
@@ -383,7 +383,7 @@ UniValue verifymessage(const JSONRPCRequest& request)
     std::string strSign     = request.params[1].get_str();
     std::string strMessage  = request.params[2].get_str();
 
-    CTxDestination destination = DecodeDestination(strAddress);
+    CTxDestination destination = LookupDestination(prefviewdb, strAddress);
     if (!IsValidDestination(destination)) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
     }
@@ -1301,7 +1301,7 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
 
     auto script_address = request.params[0].get_str();
 
-    auto dest = DecodeDestination(script_address);
+    auto dest = LookupDestination(prefviewdb, script_address);
     auto script_id = boost::get<CScriptID>(&dest);
     if(script_id == nullptr) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid scriptaddress");

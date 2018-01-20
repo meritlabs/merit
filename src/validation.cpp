@@ -58,6 +58,7 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/thread.hpp>
+#include <cctype>
 
 #if defined(NDEBUG)
 # error "Merit cannot be compiled without assertions."
@@ -171,6 +172,7 @@ namespace {
 
     /** Dirty block file entries. */
     std::set<int> setDirtyFileInfo;
+
 } // anon namespace
 
 CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& locator)
@@ -603,6 +605,10 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             pool.ExistsWithAddress(referral->parentAddress))) {
             missingReferrer = true;
             return state.Invalid(false, REJECT_INVALID, "ref-parent-not-beaconed");
+        }
+
+        if (!referral::CheckReferralAlias(referral->alias)) {
+            return state.Invalid(false, REJECT_INVALID, "ref-bad-alias");
         }
 
         if (!CheckReferralSignature(*referral, pool.GetReferrals())) {
@@ -3630,6 +3636,10 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     for (const auto& ref: block.m_vRef) {
         if (CheckAddressBeaconed(ref->GetAddress(), false)) {
             return error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex());
+        }
+
+        if (!referral::CheckReferralAlias(ref->alias)) {
+            return error("ConnectBlock(): referral alias check failed on %s", ref->GetHash().GetHex());
         }
 
         if (!CheckReferralSignature(*ref, block.m_vRef)) {

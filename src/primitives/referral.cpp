@@ -12,8 +12,30 @@
 #include "utilstrencodings.h"
 #include "random.h"
 
+#include <set>
+#include <cctype>
+#include <algorithm>
+
 namespace referral
 {
+    namespace
+    { 
+        std::set<std::string> INVALID_ALIAS_NAMES = {
+            "merit",
+            "meritlabs",
+        };
+
+    }
+
+bool CheckReferralAlias(std::string alias) 
+{
+    if(alias.size() > MAX_ALIAS_LENGTH) {
+        return false;
+    }
+
+    std::transform(alias.begin(), alias.end(), alias.begin(), ::tolower);
+    return INVALID_ALIAS_NAMES.count(alias) == 0;
+}
 
 MutableReferral::MutableReferral(
         char addressTypeIn,

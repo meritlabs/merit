@@ -69,6 +69,8 @@ std::string HelpRequiringPassphrase(CWallet * const pwallet)
         : "";
 }
 
+
+
 bool EnsureWalletIsAvailable(CWallet * const pwallet, bool avoidException)
 {
     if (pwallet) return true;
@@ -293,7 +295,7 @@ UniValue setaccount(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(prefviewdb, request.params[0].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Merit address");
     }
@@ -342,7 +344,7 @@ UniValue getaccount(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(prefviewdb, request.params[0].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Merit address");
     }
@@ -802,6 +804,8 @@ static UniValue EasyReceive(
 
 UniValue sendtoaddress(const JSONRPCRequest& request)
 {
+    assert(prefviewdb);
+
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
@@ -840,7 +844,7 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(prefviewdb, request.params[0].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
@@ -912,7 +916,7 @@ UniValue confirmaddress(const JSONRPCRequest& request)
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(prefviewdb, request.params[0].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
@@ -1080,7 +1084,7 @@ void ExtractWhitelist(const UniValue& options, vault::Whitelist& whitelist)
 
     for(size_t i = 0; i < list.size(); i++) {
         auto address_str = list[i].get_str();
-        auto dest =  DecodeDestination(address_str);
+        auto dest =  LookupDestination(prefviewdb, address_str);
         uint160 address;
         if(!GetUint160(dest, address)) {
             std::stringstream e;
@@ -1437,7 +1441,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     std::string address = request.params[0].get_str();
 
-    CTxDestination dest = DecodeDestination(address);
+    CTxDestination dest = LookupDestination(prefviewdb, address);
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
     }
@@ -1789,12 +1793,12 @@ UniValue spendvault(const JSONRPCRequest& request)
 
     bool send = request.params[4].isNull() ?  true : request.params[4].get_bool();
 
-    CTxDestination vault_dest = DecodeDestination(vault_address);
+    CTxDestination vault_dest = LookupDestination(prefviewdb, vault_address);
     if (boost::get<CParamScriptID>(&vault_dest) == nullptr) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid vault address");
     }
 
-    CTxDestination dest = DecodeDestination(dest_address);
+    CTxDestination dest = LookupDestination(prefviewdb, dest_address);
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid destination address");
     }
@@ -2009,7 +2013,7 @@ UniValue getvaultinfo(const JSONRPCRequest& request)
 
     std::string address = request.params[0].get_str();
 
-    CTxDestination dest = DecodeDestination(address);
+    CTxDestination dest = LookupDestination(prefviewdb, address);
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
     }
@@ -2160,7 +2164,7 @@ UniValue signmessage(const JSONRPCRequest& request)
     std::string strAddress = request.params[0].get_str();
     std::string strMessage = request.params[1].get_str();
 
-    CTxDestination dest = DecodeDestination(strAddress);
+    CTxDestination dest = LookupDestination(prefviewdb, strAddress);
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
     }
@@ -2217,7 +2221,7 @@ UniValue getreceivedbyaddress(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
 
     // Merit address
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(prefviewdb, request.params[0].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Merit address");
     }
@@ -2491,7 +2495,7 @@ UniValue sendfrom(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
 
     std::string strAccount = AccountFromValue(request.params[0]);
-    CTxDestination dest = DecodeDestination(request.params[1].get_str());
+    CTxDestination dest = LookupDestination(prefviewdb, request.params[1].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Merit address");
     }
@@ -2615,7 +2619,7 @@ UniValue sendmany(const JSONRPCRequest& request)
     CAmount totalAmount = 0;
     std::vector<std::string> keys = sendTo.getKeys();
     for (const std::string& name_ : keys) {
-        CTxDestination dest = DecodeDestination(name_);
+        CTxDestination dest = LookupDestination(prefviewdb, name_);
         if (!IsValidDestination(dest)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Merit address: ") + name_);
         }
@@ -2708,7 +2712,7 @@ UniValue addmultisigaddress(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
 
     uint160 scriptAddress;
-    auto scriptDest = DecodeDestination(request.params[2].get_str());
+    auto scriptDest = LookupDestination(prefviewdb, request.params[2].get_str());
     GetUint160(scriptDest, scriptAddress);
 
     std::string strAccount;
@@ -2828,7 +2832,7 @@ UniValue addwitnessaddress(const JSONRPCRequest& request)
         throw std::runtime_error(msg);
     }
 
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(prefviewdb, request.params[0].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Merit address");
     }
@@ -4342,7 +4346,7 @@ UniValue listunspent(const JSONRPCRequest& request)
         UniValue inputs = request.params[2].get_array();
         for (unsigned int idx = 0; idx < inputs.size(); idx++) {
             const UniValue& input = inputs[idx];
-            CTxDestination dest = DecodeDestination(input.get_str());
+            CTxDestination dest = LookupDestination(prefviewdb, input.get_str());
             if (!IsValidDestination(dest)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Merit address: ") + input.get_str());
             }
@@ -4489,7 +4493,7 @@ UniValue listinvites(const JSONRPCRequest& request)
         UniValue inputs = request.params[0].get_array();
         for (unsigned int idx = 0; idx < inputs.size(); idx++) {
             const UniValue& input = inputs[idx];
-            CTxDestination dest = DecodeDestination(input.get_str());
+            CTxDestination dest = LookupDestination(prefviewdb, input.get_str());
             if (!IsValidDestination(dest)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Merit address: ") + input.get_str());
             }
@@ -4665,7 +4669,7 @@ UniValue fundrawtransaction(const JSONRPCRequest& request)
             true, true);
 
         if (options.exists("changeAddress")) {
-            CTxDestination dest = DecodeDestination(options["changeAddress"].get_str());
+            CTxDestination dest = LookupDestination(prefviewdb, options["changeAddress"].get_str());
 
             if (!IsValidDestination(dest)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "changeAddress must be a valid merit address");
@@ -4960,7 +4964,7 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() < 1 || request.params[0].get_str().empty() || request.params.size() > 2) {
         throw std::runtime_error(
-            "unlockwallet \"parentaddress\"\n"
+            "unlockwallet \"parentaddress\" (\"alias\") \n"
             "Updates the wallet with referral code and beacons first key with associated referral.\n"
             "Returns an object containing various wallet state info.\n"
             "\nArguments:\n"
@@ -5004,7 +5008,7 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     auto parentAddressUint160 = parentAddress.GetUint160();
     assert(parentAddressUint160);
 
-    auto alias = request.params.size() == 2 ? request.params[1].get_str() : "";
+    auto alias = request.params[2].isNull() ? "" : request.params[1].get_str();
 
     referral::ReferralRef referral = pwallet->Unlock(*parentAddressUint160, alias);
 
