@@ -418,10 +418,10 @@ bool WalletModel::IsReferred() const
     return wallet->IsReferred();
 }
 
-referral::ReferralRef WalletModel::Unlock(const referral::Address& parentAddress, const std::string tag)
+referral::ReferralRef WalletModel::Unlock(const referral::Address& parentAddress, const std::string alias)
 {
     assert(wallet);
-    return wallet->Unlock(parentAddress, tag);
+    return wallet->Unlock(parentAddress, alias);
 }
 
 bool WalletModel::setWalletEncrypted(bool encrypted, const SecureString &passphrase)

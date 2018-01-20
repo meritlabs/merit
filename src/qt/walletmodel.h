@@ -140,7 +140,7 @@ public:
     CAmount getWatchImmatureBalance(bool invite = false) const;
     EncryptionStatus getEncryptionStatus() const;
     bool IsReferred() const;
-    referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string tag = "");
+    referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string alias = "");
 
     // Check address for validity
     bool validateAddress(const QString &address);
