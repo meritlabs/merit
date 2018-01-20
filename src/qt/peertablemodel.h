@@ -9,6 +9,8 @@
 #include "net_processing.h" // For CNodeStateStats
 #include "net.h"
 
+#undef debug
+
 #include <QAbstractTableModel>
 #include <QStringList>
 

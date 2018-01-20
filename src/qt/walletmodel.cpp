@@ -403,7 +403,7 @@ WalletModel::EncryptionStatus WalletModel::getEncryptionStatus() const
     {
         return Locked;
     }
-    else if(!wallet->IsReferred()) 
+    else if(!wallet->IsReferred())
     {
         return NotReferred;
     }

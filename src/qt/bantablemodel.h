@@ -8,6 +8,8 @@
 
 #include "net.h"
 
+#undef debug
+
 #include <QAbstractTableModel>
 #include <QStringList>
 
