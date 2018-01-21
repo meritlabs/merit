@@ -874,7 +874,7 @@ void MinerWorker(int thread_id, int threads_number, int nonces_per_thread, const
             if (pblock->nNonce % nonces_per_thread == 0) {
                 pblock->nNonce += pblock->nNonce * threads_number;
             }
-            debug("\t\tthread id: %d; nonce: %d; total threads: %d; per thread: %d", thread_id, pblock->nNonce, threads_number, nonces_per_thread);
+            printf("\t\tthread id: %d; nonce: %d; total threads: %d; per thread: %d", thread_id, pblock->nNonce, threads_number, nonces_per_thread);
         }
     }
 }
@@ -900,9 +900,6 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
 
     int nonces_per_thread = 10;
 
-    debug("ints size: %d", ints->size());
-    debug("cuckoo_pools size: %d", cuckoo_pools->size());
-
     try {
         // Throw an error if no script was provided.  This can happen
         // due to some internal error but also if the keypool is empty.
@@ -916,15 +913,8 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
 
         for (int t = 0; t < parallel_pool_size; t++) {
             parallel_pool.push([&cuckoo_pools, &ints, parallel_pool_size, nonces_per_thread, &chainparams, &coinbase_script](int id) {
-
-                debug("#%d: running miner worker", id);
-                debug("#%d: ints size: %d", id, ints->size());
-                debug("#%d: cuckoo_pools size: %d", id, cuckoo_pools->size());
-
-                debug("#%d: cuckoo_pools[%d].size: %d; address: %p", id, id, cuckoo_pools->at(id)->size(), (void *)&*(cuckoo_pools->at(id)));
-
-                auto start_nonce = id * nonces_per_thread;
                 unsigned int nExtraNonce = 0;
+                auto start_nonce = id * nonces_per_thread;
 
                 while (true) {
                     if (chainparams.MiningRequiresPeers()) {
@@ -1062,7 +1052,7 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
                         if (pblock->nNonce % nonces_per_thread == 0) {
                             pblock->nNonce += nonces_per_thread * (parallel_pool_size - 1);
                         }
-                        debug("\t\tthread id: %d; nonce: %d; total threads: %d; per thread: %d", id, pblock->nNonce, parallel_pool_size, nonces_per_thread);
+                        LogPrintf("\t\tthread id: %d; nonce: %d; total threads: %d; per thread: %d; ", id, pblock->nNonce, parallel_pool_size, nonces_per_thread);
                     }
                 }
             });

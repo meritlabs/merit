@@ -1321,9 +1321,6 @@ public:
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
 bool run(const uint256& hash, uint8_t proofSize, std::set<uint32_t>& cycle, ctpl::thread_pool& pool)
 {
-    printf("#%s: in cuckoo. pool address: %p\n", __func__, (void *)&pool);
-    printf("#%s: running cuckoo with %d threads\n", __func__, pool.size());
-
     // TODO: modify checks in the algorith the way we would be able to generate more edges
     // should require changes of BUCKETSIZE values
     assert(EDGEBITS >= MIN_EDGE_BITS && EDGEBITS <= MAX_EDGE_BITS);
