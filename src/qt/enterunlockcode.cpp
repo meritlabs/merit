@@ -11,6 +11,8 @@
 #include <QPropertyAnimation>
 #include <QMessageBox>
 
+const int ADDRESS_LENGTH = 34;
+
 EnterUnlockCode::EnterUnlockCode(QWidget *parent) :
 QWidget(parent),
 ui(new Ui::EnterUnlockCode),
@@ -91,7 +93,7 @@ void EnterUnlockCode::setModel(WalletModel *model)
 
 void EnterUnlockCode::unlockCodeChanged(const QString &newText)
 {
-    if(newText.length() < 34) {
+    if(newText.length() < ADDRESS_LENGTH) {
         SetCanSubmit(false);
         return;
     }
