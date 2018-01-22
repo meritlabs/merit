@@ -99,7 +99,7 @@ Ubuntu Xenial 16.04 and Windows Subsystem for Linux <sup>[1](#footnote1),[2](#fo
     sudo apt-get upgrade
     sudo update-alternatives --config x86_64-w64-mingw32-g++ # Set the default mingw32 g++ compiler option to posix.
 
-Ubuntu Zesty 17.04 <sup>[2](#footnote2)</sup>:
+Ubuntu Zesty 17.04 and Artful 17.10 <sup>[2](#footnote2)</sup>:
 
     sudo update-alternatives --config x86_64-w64-mingw32-g++ # Set the default mingw32 g++ compiler option to posix.
 
@@ -119,7 +119,7 @@ To build executables for Windows 32-bit, install the following dependencies:
 
     sudo apt-get install g++-mingw-w64-i686 mingw-w64-i686-dev
 
-For Ubuntu Xenial 16.04, Ubuntu Zesty 17.04 and Windows Subsystem for Linux <sup>[2](#footnote2)</sup>:
+For Ubuntu Xenial 16.04, Ubuntu Zesty 17.04, Artful 17.10 and Windows Subsystem for Linux <sup>[2](#footnote2)</sup>:
 
     sudo update-alternatives --config i686-w64-mingw32-g++  # Set the default mingw32 g++ compiler option to posix.
 
