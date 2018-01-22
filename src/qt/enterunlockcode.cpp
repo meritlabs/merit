@@ -2,8 +2,6 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "base58.h"
-
 #include "enterunlockcode.h"
 #include "ui_enterunlockcode.h"
 
@@ -13,6 +11,8 @@
 #include <QPropertyAnimation>
 #include <QMessageBox>
 
+const int ADDRESS_LENGTH = 34;
+
 EnterUnlockCode::EnterUnlockCode(QWidget *parent) :
 QWidget(parent),
 ui(new Ui::EnterUnlockCode),
@@ -20,7 +20,10 @@ layerIsVisible(false),
 userClosed(false)
 {
     ui->setupUi(this);
-    connect(ui->submitButton, SIGNAL(clicked()), this, SLOT(submitButtonClicked()));
+    connect(ui->unlockCodeTextInput, SIGNAL(textChanged(QString)), this, SLOT(unlockCodeChanged(QString)));
+    connect(this, SIGNAL(CanSubmitChanged(bool)), ui->submitButton, SLOT(setEnabled(bool)));
+    connect(ui->submitButton, SIGNAL(clicked()), this, SLOT(submit()));
+    connect(ui->unlockCodeTextInput, SIGNAL(returnPressed()), this, SLOT(submit()));
     if (parent) {
         parent->installEventFilter(this);
         raise();
@@ -88,33 +91,43 @@ void EnterUnlockCode::setModel(WalletModel *model)
     this->walletModel = model;
 }
 
-void EnterUnlockCode::submitButtonClicked()
+void EnterUnlockCode::unlockCodeChanged(const QString &newText)
 {
-    CMeritAddress parentAddress
-    {
-        ui->unlockCodeTextInput->toPlainText().toStdString()
-    };
-
-    if (!parentAddress.IsValid()) {
-        InvalidAddressMessageBox();
+    if(newText.length() < ADDRESS_LENGTH) {
+        SetCanSubmit(false);
         return;
     }
+    parentAddress.SetString(newText.toStdString());
+    SetCanSubmit(parentAddress.IsValid());
+}
+
+void EnterUnlockCode::SetCanSubmit(bool _canSubmit)
+{
+    if(canSubmit != _canSubmit)
+        Q_EMIT CanSubmitChanged(_canSubmit);
+
+    canSubmit = _canSubmit;
+}
+
+void EnterUnlockCode::submit()
+{
+    if(!canSubmit)
+        return;
 
     auto parentAddressUint160 = parentAddress.GetUint160();
     if(parentAddressUint160) {
-        referral::ReferralRef referral = walletModel->Unlock(*parentAddressUint160);
-        if(referral) {
-            Q_EMIT walletReferred();
-        } else {
-          InvalidAddressMessageBox();
+        try {
+            auto alias = ui->aliasTextInput->text().toStdString();
+
+            referral::ReferralRef referral =
+                walletModel->Unlock(*parentAddressUint160, alias);
+
+            Q_EMIT WalletReferred();
+        } catch (const std::runtime_error &err) {
+            QMessageBox::warning(
+                this, 
+                tr("Sorry, there was a problem."), 
+                tr(err.what()));
         }
     }
-}
-
-void EnterUnlockCode::InvalidAddressMessageBox()
-{
-    QMessageBox msgBox;
-    msgBox.setText(tr("Sorry, that address is invalid."));
-    msgBox.setIcon(QMessageBox::Warning);
-    msgBox.exec();
 }

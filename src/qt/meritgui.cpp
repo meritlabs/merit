@@ -256,7 +256,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
         connect(walletFrame, SIGNAL(requestedSyncWarningInfo()), this, SLOT(showModalOverlay()));
         connect(labelBlocksIcon, SIGNAL(clicked(QPoint)), this, SLOT(showModalOverlay()));
         connect(progressBar, SIGNAL(clicked(QPoint)), this, SLOT(showModalOverlay()));
-        connect(enterUnlockCode, SIGNAL(walletReferred()), this, SLOT(walletReferred()));
+        connect(enterUnlockCode, SIGNAL(WalletReferred()), this, SLOT(walletReferred()));
     }
 #endif
 }
