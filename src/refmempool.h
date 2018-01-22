@@ -71,9 +71,13 @@ public:
     }
 };
 
+struct referral_address {
+};
+
 struct referral_alias {
 };
 
+Address GetAddress(const RefMemPoolEntry& entry);
 std::string GetAlias(const RefMemPoolEntry& entry);
 
 class ReferralTxMemPool
@@ -90,6 +94,14 @@ public:
             boost::multi_index::hashed_unique<
                 MemPoolEntryHash<Referral>,
                 SaltedTxidHasher>,
+                // sorted by address
+            boost::multi_index::hashed_unique<
+                boost::multi_index::tag<referral_address>,
+                boost::multi_index::global_fun<
+                    const RefMemPoolEntry&,
+                    Address,
+                    &GetAddress>,
+                SaltedHasher<160>>,
             // use non-unique here to support empty tags.
             // otherwise it won't add such referrals to index
             // uniqueness is provided by validation
@@ -175,26 +187,28 @@ public:
     const setEntries& GetMemPoolChildren(refiter entry) const;
 
     /**
-     *  Check if referral with a given address exists in mempool
-     */
-    bool ExistsWithAddress(const Address& address) const;
-
-    /**
-     *  Get referral with a given address from mempool
-     */
-    ReferralRef GetWithAddress(const Address& address) const;
-
-    /**
      * Check if referral with a given hash exists in mempoll
      */
     bool Exists(const uint256& hash) const;
+
+    /**
+     *  Check if referral with a given address exists in mempool
+     */
+    bool Exists(const Address& address) const;
 
     /**
      * Check if referral with a given alias exists in mempoll
      */
     bool Exists(const std::string& alias) const;
 
+    /** Get referral by hash */
     ReferralRef Get(const uint256& hash) const;
+
+    /** Get referral by address */
+    ReferralRef Get(const Address& address) const;
+
+    /** Get referral by alias */
+    ReferralRef Get(const std::string& alias) const;
 
     unsigned long Size() const
     {

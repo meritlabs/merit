@@ -4151,6 +4151,7 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
             "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
             "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
             "  \"referred\": true|false           (boolean) if wallet is referred\n"
+            "  \"confirmed\": true|false          (boolean) if wallet is confirmed\n"
             "  \"referraladdress\": xxxxxx        (string) referral address to use to share with other users\n"
             "  \"invites\": xxxxxx                (numeric) number of available invites\n"
             "  \"immature_invites\": xxxxxx       (numeric) number of immature invites\n"
@@ -4191,7 +4192,10 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
         auto referral = pwallet->GetRootReferral();
         assert(!referral->GetHash().IsNull());
 
-        obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{referral->GetAddress()})));
+        auto address = referral->GetAddress();
+
+        obj.push_back(Pair("confirmed", CheckAddressConfirmed(address, referral->addressType)));
+        obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{address})));
     }
 
     obj.push_back(Pair("invites", pwallet->GetBalance(true)));

@@ -192,7 +192,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
 
     // check parent address and alias not to generate keys
     // TODO: remove generated key from map if referral transaction failed and remove this checks
-    if (!prefviewcache->Exists(parentAddress) && !mempoolReferral.ExistsWithAddress(parentAddress)) {
+    if (!prefviewcache->Exists(parentAddress) && !mempoolReferral.Exists(parentAddress)) {
         throw std::runtime_error(std::string(__func__) + ": provided address does not exist in the chain");
     }
 
@@ -1676,7 +1676,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
     }
 
     // check if we need to set new version of referrals
-    auto referral_version = 
+    auto referral_version =
         ExpectDaedalus(chainActive.Tip(), Params().GetConsensus()) ?
         referral::Referral::INVITE_VERSION :
         referral::Referral::CURRENT_VERSION;

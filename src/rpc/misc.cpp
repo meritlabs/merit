@@ -169,7 +169,10 @@ UniValue validateaddress(const JSONRPCRequest& request)
         auto address = CMeritAddress{dest};
 
         bool isBeaconed = CheckAddressBeaconed(address);
+        bool isConfirmed = CheckAddressConfirmed(address);
+
         ret.push_back(Pair("isbeaconed", isBeaconed));
+        ret.push_back(Pair("isconfirmed", isConfirmed));
         ret.push_back(Pair("address", address.ToString()));
         ret.push_back(Pair("addresstype", address.GetTypeStr()));
 

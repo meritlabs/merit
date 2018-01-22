@@ -602,7 +602,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
         }
 
         if (!(prefviewcache->Exists(referral->parentAddress) ||
-            pool.ExistsWithAddress(referral->parentAddress))) {
+            pool.Exists(referral->parentAddress))) {
             missingReferrer = true;
             return state.Invalid(false, REJECT_INVALID, "ref-parent-not-beaconed");
         }
@@ -4918,26 +4918,42 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
 // Check if an address is valid (beaconed)
 bool CheckAddressBeaconed(const uint160& addr, bool checkMempool)
 {
-    bool beaconed = prefviewcache->Exists(addr);
-
-    if (!beaconed && checkMempool) {
-        // check mempool referrals for beaconed address
-        const auto it =
-            std::find_if (mempoolReferral.mapRTx.begin(), mempoolReferral.mapRTx.end(),
-                [&addr](const referral::RefMemPoolEntry& entry) {
-                    return entry.GetSharedEntryValue()->GetAddress() == addr;
-                });
-
-        beaconed = it != mempoolReferral.mapRTx.end();
-    }
-
-    return beaconed;
+    return prefviewcache->Exists(addr) || (checkMempool && mempoolReferral.Exists(addr));
 }
 
 bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool)
 {
     const auto maybe_hash = addr.GetUint160();
     return maybe_hash ? CheckAddressBeaconed(*maybe_hash, checkMempool) : false;
+}
+
+// Check if an address is valid (beaconed)
+bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempool)
+{
+    bool beaconed = prefviewdb->IsConfirmed(addr);
+
+    if (beaconed) {
+        return true;
+    }
+
+    // check mempool for confirmation invite transaction
+    std::vector<std::pair<uint160, int>> addresses{std::make_pair(addr, addr_type)};
+    std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
+
+    mempool.getAddressIndex(addresses, indexes);
+
+    for (const auto& index: indexes) {
+        printf("output amount: %d", index.second.amount);
+    }
+
+    // we assume that non-invite tx cannot be added to mempool before invite tx is there
+    return indexes.size() > 0;
+}
+
+bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool)
+{
+    const auto maybe_hash = addr.GetUint160();
+    return maybe_hash ? CheckAddressConfirmed(*maybe_hash, addr.GetType(), checkMempool) : false;
 }
 
 // Compute at which vout of the block's coinbase transaction the witness

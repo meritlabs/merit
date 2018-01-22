@@ -174,6 +174,7 @@ void RefToUniv(const referral::Referral& ref, const uint256& hashBlock, UniValue
     entry.pushKV("refid", ref.GetHash().GetHex());
     entry.pushKV("version", ref.version);
     entry.pushKV("address", CMeritAddress{ref.addressType, ref.GetAddress()}.ToString());
+    entry.pushKV("alias", ref.alias);
 
     if(ref.addressType > 1) {
         auto signedAddress = ref.pubkey.GetID();

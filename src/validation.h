@@ -527,6 +527,11 @@ bool CheckAddressBeaconed(const uint160&, bool checkMempool = true);
 /** Check that an address is valid and ready to use */
 bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool = true);
 
+/** Check that an address is valid and ready to use */
+bool CheckAddressConfirmed(const uint160&, char addr_type, bool checkMempool = true);
+
+/** Check that an address is valid and ready to use */
+bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool = true);
 
 /** When there are blocks in the active chain with missing data, rewind the chainstate and remove them from the block index */
 bool RewindBlockIndex(const CChainParams& params);
