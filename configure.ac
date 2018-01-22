@@ -227,6 +227,12 @@ AC_ARG_ENABLE([wmarch],
     [enable_wmarch=$enableval],
     [enable_wmarch=no])
 
+AC_ARG_ENABLE([qdebug],
+  [AS_HELP_STRING([--enable-qdebug],
+  [Enable Qt Debug (default is false)])],
+  [enable_qdebug=$enableval],
+  [enable_qdebug=no])
+
 AC_LANG_PUSH([C++])
 AX_CHECK_COMPILE_FLAG([-Werror],[CXXFLAG_WERROR="-Werror"],[CXXFLAG_WERROR=""])
 
@@ -241,6 +247,11 @@ fi
 if test "x$enable_march" = xyes; then
   CXXFLAGS="$CXXFLAGS -march=native"
   CFLAGS="$CFLAGS -march=native"
+fi
+
+if test "x$enable_qdebug" != xyes; then
+  CXXFLAGS="$CXXFLAGS -DQT_NO_DEBUG_OUTPUT"
+  CFLAGS="$CFLAGS -DQT_NO_DEBUG_OUTPUT"
 fi
 
 ERROR_CXXFLAGS=
@@ -1300,14 +1311,15 @@ if test x$merit_enable_qt != xno; then
     echo "    qt version  = $merit_qt_got_major_vers"
     echo "    with qr     = $use_qr"
 fi
-echo "  with zmq      = $use_zmq"
-echo "  with test     = $use_tests"
-echo "  with bench    = $use_bench"
-echo "  with upnp     = $use_upnp"
-echo "  use asm       = $use_asm"
-echo "  debug enabled = $enable_debug"
-echo "  werror        = $enable_werror"
-echo "  native march  = $enable_march"
+echo "  with zmq         = $use_zmq"
+echo "  with test        = $use_tests"
+echo "  with bench       = $use_bench"
+echo "  with upnp        = $use_upnp"
+echo "  use asm          = $use_asm"
+echo "  debug enabled    = $enable_debug"
+echo "  Qt debug enabled = $enable_qdebug"
+echo "  werror           = $enable_werror"
+echo "  native march     = $enable_march"
 echo
 echo "  target os     = $TARGET_OS"
 echo "  build os      = $BUILD_OS"
