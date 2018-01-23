@@ -607,10 +607,6 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_INVALID, "ref-parent-not-beaconed");
         }
 
-        if (!referral::CheckReferralAlias(referral->alias)) {
-            return state.Invalid(false, REJECT_INVALID, "ref-bad-alias");
-        }
-
         if (!CheckReferralSignature(*referral, pool.GetReferrals())) {
             return state.Invalid(false, REJECT_INVALID, "ref-bad-sig");
         }
@@ -3636,10 +3632,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     for (const auto& ref: block.m_vRef) {
         if (CheckAddressBeaconed(ref->GetAddress(), false)) {
             return error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex());
-        }
-
-        if (!referral::CheckReferralAlias(ref->alias)) {
-            return error("ConnectBlock(): referral alias check failed on %s", ref->GetHash().GetHex());
         }
 
         if (!CheckReferralSignature(*ref, block.m_vRef)) {
