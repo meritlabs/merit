@@ -36,6 +36,21 @@ using AnvRat = boost::rational<CAmount>;
 using TransactionOutIndex = int;
 using ConfirmationVal = std::pair<char, Address>;
 
+namespace {
+    class ReferralIdVisitor : public boost::static_visitor<MaybeReferral>
+    {
+    private:
+        const ReferralsViewDB *db;
+    public:
+        explicit ReferralIdVisitor(const ReferralsViewDB *db_in): db{db_in} {}
+
+        template <typename T>
+        MaybeReferral operator()(const T &id) const {
+            return db->GetReferral(id);
+        }
+    };
+}
+
 ReferralsViewDB::ReferralsViewDB(
     size_t cache_size,
     bool memory,
@@ -73,6 +88,12 @@ MaybeReferral ReferralsViewDB::GetReferral(const std::string& alias) const
 
     return {};
 }
+
+MaybeReferral ReferralsViewDB::GetReferral(const ReferralId& referral_id) const
+{
+    return boost::apply_visitor(ReferralIdVisitor(this), referral_id);
+}
+
 
 MaybeAddress ReferralsViewDB::GetAddressByPubKey(const CPubKey& pubkey) const
 {

@@ -14,12 +14,14 @@
 #include <stdint.h>
 #include <vector>
 #include <boost/optional.hpp>
+#include <boost/variant.hpp>
 
 typedef std::vector<unsigned char> valtype;
 
 namespace referral
 {
 using Address = uint160;
+using ReferralId = boost::variant<uint256, referral::Address, std::string>;
 
 struct MutableReferral;
 

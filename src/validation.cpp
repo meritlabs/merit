@@ -4942,10 +4942,6 @@ bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempoo
 
     mempool.getAddressIndex(addresses, indexes);
 
-    for (const auto& index: indexes) {
-        printf("output amount: %d", index.second.amount);
-    }
-
     // we assume that non-invite tx cannot be added to mempool before invite tx is there
     return indexes.size() > 0;
 }
@@ -4954,6 +4950,49 @@ bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool)
 {
     const auto maybe_hash = addr.GetUint160();
     return maybe_hash ? CheckAddressConfirmed(*maybe_hash, addr.GetType(), checkMempool) : false;
+}
+
+CTxDestination LookupDestination(const std::string& address)
+{
+    assert(prefviewdb);
+
+    auto dest = DecodeDestination(address);
+
+    // check if address is a valid destionation => it's an address
+    // otherwise try to get referral by alias and get it's address
+    if (IsValidDestination(dest)) {
+        return dest;
+    }
+
+    // Get referral by alias from cache
+    auto cached_referral = prefviewdb->GetReferral(address);
+    if (cached_referral) {
+        return CMeritAddress{cached_referral->addressType, cached_referral->GetAddress()}.Get();
+    }
+
+    // Get referral by alias from cache
+    auto mempool_referral = mempoolReferral.Get(address);
+    if (mempool_referral) {
+        return CMeritAddress{mempool_referral->addressType, mempool_referral->GetAddress()}.Get();
+    }
+
+    // if dest is not a valid festination and
+    // we have no referrals assosiated with this alias
+    // return decoded dest
+    return dest;
+}
+
+const referral::ReferralRef LookupReferral(referral::ReferralId& referral_id)
+{
+    auto mempool_referral = mempoolReferral.Get(referral_id);
+
+    if (mempool_referral) {
+        return mempool_referral;
+    }
+
+    auto cached_referral = prefviewdb->GetReferral(referral_id);
+
+    return cached_referral ? MakeReferralRef(*cached_referral) : nullptr;
 }
 
 // Compute at which vout of the block's coinbase transaction the witness

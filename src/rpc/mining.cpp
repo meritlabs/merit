@@ -221,7 +221,7 @@ UniValue generatetoaddress(const JSONRPCRequest& request)
         nThreads = request.params[3].get_int();
     }
 
-    CTxDestination destination = LookupDestination(prefviewdb, request.params[1].get_str());
+    CTxDestination destination = LookupDestination(request.params[1].get_str());
     if (!IsValidDestination(destination)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Error: Invalid address");
     }

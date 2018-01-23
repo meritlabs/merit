@@ -4814,18 +4814,3 @@ bool CWalletTx::AcceptToMemoryPool(const CAmount& nAbsurdFee, CValidationState& 
 {
     return ::AcceptToMemoryPool(mempool, state, tx, true, nullptr, nullptr, false, nAbsurdFee);
 }
-
-CTxDestination LookupDestination(
-        referral::ReferralsViewDB *prefviewdb,
-        const std::string& address)
-{
-    assert(prefviewdb);
-
-    const auto maybe_referral = prefviewdb->GetReferral(address);
-    return maybe_referral ?
-        CMeritAddress{
-            maybe_referral->addressType,
-            maybe_referral->GetAddress()}.Get() :
-        DecodeDestination(address);
-}
-

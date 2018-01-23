@@ -524,7 +524,7 @@ UniValue createrawtransaction(const JSONRPCRequest& request)
             CTxOut out(0, CScript() << OP_RETURN << data);
             rawTx.vout.push_back(out);
         } else {
-            CTxDestination destination = LookupDestination(prefviewdb, name_);
+            CTxDestination destination = LookupDestination(name_);
             if (!IsValidDestination(destination)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Merit address: ") + name_);
             }
@@ -743,7 +743,7 @@ UniValue combinerawtransaction(const JSONRPCRequest& request)
         }
 
         // switch back to avoid locking mempool for too long
-        view.SetBackend(viewDummy); 
+        view.SetBackend(viewDummy);
     }
 
     // Use CTransaction for the constant parts of the
@@ -896,7 +896,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
             CMeritSecret vchSecret;
             bool fGood = vchSecret.SetString(k.get_str());
 
-            if (!fGood) { 
+            if (!fGood) {
                 throw JSONRPCError(
                         RPC_INVALID_ADDRESS_OR_KEY,
                         "Invalid private key");
@@ -904,7 +904,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
 
             CKey key = vchSecret.GetKey();
 
-            if (!key.IsValid()) { 
+            if (!key.IsValid()) {
                 throw JSONRPCError(
                         RPC_INVALID_ADDRESS_OR_KEY,
                         "Private key outside allowed range");
@@ -992,7 +992,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
                     });
                 UniValue v = find_value(prevOut, "redeemScript");
                 if (!v.isNull()) {
-                    auto beaconDest = LookupDestination(prefviewdb, find_value(prevOut, "beaconKey").get_str());
+                    auto beaconDest = LookupDestination(find_value(prevOut, "beaconKey").get_str());
                     CKeyID beaconId;
                     GetUint160(beaconDest, beaconId);
 
@@ -1005,7 +1005,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
 
                     CTxDestination dest;
                     if(ExtractDestination(scriptPubKey, dest)) {
-                        uint160 address; 
+                        uint160 address;
                         if(GetUint160(dest, address)) {
                             tempKeystore.AddReferralAddressPubKey(address, beaconId);
                         }

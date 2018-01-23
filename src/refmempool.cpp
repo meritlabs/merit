@@ -197,6 +197,21 @@ int ReferralTxMemPool::Expire(int64_t time) {
     return stage.size();
 }
 
+namespace {
+    class ReferralIdVisitor : public boost::static_visitor<ReferralRef>
+    {
+    private:
+        const ReferralTxMemPool *mempool;
+    public:
+        explicit ReferralIdVisitor(const ReferralTxMemPool *mempool_in): mempool{mempool_in} {}
+
+        template <typename T>
+        ReferralRef operator()(const T &id) const {
+            return mempool->Get(id);
+        }
+    };
+}
+
 ReferralRef ReferralTxMemPool::Get(const uint256& hash) const
 {
     LOCK(cs);
@@ -207,7 +222,6 @@ ReferralRef ReferralTxMemPool::Get(const uint256& hash) const
 ReferralRef ReferralTxMemPool::Get(const Address& address) const
 {
     LOCK(cs);
-    printf("get referral from mempool by address\n");
     auto it = mapRTx.get<referral_address>().find(address);
     return it != mapRTx.get<referral_address>().end() ? it->GetSharedEntryValue() : nullptr;
 }
@@ -215,9 +229,13 @@ ReferralRef ReferralTxMemPool::Get(const Address& address) const
 ReferralRef ReferralTxMemPool::Get(const std::string& alias) const
 {
     LOCK(cs);
-    printf("get referral from mempool by alias\n");
     auto it = mapRTx.get<referral_alias>().find(alias);
     return it != mapRTx.get<referral_alias>().end() ? it->GetSharedEntryValue() : nullptr;
+}
+
+ReferralRef ReferralTxMemPool::Get(const ReferralId& referral_id) const
+{
+    return boost::apply_visitor(ReferralIdVisitor(this), referral_id);
 }
 
 bool ReferralTxMemPool::Exists(const uint256& hash) const

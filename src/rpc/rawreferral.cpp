@@ -41,11 +41,6 @@ void RefToJSON(const Referral& ref, const uint256 hashBlock, UniValue& entry)
     }
 }
 
-void LookupReferral(const uint256& hash, const std::string& address_or_alias)
-{
-
-}
-
 UniValue getrawreferral(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
@@ -104,29 +99,34 @@ UniValue getrawreferral(const JSONRPCRequest& request)
         }
     }
 
-    uint256 hash;
+    ReferralId referral_id;
 
     try {
-        hash = ParseHashV(request.params[0], "refid");
+        referral_id = ParseHashV(request.params[0], "refid");
     } catch (const UniValue& e) {
         auto address_or_alias = request.params[0];
         if (!address_or_alias.isStr()) {
             throw JSONRPCError(RPC_TYPE_ERROR, "Invalid type provided. refid should be a string.");
         }
 
-        auto ref = mempoolReferral.Get(address_or_alias.get_str());
-
-        if (!ref) {
-            auto ref = prefviewdb->GetReferral(address_or_alias.get_str());
-
-            if (!ref) {
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about referral");
-            }
+        auto dest = LookupDestination(address_or_alias.get_str());
+        if (!IsValidDestination(dest)) {
+            throw JSONRPCError(RPC_TYPE_ERROR, "Provided refid is not a valid referral address or known alias.");
         }
 
-        hash = ref->GetHash();
+        auto address = CMeritAddress{dest};
+        referral_id = *(address.GetUint160());
     }
+
     ReferralRef ref;
+    ref = LookupReferral(referral_id);
+
+    if (!ref) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about referral");
+    }
+
+    auto hash = ref->GetHash();
+
     uint256 hashBlock;
     {
         LOCK(cs_main);

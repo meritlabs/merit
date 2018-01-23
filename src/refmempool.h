@@ -210,6 +210,9 @@ public:
     /** Get referral by alias */
     ReferralRef Get(const std::string& alias) const;
 
+    /** Get referral by id - hash, address or alias */
+    ReferralRef Get(const ReferralId& referral_id) const;
+
     unsigned long Size() const
     {
         LOCK(cs);
