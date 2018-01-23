@@ -196,7 +196,7 @@ void Shutdown()
         pwallet->Flush(false);
     }
 #endif
-    GenerateMerit(false, 0, Params());
+    GenerateMerit(false, 0, 0, 0, Params());
     MapPort(false);
     UnregisterValidationInterface(peerLogic.get());
     peerLogic.reset();
@@ -353,7 +353,9 @@ std::string HelpMessage(HelpMessageMode mode)
 #endif
     }
     strUsage += HelpMessageOpt("-mine", _("Mine coins in the background"));
-    strUsage += HelpMessageOpt("-mineproclimit=<n>", strprintf(_("Set the number of threads for coins mining if enabled (-1 = all cores, default: %d)"), DEFAULT_MINING_THREADS));
+    strUsage += HelpMessageOpt("-minepowthreads=<n>", strprintf(_("Set the number of threads for pow attempt if enabled (-1 = all cores, default: %d)"), DEFAULT_MINING_POW_THREADS));
+    strUsage += HelpMessageOpt("-minebucketsize=<n>", strprintf(_("Set the number of nonces to check by one bucket (0 - unlimited)"), DEFAULT_MINING_BUCKET_SIZE));
+    strUsage += HelpMessageOpt("-minebucketthreads=<n>", strprintf(_("Set the number of buckets run in parrallel"), DEFAULT_MINING_BUCKET_THREADS));
 
     strUsage += HelpMessageOpt("-datadir=<dir>", _("Specify data directory"));
     if (showDebug) {
@@ -1770,7 +1772,10 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     if (gArgs.IsArgSet("-mine")) {
         // Generate coins in the background
-        GenerateMerit(true, gArgs.GetArg("-mineproclimit", DEFAULT_MINING_THREADS), chainparams);
+        auto pow_threads = gArgs.GetArg("-minepowthreads", DEFAULT_MINING_POW_THREADS);
+        auto bucket_size = gArgs.GetArg("-minebucketsize", DEFAULT_MINING_BUCKET_SIZE);
+        auto bucket_threads = gArgs.GetArg("-minebucketthreads", DEFAULT_MINING_BUCKET_THREADS);
+        GenerateMerit(true, pow_threads, bucket_size, bucket_threads, chainparams);
     }
 
     // ********************************************************* Step 12: finished
