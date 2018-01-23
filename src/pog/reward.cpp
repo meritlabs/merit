@@ -77,8 +77,22 @@ namespace pog
             return params.daedalus_max_invites_per_block;
         }
 
-        if(lottery.invites_used <= 0) {
-            return 0;
+        assert(lottery.invites_used >= 0);
+
+        if(lottery.invites_used == 0) {
+            /**
+             * If no invites are generated and no invites are used,
+             * There is a chance those that use invites are starved and
+             * those that don't use invites have too many. 
+             *
+             * Create an invite in the hope of giving it to someone who will
+             * use it.
+             */
+            if(lottery.invites_created == 0) {
+                return 1;
+            } else {
+                return 0;
+            }
         }
 
         const auto scaled_invites_used = lottery.invites_used * 100;
