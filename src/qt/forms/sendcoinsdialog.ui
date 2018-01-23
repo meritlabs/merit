@@ -689,7 +689,7 @@ QListView {
          <number>10</number>
         </property>
         <property name="topMargin">
-         <number>0</number>
+         <number>10</number>
         </property>
         <item>
          <layout class="QHBoxLayout" name="horizontalLayoutFee1">
@@ -746,6 +746,12 @@ QListView {
               </item>
               <item>
                <widget class="QLabel" name="labelFeeMinimized">
+                <property name="font">
+                 <font>
+                  <weight>75</weight>
+                  <bold>true</bold>
+                 </font>
+                </property>
                 <property name="text">
                  <string/>
                 </property>
@@ -824,6 +830,9 @@ QListView {
         </item>
         <item>
          <widget class="QFrame" name="frameFeeSelection">
+          <property name="styleSheet">
+           <string notr="true">border: none;</string>
+          </property>
           <layout class="QVBoxLayout" name="verticalLayoutFee12">
            <property name="spacing">
             <number>0</number>
@@ -843,16 +852,13 @@ QListView {
            <item>
             <layout class="QGridLayout" name="gridLayoutFee">
              <property name="topMargin">
-              <number>10</number>
+              <number>4</number>
              </property>
              <property name="bottomMargin">
               <number>4</number>
              </property>
-             <property name="horizontalSpacing">
+             <property name="spacing">
               <number>10</number>
-             </property>
-             <property name="verticalSpacing">
-              <number>4</number>
              </property>
              <item row="1" column="1">
               <layout class="QVBoxLayout" name="verticalLayoutFee8">
@@ -1148,7 +1154,7 @@ QListView {
           <property name="sizeHint" stdset="0">
            <size>
             <width>40</width>
-            <height>5</height>
+            <height>10</height>
            </size>
           </property>
          </spacer>
