@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>850</width>
-    <height>526</height>
+    <height>569</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -79,6 +79,7 @@
             </property>
             <property name="font">
              <font>
+              <pointsize>16</pointsize>
               <weight>75</weight>
               <bold>true</bold>
              </font>
@@ -587,8 +588,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>830</width>
-        <height>104</height>
+        <width>824</width>
+        <height>72</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,1">
@@ -641,6 +642,21 @@
        <width>16777215</width>
        <height>16777215</height>
       </size>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">QFrame {
+  background-color: white;
+  border-radius: 3px;
+  border: 1px solid #E2E2E2;
+}
+
+QLabel {
+  border: none;
+}
+
+QListView {
+  border: none;
+}</string>
      </property>
      <property name="frameShape">
       <enum>QFrame::StyledPanel</enum>
@@ -761,14 +777,14 @@
           </item>
           <item>
            <widget class="QLabel" name="fallbackFeeWarningLabel">
+            <property name="font">
+             <font>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
             <property name="toolTip">
              <string>Using the fallbackfee can result in sending a transaction that will take several hours or days (or never) to confirm. Consider choosing your fee manually or wait until you have validated the complete chain.</string>
-            </property>
-            <property name="font">
-            <font>
-                <weight>75</weight>
-                <bold>true</bold>
-            </font>
             </property>
             <property name="text">
              <string>Warning: Fee estimation is currently not possible.</string>
@@ -1113,11 +1129,11 @@
            </item>
            <item>
             <widget class="QCheckBox" name="optInRBF">
-             <property name="text">
-              <string>Request Replace-By-Fee</string>
-             </property>
              <property name="toolTip">
               <string>Indicates that the sender may wish to replace this transaction with a new one paying higher fees (prior to being confirmed).</string>
+             </property>
+             <property name="text">
+              <string>Request Replace-By-Fee</string>
              </property>
             </widget>
            </item>
@@ -1284,7 +1300,7 @@
  </resources>
  <connections/>
  <buttongroups>
-  <buttongroup name="groupFee"/>
   <buttongroup name="groupCustomFee"/>
+  <buttongroup name="groupFee"/>
  </buttongroups>
 </ui>
