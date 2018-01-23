@@ -133,6 +133,12 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
     vframelayout->addWidget(title);
 
     QTableView *view = new QTableView(this);
+    view->setStyleSheet(
+          QString("QTableView { border: 1px solid #E2E2E2; } ") +
+          QString("QHeaderView::section { font-size: 13pt; background-color: #F5F6F7; border-style: none; padding-left: 5px; padding-right: 5px; } ") +
+          QString("QHeaderView::down-arrow { width: 13px; height: 8px; subcontrol-position: center right; } ") +
+          QString("QHeaderView::up-arrow { width: 13px; height: 8px; subcontrol-position: center right; } "));
+    view->setShowGrid(false);
     vframelayout->addLayout(hlayout);
     vframelayout->addWidget(createDateRangeWidget());
     vframelayout->addWidget(view);
