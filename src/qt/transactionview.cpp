@@ -117,11 +117,26 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
     vlayout->setContentsMargins(0,0,0,0);
     vlayout->setSpacing(0);
 
-    QTableView *view = new QTableView(this);
-    vlayout->addLayout(hlayout);
-    vlayout->addWidget(createDateRangeWidget());
-    vlayout->addWidget(view);
+    QFrame *frame = new QFrame(this);
+    frame->setStyleSheet("QFrame { border: 1px solid #E2E2E2; border-radius: 3px; }");
+
+    vlayout->addWidget(frame);
+
+    QVBoxLayout *vframelayout = new QVBoxLayout(frame);
+    vlayout->setContentsMargins(0,0,0,0);
     vlayout->setSpacing(0);
+
+    QLabel *title = new QLabel(this);
+    QFont f("SF", 16, QFont::Bold);
+    title->setFont(f);
+    title->setText("Transactions");
+    vframelayout->addWidget(title);
+
+    QTableView *view = new QTableView(this);
+    vframelayout->addLayout(hlayout);
+    vframelayout->addWidget(createDateRangeWidget());
+    vframelayout->addWidget(view);
+    vframelayout->setSpacing(0);
     int width = view->verticalScrollBar()->sizeHint().width();
     // Cover scroll bar width with spacing
     if (platformStyle->getUseExtraSpacing()) {
