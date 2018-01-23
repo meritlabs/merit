@@ -53,6 +53,7 @@ uint64_t nLastBlockSize = 0;
 uint64_t nLastBlockWeight = 0;
 
 extern std::unique_ptr<CConnman> g_connman;
+extern CCoinsViewCache *pcoinsTip;
 
 int64_t UpdateTime(
         CBlockHeader* pblock,
@@ -262,6 +263,8 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     pblocktemplate->vTxFees[0] = -nFees;
 
+    CValidationState state;
+
     //Include invites if we are mining a daudalus block
     if((pblock->nVersion & DAEDALUS_BIT) != 0) {
         CMutableTransaction coinbaseInvites;
@@ -271,10 +274,17 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
         coinbaseInvites.nVersion = CTransaction::INVITE_VERSION;
 
-        const auto invites = RewardInvites(
+        assert(pcoinsTip);
+
+        pog::InviteRewards invites;
+        RewardInvites(
                 nHeight,
+                pindexPrev,
                 previousBlockHash,
-                chain_params);
+                *pcoinsTip,
+                chain_params,
+                state,
+                invites);
 
         DistributeInvites(invites, coinbaseInvites);
         pblock->invites[0] = MakeTransactionRef(std::move(coinbaseInvites));
@@ -303,7 +313,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblock->nEdgeBits = pow.nEdgeBits;
     pblocktemplate->vTxSigOpsCost[0] = WITNESS_SCALE_FACTOR * GetLegacySigOpCount(*pblock->vtx[0]);
 
-    CValidationState state;
     if (!TestBlockValidity(state, chainparams, *pblock, pindexPrev, false, false)) {
         throw std::runtime_error(
                 strprintf(

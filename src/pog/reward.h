@@ -42,14 +42,15 @@ namespace pog
         CAmount invites;
     };
 
-    struct InviteLotteryParams
+    struct InviteLotteryParams 
     {
-        int total_winners;
-        int total_invites;
+        int invites_created;
+        int invites_used;
     };
 
-    InviteLotteryParams ComputeInviteLotteryParams(
+    int ComputeTotalInviteLotteryWinners(
             int height,
+            const InviteLotteryParams&,
             const Consensus::Params& params);
 
     using InviteRewards = std::vector<InviteReward>;

@@ -173,7 +173,135 @@ namespace {
     /** Dirty block file entries. */
     std::set<int> setDirtyFileInfo;
 
-} // anon namespace
+    FILE* OpenDiskFile(const CDiskBlockPos &pos, const char *prefix, bool fReadOnly)
+    {
+        if (pos.IsNull())
+            return nullptr;
+        fs::path path = GetBlockPosFilename(pos, prefix);
+        fs::create_directories(path.parent_path());
+        FILE* file = fsbridge::fopen(path, "rb+");
+        if (!file && !fReadOnly)
+            file = fsbridge::fopen(path, "wb+");
+        if (!file) {
+            LogPrintf("Unable to open file %s\n", path.string());
+            return nullptr;
+        }
+        if (pos.nPos) {
+            if (fseek(file, pos.nPos, SEEK_SET)) {
+                LogPrintf("Unable to seek to position %u of %s\n", pos.nPos, path.string());
+                fclose(file);
+                return nullptr;
+            }
+        }
+        return file;
+    }
+
+    /** Open an undo file (rev?????.dat) */
+    FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false) {
+        return OpenDiskFile(pos, "rev", fReadOnly);
+    }
+
+    bool UndoWriteToDisk(
+            const CBlockUndo& blockundo,
+            CDiskBlockPos& pos,
+            const uint256& hashBlock,
+            const CMessageHeader::MessageStartChars& messageStart)
+    {
+        // Open history file to append
+        CAutoFile fileout(OpenUndoFile(pos), SER_DISK, CLIENT_VERSION);
+        if (fileout.IsNull())
+            return error("%s: OpenUndoFile failed", __func__);
+
+        // Write index header
+        unsigned int nSize = GetSerializeSize(fileout, blockundo);
+        fileout << FLATDATA(messageStart) << nSize;
+
+        // Write undo data
+        long fileOutPos = ftell(fileout.Get());
+        if (fileOutPos < 0)
+            return error("%s: ftell failed", __func__);
+        pos.nPos = (unsigned int)fileOutPos;
+        fileout << blockundo;
+
+        // calculate & write checksum
+        CHashWriter hasher(SER_GETHASH, PROTOCOL_VERSION);
+        hasher << hashBlock;
+        hasher << blockundo;
+        fileout << hasher.GetHash();
+
+        return true;
+    }
+
+    bool UndoReadFromDisk(
+            CBlockUndo& blockundo,
+            const CDiskBlockPos& pos,
+            const uint256& hashBlock)
+    {
+        // Open history file to read
+        CAutoFile filein(OpenUndoFile(pos, true), SER_DISK, CLIENT_VERSION);
+        if (filein.IsNull())
+            return error("%s: OpenUndoFile failed", __func__);
+
+        // Read block
+        uint256 hashChecksum;
+        CHashVerifier<CAutoFile> verifier(&filein); // We need a CHashVerifier as reserializing may lose data
+        try {
+            verifier << hashBlock;
+            verifier >> blockundo;
+            filein >> hashChecksum;
+        }
+        catch (const std::exception& e) {
+            return error("%s: Deserialize or I/O error - %s", __func__, e.what());
+        }
+
+        // Verify checksum
+        if (hashChecksum != verifier.GetHash())
+            return error("%s: Checksum mismatch", __func__);
+
+        return true;
+    }
+
+    /** Abort with a message */
+    bool AbortNode(
+            const std::string& strMessage,
+            const std::string& userMessage="")
+    {
+        SetMiscWarning(strMessage);
+        LogPrintf("*** %s\n", strMessage);
+        uiInterface.ThreadSafeMessageBox(
+                userMessage.empty() ? _("Error: A fatal internal error occurred, see debug.log for details") : userMessage,
+                "", CClientUIInterface::MSG_ERROR);
+        StartShutdown();
+        return false;
+    }
+
+    bool AbortNode(
+            CValidationState& state,
+            const std::string& strMessage,
+            const std::string& userMessage="")
+    {
+        AbortNode(strMessage, userMessage);
+        return state.Error(strMessage);
+    }
+
+} // namespace
+
+using AddressPair = std::pair<uint160, char>;
+
+AddressPair ExtractAddress(const CTxOut& tout)
+{
+    uint160 address;
+    char addressType = 0;
+
+    CTxDestination dest;
+    txnouttype destType;
+    if (ExtractDestination(tout.scriptPubKey, dest, destType)) {
+        addressType = AddressTypeFromDestination(dest);
+        GetUint160(dest, address);
+    }
+
+    return std::make_pair(address, addressType);
+}
 
 CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& locator)
 {
@@ -231,8 +359,6 @@ bool CheckInputs(const CTransaction& tx,
         bool cacheFullScriptStore,
         PrecomputedTransactionData& txdata,
         std::vector<CScriptCheck> *pvChecks = nullptr);
-
-static FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 
 referral::MaybeReferral LookupReferral(
     const referral::Address& address,
@@ -1618,27 +1744,126 @@ pog::AmbassadorLottery RewardAmbassadors(
     return rewards;
 }
 
-pog::InviteRewards RewardInvites(
+using InviteCount = std::map<uint160, int>;
+
+bool UpdateInviteLotteryParams(
+        const CBlock& block,
+        CCoinsViewCache& view,
+        pog::InviteLotteryParams& lottery_params)
+{
+    bool can_be_coinbase = true;
+
+    InviteCount count;
+    
+    for(const auto& invite : block.invites) {
+
+        if(!invite->IsCoinBase()) {
+            bool inputs_are_coinbase = true;
+            for(const auto& in : invite->vin) {
+                const auto& coin = view.AccessCoin(in.prevout);
+                if(!coin.IsCoinBase()) {
+                    inputs_are_coinbase = false;
+                    break;
+                }
+                const auto &in_out = coin.out;
+                const auto address = ExtractAddress(in_out);
+                count[address.first] -= in_out.nValue;
+            }
+
+            if(inputs_are_coinbase) {
+                for(const auto& out : invite->vout) {
+                    const auto address = ExtractAddress(out);
+                    count[address.first] += out.nValue;
+                }
+            }
+        } else if(can_be_coinbase) {
+            for(const auto& out : invite->vout) {
+                lottery_params.invites_created += out.nValue;
+            }
+        } else {
+            return false;
+        }
+
+        can_be_coinbase = false;
+    }
+
+    for(const auto& p : count) {
+        if(p.second <=0) {
+            continue;
+        }
+
+        lottery_params.invites_used += p.second;
+    }
+
+    return true;
+}
+
+bool ComputeInviteLotteryParams(
         int height,
+        CBlockIndex* pindexPrev,
+        CCoinsViewCache& view,
+        const Consensus::Params& params, 
+        CValidationState& state,
+        pog::InviteLotteryParams& lottery_params) 
+{
+    auto total_blocks = params.daedalus_block_window;
+    assert(total_blocks > 0);
+
+    while(total_blocks-- && pindexPrev) {
+
+        CBlock block;
+        if (!ReadBlockFromDisk(block, pindexPrev, params)) {
+            return AbortNode(state, "Failed to read block");
+        }
+
+        if (!UpdateInviteLotteryParams(block, view, lottery_params)) {
+            return AbortNode(state,"Failed to update invite lottery params");
+        }
+
+        pindexPrev = pindexPrev->pprev;
+    }
+
+    return true;
+}
+
+bool RewardInvites(
+        int height,
+        CBlockIndex* pindexPrev,
         const uint256& previous_block_hash,
-        const Consensus::Params& params)
+        CCoinsViewCache& view,
+        const Consensus::Params& params,
+        CValidationState& state,
+        pog::InviteRewards& rewards)
 {
     assert(height >= 0);
     assert(prefviewdb != nullptr);
 
-    const auto lottery_params =
-        pog::ComputeInviteLotteryParams(height, params);
+    pog::InviteLotteryParams lottery_params;
+    if(!ComputeInviteLotteryParams(
+                height,
+                pindexPrev,
+                view,
+                params,
+                state,
+                lottery_params)) {
+        return false;
+    }
+
+    const auto total_winners = 
+        pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
 
     const auto winners = pog::SelectConfirmedAddresses(
             *prefviewdb,
             previous_block_hash,
-            lottery_params.total_winners);
+            total_winners);
 
-    if (winners.size() != lottery_params.total_winners) {
-        return {};
+    if (winners.size() != total_winners) {
+        return false;
     }
 
-    return pog::RewardInvites(winners, lottery_params);
+    rewards = pog::RewardInvites(winners, lottery_params);
+
+    return true;
 }
 
 bool IsValidAmbassadorDestination(const CTxDestination& dest)
@@ -2199,80 +2424,6 @@ bool CheckInputs(
     return true;
 }
 
-namespace {
-
-bool UndoWriteToDisk(const CBlockUndo& blockundo, CDiskBlockPos& pos, const uint256& hashBlock, const CMessageHeader::MessageStartChars& messageStart)
-{
-    // Open history file to append
-    CAutoFile fileout(OpenUndoFile(pos), SER_DISK, CLIENT_VERSION);
-    if (fileout.IsNull())
-        return error("%s: OpenUndoFile failed", __func__);
-
-    // Write index header
-    unsigned int nSize = GetSerializeSize(fileout, blockundo);
-    fileout << FLATDATA(messageStart) << nSize;
-
-    // Write undo data
-    long fileOutPos = ftell(fileout.Get());
-    if (fileOutPos < 0)
-        return error("%s: ftell failed", __func__);
-    pos.nPos = (unsigned int)fileOutPos;
-    fileout << blockundo;
-
-    // calculate & write checksum
-    CHashWriter hasher(SER_GETHASH, PROTOCOL_VERSION);
-    hasher << hashBlock;
-    hasher << blockundo;
-    fileout << hasher.GetHash();
-
-    return true;
-}
-
-bool UndoReadFromDisk(CBlockUndo& blockundo, const CDiskBlockPos& pos, const uint256& hashBlock)
-{
-    // Open history file to read
-    CAutoFile filein(OpenUndoFile(pos, true), SER_DISK, CLIENT_VERSION);
-    if (filein.IsNull())
-        return error("%s: OpenUndoFile failed", __func__);
-
-    // Read block
-    uint256 hashChecksum;
-    CHashVerifier<CAutoFile> verifier(&filein); // We need a CHashVerifier as reserializing may lose data
-    try {
-        verifier << hashBlock;
-        verifier >> blockundo;
-        filein >> hashChecksum;
-    }
-    catch (const std::exception& e) {
-        return error("%s: Deserialize or I/O error - %s", __func__, e.what());
-    }
-
-    // Verify checksum
-    if (hashChecksum != verifier.GetHash())
-        return error("%s: Checksum mismatch", __func__);
-
-    return true;
-}
-
-/** Abort with a message */
-bool AbortNode(const std::string& strMessage, const std::string& userMessage="")
-{
-    SetMiscWarning(strMessage);
-    LogPrintf("*** %s\n", strMessage);
-    uiInterface.ThreadSafeMessageBox(
-        userMessage.empty() ? _("Error: A fatal internal error occurred, see debug.log for details") : userMessage,
-        "", CClientUIInterface::MSG_ERROR);
-    StartShutdown();
-    return false;
-}
-
-bool AbortNode(CValidationState& state, const std::string& strMessage, const std::string& userMessage="")
-{
-    AbortNode(strMessage, userMessage);
-    return state.Error(strMessage);
-}
-
-} // namespace
 
 enum DisconnectResult
 {
@@ -2313,23 +2464,6 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
     view.AddCoin(out, std::move(undo), !fClean);
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
-}
-
-using AddressPair = std::pair<uint160, char>;
-
-AddressPair ExtractAddress(const CTxOut& tout)
-{
-    uint160 address;
-    char addressType = 0;
-
-    CTxDestination dest;
-    txnouttype destType;
-    if (ExtractDestination(tout.scriptPubKey, dest, destType)) {
-        addressType = AddressTypeFromDestination(dest);
-        GetUint160(dest, address);
-    }
-
-    return std::make_pair(address, addressType);
 }
 
 using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
@@ -3723,10 +3857,18 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                     REJECT_INVALID, "bad-cb-no-invites");
         }
 
-        const auto invite_rewards = RewardInvites(
+        pog::InviteRewards invite_rewards;
+        if(!RewardInvites(
                 pindex->nHeight,
+                pindex->pprev,
                 hashPrevBlock,
-                chainparams.GetConsensus());
+                view,
+                chainparams.GetConsensus(),
+                state,
+                invite_rewards)) {
+
+            return error("ConnectBlock(): Error computing invite rewards");
+        }
 
         const CTransaction& coinbase_invites = *block.invites[0];
 
@@ -5531,36 +5673,8 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes)
     return true;
 }
 
-static FILE* OpenDiskFile(const CDiskBlockPos &pos, const char *prefix, bool fReadOnly)
-{
-    if (pos.IsNull())
-        return nullptr;
-    fs::path path = GetBlockPosFilename(pos, prefix);
-    fs::create_directories(path.parent_path());
-    FILE* file = fsbridge::fopen(path, "rb+");
-    if (!file && !fReadOnly)
-        file = fsbridge::fopen(path, "wb+");
-    if (!file) {
-        LogPrintf("Unable to open file %s\n", path.string());
-        return nullptr;
-    }
-    if (pos.nPos) {
-        if (fseek(file, pos.nPos, SEEK_SET)) {
-            LogPrintf("Unable to seek to position %u of %s\n", pos.nPos, path.string());
-            fclose(file);
-            return nullptr;
-        }
-    }
-    return file;
-}
-
 FILE* OpenBlockFile(const CDiskBlockPos &pos, bool fReadOnly) {
     return OpenDiskFile(pos, "blk", fReadOnly);
-}
-
-/** Open an undo file (rev?????.dat) */
-static FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly) {
-    return OpenDiskFile(pos, "rev", fReadOnly);
 }
 
 fs::path GetBlockPosFilename(const CDiskBlockPos &pos, const char *prefix)

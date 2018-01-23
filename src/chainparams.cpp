@@ -148,8 +148,9 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
 
-        consensus.daedalus_base_invites_per_block = 1;
-        consensus.daedalus_max_winners_per_block = 6;
+        consensus.daedalus_max_invites_per_block = 10; //20 merit over 2
+        consensus.daedalus_block_window = 60 * 24 * 3; //Window used to compute invites.
+                                                 //Looks at blocks over a 3 day period.
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 28000; // About January 19, 2018
@@ -263,8 +264,8 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
 
-        consensus.daedalus_base_invites_per_block = 1;
-        consensus.daedalus_max_winners_per_block = 6;
+        consensus.daedalus_max_invites_per_block = 10;
+        consensus.daedalus_block_window = 10;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 3;
@@ -388,8 +389,8 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 0;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 999999999999ULL;
 
-        consensus.daedalus_base_invites_per_block = 1;
-        consensus.daedalus_max_winners_per_block = 6;
+        consensus.daedalus_max_invites_per_block = 10;
+        consensus.daedalus_block_window = 10;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 5;

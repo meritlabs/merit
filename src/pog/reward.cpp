@@ -64,57 +64,50 @@ namespace pog
         return {filtered_rewards, remainder};
     }
 
-    InviteLotteryParams ComputeInviteLotteryParams(
+    int ComputeTotalInviteLotteryWinners(
             int height,
+            const InviteLotteryParams& lottery,
             const Consensus::Params& params)
     {
-        const auto start_block = params.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block;
-        assert(height >= start_block);
 
-        const auto blocks = height - start_block;
-        const auto blocks_per_day = DAY / params.nPowTargetSpacing;
-        const auto days = blocks / blocks_per_day;
+        const auto period = (height - params.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) /
+            params.daedalus_block_window;
 
-        const auto mult = 1 + (days / 30); //increase rate every 30 days
+        if(period < 1) {
+            return params.daedalus_max_invites_per_block;
+        }
 
-        assert(mult > 0);
-        const int invites_per_block = params.daedalus_base_invites_per_block * mult;
+        if(lottery.invites_used <= 0) {
+            return 0;
+        }
 
-        const auto total_winners =
-            std::min(invites_per_block, params.daedalus_max_winners_per_block);
+        const auto scaled_invites_used = lottery.invites_used * 100;
 
-        return { total_winners, invites_per_block};
+        const auto velocity = lottery.invites_created > 0 ? 
+            std::min(scaled_invites_used / lottery.invites_created, 100) : 100;
+
+        const int total_winners = (params.daedalus_max_invites_per_block * velocity) / 100 ;
+
+        assert(total_winners >= 0 && total_winners <= params.daedalus_max_invites_per_block);
+        return total_winners;
     }
 
     InviteRewards RewardInvites(
-            const referral::ConfirmedAddresses& winners,
-            const InviteLotteryParams& params)
+            const referral::ConfirmedAddresses& winners)
     {
-        assert(winners.size() == params.total_winners);
+        assert(winners.size() >= 0);
 
-        const auto invites_per_winner =
-            params.total_invites /
-            params.total_winners;
-
-        assert(invites_per_winner > 0);
+        const auto INVITES_PER_WINNER = 1;
 
         InviteRewards rewards(winners.size());
         std::transform(winners.begin(), winners.end(), rewards.begin(),
-                [invites_per_winner](const referral::ConfirmedAddress& winner) -> InviteReward {
+                [INVITES_PER_WINNER](const referral::ConfirmedAddress& winner) -> InviteReward {
                     return {
                         winner.address_type,
                         winner.address,
-                        invites_per_winner
+                        INVITES_PER_WINNER
                     };
                 });
-
-        const auto remaining_invites =
-            params.total_invites - (invites_per_winner * params.total_winners);
-
-        assert(remaining_invites >= 0);
-
-        //Give remainder to the first guy.
-        rewards[0].invites += remaining_invites;
 
         assert(rewards.size() == winners.size());
         return rewards;
