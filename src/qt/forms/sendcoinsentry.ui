@@ -20,6 +20,9 @@
    <property name="toolTip">
     <string>This is a normal payment.</string>
    </property>
+   <property name="styleSheet">
+    <string notr="true">QFrame { border: 1px solid #E2E2E2; } QLabel { border: none; }</string>
+   </property>
    <property name="frameShape">
     <enum>QFrame::NoFrame</enum>
    </property>
