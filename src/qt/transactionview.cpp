@@ -45,14 +45,14 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
     setContentsMargins(0,0,0,0);
 
     QHBoxLayout *hlayout = new QHBoxLayout();
-    hlayout->setContentsMargins(0,0,0,0);
+    hlayout->setContentsMargins(0,20,0,20);
 
     if (platformStyle->getUseExtraSpacing()) {
-        hlayout->setSpacing(5);
-        hlayout->addSpacing(26);
+        hlayout->setSpacing(10);
+        hlayout->addSpacing(0);
     } else {
-        hlayout->setSpacing(0);
-        hlayout->addSpacing(23);
+        hlayout->setSpacing(5);
+        hlayout->addSpacing(0);
     }
 
     watchOnlyWidget = new QComboBox(this);
@@ -130,6 +130,7 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
     QFont f("SF", 16, QFont::Bold);
     title->setFont(f);
     title->setText("Transactions");
+    title->setStyleSheet("QLabel { border: none; }");
     vframelayout->addWidget(title);
 
     QTableView *view = new QTableView(this);
