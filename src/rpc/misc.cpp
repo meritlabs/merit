@@ -208,43 +208,43 @@ UniValue validateaddress(const JSONRPCRequest& request)
     return ret;
 }
 
-// Needed even with !ENABLE_WALLET, to pass (ignored) pointers around
-class CWallet;
-
-
-UniValue isaddressbeaconed(const JSONRPCRequest& request)
+UniValue validatealias(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1)
-    throw std::runtime_error(
-        "isaddressbeaconed \"address\"\n"
-        "\nReturn information about the given merit address.\n"
-        "\nArguments:\n"
-        "1. \"address\"     (string, required) The merit address to validate\n"
-        "\nResult:\n"
-        "{\n"
-        "  \"isvalid\" : true|false,       (boolean) If the address is valid or not. If not, this is the only property returned.\n"
-        "  \"isbeaconed\" : true|false,       (boolean) If the address has been beaconed to the network or not or not. If not, this is the only property returned.\n"
-        "\nExamples:\n"
-        + HelpExampleCli("isaddressbeaconed", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\"")
-        + HelpExampleRpc("isaddressbeaconed", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\"")
-    );
-
-    LOCK(cs_main);
+        throw std::runtime_error(
+            "validatealias \"alias\"\n"
+            "\nCheck if given alias is a valid alias.\n"
+            "\nArguments:\n"
+            "1. \"alias\"  (string, required) An alias for merit address\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"isvalid\": true|false,   (boolean) If an alias is valid or not.\n"
+            "  \"isvacant\": true|false,  (boolean) If an alias is vacant and can be used.\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("validatealias", "\"awesomealias\"")
+            + HelpExampleRpc("validatealias", "\"awesomealias\"")
+        );
 
     UniValue ret(UniValue::VOBJ);
 
-    CTxDestination dest = LookupDestination(request.params[0].get_str());
-    bool isValid = IsValidDestination(dest);
+    auto alias = request.params[0].get_str();
 
-    ret.push_back(Pair("isvalid", isValid));
+    auto dest = DecodeDestination(alias);
 
-    if (isValid) {
-        ret.push_back(Pair("isbeaconed", CheckAddressBeaconed(dest)));
-    }
+    // alias can not be in address format
+    bool is_valid = !IsValidDestination(dest);
+    is_valid &= referral::CheckReferralAlias(alias);
+
+    bool is_vacant = !mempoolReferral.Exists(alias) && !prefviewcache->Exists(alias);
+
+    ret.push_back(Pair("isvalid", is_valid));
+    ret.push_back(Pair("isvacant", is_vacant));
 
     return ret;
 }
-
+// Needed even with !ENABLE_WALLET, to pass (ignored) pointers around
+class CWallet;
 
 /**
  * Used by addmultisigaddress / createmultisig:
@@ -1473,7 +1473,7 @@ static const CRPCCommand commands[] =
     { "control",            "getinfo",                &getinfo,                {} }, /* uses wallet if enabled */
     { "control",            "getmemoryinfo",          &getmemoryinfo,          {"mode"} },
     { "util",               "validateaddress",        &validateaddress,        {"address"} }, /* uses wallet if enabled */
-    { "util",               "isaddressbeaconed",      &isaddressbeaconed,      {"address"} },
+    { "util",               "validatealias",          &validatealias,          {"alias"} },
     { "util",               "createmultisig",         &createmultisig,         {"nrequired","keys"} },
     { "util",               "verifymessage",          &verifymessage,          {"address","signature","message"} },
     { "util",               "signdata",               &signdata,               {"data","key"} },
