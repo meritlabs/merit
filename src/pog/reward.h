@@ -54,9 +54,7 @@ namespace pog
             const Consensus::Params& params);
 
     using InviteRewards = std::vector<InviteReward>;
-    InviteRewards RewardInvites(
-            const referral::ConfirmedAddresses& winners,
-            const InviteLotteryParams& params);
+    InviteRewards RewardInvites(const referral::ConfirmedAddresses& winners);
 
 } // namespace pog
 

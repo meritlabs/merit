@@ -1861,7 +1861,7 @@ bool RewardInvites(
         return false;
     }
 
-    rewards = pog::RewardInvites(winners, lottery_params);
+    rewards = pog::RewardInvites(winners);
 
     return true;
 }

@@ -92,8 +92,7 @@ namespace pog
         return total_winners;
     }
 
-    InviteRewards RewardInvites(
-            const referral::ConfirmedAddresses& winners)
+    InviteRewards RewardInvites(const referral::ConfirmedAddresses& winners)
     {
         assert(winners.size() >= 0);
 
