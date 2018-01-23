@@ -42,7 +42,7 @@
        <string>Pay &amp;To:</string>
       </property>
       <property name="alignment">
-       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
       </property>
       <property name="buddy">
        <cstring>payTo</cstring>
@@ -135,7 +135,7 @@
        <string>&amp;Label:</string>
       </property>
       <property name="alignment">
-       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
       </property>
       <property name="buddy">
        <cstring>addAsLabel</cstring>
@@ -155,7 +155,7 @@
        <string>A&amp;mount:</string>
       </property>
       <property name="alignment">
-       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
       </property>
       <property name="buddy">
        <cstring>payAmount</cstring>
@@ -185,7 +185,7 @@
        <string>Message:</string>
       </property>
       <property name="alignment">
-       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
       </property>
      </widget>
     </item>
@@ -1254,6 +1254,7 @@
    <class>MeritAmountField</class>
    <extends>QLineEdit</extends>
    <header>meritamountfield.h</header>
+   <container>1</container>
   </customwidget>
  </customwidgets>
  <tabstops>
