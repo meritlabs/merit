@@ -6,12 +6,27 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>644</width>
+    <width>699</width>
     <height>342</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Form</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QFrame {
+  background-color: white;
+  border-radius: 3px;
+  border: 1px solid #E2E2E2;
+}
+
+QLabel {
+  border: none;
+}
+
+QListView {
+  border: none;
+}</string>
   </property>
   <layout class="QVBoxLayout" name="topLayout">
    <item>
@@ -40,9 +55,7 @@
        <item>
         <widget class="QFrame" name="frame">
          <property name="styleSheet">
-          <string notr="true">background-color:white;
-border-radius: 3px;
-border: 1px solid #E2E2E2;</string>
+          <string notr="true"/>
          </property>
          <property name="frameShape">
           <enum>QFrame::StyledPanel</enum>
@@ -432,9 +445,7 @@ border: 1px solid #E2E2E2;</string>
        <item>
         <widget class="QFrame" name="frame_2">
          <property name="styleSheet">
-          <string notr="true">background-color:white;
-border-radius: 3px;
-border: 1px solid #E2E2E2;</string>
+          <string notr="true"/>
          </property>
          <property name="frameShape">
           <enum>QFrame::StyledPanel</enum>
