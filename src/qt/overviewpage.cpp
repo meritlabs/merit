@@ -38,19 +38,15 @@ public:
     {
         painter->save();
 
-        QIcon icon = qvariant_cast<QIcon>(index.data(TransactionTableModel::RawDecorationRole));
         QRect mainRect = option.rect;
-        QRect decorationRect(mainRect.topLeft(), QSize(DECORATION_SIZE, DECORATION_SIZE));
-        int xspace = DECORATION_SIZE + 8;
-        int ypad = 6;
+        int xpad = 8;
+        int ypad = 10;
         int halfheight = (mainRect.height() - 2*ypad)/2;
-        QRect amountRect(mainRect.left() + xspace, mainRect.top()+ypad, mainRect.width() - xspace, halfheight);
-        QRect addressRect(mainRect.left() + xspace, mainRect.top()+ypad+halfheight, mainRect.width() - xspace, halfheight);
-        icon = platformStyle->SingleColorIcon(icon);
-        icon.paint(painter, decorationRect);
+        QRect amountRect(mainRect.left() + xpad, mainRect.top()+ypad, mainRect.width() - 2*xpad, halfheight);
+        QRect timestampRect(mainRect.left() + xpad, mainRect.top()+ypad+halfheight, mainRect.width() - xpad, halfheight);
+        QLine line(mainRect.left() + xpad, mainRect.bottom(), mainRect.right() - xpad, mainRect.bottom());
 
         QDateTime date = index.data(TransactionTableModel::DateRole).toDateTime();
-        QString address = index.data(Qt::DisplayRole).toString();
         qint64 amount = index.data(TransactionTableModel::AmountRole).toLongLong();
         bool confirmed = index.data(TransactionTableModel::ConfirmedRole).toBool();
         QVariant value = index.data(Qt::ForegroundRole);
@@ -63,7 +59,6 @@ public:
 
         painter->setPen(foreground);
         QRect boundingRect;
-        painter->drawText(addressRect, Qt::AlignLeft|Qt::AlignVCenter, address, &boundingRect);
 
         if (index.data(TransactionTableModel::WatchonlyRole).toBool())
         {
@@ -72,28 +67,32 @@ public:
             iconWatchonly.paint(painter, watchonlyRect);
         }
 
+        painter->setPen(COLOR_BAREADDRESS);
+        painter->drawText(timestampRect, Qt::AlignLeft|Qt::AlignVCenter, GUIUtil::dateTimeStr(date));
+
+        QFont font;
+        font.setBold(true);
+        font.setWeight(QFont::Bold);
+        painter->setFont(font);
         if(amount < 0)
         {
             foreground = COLOR_NEGATIVE;
         }
-        else if(!confirmed)
-        {
-            foreground = COLOR_UNCONFIRMED;
-        }
         else
         {
-            foreground = option.palette.color(QPalette::Text);
+            foreground = COLOR_LIGHTBLUE;
         }
-        painter->setPen(foreground);
         QString amountText = MeritUnits::formatWithUnit(unit, amount, true, MeritUnits::separatorAlways);
+        painter->setPen(foreground);
+        painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, amountText);
         if(!confirmed)
         {
-            amountText = QString("[") + amountText + QString("]");
+            painter->setPen(COLOR_UNCONFIRMED);
+            painter->drawText(amountRect, Qt::AlignRight|Qt::AlignVCenter, QStringLiteral("(unconfirmed)"));
         }
-        painter->drawText(amountRect, Qt::AlignRight|Qt::AlignVCenter, amountText);
 
-        painter->setPen(option.palette.color(QPalette::Text));
-        painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, GUIUtil::dateTimeStr(date));
+        painter->setPen(Qt::lightGray);
+        painter->drawLine(line);
 
         painter->restore();
     }
@@ -132,7 +131,6 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
 
     // Recent transactions
     ui->listTransactions->setItemDelegate(txdelegate);
-    ui->listTransactions->setIconSize(QSize(DECORATION_SIZE, DECORATION_SIZE));
     ui->listTransactions->setMinimumHeight(NUM_ITEMS * (DECORATION_SIZE + 2));
     ui->listTransactions->setAttribute(Qt::WA_MacShowFocusRect, false);
 
