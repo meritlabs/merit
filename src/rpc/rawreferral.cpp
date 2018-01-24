@@ -199,12 +199,55 @@ UniValue sendrawreferral(const JSONRPCRequest& request)
     return hashRef.GetHex();
 }
 
+UniValue decoderawreferral(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 1)
+        throw std::runtime_error(
+            "decoderawreferral \"hexstring\"\n"
+            "\nReturn a JSON object representing unserialized referral.\n"
+
+            "\nArguments:\n"
+            "1. \"hexstring\"  (string, required) Serialized referral hex string\n"
+
+            "\nResult:\n"
+            "{\n"
+            "  \"hash\" : \"id\",        (string) The transaction hash (differs from txid for witness transactions)\n"
+            "  \"size\" : n,             (numeric) The transaction size\n"
+            "  \"vsize\" : n,            (numeric) The virtual transaction size (differs from size for witness transactions)\n"
+            "  \"version\" : n,          (numeric) The version\n"
+            "  \"alias\" : n,            (numeric) The version\n"
+            "  \"signature\" : n,        (numeric) The version\n"
+            "  \"address\" : n,          (numeric) The version\n"
+            "  \"addressType\" : n,      (numeric) The version\n"
+            "  \"parentAddress\" : n,    (numeric) The version\n"
+            "}\n"
+
+            "\nExamples:\n"
+            + HelpExampleCli("decoderawreferral", "\"hexstring\"")
+            + HelpExampleRpc("decoderawreferral", "\"hexstring\"")
+        );
+
+    LOCK(cs_main);
+    RPCTypeCheck(request.params, {UniValue::VSTR});
+
+    referral::MutableReferral ref;
+
+    if (!DecodeHexRef(ref, request.params[0].get_str()))
+        throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Referral decode failed");
+
+    UniValue result(UniValue::VOBJ);
+    RefToUniv(Referral(std::move(ref)), uint256(), result, false);
+
+    return result;
+}
+
 static const CRPCCommand commands[] =
     {
         //  category              name                      actor (function)         argNames
         //  --------------------- ------------------------  -----------------------  ----------
         {"rawreferral", "getrawreferral", &getrawreferral, {"refid", "verbose"}},
         {"rawreferral", "sendrawreferral", &sendrawreferral, {"hexstring"}},
+        {"rawreferral", "decoderawreferral", &decoderawreferral, {"hexstring"}},
 };
 
 void RegisterRawReferralRPCCommands(CRPCTable& t)

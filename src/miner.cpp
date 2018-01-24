@@ -174,7 +174,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblocktemplate->vTxFees.push_back(-1);       // updated at end
     pblocktemplate->vTxSigOpsCost.push_back(-1); // updated at end
 
-    LOCK2(cs_main, mempool.cs);
+    LOCK(cs_main);
     CBlockIndex* pindexPrev = chainActive.Tip();
     assert(pindexPrev != nullptr);
     nHeight = pindexPrev->nHeight + 1;
@@ -199,11 +199,14 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
+    {
+        LOCK2(mempool.cs, mempoolReferral.cs);
 
-    addPackageTxs(nPackagesSelected, nDescendantsUpdated);
+        addPackageTxs(nPackagesSelected, nDescendantsUpdated);
 
-    // add left referrals to the block after dependant transactions and referrals already added
-    AddReferrals();
+        // add left referrals to the block after dependant transactions and referrals already added
+        AddReferrals();
+    }
 
     int64_t nTime1 = GetTimeMicros();
 
@@ -350,10 +353,10 @@ bool BlockAssembler::CheckReferrals(
 
     // test all referrals are signed
     for (const auto& entryit: candidateReferrals) {
-        CheckReferralSignature(entryit->GetEntryValue(), vRefs);
+        CheckReferralSignature(entryit->GetEntryValue());
     }
 
-    // test all tx's outputs are beaconed
+    // test all tx's outputs are beaconed and confirmed
     for (const CTxMemPool::txiter it : testSet) {
         CValidationState dummy;
         if (!Consensus::CheckTxOutputs(it->GetEntryValue(), dummy, *prefviewcache, vRefs)) {
@@ -646,7 +649,7 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
             packageSigOpsCost = modit->nSigOpCostWithAncestors;
         }
 
-        if (!iter->GetEntryValue().IsInvite() && 
+        if (!iter->GetEntryValue().IsInvite() &&
                 packageFees < blockMinFeeRate.GetFee(packageSize)) {
             // Everything else we might consider has a lower fee rate
             return;
@@ -787,7 +790,7 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
         if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
             throw std::runtime_error(
                     "No coinbase script available "
-                    "(mining requires a wallet)");
+                    "(mining requires confirmed wallet)");
         }
 
         while (true) {

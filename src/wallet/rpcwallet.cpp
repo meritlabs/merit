@@ -4948,7 +4948,7 @@ UniValue generate(const JSONRPCRequest& request)
 
     // If the keypool is exhausted, no script is returned at all.  Catch this.
     if (!coinbase_script) {
-        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, or wallet is not confirmed yet.");
     }
 
     //throw an error if no script was provided
@@ -5041,6 +5041,7 @@ UniValue unlockwallet(const JSONRPCRequest& request)
         obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
 
     obj.push_back(Pair("referred", true));
+    obj.push_back(Pair("confirmed", false));
     obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{referral->GetAddress()})));
     obj.push_back(Pair("invites", pwallet->GetAvailableBalance(nullptr, true)));
     obj.push_back(Pair("immature_invites", pwallet->GetImmatureBalance(true)));

@@ -304,7 +304,7 @@ bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &ha
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
 /** Check whether referral signature is valid */
-bool CheckReferralSignature(const referral::Referral& ref, const std::vector<referral::ReferralRef>& extraReferrals);
+bool CheckReferralSignature(const referral::Referral& ref);
 
 CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params);
 
