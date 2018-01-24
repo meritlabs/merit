@@ -3100,9 +3100,12 @@ bool ValidateAddressesAreConfirmed(const CBlock& block)
     return true;
 }
 
+using InviteMap = std::map<uint256, CTransactionRef>;
+
 bool ValidateInvites(
         const CBlock& block,
         const Consensus::Params& params,
+        CCoinsViewCache& view,
         CValidationState& state)
 {
     // First invite must be "invite-coinbase", the rest must not be
@@ -3116,7 +3119,17 @@ bool ValidateInvites(
                 "first invite is not coinbase");
     }
 
+    InviteMap invites_in_block;
+    std::transform(block.invites.begin(), block.invites.end(),
+            std::inserter(invites_in_block, invites_in_block.end()),
+            [](const CTransactionRef& inv) {
+                return std::make_pair(inv->GetHash(), inv);
+            });
+
     bool coinbase = true;
+    std::vector<PrecomputedTransactionData> invdata;
+    invdata.reserve(block.invites.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
+
     for (const auto& inv : block.invites) {
 
         assert(inv);
@@ -3158,10 +3171,32 @@ bool ValidateInvites(
                     "more than one invite coinbase");
         }
 
+        PrecomputedTransactionData invdata{*inv};
+        if (!CheckInputs(
+                    *inv,
+                    state,
+                    view,
+                    true,
+                    MANDATORY_SCRIPT_VERIFY_FLAGS,
+                    true,
+                    false,
+                    invdata)) {
+
+            return state.DoS(
+                    100,
+                    false,
+                    REJECT_INVALID,
+                    "bad-invite-bad-input",
+                    false,
+                    "Invite input validation fails");
+
+        }
+
         for (const auto& in : inv->vin) {
             CTransactionRef prev;
             uint256 block_inv_is_in;
-            if (!GetTransaction(
+            if (invites_in_block.count(in.prevout.hash) == 0 && 
+                    !GetTransaction(
                         in.prevout.hash,
                         prev,
                         params,
@@ -3187,6 +3222,16 @@ bool ValidateInvites(
                         false,
                         "Invites cannot have an input that is not an invite");
             }
+        }
+
+        if (!Consensus::CheckTxOutputs(*inv, state, *prefviewcache, block.m_vRef)) {
+            return state.DoS(
+                    100,
+                    false,
+                    REJECT_INVALID,
+                    "bad-invite-outputs-bad",
+                    false,
+                    "Invite output validation failed");
         }
     }
 
@@ -3251,6 +3296,7 @@ bool ValidateContextualDaedalusBlock(
         const CBlock& block,
         CValidationState& state,
         const Consensus::Params& params,
+        CCoinsViewCache& view,
         const CBlockIndex* pindexPrev)
 {
     if (!ExpectDaedalus(pindexPrev, params)) {
@@ -3287,7 +3333,7 @@ bool ValidateContextualDaedalusBlock(
                 false,
                 "size limits failed");
 
-    if (!ValidateInvites(block, params, state)) {
+    if (!ValidateInvites(block, params, view, state)) {
         //state is assumed to be set.
         return false;
     }
@@ -5220,9 +5266,14 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
 }
 
 
-static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
+static bool ContextualCheckBlock(
+        const CBlock& block,
+        CValidationState& state,
+        const Consensus::Params& consensusParams,
+        CCoinsViewCache& view,
+        const CBlockIndex* pindexPrev)
 {
-    if (!ValidateContextualDaedalusBlock(block, state, consensusParams, pindexPrev)) {
+    if (!ValidateContextualDaedalusBlock(block, state, consensusParams, view, pindexPrev)) {
         return false; // state is expected to be set by ValidateDaedalus();
     }
 
@@ -5379,8 +5430,17 @@ bool ProcessNewBlockHeaders(const std::vector<CBlockHeader>& headers, CValidatio
 }
 
 /** Store block on disk. If dbp is non-nullptr, the file is known to already reside on disk */
-static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidationState& state, const CChainParams& chainparams, CBlockIndex** ppindex, bool fRequested, const CDiskBlockPos* dbp, bool* fNewBlock)
+static bool AcceptBlock(
+        const std::shared_ptr<const CBlock>& pblock,
+        CValidationState& state,
+        const CChainParams& chainparams,
+        CBlockIndex** ppindex,
+        bool fRequested,
+        const CDiskBlockPos* dbp,
+        bool* fNewBlock)
 {
+    assert(pcoinsTip);
+
     const CBlock& block = *pblock;
     debug("AcceptBlock: %s. prev block: %s", block.GetHash().GetHex(), block.hashPrevBlock.GetHex());
 
@@ -5389,6 +5449,8 @@ static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidation
 
     CBlockIndex *pindexDummy = nullptr;
     CBlockIndex *&pindex = ppindex ? *ppindex : pindexDummy;
+
+    CCoinsViewCache view(pcoinsTip);
 
     if (!AcceptBlockHeader(block, state, chainparams, &pindex))
         return false;
@@ -5421,7 +5483,7 @@ static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidation
     if (fNewBlock) *fNewBlock = true;
 
     if (!CheckBlock(block, state, chainparams.GetConsensus()) ||
-        !ContextualCheckBlock(block, state, chainparams.GetConsensus(), pindex->pprev)) {
+        !ContextualCheckBlock(block, state, chainparams.GetConsensus(), view, pindex->pprev)) {
         if (state.IsInvalid() && !state.CorruptionPossible()) {
             pindex->nStatus |= BLOCK_FAILED_VALID;
             setDirtyBlockIndex.insert(pindex);
@@ -5506,7 +5568,7 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
         return error("%s: Consensus::ContextualCheckBlockHeader: %s", __func__, FormatStateMessage(state));
     if (!CheckBlock(block, state, chainparams.GetConsensus(), fCheckPOW, fCheckMerkleRoot))
         return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
-    if (!ContextualCheckBlock(block, state, chainparams.GetConsensus(), pindexPrev))
+    if (!ContextualCheckBlock(block, state, chainparams.GetConsensus(), viewNew, pindexPrev))
         return error("%s: Consensus::ContextualCheckBlock: %s", __func__, FormatStateMessage(state));
 
     if (!ConnectBlock(block, state, &indexDummy, viewNew, chainparams, true))
