@@ -392,6 +392,30 @@ bool CheckReferralSignature(const referral::Referral& ref)
     return ref.pubkey.Verify(hash, ref.signature);
 }
 
+bool CheckReferralAliasUnique(
+    const std::string& alias,
+    const CBlock* block)
+{
+    if (alias.size() == 0) {
+        return true;
+    }
+
+    bool unique = !prefviewcache->Exists(alias);
+
+    // check block for same aliases if provided
+    if (block != nullptr) {
+        auto it = std::find_if(
+            block->m_vRef.begin(), block->m_vRef.end(),
+            [&alias](const referral::ReferralRef& ref) {
+                return ref->alias == alias;
+            });
+
+        unique &= it == block->m_vRef.end();
+    }
+
+    return unique;
+}
+
 bool CheckFinalTx(const CTransaction &tx, int flags)
 {
     AssertLockHeld(cs_main);
@@ -719,10 +743,11 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
 
-        // is referral alias already occupied?
-        if (referral->alias.size() > 0 &&
-            (prefviewcache->Exists(referral->alias) || pool.Exists(referral->alias))) {
-            return state.Invalid(false, REJECT_DUPLICATE, "ref-alias-occupied");
+        // check if referral alias is already occupied
+        // we allow referrals with non-unique aliases in mempool
+        // but only one of them would be accepted to new block
+        if (!CheckReferralAliasUnique(referral->alias, nullptr)) {
+            return state.Invalid(false, REJECT_DUPLICATE, "ref-alias-duplicate");
         }
 
         if (!(prefviewcache->Exists(referral->parentAddress) ||
@@ -998,6 +1023,37 @@ static bool AcceptToMemoryPoolWorker(
                         REJECT_HIGHFEE,
                         "absurdly-high-fee",
                         strprintf("%d > %d", nFees, nAbsurdFee));
+        } else if (!tx.IsCoinBase()) {
+            // Check that confirmation invite tx confirms referral
+            // whos alias is not yet confirmed for another referral
+            for (const auto& out : tx.vout) {
+                const auto address_pair = ExtractAddress(out);
+
+                // if destination address is already in chain
+                // then it's a move invite tx. do not check alias for uniqueness
+                // otherwise it is a confirmation tx
+                if (prefviewcache->Exists(address_pair.first)) {
+                    debug("Invite destination is already in chain");
+                    continue;
+                }
+
+                // trying to get referral from mempool to check for alias duplication
+                const auto referral = mempoolReferral.Get(address_pair.first);
+
+                // if referral is not found in mempool by address,
+                // then invite tries to confirm not beaconed address
+                if (referral == nullptr) {
+                    return state.Invalid(false, REJECT_INVALID, "bad-invite-out-not-found");
+                }
+
+                // if confirmed referral's alias is already in blockchain
+                // we have a duplicate
+                if (prefviewcache->Exists(referral->alias)) {
+                    return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-confirms-alias-duplicate");
+                }
+
+                // TODO: check confirmed referrals from mempool
+            }
         }
 
         // Calculate in-mempool ancestors, up to a limit.
@@ -2553,9 +2609,6 @@ void BuildReferralSet(const CBlock& block, ReferralSet& referrals_in_block)
 
 bool UpdateConfirmations(const CBlock& block, const DebitsAndCredits debits_and_credits)
 {
-    ReferralSet referrals_in_block;
-    BuildReferralSet(block, referrals_in_block);
-
     for (const auto& entry : debits_and_credits) {
         const char type = std::get<0>(entry);
         const auto& address = std::get<1>(entry);
@@ -3082,7 +3135,7 @@ void BuildConfirmationSet(
     }
 }
 
-bool ValidateAddressesAreConfirmed(const CBlock& block)
+bool ValidateTxOutsAreConfirmed(const CBlock& block)
 {
     ConfirmationSet confirmations_in_block;
     BuildConfirmationSet(block, confirmations_in_block);
@@ -3097,11 +3150,28 @@ bool ValidateAddressesAreConfirmed(const CBlock& block)
                 else return false;
             }
 
-            //Check block or blockchain if the address is confirmed.
+            // Check block or blockchain if the address is confirmed.
             if (confirmations_in_block.count(address.first) == 0 &&
                     !prefviewdb->IsConfirmed(address.first)) {
                 return false;
             }
+        }
+    }
+
+    return true;
+}
+
+bool ValidateReferralsAreConfirmed(const CBlock& block)
+{
+    ConfirmationSet confirmations_in_block;
+    BuildConfirmationSet(block, confirmations_in_block);
+
+    for (const auto& ref: block.m_vRef) {
+        assert(ref);
+
+        // Check beaconed address is referred in the same block
+        if (confirmations_in_block.count(ref->GetAddress()) == 0) {
+            return false;
         }
     }
 
@@ -3672,8 +3742,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             "bad-transaction-not-beaconed");
     }
 
-    if (ExpectDaedalus(pindex->pprev, chainparams.GetConsensus())) {
-        if (!ValidateAddressesAreConfirmed(block)) {
+    if (block.IsDaedalus()) {
+        if (!ValidateTxOutsAreConfirmed(block)) {
             return state.DoS(
                     100,
                     false,
@@ -3773,7 +3843,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 nTimeConnect * MILLI / nBlocksTotal);
     }
 
-
     for (const auto& ref: block.m_vRef) {
         if (CheckAddressBeaconed(ref->GetAddress(), false)) {
             return error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex());
@@ -3782,7 +3851,14 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         if (!CheckReferralSignature(*ref)) {
             return error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex());
         }
+
+        // is referral alias already occupied?
+        if (!CheckReferralAliasUnique(ref->alias, &block)) {
+            return error("ConnectBlock(): Referral %s alias \"%s\" is already occupied", ref->GetHash().GetHex(), ref->alias);
+        }
     }
+
+    ValidateReferralsAreConfirmed(block);
 
     std::set<uint256> referral_hashes{};
 

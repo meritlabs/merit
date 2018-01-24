@@ -234,8 +234,8 @@ public:
         const bool ai = atx.IsInvite();
         const bool bi = btx.IsInvite();
 
-        if(ai) { 
-            if(bi) { 
+        if(ai) {
+            if(bi) {
                 return btx.GetHash() < atx.GetHash();
             } else {
                 return true;
@@ -557,7 +557,16 @@ public:
      */
     bool CalculateMemPoolAncestors(const CTxMemPoolEntry &entry, setEntries &setAncestors, uint64_t limitAncestorCount, uint64_t limitAncestorSize, uint64_t limitDescendantCount, uint64_t limitDescendantSize, std::string &errString, bool fSearchForParents = true) const;
 
+    /**
+     * Populate ancestorsReferrals with referrals that are beaconing outputs
+     * of txs from setAncestors
+     */
     void CalculateMemPoolAncestorsReferrals(const setEntries& setAncestors, referral::ReferralTxMemPool::setEntries& ancestorsReferrals) const;
+
+    /**
+     * Populate confirmations with invite txs that are confirmations for provided referrals
+     */
+    void CalculateReferralsConfirmations(const referral::ReferralTxMemPool::setEntries& referrals, setEntries& confirmations) const;
 
     /** Populate setDescendants with all in-mempool descendants of hash.
      *  Assumes that setDescendants includes all in-mempool descendants of anything

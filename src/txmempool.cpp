@@ -233,10 +233,37 @@ bool CTxMemPool::CalculateMemPoolAncestors(const CTxMemPoolEntry &entry, setEntr
     return true;
 }
 
-void CTxMemPool::CalculateMemPoolAncestorsReferrals(const setEntries& setAncestors, referral::ReferralTxMemPool::setEntries& ancestorsReferrals) const
+void CTxMemPool::CalculateMemPoolAncestorsReferrals(
+    const setEntries& setAncestors,
+    referral::ReferralTxMemPool::setEntries& ancestorsReferrals) const
 {
     for (const auto& entry: setAncestors) {
         mempoolReferral.GetReferralsForTransaction(entry->GetSharedEntryValue(), ancestorsReferrals);
+    }
+}
+
+void CTxMemPool::CalculateReferralsConfirmations(
+    const referral::ReferralTxMemPool::setEntries& referrals,
+    setEntries& confirmations) const
+{
+    std::vector<std::pair<uint160, int>> addresses;
+    std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
+
+    for (const auto& ref_entry: referrals) {
+        const auto referral = ref_entry->GetSharedEntryValue();
+        addresses.push_back({referral->GetAddress(), referral->addressType});
+    }
+
+    mempool.getAddressIndex(addresses, indexes);
+
+    for (const auto& index: indexes) {
+        auto it = mapTx.find(index.first.txhash);
+        assert(it != mapTx.end());
+
+        if (it->GetSharedEntryValue()->IsInvite()) {
+            debug("Found confirmation in mempool");
+            confirmations.insert(it);
+        }
     }
 }
 
