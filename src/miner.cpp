@@ -53,6 +53,7 @@ uint64_t nLastBlockSize = 0;
 uint64_t nLastBlockWeight = 0;
 
 extern std::unique_ptr<CConnman> g_connman;
+extern CCoinsViewCache *pcoinsTip;
 
 int64_t UpdateTime(
         CBlockHeader* pblock,
@@ -182,7 +183,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblock->nVersion = ComputeBlockVersion(pindexPrev, chain_params);
 
     //Add a dummy coinbase invite as first invite in daedalus block
-    if((pblock->nVersion & DAEDALUS_BIT) != 0) {
+    if(pblock->IsDaedalus()) {
         pblock->invites.emplace_back();
     }
 
@@ -260,13 +261,10 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     coinbaseTx.vout[0].nValue = nFees + miner_subsidy;
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
 
-    pblocktemplate->vchCoinbaseCommitment =
-        GenerateCoinbaseCommitment(*pblock, pindexPrev, chain_params);
-
-    pblocktemplate->vTxFees[0] = -nFees;
+    CValidationState state;
 
     //Include invites if we are mining a daudalus block
-    if((pblock->nVersion & DAEDALUS_BIT) != 0) {
+    if(pblock->IsDaedalus()) {
         CMutableTransaction coinbaseInvites;
         coinbaseInvites.vin.resize(1);
         coinbaseInvites.vin[0].prevout.SetNull();
@@ -274,14 +272,31 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
         coinbaseInvites.nVersion = CTransaction::INVITE_VERSION;
 
-        const auto invites = RewardInvites(
-                nHeight,
-                previousBlockHash,
-                chain_params);
+        assert(pcoinsTip);
 
-        DistributeInvites(invites, coinbaseInvites);
-        pblock->invites[0] = MakeTransactionRef(std::move(coinbaseInvites));
+        pog::InviteRewards invites;
+        RewardInvites(
+                nHeight,
+                pindexPrev,
+                previousBlockHash,
+                *pcoinsTip,
+                chain_params,
+                state,
+                invites);
+
+        if(invites.empty()) {
+            //remove empty coinbase
+            pblock->invites.erase(pblock->invites.begin());
+        } else {
+            DistributeInvites(invites, coinbaseInvites);
+            pblock->invites[0] = MakeTransactionRef(std::move(coinbaseInvites));
+        }
     }
+
+    pblocktemplate->vchCoinbaseCommitment =
+        GenerateCoinbaseCommitment(*pblock, pindexPrev, chain_params);
+
+    pblocktemplate->vTxFees[0] = -nFees;
 
 
     uint64_t nSerializeSize = GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION);
@@ -306,7 +321,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblock->nEdgeBits = pow.nEdgeBits;
     pblocktemplate->vTxSigOpsCost[0] = WITNESS_SCALE_FACTOR * GetLegacySigOpCount(*pblock->vtx[0]);
 
-    CValidationState state;
     if (!TestBlockValidity(state, chainparams, *pblock, pindexPrev, false, false)) {
         throw std::runtime_error(
                 strprintf(

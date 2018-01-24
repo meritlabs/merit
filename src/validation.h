@@ -333,10 +333,14 @@ pog::AmbassadorLottery RewardAmbassadors(
         CAmount total,
         const Consensus::Params&);
 
-pog::InviteRewards RewardInvites(
+bool RewardInvites(
         int height,
+        CBlockIndex* pindexPrev,
         const uint256& previous_block_hash,
-        const Consensus::Params&);
+        CCoinsViewCache& view,
+        const Consensus::Params& params,
+        CValidationState& state,
+        pog::InviteRewards& rewards);
 
 /**
  * Include ambassadors into the coinbase transaction and split the total payment between them.

@@ -17,13 +17,18 @@ CMerkleBlock::CMerkleBlock(const CBlock& block, CBloomFilter& filter)
     std::vector<bool> vMatch;
     std::vector<uint256> vHashes;
 
-    vMatch.reserve(block.vtx.size());
-    vHashes.reserve(block.vtx.size());
+    vMatch.reserve(block.vtx.size() + block.invites.size());
+    vHashes.reserve(block.vtx.size() + block.invites.size());
 
-    for (unsigned int i = 0; i < block.vtx.size(); i++)
+    std::vector<CTransactionRef> vtx;
+    vtx.reserve(block.vtx.size() + block.invites.size());
+    vtx.insert(vtx.end(), block.vtx.begin(), block.vtx.end());
+    vtx.insert(vtx.end(), block.invites.begin(), block.invites.end());
+
+    for (unsigned int i = 0; i < vtx.size(); i++)
     {
-        const uint256& hash = block.vtx[i]->GetHash();
-        if (filter.IsRelevantAndUpdate(*block.vtx[i]))
+        const uint256& hash = vtx[i]->GetHash();
+        if (filter.IsRelevantAndUpdate(*vtx[i]))
         {
             vMatch.push_back(true);
             vMatchedTxn.push_back(std::make_pair(i, hash));
@@ -43,12 +48,17 @@ CMerkleBlock::CMerkleBlock(const CBlock& block, const std::set<uint256>& txids)
     std::vector<bool> vMatch;
     std::vector<uint256> vHashes;
 
-    vMatch.reserve(block.vtx.size());
-    vHashes.reserve(block.vtx.size());
+    vMatch.reserve(block.vtx.size() + block.invites.size());
+    vHashes.reserve(block.vtx.size() + block.invites.size());
 
-    for (unsigned int i = 0; i < block.vtx.size(); i++)
+    std::vector<CTransactionRef> vtx;
+    vtx.reserve(block.vtx.size() + block.invites.size());
+    vtx.insert(vtx.end(), block.vtx.begin(), block.vtx.end());
+    vtx.insert(vtx.end(), block.invites.begin(), block.invites.end());
+
+    for (unsigned int i = 0; i < vtx.size(); i++)
     {
-        const uint256& hash = block.vtx[i]->GetHash();
+        const uint256& hash = vtx[i]->GetHash();
         if (txids.count(hash))
             vMatch.push_back(true);
         else

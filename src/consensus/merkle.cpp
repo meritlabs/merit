@@ -187,8 +187,12 @@ uint256 BlockWitnessMerkleRoot(const CBlock& block, bool* mutated)
         leaves[i] = block.vtx[s]->GetWitnessHash();
     }
 
-    for (size_t s = 1; s < block.invites.size(); s++, i++) {
-        leaves[i] = block.invites[s]->GetWitnessHash();
+    if(!block.invites.empty()) {
+        leaves[i].SetNull(); // The witness hash of the invite coinbase is 0.
+        i++;
+        for (size_t s = 1; s < block.invites.size(); s++, i++) {
+            leaves[i] = block.invites[s]->GetWitnessHash();
+        }
     }
     return ComputeMerkleRoot(leaves, mutated);
 }
@@ -200,7 +204,7 @@ std::vector<uint256> BlockMerkleBranch(const CBlock& block, uint32_t position)
 
     size_t i = 0;
     for (size_t s = 0; s < block.vtx.size(); s++, i++) {
-        leaves[s] = block.vtx[s]->GetHash();
+        leaves[i] = block.vtx[s]->GetHash();
     }
 
     for (size_t s = 0; s < block.invites.size(); s++, i++) {

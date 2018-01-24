@@ -28,10 +28,10 @@ BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTX
         m_nonce(GetRand(std::numeric_limits<uint64_t>::max())),
         m_short_tx_ids(block.vtx.size() - 1),
         m_short_ref_ids(block.m_vRef.size()),
-        m_prefilled_txn(1), m_prefilled_inv(1), 
+        m_prefilled_txn(1), m_prefilled_inv{}, 
         header(block)
 {
-    if(block.IsDaedalus()) {
+    if(block.IsDaedalus() && !block.invites.empty()) {
         m_short_inv_ids.resize(block.invites.size() - 1);
     }
 
@@ -39,8 +39,8 @@ BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTX
     //TODO: Use our mempool prior to block acceptance to predictively fill more than just the coinbase
     m_prefilled_txn[0] = {0, block.vtx[0]};
 
-    if(block.IsDaedalus()) {
-        m_prefilled_inv[0] = {0, block.invites[0]};
+    if(block.IsDaedalus() && !block.invites.empty()) {
+        m_prefilled_inv.push_back({0, block.invites[0]});
     }
 
     std::transform(
@@ -49,7 +49,7 @@ BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTX
                 return GetShortID(fUseWTXID ? tx->GetWitnessHash() : tx->GetHash());
             });
 
-    if(block.IsDaedalus()) {
+    if(block.IsDaedalus() && !block.invites.empty()) {
         std::transform(
                 std::begin(block.invites) + 1, std::end(block.invites), std::begin(m_short_inv_ids),
                 [this,fUseWTXID](const CTransactionRef& inv) {
