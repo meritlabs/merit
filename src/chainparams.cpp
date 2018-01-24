@@ -74,11 +74,11 @@ static CBlock CreateGenesisBlock(
     txNew.nVersion = 1;
     txNew.vin.resize(1);
     txNew.vout.resize(1);
-    txNew.vin[0].scriptSig = 
+    txNew.vin[0].scriptSig =
         CScript() << 486604799
                   << CScriptNum(4)
                   << std::vector<unsigned char>(
-                          (const unsigned char*)pszTimestamp, 
+                          (const unsigned char*)pszTimestamp,
                           (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
 
     txNew.vout[0].nValue = genesisReward;
@@ -278,10 +278,6 @@ public:
 
         vFixedSeeds.clear();
         vSeeds.clear();
-        // nodes with support for servicebits filtering should be at the top
-        vSeeds.emplace_back("13.90.145.4,", false);
-        vSeeds.emplace_back("13.90.146.143", false);
-        vSeeds.emplace_back("13.90.147.18", false);
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_test, pnSeed6_test + ARRAYLEN(pnSeed6_test));
 
@@ -302,7 +298,7 @@ public:
             0};
     }
 
-    void Init() override 
+    void Init() override
     {
         CAmount genesisReward = 20000000_merit;
 
@@ -316,7 +312,7 @@ public:
                 CPubKey(ParseHex("024F1BC2E023ED1BACDC8171798113F1F7280C881919A11B592A25A976ABFB8798")),
         };
 
-        const std::string referralSig = 
+        const std::string referralSig =
             "304502210090792fc651c1d88caf78a071b9a33699e9f2324af3096d45e6c7a3"
             "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
             "f967f5b6895626";
@@ -415,7 +411,7 @@ public:
             CPubKey{ParseHex("024F1BC2E023ED1BACDC8171798113F1F7280C881919A11B592A25A976ABFB8798")},
         };
 
-        const std::string referralSig = 
+        const std::string referralSig =
             "304502210090792fc651c1d88caf78a071b9a33699e9f2324af3096d45e6c7a3"
             "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
             "f967f5b6895626";
