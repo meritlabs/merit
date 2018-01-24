@@ -2957,11 +2957,15 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     for (const auto& ref: block.m_vRef) {
         if (CheckAddressBeaconed(ref->GetAddress(), false)) {
-            return error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex());
+            return state.DoS(100,
+                    error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex()),
+                    REJECT_INVALID, "bad-cb-ref-already-beaconed");
         }
 
         if (!CheckReferralSignature(*ref, block.m_vRef)) {
-            return error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex());
+            return state.DoS(100,
+                    error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex()),
+                    REJECT_INVALID, "bad-cb-ref-sig-failed");
         }
     }
 
