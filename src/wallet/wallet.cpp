@@ -4356,6 +4356,10 @@ void CWallet::GetScriptForMining(std::shared_ptr<CReserveScript> &script)
         return;
     }
 
+    if (DaedalusGeneration() && !CheckAddressConfirmed(pubkey.GetID(), 1)) {
+        return;
+    }
+
     script = rKey;
     script->reserveScript = CScript() << ToByteVector(pubkey) << OP_CHECKSIG;
 }

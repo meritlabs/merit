@@ -383,7 +383,7 @@ referral::MaybeReferral LookupReferral(
     return it != extraReferrals.end() ? **it : referral::MaybeReferral{};
 }
 
-bool CheckReferralSignature(const referral::Referral& ref, const std::vector<referral::ReferralRef>& extraReferrals)
+bool CheckReferralSignature(const referral::Referral& ref)
 {
     if (!ref.pubkey.IsValid()) {
         return false;
@@ -733,7 +733,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_INVALID, "ref-parent-not-beaconed");
         }
 
-        if (!CheckReferralSignature(*referral, pool.GetReferrals())) {
+        if (!CheckReferralSignature(*referral)) {
             return state.Invalid(false, REJECT_INVALID, "ref-bad-sig");
         }
 
@@ -3694,8 +3694,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     if (block.IsDaedalus()) {
         pos.nTxOffset += GetSizeOfCompactSize(block.invites.size());
-        for (int i = 0; i < static_cast<int>(block.invites.size()); i++)
-        {
+        for (int i = 0; i < static_cast<int>(block.invites.size()); i++) {
             const CTransaction &inv = *(block.invites[i]);
 
             if (!GetDebitsAndCredits(invite_debits_and_credits, inv, view)) {
@@ -3746,7 +3745,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             return error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex());
         }
 
-        if (!CheckReferralSignature(*ref, block.m_vRef)) {
+        if (!CheckReferralSignature(*ref)) {
             return error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex());
         }
     }
@@ -5051,9 +5050,9 @@ bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool)
 // Check if an address is valid (beaconed)
 bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempool)
 {
-    bool beaconed = prefviewdb->IsConfirmed(addr);
+    bool confirmed = prefviewdb->IsConfirmed(addr);
 
-    if (beaconed) {
+    if (confirmed) {
         return true;
     }
 

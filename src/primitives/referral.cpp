@@ -32,10 +32,12 @@ bool CheckReferralAlias(std::string alias)
 {
     std::regex alias_regex(strprintf("^([a-z0-9_-]){0,%d}$", MAX_ALIAS_LENGTH), std::regex_constants::icase);
 
+    // check alias contains only valid symbols
     if (!std::regex_match(alias, alias_regex)) {
         return false;
     }
 
+    // check alias is not one of the reserved names
     std::transform(alias.begin(), alias.end(), alias.begin(), ::tolower);
     return INVALID_ALIAS_NAMES.count(alias) == 0;
 }

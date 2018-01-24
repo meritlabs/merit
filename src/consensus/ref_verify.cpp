@@ -26,7 +26,7 @@ bool CheckReferral(const Referral& referral, CValidationState& state)
         }
     }
 
-    if (referral.version >= Referral::INVITE_VERSION && CheckReferralAlias(referral.alias)) {
+    if (referral.version >= Referral::INVITE_VERSION && !CheckReferralAlias(referral.alias)) {
         return state.DoS(100, false, REJECT_INVALID, "bad-ref-invalid-alias");
     }
 
