@@ -2835,16 +2835,13 @@ static DisconnectResult DisconnectBlock(
         return DISCONNECT_FAILED;
     }
 
-    if (block.IsDaedalus()) {
-        if (block_undo.vtxundo.size() + 2 != (block.vtx.size() + block.invites.size())) {
-            error("DisconnectBlock(): block and undo data inconsistent");
-            return DISCONNECT_FAILED;
-        }
-    } else {
-        if (block_undo.vtxundo.size() + 1 != block.vtx.size()) {
-            error("DisconnectBlock(): block and undo data inconsistent");
-            return DISCONNECT_FAILED;
-        }
+    int coinbases = 1;
+    if(!block.invites.empty()) {
+        coinbases++;
+    }
+    if (block_undo.vtxundo.size() + coinbases != (block.vtx.size() + block.invites.size())) {
+        error("DisconnectBlock(): block and undo data inconsistent");
+        return DISCONNECT_FAILED;
     }
 
     KeyActivity addressIndex;
