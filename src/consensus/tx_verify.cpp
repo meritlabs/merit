@@ -5,6 +5,7 @@
 
 #include "tx_verify.h"
 
+#include "base58.h"
 #include "chainparams.h"
 #include "consensus.h"
 #include "primitives/transaction.h"
@@ -20,6 +21,7 @@
 
 extern CChain chainActive;
 bool ExpectDaedalus(const CBlockIndex* pindexPrev, const Consensus::Params& params);
+bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool = true);
 
 bool IsFinalTx(const CTransaction &tx, int nBlockHeight, int64_t nBlockTime)
 {
@@ -244,8 +246,7 @@ bool Consensus::CheckTxOutputs(
         }
 
         if (!tx.IsInvite() && ExpectDaedalus(chainActive.Tip(), ::Params().GetConsensus())) {
-            if (!referralsCache.IsConfirmed(addr)) {
-                //TODO: Check Mempool
+            if (!CheckAddressConfirmed(CMeritAddress{dest})) {
                 return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-invited");
             }
         }
