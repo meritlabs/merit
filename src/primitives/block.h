@@ -117,10 +117,10 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
-        READWRITE(m_vRef);
         if(IsDaedalus()) {
             READWRITE(invites);
         }
+        READWRITE(m_vRef);
     }
 
     void SetNull()
