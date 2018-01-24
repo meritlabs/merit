@@ -28,7 +28,7 @@ BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTX
         m_nonce(GetRand(std::numeric_limits<uint64_t>::max())),
         m_short_tx_ids(block.vtx.size() - 1),
         m_short_ref_ids(block.m_vRef.size()),
-        m_prefilled_txn(1), m_prefilled_inv(1), 
+        m_prefilled_txn(1), m_prefilled_inv{}, 
         header(block)
 {
     if(block.IsDaedalus() && !block.invites.empty()) {
@@ -40,7 +40,7 @@ BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTX
     m_prefilled_txn[0] = {0, block.vtx[0]};
 
     if(block.IsDaedalus() && !block.invites.empty()) {
-        m_prefilled_inv[0] = {0, block.invites[0]};
+        m_prefilled_inv.push_back({0, block.invites[0]});
     }
 
     std::transform(
