@@ -148,8 +148,6 @@ public:
 
         uint64_t txn_size = txn.size();
         uint64_t ref_size = refs.size();
-        uint64_t inv_size = invites.size();
-
         READWRITE(COMPACTSIZE(txn_size));
         READWRITE(COMPACTSIZE(ref_size));
 
@@ -174,7 +172,9 @@ public:
             }
         }
 
+        uint64_t inv_size = invites.size();
         READWRITE(COMPACTSIZE(inv_size));
+
         if (ser_action.ForRead()) {
             invites.resize(inv_size);
             for(auto& inv : invites) {
@@ -290,15 +290,31 @@ public:
         uint64_t short_ref_ids_size = m_short_ref_ids.size();
         READWRITE(COMPACTSIZE(short_ref_ids_size));
 
+        uint64_t short_inv_ids_size = 0;
+        if(header.IsDaedalus()) {
+            short_inv_ids_size = m_short_inv_ids.size();
+            READWRITE(COMPACTSIZE(short_inv_ids_size));
+        }
+
         if (ser_action.ForRead()) {
             ReadShortIds(s, ser_action, short_tx_ids_size, m_short_tx_ids);
             ReadShortIds(s, ser_action, short_ref_ids_size, m_short_ref_ids);
+            if(header.IsDaedalus()) {
+                ReadShortIds(s, ser_action, short_inv_ids_size, m_short_inv_ids);
+            }
         } else {
             WriteShortIds(s, ser_action, m_short_tx_ids);
             WriteShortIds(s, ser_action, m_short_ref_ids);
+            if(header.IsDaedalus()) {
+                WriteShortIds(s, ser_action, m_short_inv_ids);
+            }
         }
 
         READWRITE(m_prefilled_txn);
+
+        if(header.IsDaedalus()) {
+            READWRITE(m_prefilled_inv);
+        }
 
         if (ser_action.ForRead())
             FillShortIDSelector();

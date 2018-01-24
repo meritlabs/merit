@@ -10,6 +10,7 @@
 namespace pog
 {
     const int DAY = 24 * 60 * 60;
+    const int BLOCKS_IN_TEN_MINUTES = 10;
 
     AmbassadorLottery RewardAmbassadors(
             int height,
@@ -69,38 +70,42 @@ namespace pog
             const InviteLotteryParams& lottery,
             const Consensus::Params& params)
     {
+        debug("Invites used: %d created: %d period: %d used per block: %d", 
+                lottery.invites_used,
+                lottery.invites_created,
+                params.daedalus_block_window,
+                static_cast<double>(lottery.invites_used) /
+                static_cast<double>(params.daedalus_block_window));
 
         const auto period = (height - params.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) /
             params.daedalus_block_window;
 
+        /**
+         * Distribute out invites at the maximum rate for the very first period
+         * to kickstart daedalus.
+         */
         if(period < 1) {
             return params.daedalus_max_invites_per_block;
         }
 
         assert(lottery.invites_used >= 0);
 
-        if(lottery.invites_used == 0) {
-            /**
-             * If no invites are generated and no invites are used,
-             * There is a chance those that use invites are starved and
-             * those that don't use invites have too many. 
-             *
-             * Create an invite in the hope of giving it to someone who will
-             * use it.
-             */
-            if(lottery.invites_created == 0) {
-                return 1;
-            } else {
-                return 0;
-            }
+        /**
+         * If no invites are generated that means that the amount used fell
+         * under 1 per block during that period. Therefore replace at least 
+         * the invites used during the period in this block plus at least 1
+         * ever ten minutes of that period under the assumption that some invites
+         * will leak to users who forget about them or abandon merit. To prevent
+         * starvation we need to be able to always generate some merit over the period.
+         */
+        if(lottery.invites_created == 0) {
+            return lottery.invites_used + 
+                (params.daedalus_block_window / BLOCKS_IN_TEN_MINUTES);
         }
 
-        const auto scaled_invites_used = lottery.invites_used * 100;
-
-        const auto velocity = lottery.invites_created > 0 ? 
-            std::min(scaled_invites_used / lottery.invites_created, 100) : 100;
-
-        const int total_winners = (params.daedalus_max_invites_per_block * velocity) / 100 ;
+        const auto invites_used_per_block = lottery.invites_used / params.daedalus_block_window;
+        const auto total_winners =
+            std::max(0, std::min(invites_used_per_block, params.daedalus_max_invites_per_block));
 
         assert(total_winners >= 0 && total_winners <= params.daedalus_max_invites_per_block);
         return total_winners;

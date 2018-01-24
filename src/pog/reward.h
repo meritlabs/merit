@@ -44,8 +44,8 @@ namespace pog
 
     struct InviteLotteryParams 
     {
-        int invites_created;
-        int invites_used;
+        int invites_created = 0;
+        int invites_used = 0;
     };
 
     int ComputeTotalInviteLotteryWinners(

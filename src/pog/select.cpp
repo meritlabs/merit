@@ -296,6 +296,7 @@ namespace pog
     referral::ConfirmedAddresses SelectConfirmedAddresses(
             const referral::ReferralsViewDB& db,
             uint256 hash,
+            const uint160& genesis_address,
             size_t n)
     {
         assert(n > 0);
@@ -313,8 +314,12 @@ namespace pog
             if(!sampled) {
                 return {};
             }
-
-            addresses.push_back(*sampled);
+            
+            if(sampled->address != genesis_address) {
+                addresses.push_back(*sampled);
+            } else {
+                n++;
+            }
 
             CHashWriter hasher{SER_DISK, CLIENT_VERSION};
             hasher << hash << sampled->address;

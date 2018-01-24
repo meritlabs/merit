@@ -1744,8 +1744,6 @@ pog::AmbassadorLottery RewardAmbassadors(
     return rewards;
 }
 
-using InviteCount = std::map<uint160, int>;
-
 bool UpdateInviteLotteryParams(
         const CBlock& block,
         CCoinsViewCache& view,
@@ -1753,28 +1751,15 @@ bool UpdateInviteLotteryParams(
 {
     bool can_be_coinbase = true;
 
-    InviteCount count;
-    
     for(const auto& invite : block.invites) {
 
         if(!invite->IsCoinBase()) {
-            bool inputs_are_coinbase = true;
             for(const auto& in : invite->vin) {
                 const auto& coin = view.AccessCoin(in.prevout);
                 if(!coin.IsCoinBase()) {
-                    inputs_are_coinbase = false;
-                    break;
+                    continue;
                 }
-                const auto &in_out = coin.out;
-                const auto address = ExtractAddress(in_out);
-                count[address.first] -= in_out.nValue;
-            }
-
-            if(inputs_are_coinbase) {
-                for(const auto& out : invite->vout) {
-                    const auto address = ExtractAddress(out);
-                    count[address.first] += out.nValue;
-                }
+                lottery_params.invites_used += coin.out.nValue;
             }
         } else if(can_be_coinbase) {
             for(const auto& out : invite->vout) {
@@ -1785,14 +1770,6 @@ bool UpdateInviteLotteryParams(
         }
 
         can_be_coinbase = false;
-    }
-
-    for(const auto& p : count) {
-        if(p.second <=0) {
-            continue;
-        }
-
-        lottery_params.invites_used += p.second;
     }
 
     return true;
@@ -1852,14 +1829,17 @@ bool RewardInvites(
     const auto total_winners = 
         pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
 
+    if(total_winners == 0 ) {
+        return true;
+    }
+
     const auto winners = pog::SelectConfirmedAddresses(
             *prefviewdb,
             previous_block_hash,
+            params.genesis_address,
             total_winners);
 
-    if (winners.size() != total_winners) {
-        return false;
-    }
+    assert(winners.size() == total_winners);
 
     rewards = pog::RewardInvites(winners);
 
@@ -1902,7 +1882,7 @@ void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& t
 {
     assert(tx.IsInvite());
 
-    debug("Invite Lottery Results");
+    debug("Invite Lottery Results: %d", rewards.size());
 
     // Pay them by adding a txout to the coinbase transaction;
     std::transform(
@@ -3072,6 +3052,8 @@ bool ConfirmAllPreDaedalusAddresses(
         return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
     }
 
+    debug("Confirming all pre-daedalus addresses");
+
     // One time confirmation of all addresses before the daedalus block
     return prefviewdb->ConfirmAllPreDaedalusAddresses();
 }
@@ -3131,7 +3113,7 @@ bool ValidateInvites(
         CValidationState& state)
 {
     // First invite must be "invite-coinbase", the rest must not be
-    if (block.invites.empty() || !block.invites[0]->IsCoinBase()) {
+    if (!block.invites.empty() && !block.invites[0]->IsCoinBase()) {
         return state.DoS(
                 100,
                 false,
@@ -3297,8 +3279,7 @@ bool ValidateContextualDaedalusBlock(
     }
 
     // Size limits are larger in the case of daedalus
-    if (block.vtx.empty() ||
-            block.invites.empty() ||
+    if ((block.vtx.empty() && block.invites.empty()) ||
             (block.vtx.size() + block.invites.size()) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT ||
             ::GetSerializeSize(
                 block,
@@ -3851,12 +3832,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         nTimeVerify * MILLI / nBlocksTotal);
 
     if (block.IsDaedalus()) {
-        if (block.invites.empty()) {
-            return state.DoS(100,
-                    error("ConnectBlock(): Expected Invites but got none."),
-                    REJECT_INVALID, "bad-cb-no-invites");
-        }
-
         pog::InviteRewards invite_rewards;
         if(!RewardInvites(
                 pindex->nHeight,
@@ -3870,12 +3845,27 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             return error("ConnectBlock(): Error computing invite rewards");
         }
 
-        const CTransaction& coinbase_invites = *block.invites[0];
-
-        if (!AreExpectedInvitesRewarded(invite_rewards, coinbase_invites)) {
+        if (!invite_rewards.empty() && block.invites.empty()) {
             return state.DoS(100,
-                    error("ConnectBlock(): coinbase did not reward expected invites."),
-                    REJECT_INVALID, "bad-cb-bad-invites");
+                    error("ConnectBlock(): Expected Invites but got none."),
+                    REJECT_INVALID, "bad-cb-no-invites");
+        }
+
+        if(invite_rewards.empty() && !block.invites.empty()) {
+            return state.DoS(100,
+                    error("ConnectBlock(): Block had invites but none were expected"),
+                    REJECT_INVALID, "bad-cb-had-invites-when-none-expected");
+
+        }
+
+        if(!invite_rewards.empty()) {
+            const CTransaction& coinbase_invites = *block.invites[0];
+
+            if (!AreExpectedInvitesRewarded(invite_rewards, coinbase_invites)) {
+                return state.DoS(100,
+                        error("ConnectBlock(): coinbase did not reward expected invites."),
+                        REJECT_INVALID, "bad-cb-bad-invites");
+            }
         }
     }
 
@@ -5142,9 +5132,17 @@ const referral::ReferralRef LookupReferral(referral::ReferralId& referral_id)
 static int GetWitnessCommitmentIndex(const CBlock& block)
 {
     int commitpos = -1;
+    size_t o = 0;
     if (!block.vtx.empty()) {
-        for (size_t o = 0; o < block.vtx[0]->vout.size(); o++) {
+        for (; o < block.vtx[0]->vout.size(); o++) {
             if (block.vtx[0]->vout[o].scriptPubKey.size() >= 38 && block.vtx[0]->vout[o].scriptPubKey[0] == OP_RETURN && block.vtx[0]->vout[o].scriptPubKey[1] == 0x24 && block.vtx[0]->vout[o].scriptPubKey[2] == 0xaa && block.vtx[0]->vout[o].scriptPubKey[3] == 0x21 && block.vtx[0]->vout[o].scriptPubKey[4] == 0xa9 && block.vtx[0]->vout[o].scriptPubKey[5] == 0xed) {
+                commitpos = o;
+            }
+        }
+    }
+    if (!block.invites.empty()) {
+        for (; o < block.invites[0]->vout.size(); o++) {
+            if (block.invites[0]->vout[o].scriptPubKey.size() >= 38 && block.invites[0]->vout[o].scriptPubKey[0] == OP_RETURN && block.invites[0]->vout[o].scriptPubKey[1] == 0x24 && block.invites[0]->vout[o].scriptPubKey[2] == 0xaa && block.invites[0]->vout[o].scriptPubKey[3] == 0x21 && block.invites[0]->vout[o].scriptPubKey[4] == 0xa9 && block.invites[0]->vout[o].scriptPubKey[5] == 0xed) {
                 commitpos = o;
             }
         }
@@ -5253,12 +5251,24 @@ static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, c
         }
     }
 
+    for (const auto& inv : block.invites) {
+        if (!IsFinalTx(*inv, nHeight, nLockTimeCutoff)) {
+            return state.DoS(10, false, REJECT_INVALID, "bad-invites-nonfinal", false, "non-final invites");
+        }
+    }
+
     if (nHeight > 0) {
         // Enforce rule that the coinbase starts with serialized block height
         CScript expect = CScript() << nHeight;
         if (block.vtx[0]->vin[0].scriptSig.size() < expect.size() ||
                 !std::equal(expect.begin(), expect.end(), block.vtx[0]->vin[0].scriptSig.begin())) {
             return state.DoS(100, false, REJECT_INVALID, "bad-cb-height", false, "block height mismatch in coinbase");
+        }
+        if(!block.invites.empty()) {
+            if (block.invites[0]->vin[0].scriptSig.size() < expect.size() ||
+                    !std::equal(expect.begin(), expect.end(), block.invites[0]->vin[0].scriptSig.begin())) {
+                return state.DoS(100, false, REJECT_INVALID, "bad-cb-invite=height", false, "block height mismatch in invite coinbase");
+            }
         }
     }
 
@@ -5292,9 +5302,14 @@ static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, c
 
     // No witness data is allowed in blocks that don't commit to witness data, as this would otherwise leave room for spam
     if (!fHaveWitness) {
-      for (const auto& tx : block.vtx) {
+        for (const auto& tx : block.vtx) {
             if (tx->HasWitness()) {
                 return state.DoS(100, false, REJECT_INVALID, "unexpected-witness", true, strprintf("%s : unexpected witness data found", __func__));
+            }
+        }
+        for (const auto& inv : block.invites) {
+            if (inv->HasWitness()) {
+                return state.DoS(100, false, REJECT_INVALID, "unexpected-invite-witness", true, strprintf("%s : unexpected invite-witness data found", __func__));
             }
         }
     }

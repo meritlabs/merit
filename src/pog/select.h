@@ -45,6 +45,7 @@ namespace pog
     referral::ConfirmedAddresses SelectConfirmedAddresses(
             const referral::ReferralsViewDB& db,
             uint256 hash,
+            const uint160& genesis_address,
             size_t n);
 
 } // namespace pog
