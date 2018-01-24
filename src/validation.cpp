@@ -2783,7 +2783,8 @@ DisconnectResult DisconnectTransactions(
         const std::vector<CTransactionRef>& vtx,
         DebitsAndCredits& debits_and_credits,
         CCoinsViewCache& view,
-        CBlockUndo& block_undo)
+        CBlockUndo& block_undo,
+        bool are_invites)
 {
     bool clean = true;
     for (int i = vtx.size() - 1; i >= 0; i--) {
@@ -2791,8 +2792,16 @@ DisconnectResult DisconnectTransactions(
 
         clean &= DisconnectOutputs(pindex->nHeight, tx, view);
 
-        // restore inputs
-        if (i > 0) { // not coinbases
+        if(are_invites && !tx.IsCoinBase()) {
+            CTxUndo &txundo = block_undo.vtxundo[i];
+            if (txundo.vprevout.size() != tx.vin.size()) {
+                error("DisconnectBlock(): transaction and undo data inconsistent");
+                return DISCONNECT_FAILED;
+            }
+            clean &= DisconnectInputs(txundo, tx.vin, view);
+            // At this point, all of txundo.vprevout should have been moved out.
+
+        } else if (i > 0) { // not coinbases
             CTxUndo &txundo = block_undo.vtxundo[i-1];
             if (txundo.vprevout.size() != tx.vin.size()) {
                 error("DisconnectBlock(): transaction and undo data inconsistent");
@@ -2831,11 +2840,7 @@ static DisconnectResult DisconnectBlock(
         return DISCONNECT_FAILED;
     }
 
-    int coinbases = 1;
-    if(!block.invites.empty()) {
-        coinbases++;
-    }
-    if (block_undo.vtxundo.size() + coinbases != (block.vtx.size() + block.invites.size())) {
+    if (block_undo.vtxundo.size() + 1 < (block.vtx.size() + block.invites.size())) {
         error("DisconnectBlock(): block and undo data inconsistent");
         return DISCONNECT_FAILED;
     }
@@ -2852,7 +2857,8 @@ static DisconnectResult DisconnectBlock(
                 block.vtx,
                 debits_and_credits,
                 view,
-                block_undo);
+                block_undo,
+                false);
 
     if (disconnect_txn_status == DISCONNECT_FAILED) {
         return disconnect_txn_status;
@@ -2869,7 +2875,8 @@ static DisconnectResult DisconnectBlock(
                     block.invites,
                     invite_debits_and_credits,
                     view,
-                    block_undo);
+                    block_undo,
+                    true);
 
         if (disconnect_inv_status == DISCONNECT_FAILED) {
             return disconnect_inv_status;
@@ -3160,27 +3167,6 @@ bool ValidateInvites(
                     "more than one invite coinbase");
         }
 
-        PrecomputedTransactionData invdata{*inv};
-        if (!CheckInputs(
-                    *inv,
-                    state,
-                    view,
-                    true,
-                    MANDATORY_SCRIPT_VERIFY_FLAGS,
-                    true,
-                    false,
-                    invdata)) {
-
-            return state.DoS(
-                    100,
-                    false,
-                    REJECT_INVALID,
-                    "bad-invite-bad-input",
-                    false,
-                    "Invite input validation fails");
-
-        }
-
         for (const auto& in : inv->vin) {
             CTransactionRef prev;
             uint256 block_inv_is_in;
@@ -3211,16 +3197,6 @@ bool ValidateInvites(
                         false,
                         "Invites cannot have an input that is not an invite");
             }
-        }
-
-        if (!Consensus::CheckTxOutputs(*inv, state, *prefviewcache, block.m_vRef)) {
-            return state.DoS(
-                    100,
-                    false,
-                    REJECT_INVALID,
-                    "bad-invite-outputs-bad",
-                    false,
-                    "Invite output validation failed");
         }
     }
 
@@ -3732,18 +3708,40 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         for (int i = 0; i < static_cast<int>(block.invites.size()); i++) {
             const CTransaction &inv = *(block.invites[i]);
 
+            if (!Consensus::CheckTxOutputs(inv, state, *prefviewcache, block.m_vRef)) {
+                return error("ConnectBlock(): CheckTxOutputs on invite %s failed with %s",
+                inv.GetHash().ToString(), FormatStateMessage(state));
+            }
+
+            std::vector<CScriptCheck> vChecks;
+            bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
+            if (!CheckInputs(
+                        inv,
+                        state,
+                        view,
+                        pindex->nHeight + 1,
+                        fScriptChecks,
+                        flags,
+                        fCacheResults,
+                        fCacheResults,
+                        txdata[i],
+                        nScriptCheckThreads ? &vChecks : nullptr)) {
+
+                return error("ConnectBlock(): CheckInputs on invite %s failed with %s",
+                    inv.GetHash().ToString(), FormatStateMessage(state));
+            }
+
+            control.Add(vChecks);
+
             if (!GetDebitsAndCredits(invite_debits_and_credits, inv, view)) {
                 return state.DoS(100,
                         error("ConnectBlock(): merit was sent to addresses that are non standard"),
                         REJECT_INVALID, "bad-cb-bad-outputs");
             }
 
-            CTxUndo undoDummy;
-            if (i > 0) {
-                blockundo.vtxundo.push_back(CTxUndo());
-            }
+            blockundo.vtxundo.push_back(CTxUndo());
 
-            UpdateCoins(inv, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
+            UpdateCoins(inv, view, blockundo.vtxundo.back(), pindex->nHeight);
 
             vPos.push_back(std::make_pair(inv.GetHash(), pos));
             pos.nTxOffset += ::GetSerializeSize(inv, SER_DISK, CLIENT_VERSION);
@@ -4431,8 +4429,10 @@ bool static ConnectTip(CValidationState& state,
     LogPrint(BCLog::BENCH, "  - Writing chainstate: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime5 - nTime4) * MILLI, nTimeChainState * MICRO, nTimeChainState * MILLI / nBlocksTotal);
     // Remove conflicting transactions from the mempool.;
     mempool.removeForBlock(blockConnecting.vtx, pindexNew->nHeight);
+    mempool.removeForBlock(blockConnecting.invites, pindexNew->nHeight);
     mempoolReferral.RemoveForBlock(blockConnecting.m_vRef);
     disconnectTransactions.removeForBlock(blockConnecting.vtx);
+    disconnectTransactions.removeForBlock(blockConnecting.invites);
     disconnectReferrals.removeForBlock(blockConnecting.m_vRef);
 
     // Update chainActive & related variables.
