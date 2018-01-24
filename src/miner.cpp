@@ -285,7 +285,8 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
                 invites);
 
         if(invites.empty()) {
-            pblock->invites.clear();
+            //remove empty coinbase
+            pblock->invites.erase(pblock->invites.begin());
         } else {
             DistributeInvites(invites, coinbaseInvites);
             pblock->invites[0] = MakeTransactionRef(std::move(coinbaseInvites));
