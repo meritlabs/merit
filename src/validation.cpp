@@ -1743,29 +1743,34 @@ pog::AmbassadorLottery RewardAmbassadors(
 bool UpdateInviteLotteryParams(
         const CBlock& block,
         CCoinsViewCache& view,
-        pog::InviteLotteryParams& lottery_params)
+        pog::InviteLotteryParams& lottery_params,
+        const Consensus::Params& params)
 {
-    bool can_be_coinbase = true;
-
     for(const auto& invite : block.invites) {
-
         if(!invite->IsCoinBase()) {
             for(const auto& in : invite->vin) {
-                const auto& coin = view.AccessCoin(in.prevout);
-                if(!coin.IsCoinBase()) {
+                CTransactionRef prev;
+                uint256 block_inv_is_in;
+                if(!GetTransaction(
+                            in.prevout.hash,
+                            prev,
+                            params,
+                            block_inv_is_in,
+                            true)) {
+                    return false;
+                }
+
+                assert(prev);
+                if(!prev->IsCoinBase()) {
                     continue;
                 }
-                lottery_params.invites_used += coin.out.nValue;
+                lottery_params.invites_used += prev->vout.at(in.prevout.n).nValue;
             }
-        } else if(can_be_coinbase) {
+        } else {
             for(const auto& out : invite->vout) {
                 lottery_params.invites_created += out.nValue;
             }
-        } else {
-            return false;
         }
-
-        can_be_coinbase = false;
     }
 
     return true;
@@ -1789,7 +1794,7 @@ bool ComputeInviteLotteryParams(
             return AbortNode(state, "Failed to read block");
         }
 
-        if (!UpdateInviteLotteryParams(block, view, lottery_params)) {
+        if (!UpdateInviteLotteryParams(block, view, lottery_params, params)) {
             return AbortNode(state,"Failed to update invite lottery params");
         }
 
