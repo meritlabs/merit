@@ -3108,17 +3108,6 @@ bool ValidateInvites(
         CCoinsViewCache& view,
         CValidationState& state)
 {
-    // First invite must be "invite-coinbase", the rest must not be
-    if (!block.invites.empty() && !block.invites[0]->IsCoinBase()) {
-        return state.DoS(
-                100,
-                false,
-                REJECT_INVALID,
-                "bad-invite-cb-missing",
-                false,
-                "first invite is not coinbase");
-    }
-
     InviteMap invites_in_block;
     std::transform(block.invites.begin(), block.invites.end(),
             std::inserter(invites_in_block, invites_in_block.end()),
@@ -3885,22 +3874,33 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                     REJECT_INVALID, "bad-cb-no-invites");
         }
 
-        if(invite_rewards.empty() && !block.invites.empty()) {
-            return state.DoS(100,
-                    error("ConnectBlock(): Block had invites but none were expected"),
-                    REJECT_INVALID, "bad-cb-had-invites-when-none-expected");
-
-        }
-
+        size_t coinbase_end = 0;
         if(!invite_rewards.empty()) {
             const CTransaction& coinbase_invites = *block.invites[0];
+            coinbase_end = 1;
+
+            if(!coinbase_invites.IsCoinBase()) {
+                return state.DoS(100,
+                        error("ConnectBlock(): expected first invite to be a coinbase"),
+                        REJECT_INVALID, "bad-cb-invite-expected-coinbase");
+            }
 
             if (!AreExpectedInvitesRewarded(invite_rewards, coinbase_invites)) {
                 return state.DoS(100,
                         error("ConnectBlock(): coinbase did not reward expected invites."),
                         REJECT_INVALID, "bad-cb-bad-invites");
             }
+        } 
+
+        //Make sure we don't have a coinbase after the expected coinbase
+        for(size_t i = coinbase_end; i < block.invites.size(); i++) {
+            if(block.invites[i]->IsCoinBase()) {
+                return state.DoS(100,
+                        error("ConnectBlock(): coinbase invite is unexpected"),
+                        REJECT_INVALID, "bad-cb-invite-unexpected-coinbase");
+            }
         }
+
     }
 
     //order referrals so they are inserted into database in correct order.
@@ -5174,7 +5174,7 @@ static int GetWitnessCommitmentIndex(const CBlock& block)
             }
         }
     }
-    if (!block.invites.empty()) {
+    if (!block.invites.empty() && block.invites[0]->IsCoinBase()) {
         for (; o < block.invites[0]->vout.size(); o++) {
             if (block.invites[0]->vout[o].scriptPubKey.size() >= 38 && block.invites[0]->vout[o].scriptPubKey[0] == OP_RETURN && block.invites[0]->vout[o].scriptPubKey[1] == 0x24 && block.invites[0]->vout[o].scriptPubKey[2] == 0xaa && block.invites[0]->vout[o].scriptPubKey[3] == 0x21 && block.invites[0]->vout[o].scriptPubKey[4] == 0xa9 && block.invites[0]->vout[o].scriptPubKey[5] == 0xed) {
                 commitpos = o;
@@ -5303,7 +5303,7 @@ static bool ContextualCheckBlock(
                 !std::equal(expect.begin(), expect.end(), block.vtx[0]->vin[0].scriptSig.begin())) {
             return state.DoS(100, false, REJECT_INVALID, "bad-cb-height", false, "block height mismatch in coinbase");
         }
-        if(!block.invites.empty()) {
+        if(!block.invites.empty() && block.invites[0]->IsCoinBase()) {
             if (block.invites[0]->vin[0].scriptSig.size() < expect.size() ||
                     !std::equal(expect.begin(), expect.end(), block.invites[0]->vin[0].scriptSig.begin())) {
                 return state.DoS(100, false, REJECT_INVALID, "bad-cb-invite=height", false, "block height mismatch in invite coinbase");
