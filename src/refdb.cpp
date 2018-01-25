@@ -887,14 +887,12 @@ bool ReferralsViewDB::ConfirmAllPreDaedalusAddresses()
                 return a.second < b.second;
             });
 
-#ifdef NDEBUG
     for(const auto& addr : addresses) {
         debug("\tConfirming %s address", CMeritAddress{addr.first, addr.second}.ToString());
         if (!UpdateConfirmation(addr.first, addr.second, 1)) {
             return false;
         }
     }
-#endif
 
     //Mark state in DB that all addresses before daedalus have been confirmed.
     if (!m_db.Write(DB_PRE_DAEDALUS_CONFIRMED, true)) {
