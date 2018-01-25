@@ -33,6 +33,7 @@
 #include <QTimer>
 
 static const std::array<int, 9> confTargets = { {2, 4, 6, 12, 24, 48, 144, 504, 1008} };
+
 int getConfTargetForIndex(int index) {
     if (index+1 > static_cast<int>(confTargets.size())) {
         return confTargets.back();
@@ -42,6 +43,7 @@ int getConfTargetForIndex(int index) {
     }
     return confTargets[index];
 }
+
 int getIndexForConfTarget(int target) {
     for (unsigned int i = 0; i < confTargets.size(); i++) {
         if (confTargets[i] >= target) {
@@ -677,6 +679,7 @@ void SendCoinsDialog::updateSmartFeeLabel()
         ui->labelSmartFee2->show(); // (Smart fee not initialized yet. This usually takes a few blocks...)
         ui->labelFeeEstimation->setText("");
         ui->fallbackFeeWarningLabel->setVisible(true);
+        ui->fallbackFeeWarningImageLabel->setVisible(true);
         int lightness = ui->fallbackFeeWarningLabel->palette().color(QPalette::WindowText).lightness();
         QColor warning_colour(255 - (lightness / 5), 176 - (lightness / 3), 48 - (lightness / 14));
         ui->fallbackFeeWarningLabel->setStyleSheet("QLabel { color: " + warning_colour.name() + "; }");
@@ -687,6 +690,7 @@ void SendCoinsDialog::updateSmartFeeLabel()
         ui->labelSmartFee2->hide();
         ui->labelFeeEstimation->setText(tr("Estimated to begin confirmation within %n block(s).", "", feeCalc.returnedTarget));
         ui->fallbackFeeWarningLabel->setVisible(false);
+        ui->fallbackFeeWarningImageLabel->setVisible(false);
     }
 
     updateFeeMinimizedLabel();

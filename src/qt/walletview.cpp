@@ -49,8 +49,8 @@ WalletView::WalletView(const PlatformStyle *_platformStyle, QWidget *parent):
     if (platformStyle->getImagesOnButtons()) {
         exportButton->setIcon(platformStyle->SingleColorIcon(":/icons/export"));
     }
-    hbox_buttons->addStretch();
     hbox_buttons->addWidget(exportButton);
+    hbox_buttons->addStretch();
     vbox->addLayout(hbox_buttons);
     transactionsPage->setLayout(vbox);
 

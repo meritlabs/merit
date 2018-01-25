@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>850</width>
-    <height>526</height>
+    <height>569</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -79,6 +79,7 @@
             </property>
             <property name="font">
              <font>
+              <pointsize>16</pointsize>
               <weight>75</weight>
               <bold>true</bold>
              </font>
@@ -587,8 +588,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>830</width>
-        <height>104</height>
+        <width>824</width>
+        <height>72</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,1">
@@ -642,6 +643,21 @@
        <height>16777215</height>
       </size>
      </property>
+     <property name="styleSheet">
+      <string notr="true">QFrame {
+  background-color: white;
+  border-radius: 3px;
+  border: 1px solid #E2E2E2;
+}
+
+QLabel {
+  border: none;
+}
+
+QListView {
+  border: none;
+}</string>
+     </property>
      <property name="frameShape">
       <enum>QFrame::StyledPanel</enum>
      </property>
@@ -673,7 +689,7 @@
          <number>10</number>
         </property>
         <property name="topMargin">
-         <number>0</number>
+         <number>10</number>
         </property>
         <item>
          <layout class="QHBoxLayout" name="horizontalLayoutFee1">
@@ -730,6 +746,12 @@
               </item>
               <item>
                <widget class="QLabel" name="labelFeeMinimized">
+                <property name="font">
+                 <font>
+                  <weight>75</weight>
+                  <bold>true</bold>
+                 </font>
+                </property>
                 <property name="text">
                  <string/>
                 </property>
@@ -760,15 +782,34 @@
            </layout>
           </item>
           <item>
+           <widget class="QLabel" name="fallbackFeeWarningImageLabel">
+            <property name="maximumSize">
+             <size>
+              <width>20</width>
+              <height>20</height>
+             </size>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="pixmap">
+             <pixmap resource="../merit.qrc">:/icons/res/icons/warning-colored.png</pixmap>
+            </property>
+            <property name="scaledContents">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QLabel" name="fallbackFeeWarningLabel">
+            <property name="font">
+             <font>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
             <property name="toolTip">
              <string>Using the fallbackfee can result in sending a transaction that will take several hours or days (or never) to confirm. Consider choosing your fee manually or wait until you have validated the complete chain.</string>
-            </property>
-            <property name="font">
-            <font>
-                <weight>75</weight>
-                <bold>true</bold>
-            </font>
             </property>
             <property name="text">
              <string>Warning: Fee estimation is currently not possible.</string>
@@ -808,6 +849,9 @@
         </item>
         <item>
          <widget class="QFrame" name="frameFeeSelection">
+          <property name="styleSheet">
+           <string notr="true">border: none;</string>
+          </property>
           <layout class="QVBoxLayout" name="verticalLayoutFee12">
            <property name="spacing">
             <number>0</number>
@@ -827,16 +871,13 @@
            <item>
             <layout class="QGridLayout" name="gridLayoutFee">
              <property name="topMargin">
-              <number>10</number>
+              <number>4</number>
              </property>
              <property name="bottomMargin">
               <number>4</number>
              </property>
-             <property name="horizontalSpacing">
+             <property name="spacing">
               <number>10</number>
-             </property>
-             <property name="verticalSpacing">
-              <number>4</number>
              </property>
              <item row="1" column="1">
               <layout class="QVBoxLayout" name="verticalLayoutFee8">
@@ -1113,11 +1154,11 @@
            </item>
            <item>
             <widget class="QCheckBox" name="optInRBF">
-             <property name="text">
-              <string>Request Replace-By-Fee</string>
-             </property>
              <property name="toolTip">
               <string>Indicates that the sender may wish to replace this transaction with a new one paying higher fees (prior to being confirmed).</string>
+             </property>
+             <property name="text">
+              <string>Request Replace-By-Fee</string>
              </property>
             </widget>
            </item>
@@ -1132,7 +1173,7 @@
           <property name="sizeHint" stdset="0">
            <size>
             <width>40</width>
-            <height>5</height>
+            <height>10</height>
            </size>
           </property>
          </spacer>
@@ -1284,7 +1325,7 @@
  </resources>
  <connections/>
  <buttongroups>
-  <buttongroup name="groupFee"/>
   <buttongroup name="groupCustomFee"/>
+  <buttongroup name="groupFee"/>
  </buttongroups>
 </ui>
