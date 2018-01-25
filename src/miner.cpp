@@ -730,7 +730,10 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
         mempool.CalculateMemPoolAncestorsReferrals(ancestors, referrals);
 
         CTxMemPool::setEntries confirmations;
+        // TODO: test block size limits and update confirmations selection
+        // when transactions weight is close to limit
         mempool.CalculateReferralsConfirmations(referrals, ancestors);
+        onlyUnconfirmed(ancestors);
 
         // Test if all tx's have required referrals and all tx's are Final
         if (!CheckReferrals(ancestors, referrals) || !TestPackageContent(ancestors, referrals)) {

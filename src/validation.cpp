@@ -1057,7 +1057,7 @@ static bool AcceptToMemoryPoolWorker(
                 while (it.first != it.second) {
                     const auto duplicate_referral = it.first->GetSharedEntryValue();
 
-                    std::vector<std::pair<uint160, int>> addresses{{duplicate_referral->GetAddress(), duplicate_referral->addressType}};
+                    std::vector<AddressPair> addresses{{duplicate_referral->GetAddress(), duplicate_referral->addressType}};
                     std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
 
                     // check tx mempool for invite txs for this referral

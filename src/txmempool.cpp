@@ -246,7 +246,7 @@ void CTxMemPool::CalculateReferralsConfirmations(
     const referral::ReferralTxMemPool::setEntries& referrals,
     setEntries& confirmations) const
 {
-    std::vector<std::pair<uint160, int>> addresses;
+    std::vector<AddressPair> addresses;
     std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
 
     for (const auto& ref_entry: referrals) {
