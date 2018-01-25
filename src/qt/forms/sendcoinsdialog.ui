@@ -782,6 +782,25 @@ QListView {
            </layout>
           </item>
           <item>
+           <widget class="QLabel" name="fallbackFeeWarningImageLabel">
+            <property name="maximumSize">
+             <size>
+              <width>20</width>
+              <height>20</height>
+             </size>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="pixmap">
+             <pixmap resource="../merit.qrc">:/icons/res/icons/warning-colored.png</pixmap>
+            </property>
+            <property name="scaledContents">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QLabel" name="fallbackFeeWarningLabel">
             <property name="font">
              <font>
