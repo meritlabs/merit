@@ -889,7 +889,7 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
     return wtx.GetHash().GetHex();
 }
 
-UniValue confirmaddress(const JSONRPCRequest& request)
+UniValue inviteaddress(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
@@ -898,7 +898,7 @@ UniValue confirmaddress(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
-            "confirmaddress \"address\""
+            "inviteaddress \"address\""
             "\nConfirm given address's referral.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
@@ -906,7 +906,7 @@ UniValue confirmaddress(const JSONRPCRequest& request)
             "\nResult:\n"
             "\"txid\"        (string) The invite transaction id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("confirmaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+            + HelpExampleCli("inviteaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
         );
 
     if(!ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
@@ -5208,7 +5208,7 @@ static const CRPCCommand commands[] =
     // merit specific commands
     { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress", "alias"} },
     { "referral",           "getanv",                   &getanv,                   {} },
-    { "wallet",             "confirmaddress",           &confirmaddress,           {"address"} },
+    { "wallet",             "inviteaddress",            &inviteaddress,            {"address"} },
     { "wallet",             "listinvites",              &listinvites,              {"addresses"} },
 
     { "wallet",             "getrewards",               &getrewards,               {} },

@@ -295,10 +295,6 @@ public:
 
         vFixedSeeds.clear();
         vSeeds.clear();
-        // nodes with support for servicebits filtering should be at the top
-        vSeeds.emplace_back("13.90.145.4,", false);
-        vSeeds.emplace_back("13.90.146.143", false);
-        vSeeds.emplace_back("13.90.147.18", false);
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_test, pnSeed6_test + ARRAYLEN(pnSeed6_test));
 

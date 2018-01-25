@@ -12,6 +12,8 @@
 #include "sync.h"
 #include "utiltime.h"
 
+#undef debug
+
 #include <QDebug>
 #include <QList>
 
