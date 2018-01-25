@@ -188,9 +188,13 @@ uint256 BlockWitnessMerkleRoot(const CBlock& block, bool* mutated)
     }
 
     if(!block.invites.empty()) {
-        leaves[i].SetNull(); // The witness hash of the invite coinbase is 0.
-        i++;
-        for (size_t s = 1; s < block.invites.size(); s++, i++) {
+        int s = 0;
+        if(block.invites[0]->IsCoinBase()) {
+            leaves[i].SetNull(); // The witness hash of the invite coinbase is 0.
+            i++;
+            s++;
+        }
+        for (; s < block.invites.size(); s++, i++) {
             leaves[i] = block.invites[s]->GetWitnessHash();
         }
     }
