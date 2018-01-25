@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>644</width>
-    <height>442</height>
+    <height>450</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -457,7 +457,7 @@
                </font>
               </property>
               <property name="text">
-               <string>Requests</string>
+               <string>Invitation Requests</string>
               </property>
              </widget>
             </item>

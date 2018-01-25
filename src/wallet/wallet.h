@@ -256,7 +256,7 @@ public:
     }
 
     ReferralRef GetReferral() const
-     {
+    {
         return m_pReferral;
     }
 
