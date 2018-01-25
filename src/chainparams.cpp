@@ -153,7 +153,7 @@ public:
                                                  //Looks at blocks over a 3 day period.
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 28000; // About January 19, 2018
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 41000; // About January 27, 2018
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 291520;   // About July 19, 2008
 
         // The best chain should have at least this much work.
@@ -268,8 +268,8 @@ public:
         consensus.daedalus_block_window = 4;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 3;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 40;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 200;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 1000;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
@@ -295,10 +295,6 @@ public:
 
         vFixedSeeds.clear();
         vSeeds.clear();
-        // nodes with support for servicebits filtering should be at the top
-        // vSeeds.emplace_back("13.90.145.4,", false);
-        // vSeeds.emplace_back("13.90.146.143", false);
-        // vSeeds.emplace_back("13.90.147.18", false);
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_test, pnSeed6_test + ARRAYLEN(pnSeed6_test));
 
@@ -393,8 +389,8 @@ public:
         consensus.daedalus_block_window = 4;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 5;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 40;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 200;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 1000;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
