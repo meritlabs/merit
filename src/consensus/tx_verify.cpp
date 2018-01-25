@@ -247,7 +247,7 @@ bool Consensus::CheckTxOutputs(
 
         if (!tx.IsInvite() && ExpectDaedalus(chainActive.Tip(), ::Params().GetConsensus())) {
             if (!CheckAddressConfirmed(CMeritAddress{dest})) {
-                return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-invited");
+                return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-confirmed");
             }
         }
     }

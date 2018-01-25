@@ -233,10 +233,37 @@ bool CTxMemPool::CalculateMemPoolAncestors(const CTxMemPoolEntry &entry, setEntr
     return true;
 }
 
-void CTxMemPool::CalculateMemPoolAncestorsReferrals(const setEntries& setAncestors, referral::ReferralTxMemPool::setEntries& ancestorsReferrals) const
+void CTxMemPool::CalculateMemPoolAncestorsReferrals(
+    const setEntries& setAncestors,
+    referral::ReferralTxMemPool::setEntries& ancestorsReferrals) const
 {
     for (const auto& entry: setAncestors) {
         mempoolReferral.GetReferralsForTransaction(entry->GetSharedEntryValue(), ancestorsReferrals);
+    }
+}
+
+void CTxMemPool::CalculateReferralsConfirmations(
+    const referral::ReferralTxMemPool::setEntries& referrals,
+    setEntries& confirmations) const
+{
+    std::vector<AddressPair> addresses;
+    std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
+
+    for (const auto& ref_entry: referrals) {
+        const auto referral = ref_entry->GetSharedEntryValue();
+        addresses.push_back({referral->GetAddress(), referral->addressType});
+    }
+
+    mempool.getAddressIndex(addresses, indexes);
+
+    for (const auto& index: indexes) {
+        auto it = mapTx.find(index.first.txhash);
+        assert(it != mapTx.end());
+
+        if (it->GetSharedEntryValue()->IsInvite()) {
+            debug("Found confirmation in mempool");
+            confirmations.insert(it);
+        }
     }
 }
 
@@ -476,7 +503,7 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
         int type = ExtractAddressFromScript(hashBytes, prevout.scriptPubKey);
         if(type > 0) {
             CMempoolAddressDeltaKey key(type, uint160(hashBytes), txhash, j, 1);
-            CMempoolAddressDelta delta(entry.GetTime(), prevout.nValue * -1, input.prevout.hash, input.prevout.n);
+            CMempoolAddressDelta delta(entry.GetTime(), prevout.nValue * -1, input.prevout.hash, input.prevout.n, tx.IsInvite());
             mapAddress.insert(std::make_pair(key, delta));
             inserted.push_back(key);
         }
@@ -488,7 +515,7 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
         int type = ExtractAddressFromScript(hashBytes, out.scriptPubKey);
         if(type > 0) {
             CMempoolAddressDeltaKey key(type, uint160(hashBytes), txhash, k, 0);
-            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(entry.GetTime(), out.nValue, out.scriptPubKey)));
+            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(entry.GetTime(), out.nValue, out.scriptPubKey, tx.IsInvite())));
             inserted.push_back(key);
         }
     }

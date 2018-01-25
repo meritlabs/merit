@@ -308,6 +308,10 @@ bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &ha
 bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
 /** Check whether referral signature is valid */
 bool CheckReferralSignature(const referral::Referral& ref);
+/** Build a set of confirmed address in block */
+void BuildConfirmationSet(const CTransactionRef& invite, ConfirmationSet& confirmations_in_block);
+/** Extract address and address type from tx out */
+AddressPair ExtractAddress(const CTxOut& tout);
 
 CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params);
 

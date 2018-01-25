@@ -208,18 +208,16 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
     }
 
     // check if provided referral's alias is valid and not yet occupied
-    if (alias.size() > 0) {
-        if (alias.size() > referral::MAX_ALIAS_LENGTH) {
-            throw std::runtime_error(strprintf("%s: alias length should not be more than %d characters.", __func__, referral::MAX_ALIAS_LENGTH));
-        }
+    if(!referral::CheckReferralAlias(alias)) {
+        throw std::runtime_error(std::string(__func__) + ": the alias doesn't pass validation");
+    }
 
-        if(!referral::CheckReferralAlias(alias)) {
-            throw std::runtime_error(std::string(__func__) + ": the alias doesn't pass validation");
-        }
+    if (prefviewcache->Exists(alias)) {
+        throw std::runtime_error(std::string(__func__) + ": provided alias is already occupied");
+    }
 
-        if (prefviewcache->Exists(alias) || mempoolReferral.Exists(alias)) {
-            throw std::runtime_error(std::string(__func__) + ": provided alias is already occupied");
-        }
+    if (mempoolReferral.Exists(alias)) {
+        LogPrintf("Alias \"%s\" is already in mempool. There's a chance it would never be confirmed.\n", alias);
     }
 
     int64_t nIndex = ++m_max_keypool_index;

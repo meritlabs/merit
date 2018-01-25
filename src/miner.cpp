@@ -183,7 +183,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblock->nVersion = ComputeBlockVersion(pindexPrev, chain_params);
 
     //Add a dummy coinbase invite as first invite in daedalus block
-    if(pblock->IsDaedalus()) {
+    if (pblock->IsDaedalus()) {
         pblock->invites.emplace_back();
     }
 
@@ -264,7 +264,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     CValidationState state;
 
     //Include invites if we are mining a daudalus block
-    if(pblock->IsDaedalus()) {
+    if (pblock->IsDaedalus()) {
         CMutableTransaction coinbaseInvites;
         coinbaseInvites.vin.resize(1);
         coinbaseInvites.vin[0].prevout.SetNull();
@@ -354,6 +354,16 @@ void BlockAssembler::onlyUnconfirmed(CTxMemPool::setEntries& testSet)
     }
 }
 
+void BuildConfirmationSet(const CTxMemPool::setEntries& testSet, ConfirmationSet& confirmations)
+{
+    for (const auto& txentry : testSet) {
+        if (txentry->GetSharedEntryValue()->IsInvite()) {
+            BuildConfirmationSet(txentry->GetSharedEntryValue(), confirmations);
+        }
+    }
+}
+
+
 bool BlockAssembler::CheckReferrals(
         CTxMemPool::setEntries& testSet,
         referral::ReferralTxMemPool::setEntries& candidateReferrals)
@@ -365,15 +375,29 @@ bool BlockAssembler::CheckReferrals(
             return entryit->GetSharedEntryValue();
         });
 
+    ConfirmationSet confirmations;
+    BuildConfirmationSet(testSet, confirmations);
+
     // test all referrals are signed
     for (const auto& entryit: candidateReferrals) {
-        CheckReferralSignature(entryit->GetEntryValue());
+        const auto referral = entryit->GetEntryValue();
+        CheckReferralSignature(referral);
+
+        if (pblock->IsDaedalus()) {
+            // Check package for confirmation for give referral
+            if (confirmations.count(referral.GetAddress()) == 0) {
+                debug("ERROR: Referral confirmation not found");
+                return false;
+            }
+        }
     }
 
     // test all tx's outputs are beaconed and confirmed
-    for (const CTxMemPool::txiter it : testSet) {
+    for (const auto it : testSet) {
+        const auto tx = it->GetEntryValue();
+
         CValidationState dummy;
-        if (!Consensus::CheckTxOutputs(it->GetEntryValue(), dummy, *prefviewcache, vRefs)) {
+        if (!Consensus::CheckTxOutputs(tx, dummy, *prefviewcache, vRefs)) {
             return false;
         }
     }
@@ -445,6 +469,7 @@ void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 {
     const auto& tx = iter->GetEntryValue();
     if(tx.IsInvite()) {
+        debug("Miner Assembler: adding invite transaction to block");
         pblock->invites.emplace_back(iter->GetSharedEntryValue());
     } else {
         pblock->vtx.emplace_back(iter->GetSharedEntryValue());
@@ -554,13 +579,11 @@ void BlockAssembler::AddReferrals()
 {
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
 
-
     for (auto it = mempoolReferral.mapRTx.begin(); it != mempoolReferral.mapRTx.end(); it++) {
         const auto ref = it->GetSharedEntryValue();
 
         if (refsInBlock.count(it)) {
-            debug("\t%s: Referral %s is already in block\n", __func__,
-                    ref->GetHash().GetHex());
+            debug("\t%s: Referral %s is already in block\n", __func__, ref->GetHash().GetHex());
             continue;
         }
 
@@ -707,6 +730,16 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
 
         referral::ReferralTxMemPool::setEntries referrals;
         mempool.CalculateMemPoolAncestorsReferrals(ancestors, referrals);
+
+        CTxMemPool::setEntries confirmations;
+
+        // Add confirmations only for daedalus block
+        if (pblock->IsDaedalus()) {
+            // TODO: test block size limits and update confirmations selection
+            // when transactions weight is close to limit
+            mempool.CalculateReferralsConfirmations(referrals, ancestors);
+            onlyUnconfirmed(ancestors);
+        }
 
         // Test if all tx's have required referrals and all tx's are Final
         if (!CheckReferrals(ancestors, referrals) || !TestPackageContent(ancestors, referrals)) {
