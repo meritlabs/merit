@@ -1239,9 +1239,11 @@ UniValue getaddressrefids(const JSONRPCRequest& request)
         const auto referral = prefviewcache->GetReferral(address.first);
         const auto children = prefviewdb->GetChildren(address.first);
 
-        if (referral) {
-            result.push_back(referral->GetHash().GetHex());
+        if (!referral) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
         }
+
+        result.push_back(referral->GetHash().GetHex());
 
         for (const auto& child_address: children) {
             const auto child_referral = prefviewcache->GetReferral(child_address);
