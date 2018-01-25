@@ -3883,7 +3883,12 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         }
     }
 
-    ValidateReferralsAreConfirmed(block);
+    if (block.IsDaedalus() && !ValidateReferralsAreConfirmed(block)) {
+        return state.DoS(
+            100,
+            error("ConnectBlock(): referral is not confirmed"),
+            REJECT_INVALID, "bad-cb-ref-not-confirmed");
+    }
 
     std::set<uint256> referral_hashes{};
 

@@ -383,10 +383,12 @@ bool BlockAssembler::CheckReferrals(
         const auto referral = entryit->GetEntryValue();
         CheckReferralSignature(referral);
 
-        // Check package for confirmation for give referral
-        if (confirmations.count(referral.GetAddress()) == 0) {
-            debug("ERROR: Referral confirmation not found");
-            return false;
+        if (pblock->IsDaedalus()) {
+            // Check package for confirmation for give referral
+            if (confirmations.count(referral.GetAddress()) == 0) {
+                debug("ERROR: Referral confirmation not found");
+                return false;
+            }
         }
     }
 
@@ -730,10 +732,14 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
         mempool.CalculateMemPoolAncestorsReferrals(ancestors, referrals);
 
         CTxMemPool::setEntries confirmations;
-        // TODO: test block size limits and update confirmations selection
-        // when transactions weight is close to limit
-        mempool.CalculateReferralsConfirmations(referrals, ancestors);
-        onlyUnconfirmed(ancestors);
+
+        // Add confirmations only for daedalus block
+        if (pblock->IsDaedalus()) {
+            // TODO: test block size limits and update confirmations selection
+            // when transactions weight is close to limit
+            mempool.CalculateReferralsConfirmations(referrals, ancestors);
+            onlyUnconfirmed(ancestors);
+        }
 
         // Test if all tx's have required referrals and all tx's are Final
         if (!CheckReferrals(ancestors, referrals) || !TestPackageContent(ancestors, referrals)) {
