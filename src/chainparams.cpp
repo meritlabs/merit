@@ -268,8 +268,8 @@ public:
         consensus.daedalus_block_window = 4;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 200;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 1000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 500;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 1500;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
@@ -389,8 +389,8 @@ public:
         consensus.daedalus_block_window = 4;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 200;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 1000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 500;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 1500;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
