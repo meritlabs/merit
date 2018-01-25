@@ -503,7 +503,7 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
         int type = ExtractAddressFromScript(hashBytes, prevout.scriptPubKey);
         if(type > 0) {
             CMempoolAddressDeltaKey key(type, uint160(hashBytes), txhash, j, 1);
-            CMempoolAddressDelta delta(entry.GetTime(), prevout.nValue * -1, input.prevout.hash, input.prevout.n);
+            CMempoolAddressDelta delta(entry.GetTime(), prevout.nValue * -1, input.prevout.hash, input.prevout.n, tx.IsInvite());
             mapAddress.insert(std::make_pair(key, delta));
             inserted.push_back(key);
         }
@@ -515,7 +515,7 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
         int type = ExtractAddressFromScript(hashBytes, out.scriptPubKey);
         if(type > 0) {
             CMempoolAddressDeltaKey key(type, uint160(hashBytes), txhash, k, 0);
-            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(entry.GetTime(), out.nValue, out.scriptPubKey)));
+            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(entry.GetTime(), out.nValue, out.scriptPubKey, tx.IsInvite())));
             inserted.push_back(key);
         }
     }

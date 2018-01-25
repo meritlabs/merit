@@ -393,21 +393,21 @@ bool CheckReferralSignature(const referral::Referral& ref)
 }
 
 bool CheckReferralAliasUnique(
-    const std::string& alias,
+    const referral::ReferralRef& referral_in,
     const CBlock* block)
 {
-    if (alias.size() == 0) {
+    if (referral_in->alias.size() == 0) {
         return true;
     }
 
-    bool unique = !prefviewcache->Exists(alias);
+    bool unique = !prefviewcache->Exists(referral_in->alias);
 
     // check block for same aliases if provided
     if (block != nullptr) {
         auto it = std::find_if(
             block->m_vRef.begin(), block->m_vRef.end(),
-            [&alias](const referral::ReferralRef& ref) {
-                return ref->alias == alias;
+            [&referral_in](const referral::ReferralRef& ref) {
+                return ref->alias == referral_in->alias && ref->GetHash() != referral_in->GetHash();
             });
 
         unique &= it == block->m_vRef.end();
@@ -746,7 +746,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
         // check if referral alias is already occupied
         // we allow referrals with non-unique aliases in mempool
         // but only one of them would be accepted to new block
-        if (!CheckReferralAliasUnique(referral->alias, nullptr)) {
+        if (!CheckReferralAliasUnique(referral, nullptr)) {
             return state.Invalid(false, REJECT_DUPLICATE, "ref-alias-duplicate");
         }
 
@@ -1049,10 +1049,31 @@ static bool AcceptToMemoryPoolWorker(
                 // if confirmed referral's alias is already in blockchain
                 // we have a duplicate
                 if (prefviewcache->Exists(referral->alias)) {
-                    return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-confirms-alias-duplicate");
+                    return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
                 }
 
-                // TODO: check confirmed referrals from mempool
+                // find all referrals from mempool with the same alias
+                auto it = mempoolReferral.Find(referral->alias);
+                while (it.first != it.second) {
+                    const auto duplicate_referral = it.first->GetSharedEntryValue();
+
+                    std::vector<std::pair<uint160, int>> addresses{{duplicate_referral->GetAddress(), duplicate_referral->addressType}};
+                    std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
+
+                    // check tx mempool for invite txs for this referral
+                    mempool.getAddressIndex(addresses, indexes);
+
+                    for (const auto& address: indexes) {
+                        // if address is of invite tx and it is out,
+                        // then we found confirmation invite in mempool ==> duplicate
+                        if (address.second.is_invite && address.second.prevhash.IsNull()) {
+                            debug("Found confirmation tx in mempool for same alias \"%s\"", referral->alias);
+                            return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
+                        }
+                    }
+
+                    it.first++;
+                }
             }
         }
 
@@ -3853,7 +3874,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         }
 
         // is referral alias already occupied?
-        if (!CheckReferralAliasUnique(ref->alias, &block)) {
+        if (!CheckReferralAliasUnique(ref, &block)) {
             return error("ConnectBlock(): Referral %s alias \"%s\" is already occupied", ref->GetHash().GetHex(), ref->alias);
         }
     }
