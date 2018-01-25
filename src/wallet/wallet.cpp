@@ -223,8 +223,8 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
     int64_t nIndex = ++m_max_keypool_index;
 
     CWalletDB walletdb(*dbw);
-
     LOCK(cs_wallet);
+    assert(IsHDEnabled());
 
     // generate new key pair for the wallet
     CPubKey pubkey(GenerateNewKey(walletdb));
