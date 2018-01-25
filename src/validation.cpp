@@ -286,8 +286,6 @@ namespace {
 
 } // namespace
 
-using AddressPair = std::pair<uint160, char>;
-
 AddressPair ExtractAddress(const CTxOut& tout)
 {
     uint160 address;
@@ -1780,9 +1778,9 @@ bool ComputeInviteLotteryParams(
         int height,
         CBlockIndex* pindexPrev,
         CCoinsViewCache& view,
-        const Consensus::Params& params, 
+        const Consensus::Params& params,
         CValidationState& state,
-        pog::InviteLotteryParams& lottery_params) 
+        pog::InviteLotteryParams& lottery_params)
 {
     auto total_blocks = params.daedalus_block_window;
     assert(total_blocks > 0);
@@ -1827,7 +1825,7 @@ bool RewardInvites(
         return false;
     }
 
-    const auto total_winners = 
+    const auto total_winners =
         pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
 
     if(total_winners == 0 ) {
@@ -3063,8 +3061,6 @@ bool ConfirmAllPreDaedalusAddresses(
     return prefviewdb->ConfirmAllPreDaedalusAddresses();
 }
 
-using ConfirmationSet = std::set<uint160>;
-
 void BuildConfirmationSet(const CTransactionRef& invite,
         ConfirmationSet& confirmations_in_block)
 {
@@ -3175,7 +3171,7 @@ bool ValidateInvites(
         for (const auto& in : inv->vin) {
             CTransactionRef prev;
             uint256 block_inv_is_in;
-            if (invites_in_block.count(in.prevout.hash) == 0 && 
+            if (invites_in_block.count(in.prevout.hash) == 0 &&
                     !GetTransaction(
                         in.prevout.hash,
                         prev,
@@ -3893,7 +3889,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                         error("ConnectBlock(): coinbase did not reward expected invites."),
                         REJECT_INVALID, "bad-cb-bad-invites");
             }
-        } 
+        }
 
         //Make sure we don't have a coinbase after the expected coinbase
         for(size_t i = coinbase_end; i < block.invites.size(); i++) {
@@ -5108,7 +5104,7 @@ bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempoo
     }
 
     // check mempool for confirmation invite transaction
-    std::vector<std::pair<uint160, int>> addresses{std::make_pair(addr, addr_type)};
+    std::vector<AddressPair> addresses{std::make_pair(addr, addr_type)};
     std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
 
     mempool.getAddressIndex(addresses, indexes);

@@ -616,7 +616,7 @@ void FindEasySendCoins(const CScriptID& easy_send_address, EasySendCoins& coins)
 
     using MempoolOutputs = std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>>;
     MempoolOutputs mempool_outputs;
-    std::vector<std::pair<uint160, int> > addresses = {{easy_send_address, SCRIPT_TYPE}};
+    std::vector<AddressPair> addresses = {{easy_send_address, SCRIPT_TYPE}};
     mempool.getAddressIndex(addresses, mempool_outputs);
 
     for(const auto& m : mempool_outputs) {

@@ -26,6 +26,7 @@
 #include "refmempool.h"
 #include "spentindex.h"
 #include "sync.h"
+#include "validation.h"
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
@@ -492,7 +493,7 @@ public:
     bool addUnchecked(const uint256& hash, const CTxMemPoolEntry &entry, setEntries &setAncestors, bool validFeeEstimate = true);
 
     void addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewCache &view);
-    bool getAddressIndex(std::vector<std::pair<uint160, int> > &addresses,
+    bool getAddressIndex(std::vector<AddressPair> &addresses,
                          std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results);
     bool removeAddressIndex(const uint256 txhash);
 
