@@ -88,6 +88,10 @@ void ReceiveCoinsDialog::setModel(WalletModel *_model)
         tableView->setColumnWidth(RecentRequestsTableModel::Date, DATE_COLUMN_WIDTH);
         tableView->setColumnWidth(RecentRequestsTableModel::Label, LABEL_COLUMN_WIDTH);
         tableView->setColumnWidth(RecentRequestsTableModel::Amount, AMOUNT_MINIMUM_COLUMN_WIDTH);
+        tableView->setStyleSheet(QString("QTableView { border: 1px solid #E2E2E2; } ") +
+                                 QString("QHeaderView::section { font-size: 13pt; background-color: #F5F6F7; border-style: none; padding-left: 5px; padding-right: 5px; } ") +
+                                 QString("QHeaderView::down-arrow { width: 13px; height: 8px; subcontrol-position: center right; } ") +
+                                 QString("QHeaderView::up-arrow { width: 13px; height: 8px; subcontrol-position: center right; } "));
 
         connect(tableView->selectionModel(),
             SIGNAL(selectionChanged(QItemSelection, QItemSelection)), this,

@@ -462,10 +462,15 @@ void MeritGUI::createToolBars()
         toolbar->setContextMenuPolicy(Qt::PreventContextMenu);
         toolbar->setMovable(false);
         toolbar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        toolbar->setStyleSheet(
+              QString("QToolBar { spacing: 0px; }") +
+              QString("QToolButton { padding: 0 10px; height: 40px; font-weight: bold; font-size: 13px; }") +
+              QString("QToolButton:checked { background-color: #CACACA; border-radius: 0; border: none; opacity: 1}"));
         toolbar->addAction(overviewAction);
         toolbar->addAction(sendCoinsAction);
         toolbar->addAction(receiveCoinsAction);
         toolbar->addAction(historyAction);
+        toolbar->setIconSize(QSize(16,16));
         overviewAction->setChecked(true);
     }
 }

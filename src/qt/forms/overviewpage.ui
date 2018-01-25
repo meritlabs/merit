@@ -6,12 +6,27 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>596</width>
+    <width>699</width>
     <height>342</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Form</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QFrame {
+  background-color: white;
+  border-radius: 3px;
+  border: 1px solid #E2E2E2;
+}
+
+QLabel {
+  border: none;
+}
+
+QListView {
+  border: none;
+}</string>
   </property>
   <layout class="QVBoxLayout" name="topLayout">
    <item>
@@ -39,6 +54,9 @@
       <layout class="QVBoxLayout" name="verticalLayout_2">
        <item>
         <widget class="QFrame" name="frame">
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
          <property name="frameShape">
           <enum>QFrame::StyledPanel</enum>
          </property>
@@ -52,6 +70,7 @@
              <widget class="QLabel" name="label_5">
               <property name="font">
                <font>
+                <pointsize>16</pointsize>
                 <weight>75</weight>
                 <bold>true</bold>
                </font>
@@ -425,6 +444,9 @@
       <layout class="QVBoxLayout" name="verticalLayout_3">
        <item>
         <widget class="QFrame" name="frame_2">
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
          <property name="frameShape">
           <enum>QFrame::StyledPanel</enum>
          </property>
@@ -438,6 +460,7 @@
              <widget class="QLabel" name="label_4">
               <property name="font">
                <font>
+                <pointsize>16</pointsize>
                 <weight>75</weight>
                 <bold>true</bold>
                </font>
@@ -517,25 +540,14 @@
          </layout>
         </widget>
        </item>
-       <item>
-        <spacer name="verticalSpacer_2">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
       </layout>
      </item>
     </layout>
    </item>
   </layout>
  </widget>
- <resources/>
+ <resources>
+  <include location="../merit.qrc"/>
+ </resources>
  <connections/>
 </ui>

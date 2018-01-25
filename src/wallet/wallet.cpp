@@ -196,11 +196,10 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress)
     int64_t nIndex = ++m_max_keypool_index;
 
     CWalletDB walletdb(*dbw);
+    LOCK(cs_wallet);
 
     bool internal = IsHDEnabled() && CanSupportFeature(FEATURE_HD_SPLIT);
     LogPrintf("Unlock wallet with %s key\n", internal ? "internal" : "external");
-
-    LOCK(cs_wallet);
 
     // generate new key pair for the wallet
     CPubKey pubkey(GenerateNewKey(walletdb, internal));
