@@ -238,6 +238,11 @@ ReferralRef ReferralTxMemPool::Get(const ReferralId& referral_id) const
     return boost::apply_visitor(ReferralIdVisitor(this), referral_id);
 }
 
+std::pair<ReferralTxMemPool::refaliter, ReferralTxMemPool::refaliter> ReferralTxMemPool::Find(const std::string& alias) const
+{
+    return mapRTx.get<referral_alias>().equal_range(alias);
+}
+
 bool ReferralTxMemPool::Exists(const uint256& hash) const
 {
     LOCK(cs);

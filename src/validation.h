@@ -243,6 +243,9 @@ static const unsigned int DEFAULT_CHECKLEVEL = 3;
 // Setting the target to > than 550MB will make it likely we can respect the target.
 static const uint64_t MIN_DISK_SPACE_FOR_BLOCK_FILES = 550 * 1024 * 1024;
 
+using ConfirmationSet = std::set<uint160>;
+using AddressPair = std::pair<uint160, char>;
+
 /**
  * Process an incoming block. This only returns after the best known valid
  * block is made active. Note that it does not, however, guarantee that the
@@ -304,7 +307,11 @@ bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &ha
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
 /** Check whether referral signature is valid */
-bool CheckReferralSignature(const referral::Referral& ref, const std::vector<referral::ReferralRef>& extraReferrals);
+bool CheckReferralSignature(const referral::Referral& ref);
+/** Build a set of confirmed address in block */
+void BuildConfirmationSet(const CTransactionRef& invite, ConfirmationSet& confirmations_in_block);
+/** Extract address and address type from tx out */
+AddressPair ExtractAddress(const CTxOut& tout);
 
 CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params);
 
@@ -333,10 +340,14 @@ pog::AmbassadorLottery RewardAmbassadors(
         CAmount total,
         const Consensus::Params&);
 
-pog::InviteRewards RewardInvites(
+bool RewardInvites(
         int height,
+        CBlockIndex* pindexPrev,
         const uint256& previous_block_hash,
-        const Consensus::Params&);
+        CCoinsViewCache& view,
+        const Consensus::Params& params,
+        CValidationState& state,
+        pog::InviteRewards& rewards);
 
 /**
  * Include ambassadors into the coinbase transaction and split the total payment between them.

@@ -1,7 +1,7 @@
 dnl require autoconf 2.60 (AS_ECHO/AS_ECHO_N)
 AC_PREREQ([2.60])
 define(_CLIENT_VERSION_MAJOR, 0)
-define(_CLIENT_VERSION_MINOR, 2)
+define(_CLIENT_VERSION_MINOR, 3)
 define(_CLIENT_VERSION_REVISION, 0)
 define(_CLIENT_VERSION_BUILD, 0)
 define(_CLIENT_VERSION_IS_RELEASE, true)
@@ -221,16 +221,20 @@ AC_ARG_ENABLE([werror],
     [enable_werror=$enableval],
     [enable_werror=no])
 
+AC_ARG_ENABLE([wmarch],
+    [AS_HELP_STRING([--enable-march],
+                    [Use native CPU instructions for mining (default is no)])],
+    [enable_wmarch=$enableval],
+    [enable_wmarch=no])
+
+AC_ARG_ENABLE([qdebug],
+  [AS_HELP_STRING([--enable-qdebug],
+  [Enable Qt Debug (default is false)])],
+  [enable_qdebug=$enableval],
+  [enable_qdebug=no])
+
 AC_LANG_PUSH([C++])
 AX_CHECK_COMPILE_FLAG([-Werror],[CXXFLAG_WERROR="-Werror"],[CXXFLAG_WERROR=""])
-
-if test "x$GCC" = xyes; then
-    CFLAGS="$CFLAGS -march=native"
-fi
-
-if test "x$GXX" = xyes; then
-    CXXFLAGS="$CXXFLAGS -march=native"
-fi
 
 if test "x$enable_debug" = xyes; then
     CPPFLAGS="$CPPFLAGS -DDEBUG -DDEBUG_LOCKORDER"
@@ -238,10 +242,16 @@ if test "x$enable_debug" = xyes; then
     if test "x$GCC" = xyes; then
       CFLAGS="$CFLAGS -g3 -O0"
     fi
+fi
 
-    if test "x$GXX" = xyes; then
-        CXXFLAGS="$CXXFLAGS -march=native -g3 -O0"
-    fi
+if test "x$enable_march" = xyes; then
+  CXXFLAGS="$CXXFLAGS -march=native"
+  CFLAGS="$CFLAGS -march=native"
+fi
+
+if test "x$enable_qdebug" != xyes; then
+  CXXFLAGS="$CXXFLAGS -DQT_NO_DEBUG_OUTPUT"
+  CFLAGS="$CFLAGS -DQT_NO_DEBUG_OUTPUT"
 fi
 
 ERROR_CXXFLAGS=
@@ -1301,13 +1311,15 @@ if test x$merit_enable_qt != xno; then
     echo "    qt version  = $merit_qt_got_major_vers"
     echo "    with qr     = $use_qr"
 fi
-echo "  with zmq      = $use_zmq"
-echo "  with test     = $use_tests"
-echo "  with bench    = $use_bench"
-echo "  with upnp     = $use_upnp"
-echo "  use asm       = $use_asm"
-echo "  debug enabled = $enable_debug"
-echo "  werror        = $enable_werror"
+echo "  with zmq         = $use_zmq"
+echo "  with test        = $use_tests"
+echo "  with bench       = $use_bench"
+echo "  with upnp        = $use_upnp"
+echo "  use asm          = $use_asm"
+echo "  debug enabled    = $enable_debug"
+echo "  Qt debug enabled = $enable_qdebug"
+echo "  werror           = $enable_werror"
+echo "  native march     = $enable_march"
 echo
 echo "  target os     = $TARGET_OS"
 echo "  build os      = $BUILD_OS"

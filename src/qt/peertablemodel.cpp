@@ -12,6 +12,8 @@
 #include "validation.h" // for cs_main
 #include "sync.h"
 
+#undef debug
+
 #include <QDebug>
 #include <QList>
 #include <QTimer>

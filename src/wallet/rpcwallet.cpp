@@ -616,7 +616,7 @@ void FindEasySendCoins(const CScriptID& easy_send_address, EasySendCoins& coins)
 
     using MempoolOutputs = std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>>;
     MempoolOutputs mempool_outputs;
-    std::vector<std::pair<uint160, int> > addresses = {{easy_send_address, SCRIPT_TYPE}};
+    std::vector<AddressPair> addresses = {{easy_send_address, SCRIPT_TYPE}};
     mempool.getAddressIndex(addresses, mempool_outputs);
 
     for(const auto& m : mempool_outputs) {
@@ -889,20 +889,16 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
     return wtx.GetHash().GetHex();
 }
 
-UniValue confirmaddress(const JSONRPCRequest& request)
+UniValue inviteaddress(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
     }
 
-    if(!ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Address confirmation is currently not required.");
-    }
-
     if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
-            "confirmaddress \"address\""
+            "inviteaddress \"address\""
             "\nConfirm given address's referral.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
@@ -910,8 +906,12 @@ UniValue confirmaddress(const JSONRPCRequest& request)
             "\nResult:\n"
             "\"txid\"        (string) The invite transaction id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("confirmaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+            + HelpExampleCli("inviteaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
         );
+
+    if(!ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Address confirmation is currently not required.");
+    }
 
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
@@ -4948,7 +4948,7 @@ UniValue generate(const JSONRPCRequest& request)
 
     // If the keypool is exhausted, no script is returned at all.  Catch this.
     if (!coinbase_script) {
-        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, or wallet is not confirmed yet.");
     }
 
     //throw an error if no script was provided
@@ -5041,6 +5041,7 @@ UniValue unlockwallet(const JSONRPCRequest& request)
         obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
 
     obj.push_back(Pair("referred", true));
+    obj.push_back(Pair("confirmed", false));
     obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{referral->GetAddress()})));
     obj.push_back(Pair("invites", pwallet->GetAvailableBalance(nullptr, true)));
     obj.push_back(Pair("immature_invites", pwallet->GetImmatureBalance(true)));
@@ -5207,7 +5208,7 @@ static const CRPCCommand commands[] =
     // merit specific commands
     { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress", "alias"} },
     { "referral",           "getanv",                   &getanv,                   {} },
-    { "wallet",             "confirmaddress",           &confirmaddress,           {"address"} },
+    { "wallet",             "inviteaddress",            &inviteaddress,            {"address"} },
     { "wallet",             "listinvites",              &listinvites,              {"addresses"} },
 
     { "wallet",             "getrewards",               &getrewards,               {} },

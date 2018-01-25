@@ -15,11 +15,12 @@
 #include <set>
 #include <cctype>
 #include <algorithm>
+#include <regex>
 
 namespace referral
 {
     namespace
-    { 
+    {
         std::set<std::string> INVALID_ALIAS_NAMES = {
             "merit",
             "meritlabs",
@@ -27,12 +28,16 @@ namespace referral
 
     }
 
-bool CheckReferralAlias(std::string alias) 
+bool CheckReferralAlias(std::string alias)
 {
-    if(alias.size() > MAX_ALIAS_LENGTH) {
+    std::regex alias_regex(strprintf("^([a-z0-9_-]){0,%d}$", MAX_ALIAS_LENGTH), std::regex_constants::icase);
+
+    // check alias contains only valid symbols
+    if (!std::regex_match(alias, alias_regex)) {
         return false;
     }
 
+    // check alias is not one of the reserved names
     std::transform(alias.begin(), alias.end(), alias.begin(), ::tolower);
     return INVALID_ALIAS_NAMES.count(alias) == 0;
 }

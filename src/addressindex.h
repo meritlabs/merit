@@ -253,20 +253,23 @@ struct CMempoolAddressDelta
     CScript scriptPubKey;
     uint256 prevhash;
     unsigned int prevout;
+    bool is_invite;
 
-    CMempoolAddressDelta(int64_t t, CAmount a, uint256 hash, unsigned int out) {
+    CMempoolAddressDelta(int64_t t, CAmount a, uint256 hash, unsigned int out, bool invite) {
         time = t;
         amount = a;
         prevhash = hash;
         prevout = out;
+        is_invite = invite;
     }
 
-    CMempoolAddressDelta(int64_t t, CAmount a, const CScript& script) {
+    CMempoolAddressDelta(int64_t t, CAmount a, const CScript& script, bool invite) {
         time = t;
         amount = a;
         scriptPubKey = script;
         prevhash.SetNull();
         prevout = 0;
+        is_invite = invite;
     }
 };
 

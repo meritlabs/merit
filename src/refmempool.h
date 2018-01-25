@@ -123,6 +123,7 @@ public:
                 CompareMemPoolEntryByEntryTime<Referral>>>>;
 
     using refiter = indexed_referrals_set::nth_index<0>::type::iterator;
+    using refaliter = indexed_referrals_set::nth_index<2>::type::iterator;
 
     using setEntries = std::set<refiter, CompareIteratorByHash<refiter>>;
 
@@ -212,6 +213,8 @@ public:
 
     /** Get referral by id - hash, address or alias */
     ReferralRef Get(const ReferralId& referral_id) const;
+
+    std::pair<refaliter, refaliter> Find(const std::string& alias) const;
 
     unsigned long Size() const
     {

@@ -376,9 +376,9 @@ void PaymentServer::initNetManager()
         netManager->setProxy(proxy);
 
         qDebug() << "PaymentServer::initNetManager: Using SOCKS5 proxy" << proxy.hostName() << ":" << proxy.port();
-    }
-    else
+    } else {
         qDebug() << "PaymentServer::initNetManager: No active proxy server found.";
+    }
 
     connect(netManager, SIGNAL(finished(QNetworkReply*)),
             this, SLOT(netRequestFinished(QNetworkReply*)));

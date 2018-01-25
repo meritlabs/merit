@@ -192,23 +192,32 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
 
     // check parent address and alias not to generate keys
     // TODO: remove generated key from map if referral transaction failed and remove this checks
-    if (!prefviewcache->Exists(parentAddress) && !mempoolReferral.Exists(parentAddress)) {
-        throw std::runtime_error(std::string(__func__) + ": provided address does not exist in the chain");
+    const bool isBeaconed = CheckAddressBeaconed(parentAddress, true);
+
+    if (!isBeaconed) {
+        throw std::runtime_error(std::string(__func__) + ": provided address is not beaconed");
+    }
+
+    bool isConfirmed = true;
+    if(ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
+        isConfirmed = CheckAddressConfirmed(parentAddress, true);
+    }
+
+    if (!isConfirmed) {
+        throw std::runtime_error(std::string(__func__) + ": provided address is not confirmed");
     }
 
     // check if provided referral's alias is valid and not yet occupied
-    if (alias.size() > 0) {
-        if (alias.size() > referral::MAX_ALIAS_LENGTH) {
-            throw std::runtime_error(strprintf("%s: alias length should not be more than %d characters.", __func__, referral::MAX_ALIAS_LENGTH));
-        }
+    if(!referral::CheckReferralAlias(alias)) {
+        throw std::runtime_error(std::string(__func__) + ": the alias doesn't pass validation");
+    }
 
-        if(!referral::CheckReferralAlias(alias)) {
-            throw std::runtime_error(std::string(__func__) + ": the alias doesn't pass validation");
-        }
+    if (prefviewcache->Exists(alias)) {
+        throw std::runtime_error(std::string(__func__) + ": provided alias is already occupied");
+    }
 
-        if (prefviewcache->Exists(alias) || mempoolReferral.Exists(alias)) {
-            throw std::runtime_error(std::string(__func__) + ": provided alias is already occupied");
-        }
+    if (mempoolReferral.Exists(alias)) {
+        LogPrintf("Alias \"%s\" is already in mempool. There's a chance it would never be confirmed.\n", alias);
     }
 
     int64_t nIndex = ++m_max_keypool_index;
@@ -2349,8 +2358,11 @@ CAmount CWallet::GetBalance(bool invite) const
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-            if (pcoin->IsTrusted() && pcoin->IsInvite() == invite)
-                nTotal += pcoin->GetAvailableCredit();
+            if (pcoin->IsTrusted() && pcoin->IsInvite() == invite) {
+                if(!invite || (invite && pcoin->IsCoinBase())) {
+                    nTotal += pcoin->GetAvailableCredit();
+                }
+            }
         }
     }
 
@@ -2400,7 +2412,9 @@ CAmount CWallet::GetUnconfirmedBalance(bool invite) const
                     pcoin->InMempool() &&
                     pcoin->IsInvite() == invite)
 
-                nTotal += pcoin->GetAvailableCredit();
+                if(!invite || (invite && pcoin->IsCoinBase())) {
+                    nTotal += pcoin->GetAvailableCredit();
+                }
         }
     }
     return nTotal;
@@ -2414,8 +2428,11 @@ CAmount CWallet::GetImmatureBalance(bool invite) const
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-            if(pcoin->IsInvite() == invite)
-                nTotal += pcoin->GetImmatureCredit();
+            if(pcoin->IsInvite() == invite) {
+                if(!invite || (invite && pcoin->IsCoinBase())) {
+                    nTotal += pcoin->GetImmatureCredit();
+                }
+            }
         }
     }
     return nTotal;
@@ -2429,8 +2446,11 @@ CAmount CWallet::GetWatchOnlyBalance(bool invite) const
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-            if (pcoin->IsTrusted() && pcoin->IsInvite() == invite)
-                nTotal += pcoin->GetAvailableWatchOnlyCredit();
+            if (pcoin->IsTrusted() && pcoin->IsInvite() == invite) {
+                if(!invite || (invite && pcoin->IsCoinBase())) {
+                    nTotal += pcoin->GetAvailableWatchOnlyCredit();
+                }
+            }
         }
     }
 
@@ -4353,6 +4373,10 @@ void CWallet::GetScriptForMining(std::shared_ptr<CReserveScript> &script)
     std::shared_ptr<CReserveKey> rKey = std::make_shared<CReserveKey>(this);
     CPubKey pubkey;
     if (!rKey->GetReservedKey(pubkey)) {
+        return;
+    }
+
+    if (DaedalusGeneration() && !CheckAddressConfirmed(pubkey.GetID(), 1)) {
         return;
     }
 

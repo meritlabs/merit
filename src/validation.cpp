@@ -173,7 +173,133 @@ namespace {
     /** Dirty block file entries. */
     std::set<int> setDirtyFileInfo;
 
-} // anon namespace
+    FILE* OpenDiskFile(const CDiskBlockPos &pos, const char *prefix, bool fReadOnly)
+    {
+        if (pos.IsNull())
+            return nullptr;
+        fs::path path = GetBlockPosFilename(pos, prefix);
+        fs::create_directories(path.parent_path());
+        FILE* file = fsbridge::fopen(path, "rb+");
+        if (!file && !fReadOnly)
+            file = fsbridge::fopen(path, "wb+");
+        if (!file) {
+            LogPrintf("Unable to open file %s\n", path.string());
+            return nullptr;
+        }
+        if (pos.nPos) {
+            if (fseek(file, pos.nPos, SEEK_SET)) {
+                LogPrintf("Unable to seek to position %u of %s\n", pos.nPos, path.string());
+                fclose(file);
+                return nullptr;
+            }
+        }
+        return file;
+    }
+
+    /** Open an undo file (rev?????.dat) */
+    FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false) {
+        return OpenDiskFile(pos, "rev", fReadOnly);
+    }
+
+    bool UndoWriteToDisk(
+            const CBlockUndo& blockundo,
+            CDiskBlockPos& pos,
+            const uint256& hashBlock,
+            const CMessageHeader::MessageStartChars& messageStart)
+    {
+        // Open history file to append
+        CAutoFile fileout(OpenUndoFile(pos), SER_DISK, CLIENT_VERSION);
+        if (fileout.IsNull())
+            return error("%s: OpenUndoFile failed", __func__);
+
+        // Write index header
+        unsigned int nSize = GetSerializeSize(fileout, blockundo);
+        fileout << FLATDATA(messageStart) << nSize;
+
+        // Write undo data
+        long fileOutPos = ftell(fileout.Get());
+        if (fileOutPos < 0)
+            return error("%s: ftell failed", __func__);
+        pos.nPos = (unsigned int)fileOutPos;
+        fileout << blockundo;
+
+        // calculate & write checksum
+        CHashWriter hasher(SER_GETHASH, PROTOCOL_VERSION);
+        hasher << hashBlock;
+        hasher << blockundo;
+        fileout << hasher.GetHash();
+
+        return true;
+    }
+
+    bool UndoReadFromDisk(
+            CBlockUndo& blockundo,
+            const CDiskBlockPos& pos,
+            const uint256& hashBlock)
+    {
+        // Open history file to read
+        CAutoFile filein(OpenUndoFile(pos, true), SER_DISK, CLIENT_VERSION);
+        if (filein.IsNull())
+            return error("%s: OpenUndoFile failed", __func__);
+
+        // Read block
+        uint256 hashChecksum;
+        CHashVerifier<CAutoFile> verifier(&filein); // We need a CHashVerifier as reserializing may lose data
+        try {
+            verifier << hashBlock;
+            verifier >> blockundo;
+            filein >> hashChecksum;
+        }
+        catch (const std::exception& e) {
+            return error("%s: Deserialize or I/O error - %s", __func__, e.what());
+        }
+
+        // Verify checksum
+        if (hashChecksum != verifier.GetHash())
+            return error("%s: Checksum mismatch", __func__);
+
+        return true;
+    }
+
+    /** Abort with a message */
+    bool AbortNode(
+            const std::string& strMessage,
+            const std::string& userMessage="")
+    {
+        SetMiscWarning(strMessage);
+        LogPrintf("*** %s\n", strMessage);
+        uiInterface.ThreadSafeMessageBox(
+                userMessage.empty() ? _("Error: A fatal internal error occurred, see debug.log for details") : userMessage,
+                "", CClientUIInterface::MSG_ERROR);
+        StartShutdown();
+        return false;
+    }
+
+    bool AbortNode(
+            CValidationState& state,
+            const std::string& strMessage,
+            const std::string& userMessage="")
+    {
+        AbortNode(strMessage, userMessage);
+        return state.Error(strMessage);
+    }
+
+} // namespace
+
+AddressPair ExtractAddress(const CTxOut& tout)
+{
+    uint160 address;
+    char addressType = 0;
+
+    CTxDestination dest;
+    txnouttype destType;
+    if (ExtractDestination(tout.scriptPubKey, dest, destType)) {
+        addressType = AddressTypeFromDestination(dest);
+        GetUint160(dest, address);
+    }
+
+    return std::make_pair(address, addressType);
+}
 
 CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& locator)
 {
@@ -232,8 +358,6 @@ bool CheckInputs(const CTransaction& tx,
         PrecomputedTransactionData& txdata,
         std::vector<CScriptCheck> *pvChecks = nullptr);
 
-static FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false);
-
 referral::MaybeReferral LookupReferral(
     const referral::Address& address,
     const referral::ReferralsViewCache& referralsCache,
@@ -257,7 +381,7 @@ referral::MaybeReferral LookupReferral(
     return it != extraReferrals.end() ? **it : referral::MaybeReferral{};
 }
 
-bool CheckReferralSignature(const referral::Referral& ref, const std::vector<referral::ReferralRef>& extraReferrals)
+bool CheckReferralSignature(const referral::Referral& ref)
 {
     if (!ref.pubkey.IsValid()) {
         return false;
@@ -266,6 +390,30 @@ bool CheckReferralSignature(const referral::Referral& ref, const std::vector<ref
     auto hash = (CHashWriter(SER_GETHASH, 0) << ref.parentAddress << ref.GetAddress()).GetHash();
 
     return ref.pubkey.Verify(hash, ref.signature);
+}
+
+bool CheckReferralAliasUnique(
+    const referral::ReferralRef& referral_in,
+    const CBlock* block)
+{
+    if (referral_in->alias.size() == 0) {
+        return true;
+    }
+
+    bool unique = !prefviewcache->Exists(referral_in->alias);
+
+    // check block for same aliases if provided
+    if (block != nullptr) {
+        auto it = std::find_if(
+            block->m_vRef.begin(), block->m_vRef.end(),
+            [&referral_in](const referral::ReferralRef& ref) {
+                return ref->alias == referral_in->alias && ref->GetHash() != referral_in->GetHash();
+            });
+
+        unique &= it == block->m_vRef.end();
+    }
+
+    return unique;
 }
 
 bool CheckFinalTx(const CTransaction &tx, int flags)
@@ -595,10 +743,11 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
         }
 
-        // is referral alias already occupied?
-        if (referral->alias.size() > 0 &&
-            (prefviewcache->Exists(referral->alias) || pool.Exists(referral->alias))) {
-            return state.Invalid(false, REJECT_DUPLICATE, "ref-alias-occupied");
+        // check if referral alias is already occupied
+        // we allow referrals with non-unique aliases in mempool
+        // but only one of them would be accepted to new block
+        if (!CheckReferralAliasUnique(referral, nullptr)) {
+            return state.Invalid(false, REJECT_DUPLICATE, "ref-alias-duplicate");
         }
 
         if (!(prefviewcache->Exists(referral->parentAddress) ||
@@ -607,11 +756,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_INVALID, "ref-parent-not-beaconed");
         }
 
-        if (!referral::CheckReferralAlias(referral->alias)) {
-            return state.Invalid(false, REJECT_INVALID, "ref-bad-alias");
-        }
-
-        if (!CheckReferralSignature(*referral, pool.GetReferrals())) {
+        if (!CheckReferralSignature(*referral)) {
             return state.Invalid(false, REJECT_INVALID, "ref-bad-sig");
         }
 
@@ -878,6 +1023,58 @@ static bool AcceptToMemoryPoolWorker(
                         REJECT_HIGHFEE,
                         "absurdly-high-fee",
                         strprintf("%d > %d", nFees, nAbsurdFee));
+        } else if (!tx.IsCoinBase()) {
+            // Check that confirmation invite tx confirms referral
+            // whos alias is not yet confirmed for another referral
+            for (const auto& out : tx.vout) {
+                const auto address_pair = ExtractAddress(out);
+
+                // if destination address is already in chain
+                // then it's a move invite tx. do not check alias for uniqueness
+                // otherwise it is a confirmation tx
+                if (prefviewcache->Exists(address_pair.first)) {
+                    debug("Invite destination is already in chain");
+                    continue;
+                }
+
+                // trying to get referral from mempool to check for alias duplication
+                const auto referral = mempoolReferral.Get(address_pair.first);
+
+                // if referral is not found in mempool by address,
+                // then invite tries to confirm not beaconed address
+                if (referral == nullptr) {
+                    return state.Invalid(false, REJECT_INVALID, "bad-invite-out-not-found");
+                }
+
+                // if confirmed referral's alias is already in blockchain
+                // we have a duplicate
+                if (prefviewcache->Exists(referral->alias)) {
+                    return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
+                }
+
+                // find all referrals from mempool with the same alias
+                auto it = mempoolReferral.Find(referral->alias);
+                while (it.first != it.second) {
+                    const auto duplicate_referral = it.first->GetSharedEntryValue();
+
+                    std::vector<AddressPair> addresses{{duplicate_referral->GetAddress(), duplicate_referral->addressType}};
+                    std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
+
+                    // check tx mempool for invite txs for this referral
+                    mempool.getAddressIndex(addresses, indexes);
+
+                    for (const auto& address: indexes) {
+                        // if address is of invite tx and it is out,
+                        // then we found confirmation invite in mempool ==> duplicate
+                        if (address.second.is_invite && address.second.prevhash.IsNull()) {
+                            debug("Found confirmation tx in mempool for same alias \"%s\"", referral->alias);
+                            return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
+                        }
+                    }
+
+                    it.first++;
+                }
+            }
         }
 
         // Calculate in-mempool ancestors, up to a limit.
@@ -1618,27 +1815,111 @@ pog::AmbassadorLottery RewardAmbassadors(
     return rewards;
 }
 
-pog::InviteRewards RewardInvites(
-        int height,
-        const uint256& previous_block_hash,
+bool UpdateInviteLotteryParams(
+        const CBlock& block,
+        CCoinsViewCache& view,
+        pog::InviteLotteryParams& lottery_params,
         const Consensus::Params& params)
+{
+    for(const auto& invite : block.invites) {
+        if(!invite->IsCoinBase()) {
+            for(const auto& in : invite->vin) {
+                CTransactionRef prev;
+                uint256 block_inv_is_in;
+                if(!GetTransaction(
+                            in.prevout.hash,
+                            prev,
+                            params,
+                            block_inv_is_in,
+                            true)) {
+                    return false;
+                }
+
+                assert(prev);
+                if(!prev->IsCoinBase()) {
+                    continue;
+                }
+                lottery_params.invites_used += prev->vout.at(in.prevout.n).nValue;
+            }
+        } else {
+            for(const auto& out : invite->vout) {
+                lottery_params.invites_created += out.nValue;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool ComputeInviteLotteryParams(
+        int height,
+        CBlockIndex* pindexPrev,
+        CCoinsViewCache& view,
+        const Consensus::Params& params,
+        CValidationState& state,
+        pog::InviteLotteryParams& lottery_params)
+{
+    auto total_blocks = params.daedalus_block_window;
+    assert(total_blocks > 0);
+
+    while(total_blocks-- && pindexPrev) {
+
+        CBlock block;
+        if (!ReadBlockFromDisk(block, pindexPrev, params)) {
+            return AbortNode(state, "Failed to read block");
+        }
+
+        if (!UpdateInviteLotteryParams(block, view, lottery_params, params)) {
+            return AbortNode(state,"Failed to update invite lottery params");
+        }
+
+        pindexPrev = pindexPrev->pprev;
+    }
+
+    return true;
+}
+
+bool RewardInvites(
+        int height,
+        CBlockIndex* pindexPrev,
+        const uint256& previous_block_hash,
+        CCoinsViewCache& view,
+        const Consensus::Params& params,
+        CValidationState& state,
+        pog::InviteRewards& rewards)
 {
     assert(height >= 0);
     assert(prefviewdb != nullptr);
 
-    const auto lottery_params =
-        pog::ComputeInviteLotteryParams(height, params);
+    pog::InviteLotteryParams lottery_params;
+    if(!ComputeInviteLotteryParams(
+                height,
+                pindexPrev,
+                view,
+                params,
+                state,
+                lottery_params)) {
+        return false;
+    }
+
+    const auto total_winners =
+        pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
+
+    if(total_winners == 0 ) {
+        return true;
+    }
 
     const auto winners = pog::SelectConfirmedAddresses(
             *prefviewdb,
             previous_block_hash,
-            lottery_params.total_winners);
+            params.genesis_address,
+            total_winners);
 
-    if (winners.size() != lottery_params.total_winners) {
-        return {};
-    }
+    assert(winners.size() == total_winners);
 
-    return pog::RewardInvites(winners, lottery_params);
+    rewards = pog::RewardInvites(winners);
+
+    return true;
 }
 
 bool IsValidAmbassadorDestination(const CTxDestination& dest)
@@ -1677,7 +1958,7 @@ void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& t
 {
     assert(tx.IsInvite());
 
-    debug("Invite Lottery Results");
+    debug("Invite Lottery Results: %d", rewards.size());
 
     // Pay them by adding a txout to the coinbase transaction;
     std::transform(
@@ -2199,80 +2480,6 @@ bool CheckInputs(
     return true;
 }
 
-namespace {
-
-bool UndoWriteToDisk(const CBlockUndo& blockundo, CDiskBlockPos& pos, const uint256& hashBlock, const CMessageHeader::MessageStartChars& messageStart)
-{
-    // Open history file to append
-    CAutoFile fileout(OpenUndoFile(pos), SER_DISK, CLIENT_VERSION);
-    if (fileout.IsNull())
-        return error("%s: OpenUndoFile failed", __func__);
-
-    // Write index header
-    unsigned int nSize = GetSerializeSize(fileout, blockundo);
-    fileout << FLATDATA(messageStart) << nSize;
-
-    // Write undo data
-    long fileOutPos = ftell(fileout.Get());
-    if (fileOutPos < 0)
-        return error("%s: ftell failed", __func__);
-    pos.nPos = (unsigned int)fileOutPos;
-    fileout << blockundo;
-
-    // calculate & write checksum
-    CHashWriter hasher(SER_GETHASH, PROTOCOL_VERSION);
-    hasher << hashBlock;
-    hasher << blockundo;
-    fileout << hasher.GetHash();
-
-    return true;
-}
-
-bool UndoReadFromDisk(CBlockUndo& blockundo, const CDiskBlockPos& pos, const uint256& hashBlock)
-{
-    // Open history file to read
-    CAutoFile filein(OpenUndoFile(pos, true), SER_DISK, CLIENT_VERSION);
-    if (filein.IsNull())
-        return error("%s: OpenUndoFile failed", __func__);
-
-    // Read block
-    uint256 hashChecksum;
-    CHashVerifier<CAutoFile> verifier(&filein); // We need a CHashVerifier as reserializing may lose data
-    try {
-        verifier << hashBlock;
-        verifier >> blockundo;
-        filein >> hashChecksum;
-    }
-    catch (const std::exception& e) {
-        return error("%s: Deserialize or I/O error - %s", __func__, e.what());
-    }
-
-    // Verify checksum
-    if (hashChecksum != verifier.GetHash())
-        return error("%s: Checksum mismatch", __func__);
-
-    return true;
-}
-
-/** Abort with a message */
-bool AbortNode(const std::string& strMessage, const std::string& userMessage="")
-{
-    SetMiscWarning(strMessage);
-    LogPrintf("*** %s\n", strMessage);
-    uiInterface.ThreadSafeMessageBox(
-        userMessage.empty() ? _("Error: A fatal internal error occurred, see debug.log for details") : userMessage,
-        "", CClientUIInterface::MSG_ERROR);
-    StartShutdown();
-    return false;
-}
-
-bool AbortNode(CValidationState& state, const std::string& strMessage, const std::string& userMessage="")
-{
-    AbortNode(strMessage, userMessage);
-    return state.Error(strMessage);
-}
-
-} // namespace
 
 enum DisconnectResult
 {
@@ -2313,23 +2520,6 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
     view.AddCoin(out, std::move(undo), !fClean);
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
-}
-
-using AddressPair = std::pair<uint160, char>;
-
-AddressPair ExtractAddress(const CTxOut& tout)
-{
-    uint160 address;
-    char addressType = 0;
-
-    CTxDestination dest;
-    txnouttype destType;
-    if (ExtractDestination(tout.scriptPubKey, dest, destType)) {
-        addressType = AddressTypeFromDestination(dest);
-        GetUint160(dest, address);
-    }
-
-    return std::make_pair(address, addressType);
 }
 
 using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
@@ -2440,9 +2630,6 @@ void BuildReferralSet(const CBlock& block, ReferralSet& referrals_in_block)
 
 bool UpdateConfirmations(const CBlock& block, const DebitsAndCredits debits_and_credits)
 {
-    ReferralSet referrals_in_block;
-    BuildReferralSet(block, referrals_in_block);
-
     for (const auto& entry : debits_and_credits) {
         const char type = std::get<0>(entry);
         const auto& address = std::get<1>(entry);
@@ -2673,7 +2860,8 @@ DisconnectResult DisconnectTransactions(
         const std::vector<CTransactionRef>& vtx,
         DebitsAndCredits& debits_and_credits,
         CCoinsViewCache& view,
-        CBlockUndo& block_undo)
+        CBlockUndo& block_undo,
+        bool are_invites)
 {
     bool clean = true;
     for (int i = vtx.size() - 1; i >= 0; i--) {
@@ -2681,8 +2869,16 @@ DisconnectResult DisconnectTransactions(
 
         clean &= DisconnectOutputs(pindex->nHeight, tx, view);
 
-        // restore inputs
-        if (i > 0) { // not coinbases
+        if(are_invites && !tx.IsCoinBase()) {
+            CTxUndo &txundo = block_undo.vtxundo[i];
+            if (txundo.vprevout.size() != tx.vin.size()) {
+                error("DisconnectBlock(): transaction and undo data inconsistent");
+                return DISCONNECT_FAILED;
+            }
+            clean &= DisconnectInputs(txundo, tx.vin, view);
+            // At this point, all of txundo.vprevout should have been moved out.
+
+        } else if (i > 0) { // not coinbases
             CTxUndo &txundo = block_undo.vtxundo[i-1];
             if (txundo.vprevout.size() != tx.vin.size()) {
                 error("DisconnectBlock(): transaction and undo data inconsistent");
@@ -2721,16 +2917,9 @@ static DisconnectResult DisconnectBlock(
         return DISCONNECT_FAILED;
     }
 
-    if (block.IsDaedalus()) {
-        if (block_undo.vtxundo.size() + 2 != (block.vtx.size() + block.invites.size())) {
-            error("DisconnectBlock(): block and undo data inconsistent");
-            return DISCONNECT_FAILED;
-        }
-    } else {
-        if (block_undo.vtxundo.size() + 1 != block.vtx.size()) {
-            error("DisconnectBlock(): block and undo data inconsistent");
-            return DISCONNECT_FAILED;
-        }
+    if (block_undo.vtxundo.size() + 1 < (block.vtx.size() + block.invites.size())) {
+        error("DisconnectBlock(): block and undo data inconsistent");
+        return DISCONNECT_FAILED;
     }
 
     KeyActivity addressIndex;
@@ -2745,7 +2934,8 @@ static DisconnectResult DisconnectBlock(
                 block.vtx,
                 debits_and_credits,
                 view,
-                block_undo);
+                block_undo,
+                false);
 
     if (disconnect_txn_status == DISCONNECT_FAILED) {
         return disconnect_txn_status;
@@ -2762,7 +2952,8 @@ static DisconnectResult DisconnectBlock(
                     block.invites,
                     invite_debits_and_credits,
                     view,
-                    block_undo);
+                    block_undo,
+                    true);
 
         if (disconnect_inv_status == DISCONNECT_FAILED) {
             return disconnect_inv_status;
@@ -2938,11 +3129,11 @@ bool ConfirmAllPreDaedalusAddresses(
         return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
     }
 
+    debug("Confirming all pre-daedalus addresses");
+
     // One time confirmation of all addresses before the daedalus block
     return prefviewdb->ConfirmAllPreDaedalusAddresses();
 }
-
-using ConfirmationSet = std::set<uint160>;
 
 void BuildConfirmationSet(const CTransactionRef& invite,
         ConfirmationSet& confirmations_in_block)
@@ -2965,7 +3156,7 @@ void BuildConfirmationSet(
     }
 }
 
-bool ValidateAddressesAreConfirmed(const CBlock& block)
+bool ValidateTxOutsAreConfirmed(const CBlock& block)
 {
     ConfirmationSet confirmations_in_block;
     BuildConfirmationSet(block, confirmations_in_block);
@@ -2980,7 +3171,7 @@ bool ValidateAddressesAreConfirmed(const CBlock& block)
                 else return false;
             }
 
-            //Check block or blockchain if the address is confirmed.
+            // Check block or blockchain if the address is confirmed.
             if (confirmations_in_block.count(address.first) == 0 &&
                     !prefviewdb->IsConfirmed(address.first)) {
                 return false;
@@ -2991,23 +3182,42 @@ bool ValidateAddressesAreConfirmed(const CBlock& block)
     return true;
 }
 
+bool ValidateReferralsAreConfirmed(const CBlock& block)
+{
+    ConfirmationSet confirmations_in_block;
+    BuildConfirmationSet(block, confirmations_in_block);
+
+    for (const auto& ref: block.m_vRef) {
+        assert(ref);
+
+        // Check beaconed address is referred in the same block
+        if (confirmations_in_block.count(ref->GetAddress()) == 0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+using InviteMap = std::map<uint256, CTransactionRef>;
+
 bool ValidateInvites(
         const CBlock& block,
         const Consensus::Params& params,
+        CCoinsViewCache& view,
         CValidationState& state)
 {
-    // First invite must be "invite-coinbase", the rest must not be
-    if (block.invites.empty() || !block.invites[0]->IsCoinBase()) {
-        return state.DoS(
-                100,
-                false,
-                REJECT_INVALID,
-                "bad-invite-cb-missing",
-                false,
-                "first invite is not coinbase");
-    }
+    InviteMap invites_in_block;
+    std::transform(block.invites.begin(), block.invites.end(),
+            std::inserter(invites_in_block, invites_in_block.end()),
+            [](const CTransactionRef& inv) {
+                return std::make_pair(inv->GetHash(), inv);
+            });
 
     bool coinbase = true;
+    std::vector<PrecomputedTransactionData> invdata;
+    invdata.reserve(block.invites.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
+
     for (const auto& inv : block.invites) {
 
         assert(inv);
@@ -3052,7 +3262,8 @@ bool ValidateInvites(
         for (const auto& in : inv->vin) {
             CTransactionRef prev;
             uint256 block_inv_is_in;
-            if (!GetTransaction(
+            if (invites_in_block.count(in.prevout.hash) == 0 &&
+                    !GetTransaction(
                         in.prevout.hash,
                         prev,
                         params,
@@ -3142,6 +3353,7 @@ bool ValidateContextualDaedalusBlock(
         const CBlock& block,
         CValidationState& state,
         const Consensus::Params& params,
+        CCoinsViewCache& view,
         const CBlockIndex* pindexPrev)
 {
     if (!ExpectDaedalus(pindexPrev, params)) {
@@ -3163,8 +3375,7 @@ bool ValidateContextualDaedalusBlock(
     }
 
     // Size limits are larger in the case of daedalus
-    if (block.vtx.empty() ||
-            block.invites.empty() ||
+    if ((block.vtx.empty() && block.invites.empty()) ||
             (block.vtx.size() + block.invites.size()) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT ||
             ::GetSerializeSize(
                 block,
@@ -3179,7 +3390,7 @@ bool ValidateContextualDaedalusBlock(
                 false,
                 "size limits failed");
 
-    if (!ValidateInvites(block, params, state)) {
+    if (!ValidateInvites(block, params, view, state)) {
         //state is assumed to be set.
         return false;
     }
@@ -3552,8 +3763,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             "bad-transaction-not-beaconed");
     }
 
-    if (ExpectDaedalus(pindex->pprev, chainparams.GetConsensus())) {
-        if (!ValidateAddressesAreConfirmed(block)) {
+    if (block.IsDaedalus()) {
+        if (!ValidateTxOutsAreConfirmed(block)) {
             return state.DoS(
                     100,
                     false,
@@ -3586,9 +3797,33 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     if (block.IsDaedalus()) {
         pos.nTxOffset += GetSizeOfCompactSize(block.invites.size());
-        for (int i = 0; i < static_cast<int>(block.invites.size()); i++)
-        {
+        for (int i = 0; i < static_cast<int>(block.invites.size()); i++) {
             const CTransaction &inv = *(block.invites[i]);
+
+            if (!Consensus::CheckTxOutputs(inv, state, *prefviewcache, block.m_vRef)) {
+                return error("ConnectBlock(): CheckTxOutputs on invite %s failed with %s",
+                inv.GetHash().ToString(), FormatStateMessage(state));
+            }
+
+            std::vector<CScriptCheck> vChecks;
+            bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
+            if (!CheckInputs(
+                        inv,
+                        state,
+                        view,
+                        pindex->nHeight + 1,
+                        fScriptChecks,
+                        flags,
+                        fCacheResults,
+                        fCacheResults,
+                        txdata[i],
+                        nScriptCheckThreads ? &vChecks : nullptr)) {
+
+                return error("ConnectBlock(): CheckInputs on invite %s failed with %s",
+                    inv.GetHash().ToString(), FormatStateMessage(state));
+            }
+
+            control.Add(vChecks);
 
             if (!GetDebitsAndCredits(invite_debits_and_credits, inv, view)) {
                 return state.DoS(100,
@@ -3596,12 +3831,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                         REJECT_INVALID, "bad-cb-bad-outputs");
             }
 
-            CTxUndo undoDummy;
-            if (i > 0) {
-                blockundo.vtxundo.push_back(CTxUndo());
-            }
+            blockundo.vtxundo.push_back(CTxUndo());
 
-            UpdateCoins(inv, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
+            UpdateCoins(inv, view, blockundo.vtxundo.back(), pindex->nHeight);
 
             vPos.push_back(std::make_pair(inv.GetHash(), pos));
             pos.nTxOffset += ::GetSerializeSize(inv, SER_DISK, CLIENT_VERSION);
@@ -3632,19 +3864,30 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 nTimeConnect * MILLI / nBlocksTotal);
     }
 
-
     for (const auto& ref: block.m_vRef) {
         if (CheckAddressBeaconed(ref->GetAddress(), false)) {
-            return error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex());
+            return state.DoS(100,
+                    error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex()),
+                    REJECT_INVALID, "bad-cb-ref-already-beaconed");
         }
 
-        if (!referral::CheckReferralAlias(ref->alias)) {
-            return error("ConnectBlock(): referral alias check failed on %s", ref->GetHash().GetHex());
+        if (!CheckReferralSignature(*ref)) {
+            return state.DoS(100,
+                    error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex()),
+                    REJECT_INVALID, "bad-cb-ref-sig-failed");
         }
 
-        if (!CheckReferralSignature(*ref, block.m_vRef)) {
-            return error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex());
+        // is referral alias already occupied?
+        if (!CheckReferralAliasUnique(ref, &block)) {
+            return error("ConnectBlock(): Referral %s alias \"%s\" is already occupied", ref->GetHash().GetHex(), ref->alias);
         }
+    }
+
+    if (block.IsDaedalus() && !ValidateReferralsAreConfirmed(block)) {
+        return state.DoS(
+            100,
+            error("ConnectBlock(): referral is not confirmed"),
+            REJECT_INVALID, "bad-cb-ref-not-confirmed");
     }
 
     std::set<uint256> referral_hashes{};
@@ -3717,24 +3960,52 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         nTimeVerify * MILLI / nBlocksTotal);
 
     if (block.IsDaedalus()) {
-        if (block.invites.empty()) {
+        pog::InviteRewards invite_rewards;
+        if(!RewardInvites(
+                pindex->nHeight,
+                pindex->pprev,
+                hashPrevBlock,
+                view,
+                chainparams.GetConsensus(),
+                state,
+                invite_rewards)) {
+
+            return error("ConnectBlock(): Error computing invite rewards");
+        }
+
+        if (!invite_rewards.empty() && block.invites.empty()) {
             return state.DoS(100,
                     error("ConnectBlock(): Expected Invites but got none."),
                     REJECT_INVALID, "bad-cb-no-invites");
         }
 
-        const auto invite_rewards = RewardInvites(
-                pindex->nHeight,
-                hashPrevBlock,
-                chainparams.GetConsensus());
+        size_t coinbase_end = 0;
+        if(!invite_rewards.empty()) {
+            const CTransaction& coinbase_invites = *block.invites[0];
+            coinbase_end = 1;
 
-        const CTransaction& coinbase_invites = *block.invites[0];
+            if(!coinbase_invites.IsCoinBase()) {
+                return state.DoS(100,
+                        error("ConnectBlock(): expected first invite to be a coinbase"),
+                        REJECT_INVALID, "bad-cb-invite-expected-coinbase");
+            }
 
-        if (!AreExpectedInvitesRewarded(invite_rewards, coinbase_invites)) {
-            return state.DoS(100,
-                    error("ConnectBlock(): coinbase did not reward expected invites."),
-                    REJECT_INVALID, "bad-cb-bad-invites");
+            if (!AreExpectedInvitesRewarded(invite_rewards, coinbase_invites)) {
+                return state.DoS(100,
+                        error("ConnectBlock(): coinbase did not reward expected invites."),
+                        REJECT_INVALID, "bad-cb-bad-invites");
+            }
         }
+
+        //Make sure we don't have a coinbase after the expected coinbase
+        for(size_t i = coinbase_end; i < block.invites.size(); i++) {
+            if(block.invites[i]->IsCoinBase()) {
+                return state.DoS(100,
+                        error("ConnectBlock(): coinbase invite is unexpected"),
+                        REJECT_INVALID, "bad-cb-invite-unexpected-coinbase");
+            }
+        }
+
     }
 
     //order referrals so they are inserted into database in correct order.
@@ -4265,8 +4536,10 @@ bool static ConnectTip(CValidationState& state,
     LogPrint(BCLog::BENCH, "  - Writing chainstate: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime5 - nTime4) * MILLI, nTimeChainState * MICRO, nTimeChainState * MILLI / nBlocksTotal);
     // Remove conflicting transactions from the mempool.;
     mempool.removeForBlock(blockConnecting.vtx, pindexNew->nHeight);
+    mempool.removeForBlock(blockConnecting.invites, pindexNew->nHeight);
     mempoolReferral.RemoveForBlock(blockConnecting.m_vRef);
     disconnectTransactions.removeForBlock(blockConnecting.vtx);
+    disconnectTransactions.removeForBlock(blockConnecting.invites);
     disconnectReferrals.removeForBlock(blockConnecting.m_vRef);
 
     // Update chainActive & related variables.
@@ -4930,14 +5203,14 @@ bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool)
 // Check if an address is valid (beaconed)
 bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempool)
 {
-    bool beaconed = prefviewdb->IsConfirmed(addr);
+    bool confirmed = prefviewdb->IsConfirmed(addr);
 
-    if (beaconed) {
+    if (confirmed) {
         return true;
     }
 
     // check mempool for confirmation invite transaction
-    std::vector<std::pair<uint160, int>> addresses{std::make_pair(addr, addr_type)};
+    std::vector<AddressPair> addresses{std::make_pair(addr, addr_type)};
     std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
 
     mempool.getAddressIndex(addresses, indexes);
@@ -4995,6 +5268,17 @@ const referral::ReferralRef LookupReferral(referral::ReferralId& referral_id)
     return cached_referral ? MakeReferralRef(*cached_referral) : nullptr;
 }
 
+bool IsWitnessCommitment(const CTxOut& out) 
+{
+    return out.scriptPubKey.size() >= 38
+        && out.scriptPubKey[0] == OP_RETURN
+        && out.scriptPubKey[1] == 0x24
+        && out.scriptPubKey[2] == 0xaa
+        && out.scriptPubKey[3] == 0x21
+        && out.scriptPubKey[4] == 0xa9
+        && out.scriptPubKey[5] == 0xed;
+}
+
 // Compute at which vout of the block's coinbase transaction the witness
 // commitment occurs, or -1 if not found.
 static int GetWitnessCommitmentIndex(const CBlock& block)
@@ -5002,7 +5286,7 @@ static int GetWitnessCommitmentIndex(const CBlock& block)
     int commitpos = -1;
     if (!block.vtx.empty()) {
         for (size_t o = 0; o < block.vtx[0]->vout.size(); o++) {
-            if (block.vtx[0]->vout[o].scriptPubKey.size() >= 38 && block.vtx[0]->vout[o].scriptPubKey[0] == OP_RETURN && block.vtx[0]->vout[o].scriptPubKey[1] == 0x24 && block.vtx[0]->vout[o].scriptPubKey[2] == 0xaa && block.vtx[0]->vout[o].scriptPubKey[3] == 0x21 && block.vtx[0]->vout[o].scriptPubKey[4] == 0xa9 && block.vtx[0]->vout[o].scriptPubKey[5] == 0xed) {
+            if (IsWitnessCommitment(block.vtx[0]->vout[o])) {
                 commitpos = o;
             }
         }
@@ -5092,9 +5376,14 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationSta
 }
 
 
-static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
+static bool ContextualCheckBlock(
+        const CBlock& block,
+        CValidationState& state,
+        const Consensus::Params& consensusParams,
+        CCoinsViewCache& view,
+        const CBlockIndex* pindexPrev)
 {
-    if (!ValidateContextualDaedalusBlock(block, state, consensusParams, pindexPrev)) {
+    if (!ValidateContextualDaedalusBlock(block, state, consensusParams, view, pindexPrev)) {
         return false; // state is expected to be set by ValidateDaedalus();
     }
 
@@ -5111,12 +5400,24 @@ static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, c
         }
     }
 
+    for (const auto& inv : block.invites) {
+        if (!IsFinalTx(*inv, nHeight, nLockTimeCutoff)) {
+            return state.DoS(10, false, REJECT_INVALID, "bad-invites-nonfinal", false, "non-final invites");
+        }
+    }
+
     if (nHeight > 0) {
         // Enforce rule that the coinbase starts with serialized block height
         CScript expect = CScript() << nHeight;
         if (block.vtx[0]->vin[0].scriptSig.size() < expect.size() ||
                 !std::equal(expect.begin(), expect.end(), block.vtx[0]->vin[0].scriptSig.begin())) {
             return state.DoS(100, false, REJECT_INVALID, "bad-cb-height", false, "block height mismatch in coinbase");
+        }
+        if(!block.invites.empty() && block.invites[0]->IsCoinBase()) {
+            if (block.invites[0]->vin[0].scriptSig.size() < expect.size() ||
+                    !std::equal(expect.begin(), expect.end(), block.invites[0]->vin[0].scriptSig.begin())) {
+                return state.DoS(100, false, REJECT_INVALID, "bad-cb-invite=height", false, "block height mismatch in invite coinbase");
+            }
         }
     }
 
@@ -5150,9 +5451,14 @@ static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, c
 
     // No witness data is allowed in blocks that don't commit to witness data, as this would otherwise leave room for spam
     if (!fHaveWitness) {
-      for (const auto& tx : block.vtx) {
+        for (const auto& tx : block.vtx) {
             if (tx->HasWitness()) {
                 return state.DoS(100, false, REJECT_INVALID, "unexpected-witness", true, strprintf("%s : unexpected witness data found", __func__));
+            }
+        }
+        for (const auto& inv : block.invites) {
+            if (inv->HasWitness()) {
+                return state.DoS(100, false, REJECT_INVALID, "unexpected-invite-witness", true, strprintf("%s : unexpected invite-witness data found", __func__));
             }
         }
     }
@@ -5234,8 +5540,17 @@ bool ProcessNewBlockHeaders(const std::vector<CBlockHeader>& headers, CValidatio
 }
 
 /** Store block on disk. If dbp is non-nullptr, the file is known to already reside on disk */
-static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidationState& state, const CChainParams& chainparams, CBlockIndex** ppindex, bool fRequested, const CDiskBlockPos* dbp, bool* fNewBlock)
+static bool AcceptBlock(
+        const std::shared_ptr<const CBlock>& pblock,
+        CValidationState& state,
+        const CChainParams& chainparams,
+        CBlockIndex** ppindex,
+        bool fRequested,
+        const CDiskBlockPos* dbp,
+        bool* fNewBlock)
 {
+    assert(pcoinsTip);
+
     const CBlock& block = *pblock;
     debug("AcceptBlock: %s. prev block: %s", block.GetHash().GetHex(), block.hashPrevBlock.GetHex());
 
@@ -5244,6 +5559,8 @@ static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidation
 
     CBlockIndex *pindexDummy = nullptr;
     CBlockIndex *&pindex = ppindex ? *ppindex : pindexDummy;
+
+    CCoinsViewCache view(pcoinsTip);
 
     if (!AcceptBlockHeader(block, state, chainparams, &pindex))
         return false;
@@ -5276,7 +5593,7 @@ static bool AcceptBlock(const std::shared_ptr<const CBlock>& pblock, CValidation
     if (fNewBlock) *fNewBlock = true;
 
     if (!CheckBlock(block, state, chainparams.GetConsensus()) ||
-        !ContextualCheckBlock(block, state, chainparams.GetConsensus(), pindex->pprev)) {
+        !ContextualCheckBlock(block, state, chainparams.GetConsensus(), view, pindex->pprev)) {
         if (state.IsInvalid() && !state.CorruptionPossible()) {
             pindex->nStatus |= BLOCK_FAILED_VALID;
             setDirtyBlockIndex.insert(pindex);
@@ -5361,7 +5678,7 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
         return error("%s: Consensus::ContextualCheckBlockHeader: %s", __func__, FormatStateMessage(state));
     if (!CheckBlock(block, state, chainparams.GetConsensus(), fCheckPOW, fCheckMerkleRoot))
         return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
-    if (!ContextualCheckBlock(block, state, chainparams.GetConsensus(), pindexPrev))
+    if (!ContextualCheckBlock(block, state, chainparams.GetConsensus(), viewNew, pindexPrev))
         return error("%s: Consensus::ContextualCheckBlock: %s", __func__, FormatStateMessage(state));
 
     if (!ConnectBlock(block, state, &indexDummy, viewNew, chainparams, true))
@@ -5531,36 +5848,8 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes)
     return true;
 }
 
-static FILE* OpenDiskFile(const CDiskBlockPos &pos, const char *prefix, bool fReadOnly)
-{
-    if (pos.IsNull())
-        return nullptr;
-    fs::path path = GetBlockPosFilename(pos, prefix);
-    fs::create_directories(path.parent_path());
-    FILE* file = fsbridge::fopen(path, "rb+");
-    if (!file && !fReadOnly)
-        file = fsbridge::fopen(path, "wb+");
-    if (!file) {
-        LogPrintf("Unable to open file %s\n", path.string());
-        return nullptr;
-    }
-    if (pos.nPos) {
-        if (fseek(file, pos.nPos, SEEK_SET)) {
-            LogPrintf("Unable to seek to position %u of %s\n", pos.nPos, path.string());
-            fclose(file);
-            return nullptr;
-        }
-    }
-    return file;
-}
-
 FILE* OpenBlockFile(const CDiskBlockPos &pos, bool fReadOnly) {
     return OpenDiskFile(pos, "blk", fReadOnly);
-}
-
-/** Open an undo file (rev?????.dat) */
-static FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly) {
-    return OpenDiskFile(pos, "rev", fReadOnly);
 }
 
 fs::path GetBlockPosFilename(const CDiskBlockPos &pos, const char *prefix)
