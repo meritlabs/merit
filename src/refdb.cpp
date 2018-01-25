@@ -844,6 +844,8 @@ bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const
     return confirmation.second > 0;
 }
 
+using AddressPairs = std::vector<AddressPair>;
+
 bool ReferralsViewDB::ConfirmAllPreDaedalusAddresses()
 {
     //Check to see if addresses have already been confirmed.
@@ -853,6 +855,8 @@ bool ReferralsViewDB::ConfirmAllPreDaedalusAddresses()
 
     std::unique_ptr<CDBIterator> iter{m_db.NewIterator()};
     iter->SeekToFirst();
+
+    AddressPairs addresses;
 
     auto address = std::make_pair(DB_REFERRALS, Address{});
     while (iter->Valid()) {
@@ -872,12 +876,25 @@ bool ReferralsViewDB::ConfirmAllPreDaedalusAddresses()
             return false;
         }
 
-        if (!UpdateConfirmation(referral.addressType, referral.GetAddress(), 1)) {
-            return false;
-        }
+        addresses.push_back({referral.addressType, referral.GetAddress()});
 
         iter->Next();
     }
+
+    debug("Confirming %d pre daedalus addresses", addresses.size());
+    std::sort(addresses.begin(), addresses.end(), 
+            [](const AddressPair& a, const AddressPair& b) {
+                return a.second < b.second;
+            });
+
+#ifdef NDEBUG
+    for(const auto& addr : addresses) {
+        debug("\tConfirming %s address", CMeritAddress{addr.first, addr.second}.ToString());
+        if (!UpdateConfirmation(addr.first, addr.second, 1)) {
+            return false;
+        }
+    }
+#endif
 
     //Mark state in DB that all addresses before daedalus have been confirmed.
     if (!m_db.Write(DB_PRE_DAEDALUS_CONFIRMED, true)) {
