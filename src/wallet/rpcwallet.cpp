@@ -896,10 +896,6 @@ UniValue confirmaddress(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if(!ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Address confirmation is currently not required.");
-    }
-
     if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
             "confirmaddress \"address\""
@@ -912,6 +908,10 @@ UniValue confirmaddress(const JSONRPCRequest& request)
             "\nExamples:\n"
             + HelpExampleCli("confirmaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
         );
+
+    if(!ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Address confirmation is currently not required.");
+    }
 
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
