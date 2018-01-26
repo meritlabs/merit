@@ -883,6 +883,8 @@ public:
     bool CanSupportFeature(enum WalletFeature wf) const { AssertLockHeld(cs_wallet); return nWalletMaxVersion >= wf; }
 
     void AvailableInvites(std::vector<COutput> &invites);
+
+    bool Daedalus() const;
     /**
      * populate vCoins with vector of available COutputs.
      */
@@ -1264,7 +1266,7 @@ public:
             const std::string alias = "",
             CKey key = CKey{});
 
-    CTransactionRef ConfirmAddress(const CTxDestination& dest);
+    CTransactionRef SendInviteTo(const CTxDestination& dest);
 
     bool IsReferred() const;
     bool IsConfirmed() const;

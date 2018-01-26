@@ -135,6 +135,7 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     ui->listTransactions->setItemDelegate(txdelegate);
     ui->listTransactions->setMinimumHeight(NUM_ITEMS * (DECORATION_SIZE + 2));
     ui->listTransactions->setAttribute(Qt::WA_MacShowFocusRect, false);
+    ui->inviteNotice->hide();
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
 
@@ -160,7 +161,30 @@ OverviewPage::~OverviewPage()
     delete ui;
 }
 
-void OverviewPage::setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance, const CAmount& watchOnlyBalance, const CAmount& watchUnconfBalance, const CAmount& watchImmatureBalance)
+QString OverviewPage::FormatInviteBalance(CAmount invites)
+{
+    QString color = invites == 0 ? "#aa0000" : "#00aa00";
+    QString inviteOrInvites = invites == 1 ? tr("Invite") : tr("Invites");
+
+    return QString("<html><head/><body><p><span style=\" font-size:12pt; font-weight:600; color:") 
+        + color 
+        + QString(";\">") 
+        + QString::number(invites) 
+        + "</span><span style=\" font-size: 12pt; font-weight:600;\"> " 
+        + tr("Avaliable") 
+        + " " 
+        + inviteOrInvites
+        + "</span></p></body></html>";
+}
+
+void OverviewPage::setBalance(
+        CAmount balance,
+        CAmount unconfirmedBalance,
+        CAmount immatureBalance,
+        CAmount watchOnlyBalance,
+        CAmount watchUnconfBalance,
+        CAmount watchImmatureBalance,
+        CAmount inviteBalance)
 {
     int unit = walletModel->getOptionsModel()->getDisplayUnit();
     currentBalance = balance;
@@ -169,6 +193,8 @@ void OverviewPage::setBalance(const CAmount& balance, const CAmount& unconfirmed
     currentWatchOnlyBalance = watchOnlyBalance;
     currentWatchUnconfBalance = watchUnconfBalance;
     currentWatchImmatureBalance = watchImmatureBalance;
+    currentInviteBalance = inviteBalance;
+
     ui->labelBalance->setText(MeritUnits::formatWithUnit(unit, balance, false, MeritUnits::separatorAlways));
     ui->labelUnconfirmed->setText(MeritUnits::formatWithUnit(unit, unconfirmedBalance, false, MeritUnits::separatorAlways));
     ui->labelImmature->setText(MeritUnits::formatWithUnit(unit, immatureBalance, false, MeritUnits::separatorAlways));
@@ -177,6 +203,7 @@ void OverviewPage::setBalance(const CAmount& balance, const CAmount& unconfirmed
     ui->labelWatchPending->setText(MeritUnits::formatWithUnit(unit, watchUnconfBalance, false, MeritUnits::separatorAlways));
     ui->labelWatchImmature->setText(MeritUnits::formatWithUnit(unit, watchImmatureBalance, false, MeritUnits::separatorAlways));
     ui->labelWatchTotal->setText(MeritUnits::formatWithUnit(unit, watchOnlyBalance + watchUnconfBalance + watchImmatureBalance, false, MeritUnits::separatorAlways));
+    ui->inviteBalance->setText(FormatInviteBalance(inviteBalance));
 
     // only show immature (newly mined) balance if it's non-zero, so as not to complicate things
     // for the non-mining users
@@ -234,10 +261,27 @@ void OverviewPage::setWalletModel(WalletModel *model)
         is_confirmed = walletModel->IsConfirmed();
         UpdateInvitationStatus();
 
+        CAmount inviteBalance = 0;
+        if(!walletModel->Daedalus()) {
+            ui->inviteBalance->hide();
+        } else {
+            inviteBalance = model->getBalance(nullptr, true);
+        }
+
+
         // Keep up to date with wallet
-        setBalance(model->getBalance(), model->getUnconfirmedBalance(), model->getImmatureBalance(),
-                   model->getWatchBalance(), model->getWatchUnconfirmedBalance(), model->getWatchImmatureBalance());
-        connect(model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)), this, SLOT(setBalance(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)));
+        setBalance(
+                model->getBalance(),
+                model->getUnconfirmedBalance(),
+                model->getImmatureBalance(),
+                model->getWatchBalance(),
+                model->getWatchUnconfirmedBalance(),
+                model->getWatchImmatureBalance(),
+                inviteBalance);
+
+        connect(
+                model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)), 
+                this, SLOT(setBalance(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)));
 
         connect(model->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
         connect(model, SIGNAL(transactionUpdated()), this, SLOT(UpdateInvitationStatus()));
@@ -255,8 +299,14 @@ void OverviewPage::updateDisplayUnit()
     if(walletModel && walletModel->getOptionsModel())
     {
         if(currentBalance != -1)
-            setBalance(currentBalance, currentUnconfirmedBalance, currentImmatureBalance,
-                       currentWatchOnlyBalance, currentWatchUnconfBalance, currentWatchImmatureBalance);
+            setBalance(
+                    currentBalance,
+                    currentUnconfirmedBalance,
+                    currentImmatureBalance,
+                    currentWatchOnlyBalance,
+                    currentWatchUnconfBalance,
+                    currentWatchImmatureBalance,
+                    currentInviteBalance);
 
         // Update txdelegate->unit with the current unit
         txdelegate->unit = walletModel->getOptionsModel()->getDisplayUnit();
@@ -293,6 +343,10 @@ void OverviewPage::UpdateInvitationStatus()
     assert(ui); 
     if(!walletModel) return;
     if(is_confirmed) return;
+    if(!walletModel->Daedalus()) {
+        is_confirmed = true;
+        return;
+    }
 
     bool confirmed = walletModel->IsConfirmed();
     if(!confirmed) {

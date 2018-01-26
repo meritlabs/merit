@@ -144,6 +144,8 @@ void WalletModel::checkBalanceChanged()
     CAmount newBalance = getBalance();
     CAmount newUnconfirmedBalance = getUnconfirmedBalance();
     CAmount newImmatureBalance = getImmatureBalance();
+    CAmount newInviteBalance = getBalance(nullptr, true);
+
     CAmount newWatchOnlyBalance = 0;
     CAmount newWatchUnconfBalance = 0;
     CAmount newWatchImmatureBalance = 0;
@@ -154,8 +156,14 @@ void WalletModel::checkBalanceChanged()
         newWatchImmatureBalance = getWatchImmatureBalance();
     }
 
-    if(cachedBalance != newBalance || cachedUnconfirmedBalance != newUnconfirmedBalance || cachedImmatureBalance != newImmatureBalance ||
-        cachedWatchOnlyBalance != newWatchOnlyBalance || cachedWatchUnconfBalance != newWatchUnconfBalance || cachedWatchImmatureBalance != newWatchImmatureBalance)
+    if(
+            cachedBalance != newBalance 
+            || cachedUnconfirmedBalance != newUnconfirmedBalance 
+            || cachedImmatureBalance != newImmatureBalance 
+            || cachedWatchOnlyBalance != newWatchOnlyBalance 
+            || cachedWatchUnconfBalance != newWatchUnconfBalance 
+            || cachedWatchImmatureBalance != newWatchImmatureBalance
+            || cachedInviteBalance != newInviteBalance)
     {
         cachedBalance = newBalance;
         cachedUnconfirmedBalance = newUnconfirmedBalance;
@@ -163,8 +171,15 @@ void WalletModel::checkBalanceChanged()
         cachedWatchOnlyBalance = newWatchOnlyBalance;
         cachedWatchUnconfBalance = newWatchUnconfBalance;
         cachedWatchImmatureBalance = newWatchImmatureBalance;
-        Q_EMIT balanceChanged(newBalance, newUnconfirmedBalance, newImmatureBalance,
-                            newWatchOnlyBalance, newWatchUnconfBalance, newWatchImmatureBalance);
+        cachedInviteBalance = newInviteBalance;
+        Q_EMIT balanceChanged(
+                newBalance,
+                newUnconfirmedBalance,
+                newImmatureBalance,
+                newWatchOnlyBalance,
+                newWatchUnconfBalance,
+                newWatchImmatureBalance,
+                newInviteBalance);
     }
 }
 
@@ -449,6 +464,12 @@ bool WalletModel::AddressConfirmed(const std::string& address) const
 {
     assert(wallet);
     return wallet->AddressConfirmed(address);
+}
+
+bool WalletModel::Daedalus() const
+{
+    assert(wallet);
+    return wallet->Daedalus();
 }
 
 bool WalletModel::setWalletEncrypted(bool encrypted, const SecureString &passphrase)

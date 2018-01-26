@@ -537,7 +537,7 @@ static UniValue EasySend(
 
     if(ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
         auto invite_transaction =
-            pwallet.ConfirmAddress(CParamScriptID{script_referral->GetAddress()});
+            pwallet.SendInviteTo(CParamScriptID{script_referral->GetAddress()});
 
         if(!invite_transaction) {
             throw JSONRPCError(
@@ -927,7 +927,7 @@ UniValue inviteaddress(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
     }
 
-    auto tx = pwallet->ConfirmAddress(dest);
+    auto tx = pwallet->SendInviteTo(dest);
     if(!tx) {
        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to confirm the address");
     }
@@ -1251,7 +1251,7 @@ UniValue createvault(const JSONRPCRequest& request)
 
         if(ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
             auto invite_transaction =
-                pwallet->ConfirmAddress(CParamScriptID{script_referral->GetAddress()});
+                pwallet->SendInviteTo(CParamScriptID{script_referral->GetAddress()});
 
             if(!invite_transaction) {
                 throw JSONRPCError(

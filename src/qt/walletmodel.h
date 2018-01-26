@@ -146,6 +146,7 @@ public:
     bool AliasExists(const std::string& alias) const;
     bool AddressBeaconed(const std::string& address) const;
     bool AddressConfirmed(const std::string& address) const;
+    bool Daedalus() const;
 
     // Check address for validity
     bool validateAddress(const QString &address);
@@ -247,6 +248,7 @@ private:
     CAmount cachedWatchOnlyBalance;
     CAmount cachedWatchUnconfBalance;
     CAmount cachedWatchImmatureBalance;
+    CAmount cachedInviteBalance;
     EncryptionStatus cachedEncryptionStatus;
     int cachedNumBlocks;
 
@@ -258,8 +260,14 @@ private:
 
 Q_SIGNALS:
     // Signal that balance in wallet changed
-    void balanceChanged(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance,
-                        const CAmount& watchOnlyBalance, const CAmount& watchUnconfBalance, const CAmount& watchImmatureBalance);
+    void balanceChanged(
+            CAmount balance,
+            CAmount unconfirmedBalance,
+            CAmount immatureBalance,
+            CAmount watchOnlyBalance,
+            CAmount watchUnconfBalance,
+            CAmount watchImmatureBalance,
+            CAmount inviteBalance);
 
     // Encryption status of wallet changed
     void encryptionStatusChanged(int status);

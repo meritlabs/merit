@@ -39,8 +39,14 @@ public:
     void showOutOfSyncWarning(bool fShow);
 
 public Q_SLOTS:
-    void setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance,
-                    const CAmount& watchOnlyBalance, const CAmount& watchUnconfBalance, const CAmount& watchImmatureBalance);
+    void setBalance(
+            CAmount balance,
+            CAmount unconfirmedBalance,
+            CAmount immatureBalance,
+            CAmount watchOnlyBalance,
+            CAmount watchUnconfBalance,
+            CAmount watchImmatureBalance,
+            CAmount inviteBalance);
     void UpdateInvitationStatus();
     void HideInviteNotice();
 
@@ -58,10 +64,14 @@ private:
     CAmount currentWatchOnlyBalance;
     CAmount currentWatchUnconfBalance;
     CAmount currentWatchImmatureBalance;
+    CAmount currentInviteBalance;
 
     TxViewDelegate *txdelegate;
     std::unique_ptr<TransactionFilterProxy> filter;
     bool is_confirmed = false;
+
+private:
+    QString FormatInviteBalance(CAmount invites);
 
 
 private Q_SLOTS:

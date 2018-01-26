@@ -1762,7 +1762,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
     return GenerateNewReferral(1, key_id, pubkey, parentAddress, alias, key);
 }
 
-CTransactionRef CWallet::ConfirmAddress(const CTxDestination& dest)
+CTransactionRef CWallet::SendInviteTo(const CTxDestination& dest)
 {
     CWalletTx wtx(true);
 
@@ -2391,11 +2391,16 @@ CAmount CWallet::GetBalance(bool invite) const
         {
             const CWalletTx* pcoin = &(*it).second;
             if (pcoin->IsTrusted() && pcoin->IsInvite() == invite) {
-                if(!invite || (invite && pcoin->IsCoinBase())) {
-                    nTotal += pcoin->GetAvailableCredit();
-                }
+                nTotal += pcoin->GetAvailableCredit();
             }
         }
+    }
+
+    //If we are computing the available invite balance, we want to subtract 1 because
+    //if you transfer the last uspent invite from address A to address B, you
+    //will render address A unusable.
+    if(invite) {
+        nTotal = std::max(CAmount{0}, nTotal - 1);
     }
 
     return nTotal;
@@ -2444,9 +2449,7 @@ CAmount CWallet::GetUnconfirmedBalance(bool invite) const
                     pcoin->InMempool() &&
                     pcoin->IsInvite() == invite)
 
-                if(!invite || (invite && pcoin->IsCoinBase())) {
-                    nTotal += pcoin->GetAvailableCredit();
-                }
+                nTotal += pcoin->GetAvailableCredit();
         }
     }
     return nTotal;
@@ -2461,9 +2464,7 @@ CAmount CWallet::GetImmatureBalance(bool invite) const
         {
             const CWalletTx* pcoin = &(*it).second;
             if(pcoin->IsInvite() == invite) {
-                if(!invite || (invite && pcoin->IsCoinBase())) {
-                    nTotal += pcoin->GetImmatureCredit();
-                }
+                nTotal += pcoin->GetImmatureCredit();
             }
         }
     }
@@ -2479,9 +2480,7 @@ CAmount CWallet::GetWatchOnlyBalance(bool invite) const
         {
             const CWalletTx* pcoin = &(*it).second;
             if (pcoin->IsTrusted() && pcoin->IsInvite() == invite) {
-                if(!invite || (invite && pcoin->IsCoinBase())) {
-                    nTotal += pcoin->GetAvailableWatchOnlyCredit();
-                }
+                nTotal += pcoin->GetAvailableWatchOnlyCredit();
             }
         }
     }
@@ -2515,8 +2514,9 @@ CAmount CWallet::GetImmatureWatchOnlyBalance(bool invite) const
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
-            if(pcoin->IsInvite() == invite)
+            if(pcoin->IsInvite() == invite) {
                 nTotal += pcoin->GetImmatureWatchOnlyCredit();
+            }
         }
     }
     return nTotal;
@@ -2582,6 +2582,7 @@ CAmount CWallet::GetAvailableBalance(const CCoinControl* coinControl, bool invit
     return balance;
 }
 
+
 void CWallet::AvailableInvites(std::vector<COutput> &invites)
 {
     invites.clear();
@@ -2610,6 +2611,11 @@ void CWallet::AvailableInvites(std::vector<COutput> &invites)
             }
         }
     }
+}
+
+bool CWallet::Daedalus() const
+{
+    return ExpectDaedalus(chainActive.Tip(), Params().GetConsensus());
 }
 
 void CWallet::AvailableCoins(
@@ -4870,3 +4876,4 @@ bool CWalletTx::AcceptToMemoryPool(const CAmount& nAbsurdFee, CValidationState& 
 {
     return ::AcceptToMemoryPool(mempool, state, tx, true, nullptr, nullptr, false, nAbsurdFee);
 }
+
