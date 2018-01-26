@@ -81,8 +81,11 @@ struct Params {
     uint256 defaultAssumeValid;
     /** Cuckoo cycle length */
     uint8_t nCuckooProofSize;
+
+    /** Daedalus parameters **/
     int daedalus_max_invites_per_block;
     int daedalus_block_window;
+    int daedalus_min_one_invite_for_every_x_blocks;
 
 };
 } // namespace Consensus

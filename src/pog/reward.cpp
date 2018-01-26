@@ -9,9 +9,6 @@
 
 namespace pog
 {
-    const int DAY = 24 * 60 * 60;
-    const int BLOCKS_IN_TEN_MINUTES = 10;
-
     AmbassadorLottery RewardAmbassadors(
             int height,
             const referral::AddressANVs& winners,
@@ -89,6 +86,8 @@ namespace pog
         }
 
         assert(lottery.invites_used >= 0);
+        assert(params.daedalus_min_one_invite_for_every_x_blocks > 0);
+        assert(params.daedalus_min_one_invite_for_every_x_blocks <= params.daedalus_block_window);
 
         /**
          * If no invites are generated that means that the amount used fell
@@ -100,7 +99,7 @@ namespace pog
          */
         if(lottery.invites_created == 0) {
             return lottery.invites_used + 
-                (params.daedalus_block_window / BLOCKS_IN_TEN_MINUTES);
+                (params.daedalus_block_window / params.daedalus_min_one_invite_for_every_x_blocks);
         }
 
         const auto invites_used_per_block = lottery.invites_used / params.daedalus_block_window;
