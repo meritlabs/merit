@@ -5113,6 +5113,7 @@ UniValue getrewards(const JSONRPCRequest& request)
             "{\n"
             "   \"mining\": x.xxxx,     (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for mining.\n"
             "   \"ambassador\": x.xxxx, (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for being ambassador.\n"
+            "   \"invites\": xxxxxx     (numeric) The total number of available invites.\n"
             "}\n"
             "\nExamples:\n" + HelpExampleCli("getbalance", "")
         );
@@ -5124,8 +5125,11 @@ UniValue getrewards(const JSONRPCRequest& request)
 
     pog::RewardsAmount rewards = pwallet->GetRewards();
 
+    auto invites = pwallet->GetImmatureBalance(true) + pwallet->GetBalance(true);
+
     ret.push_back(Pair("mining", ValueFromAmount(rewards.mining)));
     ret.push_back(Pair("ambassador", ValueFromAmount(rewards.ambassador)));
+    ret.push_back(Pair("invites", invites));
 
     return ret;
 }
