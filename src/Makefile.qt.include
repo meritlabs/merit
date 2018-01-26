@@ -221,6 +221,7 @@ MERIT_QT_H = \
   qt/receivecoinsdialog.h \
   qt/receiverequestdialog.h \
   qt/recentrequeststablemodel.h \
+  qt/referrallistmodel.h \
   qt/referralrecord.h \
   qt/rpcconsole.h \
   qt/sendcoinsdialog.h \
@@ -339,6 +340,7 @@ MERIT_QT_WALLET_CPP = \
   qt/receivecoinsdialog.cpp \
   qt/receiverequestdialog.cpp \
   qt/recentrequeststablemodel.cpp \
+  qt/referrallistmodel.cpp \
   qt/referralrecord.cpp \
   qt/sendcoinsdialog.cpp \
   qt/sendcoinsentry.cpp \

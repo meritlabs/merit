@@ -40,12 +40,12 @@ class ReferralRecord
 {
 public:
     ReferralRecord():
-        time(0), address(""), alias("")
+        hash(), time(0), address(""), alias("")
     {
     }
 
-    ReferralRecord(qint64 _time, std::string _address, std::string _alias = ""):
-        time(_time), address(_address), alias(_alias)
+    ReferralRecord(uint256 _hash, qint64 _time, std::string _address, std::string _alias = ""):
+        hash(_hash), time(_time), address(_address), alias(_alias)
     {
     }
 
@@ -55,6 +55,7 @@ public:
 
     /** @name Immutable referral attributes
       @{*/
+    uint256 hash;
     qint64 time;
     std::string address;
     std::string alias;
@@ -74,6 +75,10 @@ public:
     /** Return whether a status update is needed.
      */
     bool statusUpdateNeeded() const;
+
+    // temporary
+    QString displayString() const;
+    QString statusString() const;
 };
 
 #endif // MERIT_QT_REFERRALRECORD_H

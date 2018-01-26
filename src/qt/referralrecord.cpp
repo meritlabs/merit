@@ -23,9 +23,9 @@ ReferralRecord ReferralRecord::decomposeReferral(const CWallet *wallet, referral
     const CMeritAddress meritAddress{pref->addressType, address};
     
     if(alias.length() > 0) {
-      return ReferralRecord(rtx.nTimeReceived, meritAddress.ToString(), alias);
+      return ReferralRecord(rtx.GetHash(), rtx.nTimeReceived, meritAddress.ToString(), alias);
     }
-    return ReferralRecord(rtx.nTimeReceived, meritAddress.ToString());
+    return ReferralRecord(rtx.GetHash(), rtx.nTimeReceived, meritAddress.ToString());
 }
 
 void ReferralRecord::updateStatus(referral::ReferralTx &rtx)
@@ -46,4 +46,24 @@ bool ReferralRecord::showReferral(referral::ReferralTx &rtx)
     const referral::ReferralRef pref{rtx.GetReferral()};
     assert(pref);
     return pref->addressType == 1;
+}
+
+// temporary
+QString ReferralRecord::displayString() const
+{
+    return alias.length() > 0 ? QString::fromStdString(alias) : QString::fromStdString(address);
+}
+
+QString ReferralRecord::statusString() const
+{
+    switch(status.status)
+    {
+    case ReferralStatus::Pending:
+        return QString::fromStdString("Pending");
+    case ReferralStatus::Confirmed:
+        return QString::fromStdString("Confirmed");
+    case ReferralStatus::Declined:
+        return QString::fromStdString("Declined");
+    }
+    return "";
 }
