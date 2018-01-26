@@ -142,6 +142,9 @@ public:
     bool IsReferred() const;
     referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string alias = "");
 
+    bool AliasExists(const std::string& alias) const;
+    bool AddressBeaconed(const std::string& alias) const;
+
     // Check address for validity
     bool validateAddress(const QString &address);
 

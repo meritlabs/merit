@@ -243,6 +243,17 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
     return referral;
 }
 
+bool CWallet::AliasExists(const std::string& alias) const
+{
+    if(alias.empty()) return false;
+    return prefviewcache->Exists(alias);
+}
+
+bool CWallet::AddressBeaconed(const std::string& address) const
+{
+    return CheckAddressBeaconed(address, true);
+}
+
 CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb)
 {
     AssertLockHeld(cs_wallet); // mapKeyMetadata

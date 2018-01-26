@@ -25,6 +25,7 @@ Q_SIGNALS:
 
 public Q_SLOTS:
     void unlockCodeChanged(const QString &text);
+    void aliasChanged(const QString &text);
     void submit();
     void setModel(WalletModel *model);
     // will show or hide the modal layer
@@ -42,8 +43,10 @@ private:
     bool userClosed;
     CMeritAddress parentAddress;
     bool canSubmit = false;
+    bool addressValid = false;
+    bool aliasValid = true;
 
-    void SetCanSubmit(bool);
+    void UpdateCanSubmit();
     void InvalidAddressMessageBox();
 };
 

@@ -874,6 +874,9 @@ public:
     // Sets the referral address to unlock the wallet and sends referral tx to the network
     referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string alias = "");
 
+    bool AliasExists(const std::string& alias) const;
+    bool AddressBeaconed(const std::string& address) const;
+
     //! check whether we are allowed to upgrade (or already support) to the named feature
     bool CanSupportFeature(enum WalletFeature wf) const { AssertLockHeld(cs_wallet); return nWalletMaxVersion >= wf; }
 
