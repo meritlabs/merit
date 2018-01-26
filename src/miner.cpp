@@ -579,12 +579,25 @@ void BlockAssembler::AddReferrals()
 {
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
 
+    ConfirmationSet confirmations;
+    BuildConfirmationSet(txsInBlock, confirmations);
+
     for (auto it = mempoolReferral.mapRTx.begin(); it != mempoolReferral.mapRTx.end(); it++) {
         const auto ref = it->GetSharedEntryValue();
 
         if (refsInBlock.count(it)) {
             debug("\t%s: Referral %s is already in block\n", __func__, ref->GetHash().GetHex());
             continue;
+        }
+
+        // test all referrals are signed
+        CheckReferralSignature(*ref);
+
+        if (pblock->IsDaedalus()) {
+            // Check package for confirmation for give referral
+            if (confirmations.count(ref->GetAddress()) == 0) {
+                continue;
+            }
         }
 
         uint64_t nRefSize = it->GetSize();
