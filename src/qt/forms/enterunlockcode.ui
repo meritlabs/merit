@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>640</width>
-    <height>420</height>
+    <height>470</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -193,7 +193,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="toolTip">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The person who invited you is an &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit.&lt;/span&gt;  They will be notified when you join.&lt;/p&gt;&lt;p&gt;They will also be entered into a lottery and can win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; as you use the system. You can also become and &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; by inviting other and you too will have a chance to win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; each block!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The person who invited you is an &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit.&lt;/span&gt; They will be notified when you join.&lt;/p&gt;&lt;p&gt;They will also be entered into a lottery and can win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; as you use the system. You can also become and &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; by inviting others and you too will have a chance to win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; in each block!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="text">
               <string>Enter the Merit Address of the person who invited you.</string>
@@ -211,7 +211,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="toolTip">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The person who invited you is an &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit.&lt;/span&gt;  They will be notified when you join.&lt;/p&gt;&lt;p&gt;They will also be entered into a lottery and can win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; as you use the system. You can also become and &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; by inviting other and you too will have a chance to win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; each block!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The person who invited you is an &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit.&lt;/span&gt; They will be notified when you join.&lt;/p&gt;&lt;p&gt;They will also be entered into a lottery and can win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; as you use the system. You can also become and &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; by inviting others and you too will have a chance to win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; in each block!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="accessibleDescription">
               <string/>
