@@ -221,11 +221,11 @@ AC_ARG_ENABLE([werror],
     [enable_werror=$enableval],
     [enable_werror=no])
 
-AC_ARG_ENABLE([wmarch],
+AC_ARG_ENABLE([march],
     [AS_HELP_STRING([--enable-march],
                     [Use native CPU instructions for mining (default is no)])],
-    [enable_wmarch=$enableval],
-    [enable_wmarch=no])
+    [enable_march=$enableval],
+    [enable_march=no])
 
 AC_ARG_ENABLE([qdebug],
   [AS_HELP_STRING([--enable-qdebug],
