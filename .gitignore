@@ -44,6 +44,9 @@ src/qt/forms/ui_*.h
 
 src/qt/test/moc*.cpp
 
+# qt creator files
+merit-qt.*
+
 .deps
 .dirstamp
 .libs

@@ -20,10 +20,11 @@ layerIsVisible(false),
 userClosed(false)
 {
     ui->setupUi(this);
+    ui->aliasTextInput->setMaxLength(referral::MAX_ALIAS_LENGTH);
     connect(ui->unlockCodeTextInput, SIGNAL(textChanged(QString)), this, SLOT(unlockCodeChanged(QString)));
+    connect(ui->aliasTextInput, SIGNAL(textChanged(QString)), this, SLOT(aliasChanged(QString)));
     connect(this, SIGNAL(CanSubmitChanged(bool)), ui->submitButton, SLOT(setEnabled(bool)));
     connect(ui->submitButton, SIGNAL(clicked()), this, SLOT(submit()));
-    connect(ui->unlockCodeTextInput, SIGNAL(returnPressed()), this, SLOT(submit()));
     if (parent) {
         parent->installEventFilter(this);
         raise();
@@ -93,20 +94,42 @@ void EnterUnlockCode::setModel(WalletModel *model)
 
 void EnterUnlockCode::unlockCodeChanged(const QString &newText)
 {
-    if(newText.length() < ADDRESS_LENGTH) {
-        SetCanSubmit(false);
-        return;
+    auto parent = newText.toStdString();
+    parentAddress.SetString(parent);
+
+    addressValid = parentAddress.IsValid() && walletModel->AddressBeaconed(parent);
+
+    if (addressValid) {
+        ui->unlockCodeTextInput->setStyleSheet("QLineEdit { background-color: rgb(128, 255, 128) }");
+    } else {
+        ui->unlockCodeTextInput->setStyleSheet("QLineEdit { background-color: rgb(255, 128, 128) }");
     }
-    parentAddress.SetString(newText.toStdString());
-    SetCanSubmit(parentAddress.IsValid());
+
+    UpdateCanSubmit();
 }
 
-void EnterUnlockCode::SetCanSubmit(bool _canSubmit)
+void EnterUnlockCode::aliasChanged(const QString &newText)
 {
-    if(canSubmit != _canSubmit)
-        Q_EMIT CanSubmitChanged(_canSubmit);
+    auto alias = newText.toStdString();
 
-    canSubmit = _canSubmit;
+    bool valid = alias.empty() || referral::CheckReferralAlias(alias);
+    bool taken = !alias.empty() && walletModel->AliasExists(alias);
+
+    aliasValid = valid && !taken;
+
+    if(aliasValid) {
+        ui->aliasTextInput->setStyleSheet("QLineEdit { background-color: rgb(128, 255, 128) }");
+    } else {
+        ui->aliasTextInput->setStyleSheet("QLineEdit { background-color: rgb(255, 128, 128) }");
+    }
+
+    UpdateCanSubmit();
+}
+
+void EnterUnlockCode::UpdateCanSubmit()
+{
+    canSubmit = addressValid && aliasValid;
+    Q_EMIT CanSubmitChanged(canSubmit);
 }
 
 void EnterUnlockCode::submit()

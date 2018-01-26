@@ -4194,7 +4194,7 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
 
         auto address = referral->GetAddress();
 
-        obj.push_back(Pair("confirmed", CheckAddressConfirmed(address, referral->addressType)));
+        obj.push_back(Pair("confirmed", pwallet->IsConfirmed()));
         obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{address})));
     }
 

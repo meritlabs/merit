@@ -256,7 +256,7 @@ public:
     }
 
     ReferralRef GetReferral() const
-     {
+    {
         return m_pReferral;
     }
 
@@ -874,6 +874,11 @@ public:
     // Sets the referral address to unlock the wallet and sends referral tx to the network
     referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string alias = "");
 
+    bool AliasExists(const std::string& alias) const;
+    bool AddressBeaconed(const std::string& address) const;
+    bool AddressConfirmed(const std::string& address) const;
+    bool AddressConfirmed(const uint160& address, char type) const;
+
     //! check whether we are allowed to upgrade (or already support) to the named feature
     bool CanSupportFeature(enum WalletFeature wf) const { AssertLockHeld(cs_wallet); return nWalletMaxVersion >= wf; }
 
@@ -1262,6 +1267,7 @@ public:
     CTransactionRef ConfirmAddress(const CTxDestination& dest);
 
     bool IsReferred() const;
+    bool IsConfirmed() const;
     referral::Address ReferralAddress() const;
     CPubKey ReferralPubKey() const;
 };

@@ -52,13 +52,13 @@
         <property name="minimumSize">
          <size>
           <width>486</width>
-          <height>300</height>
+          <height>350</height>
          </size>
         </property>
         <property name="maximumSize">
          <size>
           <width>648</width>
-          <height>400</height>
+          <height>480</height>
          </size>
         </property>
         <property name="styleSheet">
@@ -71,26 +71,20 @@ QLabel { color: rgb(40,40,40);  }</string>
           <number>0</number>
          </property>
          <property name="leftMargin">
-          <number>10</number>
+          <number>20</number>
          </property>
          <property name="topMargin">
-          <number>10</number>
+          <number>20</number>
          </property>
          <property name="rightMargin">
-          <number>10</number>
+          <number>20</number>
          </property>
          <property name="bottomMargin">
-          <number>10</number>
+          <number>20</number>
          </property>
          <item>
-          <layout class="QHBoxLayout" name="horizontalLayoutIconText" stretch="0,0,0">
-           <property name="spacing">
-            <number>-1</number>
-           </property>
+          <layout class="QVBoxLayout" name="verticalLayoutUnlockCode">
            <property name="topMargin">
-            <number>0</number>
-           </property>
-           <property name="bottomMargin">
             <number>0</number>
            </property>
            <item>
@@ -98,50 +92,62 @@ QLabel { color: rgb(40,40,40);  }</string>
              <property name="leftMargin">
               <number>0</number>
              </property>
-             <item>
-              <widget class="QPushButton" name="warningIcon">
-               <property name="enabled">
-                <bool>false</bool>
-               </property>
+             <item alignment="Qt::AlignHCenter">
+              <widget class="QLabel" name="label">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
                </property>
+               <property name="minimumSize">
+                <size>
+                 <width>100</width>
+                 <height>100</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>100</width>
+                 <height>100</height>
+                </size>
+               </property>
+               <property name="sizeIncrement">
+                <size>
+                 <width>10</width>
+                 <height>10</height>
+                </size>
+               </property>
                <property name="text">
                 <string/>
                </property>
-               <property name="icon">
-                <iconset resource="../merit.qrc">
-                 <normaloff>:/icons/warning</normaloff>
-                 <disabledoff>:/icons/warning</disabledoff>:/icons/warning</iconset>
+               <property name="pixmap">
+                <pixmap resource="../merit.qrc">:/icons/merit</pixmap>
                </property>
-               <property name="iconSize">
-                <size>
-                 <width>48</width>
-                 <height>48</height>
-                </size>
-               </property>
-               <property name="flat">
+               <property name="scaledContents">
                 <bool>true</bool>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignCenter</set>
+               </property>
+               <property name="wordWrap">
+                <bool>false</bool>
+               </property>
+               <property name="margin">
+                <number>15</number>
                </property>
               </widget>
              </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QVBoxLayout" name="verticalLayoutInfoText">
-             <property name="leftMargin">
-              <number>0</number>
-             </property>
-             <property name="topMargin">
-              <number>0</number>
-             </property>
              <item>
               <widget class="QLabel" name="infoText">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                 <horstretch>6</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
                <property name="text">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:18pt; font-weight:600;&quot;&gt;Merit is an invite-only network.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:20pt; font-weight:600; color:#064356;&quot;&gt;Merit&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#5b5b5b;&quot;&gt;Is Invite Only&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="textFormat">
                 <enum>Qt::RichText</enum>
@@ -152,30 +158,13 @@ QLabel { color: rgb(40,40,40);  }</string>
                <property name="wordWrap">
                 <bool>false</bool>
                </property>
+               <property name="margin">
+                <number>0</number>
+               </property>
               </widget>
              </item>
             </layout>
            </item>
-           <item>
-            <spacer name="horizontalSpacer">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>40</width>
-               <height>20</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QVBoxLayout" name="verticalLayoutUnlockCode">
-           <property name="topMargin">
-            <number>0</number>
-           </property>
            <item>
             <spacer name="verticalSpacer">
              <property name="orientation">
@@ -194,32 +183,78 @@ QLabel { color: rgb(40,40,40);  }</string>
              <property name="topMargin">
               <number>0</number>
              </property>
-             <item>
-              <widget class="QLabel" name="aliasDescription">
-               <property name="text">
-                <string>You can choose to pick an Alias that others can use to send you Merit. (Optional)</string>
-               </property>
-               <property name="wordWrap">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item alignment="Qt::AlignLeft">
-              <widget class="QLineEdit" name="aliasTextInput">
-               <property name="placeholderText">
-                <string>Enter an alias here (optional)</string>
-               </property>
-               <property name="clearButtonEnabled">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
             </layout>
            </item>
            <item>
             <widget class="QLabel" name="unlockCodeDescription">
+             <property name="font">
+              <font>
+               <pointsize>12</pointsize>
+              </font>
+             </property>
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The person who invited you is an &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit.&lt;/span&gt;  They will be notified when you join.&lt;/p&gt;&lt;p&gt;They will also be entered into a lottery and can win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; as you use the system. You can also become and &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; by inviting other and you too will have a chance to win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; each block!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
              <property name="text">
-              <string>Enter the Merit address of the person who has invited you to use Merit (required)</string>
+              <string>Enter the Merit Address of the person who invited you.</string>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLineEdit" name="unlockCodeTextInput">
+             <property name="font">
+              <font>
+               <pointsize>12</pointsize>
+              </font>
+             </property>
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The person who invited you is an &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit.&lt;/span&gt;  They will be notified when you join.&lt;/p&gt;&lt;p&gt;They will also be entered into a lottery and can win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; as you use the system. You can also become and &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; by inviting other and you too will have a chance to win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; each block!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="accessibleDescription">
+              <string/>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="maxLength">
+              <number>34</number>
+             </property>
+             <property name="placeholderText">
+              <string>Enter a valid Merit address or Alias here (required)</string>
+             </property>
+             <property name="clearButtonEnabled">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="verticalSpacer_2">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QLabel" name="aliasDescription">
+             <property name="font">
+              <font>
+               <pointsize>12</pointsize>
+              </font>
+             </property>
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Other users of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; can use your &lt;span style=&quot; font-weight:600;&quot;&gt;Public Alias&lt;/span&gt; instead of an address to send your funds. This alias is &lt;span style=&quot; font-style:italic;&quot;&gt;optional&lt;/span&gt;. An alias cannot be changed for an address once it is chosen.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;The alias must be &lt;span style=&quot; font-weight:600;&quot;&gt;globally unique&lt;/span&gt;, nobody else can use your alias once it is commited to the Merit Blockchain.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;For more information, visit: &lt;a href=&quot;http://merit.me/aliases.html&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;merit.me/aliases.html&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string>Choose an optional Public Alias.</string>
              </property>
              <property name="wordWrap">
               <bool>true</bool>
@@ -232,37 +267,54 @@ QLabel { color: rgb(40,40,40);  }</string>
               <number>0</number>
              </property>
              <item>
-              <widget class="QLineEdit" name="unlockCodeTextInput">
-               <property name="accessibleDescription">
-                <string/>
+              <widget class="QLineEdit" name="aliasTextInput">
+               <property name="font">
+                <font>
+                 <pointsize>12</pointsize>
+                </font>
                </property>
-               <property name="text">
-                <string/>
-               </property>
-               <property name="maxLength">
-                <number>34</number>
+               <property name="toolTip">
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Other users of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; can use your &lt;span style=&quot; font-weight:600;&quot;&gt;Public Alias&lt;/span&gt; instead of an address to send your funds. This alias is &lt;span style=&quot; font-style:italic;&quot;&gt;optional&lt;/span&gt;. An alias cannot be changed for an address once it is chosen.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;The alias must be &lt;span style=&quot; font-weight:600;&quot;&gt;globally unique&lt;/span&gt;, nobody else can use your alias once it is commited to the Merit Blockchain.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;For more information, visit: &lt;a href=&quot;http://merit.me/aliases.html&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;merit.me/aliases.html&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="placeholderText">
-                <string>Enter a valid Merit address here</string>
+                <string>Enter an Alias here (optional)</string>
                </property>
                <property name="clearButtonEnabled">
                 <bool>true</bool>
                </property>
               </widget>
              </item>
-             <item>
-              <widget class="QPushButton" name="submitButton">
-               <property name="enabled">
-                <bool>false</bool>
-               </property>
-               <property name="text">
-                <string>Submit</string>
-               </property>
-              </widget>
-             </item>
             </layout>
            </item>
+           <item>
+            <spacer name="verticalSpacer_3">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
           </layout>
+         </item>
+         <item>
+          <widget class="QPushButton" name="submitButton">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>12</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>Join the Merit Network</string>
+           </property>
+          </widget>
          </item>
         </layout>
        </widget>

@@ -243,6 +243,27 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
     return referral;
 }
 
+bool CWallet::AliasExists(const std::string& alias) const
+{
+    if(alias.empty()) return false;
+    return prefviewcache->Exists(alias);
+}
+
+bool CWallet::AddressBeaconed(const std::string& address) const
+{
+    return CheckAddressBeaconed(address, true);
+}
+
+bool CWallet::AddressConfirmed(const std::string& address) const
+{
+    return CheckAddressConfirmed(address, true);
+}
+
+bool CWallet::AddressConfirmed(const uint160& address, char type) const
+{
+    return CheckAddressConfirmed(address, type, true);
+}
+
 CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb)
 {
     AssertLockHeld(cs_wallet); // mapKeyMetadata
@@ -1821,6 +1842,17 @@ bool CWallet::SetUnlockReferralTx(const referral::ReferralTx& rtx, bool topUpKey
 bool CWallet::IsReferred() const
 {
     return !m_unlockReferralTx.IsNull();
+}
+
+bool CWallet::IsConfirmed() const
+{
+    auto referral = GetRootReferral();
+    if(!referral) {
+        return false;
+    }
+
+    auto address = referral->GetAddress();
+    return AddressConfirmed(address, referral->addressType);
 }
 
 referral::Address CWallet::ReferralAddress() const
