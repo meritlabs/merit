@@ -66,7 +66,7 @@
 
 QLabel { color: rgb(40,40,40);  }</string>
         </property>
-        <layout class="QVBoxLayout" name="verticalLayoutSub" stretch="0,0,0">
+        <layout class="QVBoxLayout" name="verticalLayoutSub" stretch="0,0">
          <property name="spacing">
           <number>0</number>
          </property>
@@ -83,17 +83,8 @@ QLabel { color: rgb(40,40,40);  }</string>
           <number>10</number>
          </property>
          <item>
-          <layout class="QHBoxLayout" name="horizontalLayoutIconText" stretch="0">
-           <property name="spacing">
-            <number>6</number>
-           </property>
-           <property name="leftMargin">
-            <number>0</number>
-           </property>
+          <layout class="QVBoxLayout" name="verticalLayoutUnlockCode">
            <property name="topMargin">
-            <number>0</number>
-           </property>
-           <property name="bottomMargin">
             <number>0</number>
            </property>
            <item>
@@ -174,13 +165,6 @@ QLabel { color: rgb(40,40,40);  }</string>
              </item>
             </layout>
            </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QVBoxLayout" name="verticalLayoutUnlockCode">
-           <property name="topMargin">
-            <number>0</number>
-           </property>
            <item>
             <spacer name="verticalSpacer">
              <property name="orientation">
