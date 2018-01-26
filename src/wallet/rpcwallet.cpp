@@ -535,7 +535,7 @@ static UniValue EasySend(
                 "Unable to generate referral for easy send script");
     }
 
-    if(ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
+    if(pwallet.Daedalus()) {
         auto invite_transaction =
             pwallet.SendInviteTo(CParamScriptID{script_referral->GetAddress()});
 
@@ -909,7 +909,7 @@ UniValue inviteaddress(const JSONRPCRequest& request)
             + HelpExampleCli("inviteaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
         );
 
-    if(!ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
+    if(!pwallet->Daedalus()) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Address confirmation is currently not required.");
     }
 
@@ -1249,7 +1249,7 @@ UniValue createvault(const JSONRPCRequest& request)
                     "Unable to generate referral for the vault script");
         }
 
-        if(ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
+        if(pwallet->Daedalus()) {
             auto invite_transaction =
                 pwallet->SendInviteTo(CParamScriptID{script_referral->GetAddress()});
 

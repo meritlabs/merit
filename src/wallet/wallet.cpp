@@ -126,7 +126,9 @@ public:
 
 bool DaedalusGeneration()
 {
-    assert(chainActive.Tip());
+    if(!chainActive.Tip()) {
+        return false;
+    }
 
     return (chainActive.Tip()->nVersion & DAEDALUS_BIT) != 0;
 }
@@ -199,7 +201,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
     }
 
     bool isConfirmed = true;
-    if(ExpectDaedalus(chainActive.Tip(), Params().GetConsensus())) {
+    if(Daedalus()) {
         isConfirmed = CheckAddressConfirmed(parentAddress, true);
     }
 
@@ -1707,7 +1709,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
 
     // check if we need to set new version of referrals
     auto referral_version =
-        ExpectDaedalus(chainActive.Tip(), Params().GetConsensus()) ?
+        Daedalus() ?
         referral::Referral::INVITE_VERSION :
         referral::Referral::CURRENT_VERSION;
 
@@ -2615,7 +2617,7 @@ void CWallet::AvailableInvites(std::vector<COutput> &invites)
 
 bool CWallet::Daedalus() const
 {
-    return ExpectDaedalus(chainActive.Tip(), Params().GetConsensus());
+    return DaedalusGeneration();
 }
 
 void CWallet::AvailableCoins(
@@ -4026,7 +4028,7 @@ bool CWallet::TopUpKeyPool(unsigned int kpSize, std::shared_ptr<referral::Addres
         }
 
         // do not derive new keys while in daedalus generation
-        if (DaedalusGeneration()) {
+        if (Daedalus()) {
             return true;
         }
 
@@ -4116,7 +4118,7 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool)
         assert(CheckAddressBeaconed(keypool.vchPubKey.GetID(), true));
 
         // do not remove key from pool
-        if (DaedalusGeneration()) {
+        if (Daedalus()) {
             return;
         }
 
@@ -4129,7 +4131,7 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool)
 void CWallet::KeepKey(int64_t nIndex)
 {
     // do not remove key from pool
-    if (DaedalusGeneration()) {
+    if (Daedalus()) {
         return;
     }
 
@@ -4142,7 +4144,7 @@ void CWallet::KeepKey(int64_t nIndex)
 void CWallet::ReturnKey(int64_t nIndex, const CPubKey& pubkey)
 {
     // do not put key back to pool as it was not removed
-    if (DaedalusGeneration()) {
+    if (Daedalus()) {
         return;
     }
 
@@ -4384,7 +4386,7 @@ void CReserveKey::ReturnKey()
 void CWallet::MarkReserveKeysAsUsed(int64_t keypool_id)
 {
     // do remove keys while in daedalus generation
-    if (DaedalusGeneration()) {
+    if (Daedalus()) {
         return;
     }
 
@@ -4414,7 +4416,7 @@ void CWallet::GetScriptForMining(std::shared_ptr<CReserveScript> &script)
         return;
     }
 
-    if (DaedalusGeneration() && !CheckAddressConfirmed(pubkey.GetID(), 1)) {
+    if (Daedalus() && !CheckAddressConfirmed(pubkey.GetID(), 1)) {
         return;
     }
 

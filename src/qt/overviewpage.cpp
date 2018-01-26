@@ -135,7 +135,6 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     ui->listTransactions->setItemDelegate(txdelegate);
     ui->listTransactions->setMinimumHeight(NUM_ITEMS * (DECORATION_SIZE + 2));
     ui->listTransactions->setAttribute(Qt::WA_MacShowFocusRect, false);
-    ui->inviteNotice->hide();
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
 
@@ -214,6 +213,7 @@ void OverviewPage::setBalance(
     ui->labelImmature->setVisible(showImmature || showWatchOnlyImmature);
     ui->labelImmatureText->setVisible(showImmature || showWatchOnlyImmature);
     ui->labelWatchImmature->setVisible(showWatchOnlyImmature); // show watch-only immature balance
+    ui->inviteBalance->setVisible(walletModel->Daedalus());
 }
 
 // show/hide watch-only labels
@@ -261,14 +261,6 @@ void OverviewPage::setWalletModel(WalletModel *model)
         is_confirmed = walletModel->IsConfirmed();
         UpdateInvitationStatus();
 
-        CAmount inviteBalance = 0;
-        if(!walletModel->Daedalus()) {
-            ui->inviteBalance->hide();
-        } else {
-            inviteBalance = model->getBalance(nullptr, true);
-        }
-
-
         // Keep up to date with wallet
         setBalance(
                 model->getBalance(),
@@ -277,7 +269,7 @@ void OverviewPage::setWalletModel(WalletModel *model)
                 model->getWatchBalance(),
                 model->getWatchUnconfirmedBalance(),
                 model->getWatchImmatureBalance(),
-                inviteBalance);
+                model->getBalance(nullptr, true));
 
         connect(
                 model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)), 
@@ -296,23 +288,25 @@ void OverviewPage::setWalletModel(WalletModel *model)
 
 void OverviewPage::updateDisplayUnit()
 {
-    if(walletModel && walletModel->getOptionsModel())
-    {
-        if(currentBalance != -1)
-            setBalance(
-                    currentBalance,
-                    currentUnconfirmedBalance,
-                    currentImmatureBalance,
-                    currentWatchOnlyBalance,
-                    currentWatchUnconfBalance,
-                    currentWatchImmatureBalance,
-                    currentInviteBalance);
-
-        // Update txdelegate->unit with the current unit
-        txdelegate->unit = walletModel->getOptionsModel()->getDisplayUnit();
-
-        ui->listTransactions->update();
+    if(!(walletModel && walletModel->getOptionsModel())) {
+        return;
     }
+
+    if(currentBalance != -1)
+        setBalance(
+                currentBalance,
+                currentUnconfirmedBalance,
+                currentImmatureBalance,
+                currentWatchOnlyBalance,
+                currentWatchUnconfBalance,
+                currentWatchImmatureBalance,
+                currentInviteBalance);
+
+    // Update txdelegate->unit with the current unit
+    txdelegate->unit = walletModel->getOptionsModel()->getDisplayUnit();
+
+    ui->listTransactions->update();
+    UpdateInvitationStatus();
 }
 
 void OverviewPage::updateAlerts(const QString &warnings)
@@ -343,8 +337,8 @@ void OverviewPage::UpdateInvitationStatus()
     assert(ui); 
     if(!walletModel) return;
     if(is_confirmed) return;
-    if(!walletModel->Daedalus()) {
-        is_confirmed = true;
+    if(!walletModel->Daedalus())  {
+        ui->inviteNotice->setVisible(false);
         return;
     }
 
