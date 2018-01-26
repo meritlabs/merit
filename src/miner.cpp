@@ -381,7 +381,10 @@ bool BlockAssembler::CheckReferrals(
     // test all referrals are signed
     for (const auto& entryit: candidateReferrals) {
         const auto referral = entryit->GetEntryValue();
-        CheckReferralSignature(referral);
+
+        if (!CheckReferralSignature(referral)) {
+            return false;
+        }
 
         if (pblock->IsDaedalus()) {
             // Check package for confirmation for give referral
@@ -591,7 +594,9 @@ void BlockAssembler::AddReferrals()
         }
 
         // test all referrals are signed
-        CheckReferralSignature(*ref);
+        if (!CheckReferralSignature(*ref)) {
+            continue;
+        }
 
         if (pblock->IsDaedalus()) {
             // Check package for confirmation for give referral
