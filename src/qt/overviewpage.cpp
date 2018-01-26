@@ -17,7 +17,9 @@
 #include "walletmodel.h"
 
 #include <QAbstractItemDelegate>
+#include <QPropertyAnimation>
 #include <QPainter>
+#include <QTimer>
 
 #define DECORATION_SIZE 54
 #define NUM_ITEMS 5
@@ -229,12 +231,16 @@ void OverviewPage::setWalletModel(WalletModel *model)
         ui->listTransactions->setModel(filter.get());
         ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
 
+        is_confirmed = walletModel->IsConfirmed();
+        UpdateInvitationStatus();
+
         // Keep up to date with wallet
         setBalance(model->getBalance(), model->getUnconfirmedBalance(), model->getImmatureBalance(),
                    model->getWatchBalance(), model->getWatchUnconfirmedBalance(), model->getWatchImmatureBalance());
         connect(model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)), this, SLOT(setBalance(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)));
 
         connect(model->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
+        connect(model, SIGNAL(transactionUpdated()), this, SLOT(UpdateInvitationStatus()));
 
         updateWatchOnlyLabels(model->haveWatchOnly());
         connect(model, SIGNAL(notifyWatchonlyChanged(bool)), this, SLOT(updateWatchOnlyLabels(bool)));
@@ -269,4 +275,32 @@ void OverviewPage::showOutOfSyncWarning(bool fShow)
 {
     ui->labelWalletStatus->setVisible(fShow);
     ui->labelTransactionsStatus->setVisible(fShow);
+}
+
+void OverviewPage::HideInviteNotice()
+{
+    QPropertyAnimation* animation = new QPropertyAnimation(ui->inviteNotice, "size");
+    animation->setDuration(300);
+    animation->setStartValue(QSize(ui->inviteNotice->width(), ui->inviteNotice->height()));
+    animation->setEndValue(QSize(ui->inviteNotice->width(), 0));
+    animation->setEasingCurve(QEasingCurve::OutQuad);
+    animation->start(QAbstractAnimation::DeleteWhenStopped);
+    QTimer::singleShot(400, ui->inviteNotice, SLOT(hide()));
+}
+
+void OverviewPage::UpdateInvitationStatus()
+{
+    assert(ui); 
+    if(!walletModel) return;
+    if(is_confirmed) return;
+
+    bool confirmed = walletModel->IsConfirmed();
+    if(!confirmed) {
+        ui->inviteNotice->show();
+    } else {
+        ui->inviteNotice->setStyleSheet("QLabel {background-color: rgb(128, 255, 128)}");
+        ui->inviteNotice->setText("<html><head/><body><p align=\"center\"><span style=\" font-size:12pt; font-weight:600;\">You have been confirmed!</span></p></body></html>");
+        QTimer::singleShot(3000, this, SLOT(HideInviteNotice()));
+    }
+    is_confirmed = confirmed;
 }

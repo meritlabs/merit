@@ -140,10 +140,12 @@ public:
     CAmount getWatchImmatureBalance(bool invite = false) const;
     EncryptionStatus getEncryptionStatus() const;
     bool IsReferred() const;
+    bool IsConfirmed() const;
     referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string alias = "");
 
     bool AliasExists(const std::string& alias) const;
-    bool AddressBeaconed(const std::string& alias) const;
+    bool AddressBeaconed(const std::string& address) const;
+    bool AddressConfirmed(const std::string& address) const;
 
     // Check address for validity
     bool validateAddress(const QString &address);
@@ -278,6 +280,9 @@ Q_SIGNALS:
 
     // Watch-only address added
     void notifyWatchonlyChanged(bool fHaveWatchonly);
+
+    // Fired when a transaction is updated.
+    void transactionUpdated();
 
 public Q_SLOTS:
     /* Wallet status might have changed */

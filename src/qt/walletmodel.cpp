@@ -172,6 +172,7 @@ void WalletModel::updateTransaction()
 {
     // Balance and number of transactions might have changed
     fForceCheckBalanceChanged = true;
+    Q_EMIT transactionUpdated();
 }
 
 void WalletModel::updateAddressBook(const QString &address, const QString &label,
@@ -415,7 +416,14 @@ WalletModel::EncryptionStatus WalletModel::getEncryptionStatus() const
 
 bool WalletModel::IsReferred() const
 {
+    assert(wallet);
     return wallet->IsReferred();
+}
+
+bool WalletModel::IsConfirmed() const
+{
+    assert(wallet);
+    return wallet->IsConfirmed();
 }
 
 referral::ReferralRef WalletModel::Unlock(const referral::Address& parentAddress, const std::string alias)
@@ -435,6 +443,12 @@ bool WalletModel::AddressBeaconed(const std::string& address) const
 {
     assert(wallet);
     return wallet->AddressBeaconed(address);
+}
+
+bool WalletModel::AddressConfirmed(const std::string& address) const
+{
+    assert(wallet);
+    return wallet->AddressConfirmed(address);
 }
 
 bool WalletModel::setWalletEncrypted(bool encrypted, const SecureString &passphrase)
