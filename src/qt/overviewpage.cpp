@@ -336,9 +336,8 @@ void OverviewPage::UpdateInvitationStatus()
 {
     assert(ui); 
     if(!walletModel) return;
-    if(is_confirmed) return;
-    if(!walletModel->Daedalus())  {
-        ui->inviteNotice->setVisible(false);
+    if(is_confirmed || !walletModel->Daedalus()) {
+        ui->inviteNotice->hide();
         return;
     }
 
