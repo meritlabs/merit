@@ -31,16 +31,19 @@ BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTX
         m_prefilled_txn(1), m_prefilled_inv{}, 
         header(block)
 {
+    bool first_inv_is_coinbase = block.IsDaedalus() && !block.invites.empty() && block.invites[0]->IsCoinBase();
     if(block.IsDaedalus() && !block.invites.empty()) {
-        m_short_inv_ids.resize(block.invites.size() - 1);
+        m_short_inv_ids.resize(block.invites.size() - (first_inv_is_coinbase ? 1 : 0));
     }
 
     FillShortIDSelector();
     //TODO: Use our mempool prior to block acceptance to predictively fill more than just the coinbase
     m_prefilled_txn[0] = {0, block.vtx[0]};
 
-    if(block.IsDaedalus() && !block.invites.empty()) {
+    size_t inv_coinbase_end = 0;
+    if(first_inv_is_coinbase) {
         m_prefilled_inv.push_back({0, block.invites[0]});
+        inv_coinbase_end = 1;
     }
 
     std::transform(
@@ -51,7 +54,7 @@ BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTX
 
     if(block.IsDaedalus() && !block.invites.empty()) {
         std::transform(
-                std::begin(block.invites) + 1, std::end(block.invites), std::begin(m_short_inv_ids),
+                std::begin(block.invites) + inv_coinbase_end, std::end(block.invites), std::begin(m_short_inv_ids),
                 [this,fUseWTXID](const CTransactionRef& inv) {
                 return GetShortID(fUseWTXID ? inv->GetWitnessHash() : inv->GetHash());
                 });
