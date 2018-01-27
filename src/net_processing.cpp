@@ -1995,7 +1995,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                     // anyone relaying LegitTxX banned)
                     CValidationState stateDummy;
 
-
                     if (setMisbehaving.count(fromPeer))
                         continue;
                     if (AcceptToMemoryPool(mempool, stateDummy, porphanTx, true, &fMissingInputs2, &lRemovedTxn)) {
@@ -3108,8 +3107,9 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
     const Consensus::Params& consensusParams = Params().GetConsensus();
     {
         // Don't send anything until the version handshake is complete
-        if (!pto->fSuccessfullyConnected || pto->fDisconnect)
+        if (!pto->fSuccessfullyConnected || pto->fDisconnect) {
             return true;
+        }
 
         // If we get here, the outgoing message serialization version is set and can't change.
         const CNetMsgMaker msgMaker(pto->GetSendVersion());
@@ -3144,11 +3144,13 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
         }
 
         TRY_LOCK(cs_main, lockMain); // Acquire cs_main for IsInitialBlockDownload() and CNodeState()
-        if (!lockMain)
+        if (!lockMain) {
             return true;
+        }
 
-        if (SendRejectsAndCheckIfBanned(pto, connman))
+        if (SendRejectsAndCheckIfBanned(pto, connman)) {
             return true;
+        }
         CNodeState &state = *State(pto->GetId());
 
         // Address refresh broadcast
@@ -3300,9 +3302,9 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                     {
                         LOCK(cs_most_recent_block);
                         if (most_recent_block_hash == pBestIndex->GetBlockHash()) {
-                            if (state.fWantsCmpctWitness || !fWitnessesPresentInMostRecentCompactBlock)
+                            if (state.fWantsCmpctWitness || !fWitnessesPresentInMostRecentCompactBlock) {
                                 connman.PushMessage(pto, msgMaker.Make(nSendFlags, NetMsgType::CMPCTBLOCK, *most_recent_compact_block));
-                            else {
+                            } else {
                                 BlockHeaderAndShortIDs cmpctblock(*most_recent_block, state.fWantsCmpctWitness);
                                 connman.PushMessage(pto, msgMaker.Make(nSendFlags, NetMsgType::CMPCTBLOCK, cmpctblock));
                             }
@@ -3413,7 +3415,7 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                     CInv inv(MSG_TX, hash);
                     pto->setInventoryTxToSend.erase(hash);
                     if (filterrate) {
-                        if (txinfo.feeRate.GetFeePerK() < filterrate)
+                        if (!txinfo.tx->IsInvite() && txinfo.feeRate.GetFeePerK() < filterrate)
                             continue;
                     }
                     if (pto->pfilter) {
@@ -3467,7 +3469,7 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                     if (!txinfo.tx) {
                         continue;
                     }
-                    if (filterrate && txinfo.feeRate.GetFeePerK() < filterrate) {
+                    if (!txinfo.tx->IsInvite() && filterrate && txinfo.feeRate.GetFeePerK() < filterrate) {
                         continue;
                     }
                     if (pto->pfilter && !pto->pfilter->IsRelevantAndUpdate(*txinfo.tx)) continue;
@@ -3600,8 +3602,9 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
             }
             pto->mapAskFor.erase(pto->mapAskFor.begin());
         }
-        if (!vGetData.empty())
+        if (!vGetData.empty()) {
             connman.PushMessage(pto, msgMaker.Make(NetMsgType::GETDATA, vGetData));
+        }
 
         //
         // Message: feefilter
