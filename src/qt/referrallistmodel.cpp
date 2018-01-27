@@ -93,12 +93,14 @@ ReferralListModel::~ReferralListModel()
 
 int ReferralListModel::rowCount(const QModelIndex &parent) const
 {
+    assert(priv);
     return priv->size();
 }
 
 QVariant ReferralListModel::data(const QModelIndex &index, int role) const
 {
-    if(!index.isValid() || index.column() != 0)
+    assert(priv);
+    if(!index.isValid() || index.row() >= priv->size())
         return QVariant();
     auto record = priv->index(index.row());
     if(record)
@@ -108,6 +110,7 @@ QVariant ReferralListModel::data(const QModelIndex &index, int role) const
         case Qt::DisplayRole:
             return record->displayString();
         case Qt::StatusTipRole:
+        case Qt::ToolTipRole:
             return record->statusString();
         }
     }

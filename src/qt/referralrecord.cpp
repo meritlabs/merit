@@ -51,9 +51,12 @@ bool ReferralRecord::showReferral(referral::ReferralTx &rtx)
 // temporary
 QString ReferralRecord::displayString() const
 {
-    return alias.length() > 0 ? QString::fromStdString(alias) : QString::fromStdString(address);
+    return alias.length() > 0 ?
+        QString::fromStdString(address) + " (" + QString::fromStdString(alias) + ")":
+        QString::fromStdString(address);
 }
 
+// temporary
 QString ReferralRecord::statusString() const
 {
     switch(status.status)

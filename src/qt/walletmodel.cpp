@@ -14,6 +14,7 @@
 #include "recentrequeststablemodel.h"
 #include "sendcoinsdialog.h"
 #include "transactiontablemodel.h"
+#include "referrallistmodel.h"
 
 #include "base58.h"
 #include "chain.h"
@@ -51,6 +52,7 @@ WalletModel::WalletModel(const PlatformStyle *platformStyle, CWallet *_wallet, O
 
     addressTableModel = new AddressTableModel(wallet, this);
     transactionTableModel = new TransactionTableModel(platformStyle, wallet, this);
+    referralListModel = new ReferralListModel(platformStyle, wallet, this);
     recentRequestsTableModel = new RecentRequestsTableModel(wallet, this);
 
     // This timer will be fired repeatedly to update the balance
@@ -407,6 +409,11 @@ TransactionTableModel *WalletModel::getTransactionTableModel()
 RecentRequestsTableModel *WalletModel::getRecentRequestsTableModel()
 {
     return recentRequestsTableModel;
+}
+
+ReferralListModel *WalletModel::getReferralListModel()
+{
+    return referralListModel;
 }
 
 WalletModel::EncryptionStatus WalletModel::getEncryptionStatus() const
