@@ -72,6 +72,7 @@ private:
 
 private:
     QString FormatInviteBalance(CAmount invites);
+    void SetShadows();
 
 
 private Q_SLOTS:

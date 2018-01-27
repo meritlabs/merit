@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>711</width>
+    <width>719</width>
     <height>682</height>
    </rect>
   </property>
@@ -76,10 +76,28 @@ background-color: rgb(232, 179, 54);</string>
    </item>
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,1">
+     <property name="spacing">
+      <number>20</number>
+     </property>
+     <property name="leftMargin">
+      <number>20</number>
+     </property>
+     <property name="topMargin">
+      <number>20</number>
+     </property>
+     <property name="rightMargin">
+      <number>20</number>
+     </property>
+     <property name="bottomMargin">
+      <number>20</number>
+     </property>
      <item>
       <layout class="QVBoxLayout" name="verticalLayout_2">
+       <property name="spacing">
+        <number>20</number>
+       </property>
        <item>
-        <widget class="QFrame" name="frame">
+        <widget class="QFrame" name="balanceFrame">
          <property name="styleSheet">
           <string notr="true"/>
          </property>
@@ -452,7 +470,7 @@ background-color: rgb(232, 179, 54);</string>
         </widget>
        </item>
        <item>
-        <widget class="QFrame" name="frame_3">
+        <widget class="QFrame" name="networkFrame">
          <property name="minimumSize">
           <size>
            <width>0</width>
@@ -584,7 +602,7 @@ background-color: rgb(232, 179, 54);</string>
      <item>
       <layout class="QVBoxLayout" name="verticalLayout_3">
        <item>
-        <widget class="QFrame" name="frame_2">
+        <widget class="QFrame" name="transactionsFrame">
          <property name="styleSheet">
           <string notr="true"/>
          </property>

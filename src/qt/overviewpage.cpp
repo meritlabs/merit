@@ -18,6 +18,7 @@
 
 #include <QAbstractItemDelegate>
 #include <QPropertyAnimation>
+#include <QGraphicsDropShadowEffect>
 #include <QPainter>
 #include <QTimer>
 
@@ -124,6 +125,8 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     txdelegate(new TxViewDelegate(platformStyle, this))
 {
     ui->setupUi(this);
+
+    SetShadows();
 
     // use a SingleColorIcon for the "out of sync warning" icon
     QIcon icon = platformStyle->SingleColorIcon(":/icons/warning");
@@ -350,4 +353,21 @@ void OverviewPage::UpdateInvitationStatus()
         QTimer::singleShot(3000, this, SLOT(HideInviteNotice()));
     }
     is_confirmed = confirmed;
+}
+
+QGraphicsDropShadowEffect* MakeFrameShadowEffect()
+{
+    auto effect = new QGraphicsDropShadowEffect;
+    effect->setBlurRadius(20);
+    effect->setXOffset(0);
+    effect->setYOffset(0);
+    effect->setColor(Qt::lightGray);
+    return effect;
+}
+
+void OverviewPage::SetShadows() 
+{
+    ui->balanceFrame->setGraphicsEffect(MakeFrameShadowEffect());
+    ui->transactionsFrame->setGraphicsEffect(MakeFrameShadowEffect());
+    ui->networkFrame->setGraphicsEffect(MakeFrameShadowEffect());
 }
