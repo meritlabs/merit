@@ -74,7 +74,7 @@ public:
 
     /** Return whether a status update is needed.
      */
-    bool statusUpdateNeeded() const;
+    bool statusUpdateNeeded() const { return true; } // TODO: implement this. Otherwise we always replae cache data
 
     // temporary
     QString displayString() const;

@@ -20,6 +20,7 @@ class AddressTableModel;
 class OptionsModel;
 class PlatformStyle;
 class RecentRequestsTableModel;
+class ReferralListModel;
 class TransactionTableModel;
 class WalletModelTransaction;
 
@@ -130,6 +131,7 @@ public:
     AddressTableModel *getAddressTableModel();
     TransactionTableModel *getTransactionTableModel();
     RecentRequestsTableModel *getRecentRequestsTableModel();
+    ReferralListModel *getReferralListModel();
 
     CAmount getBalance(const CCoinControl *coinControl = nullptr, bool invite = false) const;
     CAmount getUnconfirmedBalance(bool invite = false) const;
@@ -240,6 +242,7 @@ private:
     AddressTableModel *addressTableModel;
     TransactionTableModel *transactionTableModel;
     RecentRequestsTableModel *recentRequestsTableModel;
+    ReferralListModel *referralListModel;
 
     // Cache some values to be able to detect changes
     CAmount cachedBalance;

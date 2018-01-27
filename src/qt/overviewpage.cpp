@@ -14,6 +14,7 @@
 #include "platformstyle.h"
 #include "transactionfilterproxy.h"
 #include "transactiontablemodel.h"
+#include "referrallistmodel.h"
 #include "walletmodel.h"
 
 #include <QAbstractItemDelegate>
@@ -260,6 +261,8 @@ void OverviewPage::setWalletModel(WalletModel *model)
 
         ui->listTransactions->setModel(filter.get());
         ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
+
+        ui->listRequests->setModel(model->getReferralListModel());
 
         is_confirmed = walletModel->IsConfirmed();
         UpdateInvitationStatus();

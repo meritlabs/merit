@@ -31,17 +31,17 @@ public:
 
     int rowCount(const QModelIndex &parent) const;
     QVariant data(const QModelIndex &index, int role) const;
-    QVariant headerData(int section, Qt::Orientation orientation, int role) const;
+    // QVariant headerData(int section, Qt::Orientation orientation, int role) const;
 
 private:
+    const PlatformStyle *platformStyle;
     CWallet* wallet;
     WalletModel *walletModel;
     ReferralListPriv *priv;
-    const PlatformStyle *platformStyle;
 
 public Q_SLOTS:
     /* New referral, or referral changed status */
-    void updateReferral(const QString &hash, int status, bool showReferral);
+    // void updateReferral(const QString &hash, int status, bool showReferral);
 
     friend class ReferralListPriv;
 };
