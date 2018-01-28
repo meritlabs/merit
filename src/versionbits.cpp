@@ -50,13 +50,10 @@ ThresholdState AbstractThresholdConditionChecker::GetStateFor(const CBlockIndex*
     // Walk backwards in steps of nPeriod to find a pindexPrev whose information is known
     std::vector<const CBlockIndex*> vToCompute;
     while (cache.count(pindexPrev) == 0) {
-        if (pindexPrev == nullptr) {
-            // The genesis block is by definition defined.
-            cache[pindexPrev] = THRESHOLD_DEFINED;
-            break;
-        }
-        if (pindexPrev->GetMedianTimePast() < nTimeStart) {
-            // Optimization: don't recompute down further, as we know every earlier block will be before the start time
+        // The genesis block is by definition defined.
+        // Optimization: don't recompute down further, as we know every earlier block will be before the start time
+        if (pindexPrev == nullptr ||
+                pindexPrev->GetMedianTimePast() < nTimeStart) {
             cache[pindexPrev] = THRESHOLD_DEFINED;
             break;
         }
