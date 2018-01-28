@@ -55,6 +55,7 @@ MutableReferral::MutableReferral(
     pubkey{pubkeyIn},
     signature{valtype()}
     {
+        assert(aliasIn.size() < MAX_ALIAS_LENGTH);
         if (addressType == 1) {
             address = addressIn;
         } else {

@@ -371,7 +371,7 @@ bool BlockAssembler::CheckReferrals(
     std::vector<referral::ReferralRef> vRefs(candidateReferrals.size());
 
     std::transform(candidateReferrals.begin(), candidateReferrals.end(), vRefs.begin(),
-        [](const referral::ReferralTxMemPool::refiter& entryit) {
+        [](const referral::ReferralTxMemPool::RefIter& entryit) {
             return entryit->GetSharedEntryValue();
         });
 
@@ -389,7 +389,8 @@ bool BlockAssembler::CheckReferrals(
         if (pblock->IsDaedalus()) {
             // Check package for confirmation for give referral
             if (confirmations.count(referral.GetAddress()) == 0) {
-                debug("ERROR: Referral confirmation not found");
+                debug("ERROR: Referral confirmation not found: %s", 
+                        CMeritAddress{referral.addressType, referral.GetAddress()}.ToString());
                 return false;
             }
         }
@@ -499,7 +500,7 @@ void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
     }
 }
 
-void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::refiter iter)
+void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::RefIter iter)
 {
     if (refsInBlock.count(iter)) {
         debug("\t%s: Referral %s is already in block\n", __func__,
@@ -507,7 +508,14 @@ void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::refiter ite
         return;
     }
 
-    pblock->m_vRef.push_back(iter->GetSharedEntryValue());
+    auto ref = iter->GetSharedEntryValue();
+    if (!mempoolReferral.Exists(ref->parentAddress)
+            && !prefviewdb->GetReferral(ref->parentAddress)) {
+        return;
+    } 
+
+    pblock->m_vRef.push_back(ref);
+
     if (fNeedSizeAccounting) {
         nBlockSize += iter->GetSize();
     }
@@ -614,6 +622,14 @@ void BlockAssembler::AddReferrals()
             }
             nPotentialBlockSize += nRefSize;
         }
+
+        //Check mempoolForParent
+        //If we don't find the parent in the mempool (it's also not in block at this point)
+        //Look in the blockchain.
+        if (!mempoolReferral.Exists(ref->parentAddress)
+                && !prefviewdb->GetReferral(ref->parentAddress)) {
+            continue;
+        } 
 
         pblock->m_vRef.push_back(ref);
         if (fNeedSizeAccounting) {

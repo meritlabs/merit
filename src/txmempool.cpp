@@ -260,8 +260,13 @@ void CTxMemPool::CalculateReferralsConfirmations(
         auto it = mapTx.find(index.first.txhash);
         assert(it != mapTx.end());
 
-        if (it->GetSharedEntryValue()->IsInvite()) {
-            debug("Found confirmation in mempool");
+        auto tx = it->GetSharedEntryValue();
+        if (tx->IsInvite()) {
+            debug("Found confirmation in mempool: %s,  %s",
+                    tx->GetHash().GetHex(),
+                    CMeritAddress{
+                        static_cast<char>(index.first.type),
+                        index.first.addressBytes}.ToString());
             confirmations.insert(it);
         }
     }

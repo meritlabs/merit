@@ -25,8 +25,6 @@ using ReferralId = boost::variant<uint256, referral::Address, std::string>;
 
 struct MutableReferral;
 
-static const int SERIALIZE_REFERRAL = 0x40000000;
-
 static const int MAX_ALIAS_LENGTH = 20;
 
 struct MutableReferral;
@@ -216,7 +214,9 @@ inline void UnserializeReferral(RefType& ref, Stream& s)
     s >> ref.signature;
     if (ref.version >= Referral::INVITE_VERSION) {
         s >> ref.alias;
-        assert(ref.alias.size() <= MAX_ALIAS_LENGTH);
+        if(ref.alias.size() > MAX_ALIAS_LENGTH) {
+            throw std::runtime_error{"invalid referral alias size"};
+        }
     }
 
     assert(ref.pubkey.IsValid());

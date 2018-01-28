@@ -122,10 +122,11 @@ public:
                 boost::multi_index::identity<RefMemPoolEntry>,
                 CompareMemPoolEntryByEntryTime<Referral>>>>;
 
-    using refiter = indexed_referrals_set::nth_index<0>::type::iterator;
-    using refaliter = indexed_referrals_set::nth_index<2>::type::iterator;
+    using RefIter = indexed_referrals_set::nth_index<0>::type::iterator;
+    using RefAddressIter = indexed_referrals_set::nth_index<1>::type::iterator;
+    using RefAliasIter = indexed_referrals_set::nth_index<2>::type::iterator;
 
-    using setEntries = std::set<refiter, CompareIteratorByHash<refiter>>;
+    using setEntries = std::set<RefIter, CompareIteratorByHash<RefIter>>;
 
     mutable CCriticalSection cs;
 
@@ -155,7 +156,7 @@ public:
     /**
      *  Remove referral from the mempool
      */
-    void RemoveUnchecked(refiter it, MemPoolRemovalReason reason);
+    void RemoveUnchecked(RefIter it, MemPoolRemovalReason reason);
 
     /**
      *  Remove a set of referrals from the mempool.
@@ -180,12 +181,12 @@ public:
      *  Assumes that setDescendants includes all in-mempool descendants of anything
      *  already in it.
      */
-    void CalculateDescendants(refiter entryit, setEntries& setDescendants) const;
+    void CalculateDescendants(RefIter entryit, setEntries& setDescendants) const;
 
     /**
      * Get children of a given referral
      */
-    const setEntries& GetMemPoolChildren(refiter entry) const;
+    const setEntries& GetMemPoolChildren(RefIter entry) const;
 
     /**
      * Check if referral with a given hash exists in mempoll
@@ -214,7 +215,7 @@ public:
     /** Get referral by id - hash, address or alias */
     ReferralRef Get(const ReferralId& referral_id) const;
 
-    std::pair<refaliter, refaliter> Find(const std::string& alias) const;
+    std::pair<RefAliasIter, RefAliasIter> Find(const std::string& alias) const;
 
     unsigned long Size() const
     {
@@ -237,8 +238,8 @@ public:
     boost::signals2::signal<void(ReferralRef, MemPoolRemovalReason)> NotifyEntryRemoved;
 
 private:
-    using reflinksMap = std::map<refiter, setEntries, CompareIteratorByHash<refiter>>;
-    reflinksMap mapChildren;
+    using RefLinksMap = std::map<RefIter, setEntries, CompareIteratorByHash<RefIter>>;
+    RefLinksMap mapChildren;
 };
 }
 
