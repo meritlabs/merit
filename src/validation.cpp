@@ -3080,8 +3080,8 @@ public:
     int64_t EndTime(const Consensus::Params& params) const override { return std::numeric_limits<int64_t>::max(); }
     int Period(const Consensus::Params& params) const override { return params.nMinerConfirmationWindow; }
     int Threshold(const Consensus::Params& params) const override { return params.nRuleChangeActivationThreshold; }
-    int BeginBlock(const Consensus::Params& params) const override { return params.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block; }
-    int EndBlock(const Consensus::Params& params) const override { return params.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block; }
+    int BeginBlock(const Consensus::Params& params) const override { return 0; }
+    int EndBlock(const Consensus::Params& params) const override { return 0; }
 
     bool Condition(const CBlockIndex* pindex, const Consensus::Params& params) const override
     {
