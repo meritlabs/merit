@@ -2870,9 +2870,9 @@ DisconnectResult DisconnectTransactions(
         clean &= DisconnectOutputs(pindex->nHeight, tx, view);
 
         if(are_invites && !tx.IsCoinBase()) {
-            CTxUndo &txundo = block_undo.vtxundo[i];
+            CTxUndo &txundo = block_undo.invites_undo[i];
             if (txundo.vprevout.size() != tx.vin.size()) {
-                error("DisconnectBlock(): transaction and undo data inconsistent");
+                error("DisconnectBlock(): not coinbase %s and undo data inconsistent for", are_invites ? "invite" : "transaction");
                 return DISCONNECT_FAILED;
             }
             clean &= DisconnectInputs(txundo, tx.vin, view);
@@ -2881,7 +2881,7 @@ DisconnectResult DisconnectTransactions(
         } else if (i > 0) { // not coinbases
             CTxUndo &txundo = block_undo.vtxundo[i-1];
             if (txundo.vprevout.size() != tx.vin.size()) {
-                error("DisconnectBlock(): transaction and undo data inconsistent");
+                error("DisconnectBlock(): coinbase %s and undo data inconsistent", are_invites ? "invite" : "transaction");
                 return DISCONNECT_FAILED;
             }
             clean &= DisconnectInputs(txundo, tx.vin, view);
@@ -2917,8 +2917,13 @@ static DisconnectResult DisconnectBlock(
         return DISCONNECT_FAILED;
     }
 
-    if (block_undo.vtxundo.size() + 1 < (block.vtx.size() + block.invites.size())) {
-        error("DisconnectBlock(): block and undo data inconsistent");
+    if (block_undo.vtxundo.size() + 1 < block.vtx.size()) {
+        error("DisconnectBlock(): block txs and undo data inconsistent");
+        return DISCONNECT_FAILED;
+    }
+
+    if (block_undo.invites_undo.size() !=  block.invites.size()) {
+        error("DisconnectBlock(): block invites and undo data inconsistent");
         return DISCONNECT_FAILED;
     }
 
@@ -3796,6 +3801,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int64_t nTime4 = GetTimeMicros();
 
     if (block.IsDaedalus()) {
+        blockundo.invites_undo.reserve(block.invites.size());
+
         pos.nTxOffset += GetSizeOfCompactSize(block.invites.size());
         for (int i = 0; i < static_cast<int>(block.invites.size()); i++) {
             const CTransaction &inv = *(block.invites[i]);
@@ -3831,9 +3838,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                         REJECT_INVALID, "bad-cb-bad-outputs");
             }
 
-            blockundo.vtxundo.push_back(CTxUndo());
+            blockundo.invites_undo.push_back(CTxUndo());
 
-            UpdateCoins(inv, view, blockundo.vtxundo.back(), pindex->nHeight);
+            UpdateCoins(inv, view, blockundo.invites_undo.back(), pindex->nHeight);
 
             vPos.push_back(std::make_pair(inv.GetHash(), pos));
             pos.nTxOffset += ::GetSerializeSize(inv, SER_DISK, CLIENT_VERSION);
@@ -5268,7 +5275,7 @@ const referral::ReferralRef LookupReferral(referral::ReferralId& referral_id)
     return cached_referral ? MakeReferralRef(*cached_referral) : nullptr;
 }
 
-bool IsWitnessCommitment(const CTxOut& out) 
+bool IsWitnessCommitment(const CTxOut& out)
 {
     return out.scriptPubKey.size() >= 38
         && out.scriptPubKey[0] == OP_RETURN

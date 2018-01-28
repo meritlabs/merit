@@ -597,7 +597,7 @@ void BlockAssembler::AddReferrals()
         const auto ref = it->GetSharedEntryValue();
 
         if (refsInBlock.count(it)) {
-            debug("\t%s: Referral %s is already in block\n", __func__, ref->GetHash().GetHex());
+            debug("\t%s: Referral %s is already in block", __func__, ref->GetHash().GetHex());
             continue;
         }
 

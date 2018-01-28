@@ -7,7 +7,7 @@
 #ifndef MERIT_UNDO_H
 #define MERIT_UNDO_H
 
-#include "compressor.h" 
+#include "compressor.h"
 #include "consensus/consensus.h"
 #include "primitives/transaction.h"
 #include "serialize.h"
@@ -101,6 +101,7 @@ public:
 struct CBlockUndo
 {
     std::vector<CTxUndo> vtxundo; // for all but the coinbase
+    std::vector<CTxUndo> invites_undo; // for all but the coinbase
     referral::LotteryUndos lottery;
 
     ADD_SERIALIZE_METHODS;
@@ -108,6 +109,7 @@ struct CBlockUndo
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(vtxundo);
+        READWRITE(invites_undo);
         READWRITE(lottery);
     }
 };
