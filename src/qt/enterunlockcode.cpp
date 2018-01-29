@@ -92,12 +92,18 @@ void EnterUnlockCode::setModel(WalletModel *model)
     this->walletModel = model;
 }
 
+extern CTxDestination LookupDestination(const std::string& address);
 void EnterUnlockCode::unlockCodeChanged(const QString &newText)
 {
     auto parent = newText.toStdString();
-    parentAddress.SetString(parent);
 
-    addressValid = parentAddress.IsValid() && walletModel->AddressBeaconed(parent);
+    auto dest = LookupDestination(parent);
+
+    parentAddress.Set(dest);
+
+    addressValid = parentAddress.IsValid() 
+        && walletModel->AddressBeaconed(parentAddress)
+        && walletModel->AddressConfirmed(parentAddress);
 
     if (addressValid) {
         ui->unlockCodeTextInput->setStyleSheet("QLineEdit { background-color: rgb(128, 255, 128) }");
