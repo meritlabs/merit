@@ -176,13 +176,13 @@ UniValue validateaddress(const JSONRPCRequest& request)
         ret.push_back(Pair("address", address.ToString()));
         ret.push_back(Pair("addresstype", address.GetTypeStr()));
 
-        CScript scriptPubKey = GetScriptForDestination(dest);
-        ret.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
-
 #ifdef ENABLE_WALLET
-        isminetype mine = pwallet ? IsMine(*pwallet, dest) : ISMINE_NO;
-        ret.push_back(Pair("ismine", bool(mine & ISMINE_SPENDABLE)));
-        ret.push_back(Pair("iswatchonly", bool(mine & ISMINE_WATCH_ONLY)));
+        bool is_param_script = boost::get<CParamScriptID>(&dest) != nullptr;
+        if(!is_param_script) {
+            isminetype mine = pwallet ? IsMine(*pwallet, dest) : ISMINE_NO;
+            ret.push_back(Pair("ismine", bool(mine & ISMINE_SPENDABLE)));
+            ret.push_back(Pair("iswatchonly", bool(mine & ISMINE_WATCH_ONLY)));
+        }
         UniValue detail = boost::apply_visitor(DescribeAddressVisitor(pwallet), dest);
         ret.pushKVs(detail);
         if (pwallet && pwallet->mapAddressBook.count(dest)) {
@@ -190,9 +190,10 @@ UniValue validateaddress(const JSONRPCRequest& request)
         }
         if (pwallet) {
             const auto& meta = pwallet->mapKeyMetadata;
-            const CKeyID *keyID = boost::get<CKeyID>(&dest);
+            const auto keyID = boost::get<CKeyID>(&dest);
             auto it = keyID ? meta.find(*keyID) : meta.end();
-            if (it == meta.end()) {
+            if (it == meta.end() && boost::get<CScriptID>(&dest) != nullptr) {
+                CScript scriptPubKey = GetScriptForDestination(dest);
                 it = meta.find(CScriptID(scriptPubKey));
             }
             if (it != meta.end()) {
