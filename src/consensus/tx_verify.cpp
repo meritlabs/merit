@@ -206,7 +206,8 @@ bool Consensus::CheckTxOutputs(
         const CTransaction& tx,
         CValidationState& state,
         const referral::ReferralsViewCache& referralsCache,
-        const std::vector<referral::ReferralRef>& vExtraReferrals)
+        const std::vector<referral::ReferralRef>& vExtraReferrals,
+        const ConfirmationSet* block_invites)
 {
     // check addresses used for vouts are beaconed
     for (const auto& txout: tx.vout) {
@@ -247,7 +248,13 @@ bool Consensus::CheckTxOutputs(
 
         if (!tx.IsInvite() && ExpectDaedalus(chainActive.Tip(), ::Params().GetConsensus())) {
             if (!CheckAddressConfirmed(CMeritAddress{dest}, false)) {
-                return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-confirmed");
+                if (block_invites != nullptr) {
+                    if (block_invites->count(addr) == 0) {
+                        return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-confirmed");
+                    }
+                } else {
+                    return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-confirmed");
+                }
             }
         }
     }

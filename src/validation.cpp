@@ -1581,8 +1581,9 @@ bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, const Consensus
             return error("%s: Deserialize or I/O error - %s", __func__, e.what());
         }
         hashBlock = header.GetHash();
-        if (txOut->GetHash() != hash)
+        if (txOut->GetHash() != hash) {
             return error("%s: txid mismatch", __func__);
+        }
         return true;
     }
 
@@ -1821,12 +1822,13 @@ bool UpdateInviteLotteryParams(
         pog::InviteLotteryParams& lottery_params,
         const Consensus::Params& params)
 {
-    for(const auto& invite : block.invites) {
-        if(!invite->IsCoinBase()) {
-            for(const auto& in : invite->vin) {
+    for (const auto& invite : block.invites) {
+        if (!invite->IsCoinBase()) {
+            for (const auto& in : invite->vin) {
                 CTransactionRef prev;
                 uint256 block_inv_is_in;
-                if(!GetTransaction(
+
+                if (!GetTransaction(
                             in.prevout.hash,
                             prev,
                             params,
@@ -1836,13 +1838,13 @@ bool UpdateInviteLotteryParams(
                 }
 
                 assert(prev);
-                if(!prev->IsCoinBase()) {
+                if (!prev->IsCoinBase()) {
                     continue;
                 }
                 lottery_params.invites_used += prev->vout.at(in.prevout.n).nValue;
             }
         } else {
-            for(const auto& out : invite->vout) {
+            for (const auto& out : invite->vout) {
                 lottery_params.invites_created += out.nValue;
             }
         }
@@ -2642,52 +2644,6 @@ bool UpdateConfirmations(const CBlock& block, const DebitsAndCredits debits_and_
     return true;
 }
 
-bool TransactionsAreBeaconed(
-        const ReferralSet& referrals_in_block,
-        const std::vector<CTransactionRef>& vtx)
-{
-    //Check and make sure each transaction outputs are sending merit
-    //to beaconed currencies.
-    for (const auto& tx : vtx) {
-        for (const auto& out : tx->vout) {
-
-            const auto address = ExtractAddress(out);
-
-            //Cannot send merit to a non-standard address.
-            if (address.second == 0) {
-                if (out.nValue == 0) continue;
-                else return false;
-            }
-
-            //Must be in either the block or blockchain.
-            if (!referrals_in_block.count(address.first) &&
-               !prefviewdb->Exists(address.first)) {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-bool TransactionsAreBeaconed(const CBlock& block)
-{
-    assert(prefviewdb);
-
-    ReferralSet referrals_in_block;
-    BuildReferralSet(block, referrals_in_block);
-    return TransactionsAreBeaconed(referrals_in_block, block.vtx);
-}
-
-bool InvitesAreBeaconed(const CBlock& block)
-{
-    assert(prefviewdb);
-
-    ReferralSet referrals_in_block;
-    BuildReferralSet(block, referrals_in_block);
-    return TransactionsAreBeaconed(referrals_in_block, block.invites);
-}
-
 bool UpdateLotteryEntrants(
         int height,
         const CBlock& block,
@@ -3263,38 +3219,6 @@ bool ValidateInvites(
                     false,
                     "more than one invite coinbase");
         }
-
-        for (const auto& in : inv->vin) {
-            CTransactionRef prev;
-            uint256 block_inv_is_in;
-            if (invites_in_block.count(in.prevout.hash) == 0 &&
-                    !GetTransaction(
-                        in.prevout.hash,
-                        prev,
-                        params,
-                        block_inv_is_in,
-                        true)) {
-
-                return state.DoS(
-                        100,
-                        false,
-                        REJECT_INVALID,
-                        "bad-invite-input-not-found",
-                        false,
-                        "Cannot find input for an invite");
-            }
-
-            assert(prev);
-            if (!prev->IsInvite()) {
-                return state.DoS(
-                        100,
-                        false,
-                        REJECT_INVALID,
-                        "bad-invite-input-is-not-invite",
-                        false,
-                        "Invites cannot have an input that is not an invite");
-            }
-        }
     }
 
     return true;
@@ -3318,37 +3242,6 @@ bool ValidateTransactionInputsNotInvites(
 
         if (tx->IsCoinBase()) {
             continue;
-        }
-
-        for (const auto& in : tx->vin) {
-            CTransactionRef prev;
-            uint256 block_transaction_is_in;
-            if (!GetTransaction(
-                        in.prevout.hash,
-                        prev,
-                        params,
-                        block_transaction_is_in,
-                        true)) {
-
-                return state.DoS(
-                        100,
-                        false,
-                        REJECT_INVALID,
-                        "bad-transaction-input-not-found",
-                        false,
-                        "Cannot find input for a transaction");
-            }
-
-            assert(prev);
-            if (prev->IsInvite()) {
-                return state.DoS(
-                        100,
-                        false,
-                        REJECT_INVALID,
-                        "bad-transaction-input-is-invite",
-                        false,
-                        "Normal transaction cannot have an invite as an inpu");
-            }
         }
     }
     return true;
@@ -3677,6 +3570,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // Update referral tree and ANV cache.
     DebitsAndCredits debits_and_credits;
 
+    ConfirmationSet confirmations_in_block;
+    BuildConfirmationSet(block, confirmations_in_block);
+
     for (int i = 0; i < static_cast<int>(block.vtx.size()); i++)
     {
         const CTransaction &tx = *(block.vtx[i]);
@@ -3713,14 +3609,15 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                              REJECT_INVALID, "bad-blk-sigops");
 
         txdata.emplace_back(tx);
+
+        if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache, block.m_vRef, &confirmations_in_block)) {
+            return error("ConnectBlock(): CheckTxOutputs on %s failed with %s",
+                tx.GetHash().ToString(), FormatStateMessage(state));
+        }
+
         if (!tx.IsCoinBase())
         {
             nFees += view.GetValueIn(tx)-tx.GetValueOut();
-
-            if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache, block.m_vRef)) {
-                return error("ConnectBlock(): CheckTxOutputs on %s failed with %s",
-                tx.GetHash().ToString(), FormatStateMessage(state));
-            }
 
             std::vector<CScriptCheck> vChecks;
             bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
@@ -3760,26 +3657,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
 
-    if (!TransactionsAreBeaconed(block)) {
-        return state.DoS(
-            100,
-            error("ConnectBlock(): There are transactions that are not beaconed"),
-            REJECT_INVALID,
-            "bad-transaction-not-beaconed");
-    }
-
-    if (block.IsDaedalus()) {
-        if (!ValidateTxOutsAreConfirmed(block)) {
-            return state.DoS(
-                    100,
-                    false,
-                    REJECT_INVALID,
-                    "bad-txn-unconfirmed",
-                    false,
-                    "Transaction has unconfirmed address");
-        }
-    }
-
     IndexTransactions(
             pindex,
             view,
@@ -3802,7 +3679,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     if (block.IsDaedalus()) {
         blockundo.invites_undo.reserve(block.invites.size());
-
         pos.nTxOffset += GetSizeOfCompactSize(block.invites.size());
         for (int i = 0; i < static_cast<int>(block.invites.size()); i++) {
             const CTransaction &inv = *(block.invites[i]);
@@ -3844,14 +3720,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
             vPos.push_back(std::make_pair(inv.GetHash(), pos));
             pos.nTxOffset += ::GetSerializeSize(inv, SER_DISK, CLIENT_VERSION);
-        }
-
-        if (!InvitesAreBeaconed(block)) {
-            return state.DoS(
-                    100,
-                    error("ConnectBlock(): There are inveites that are not beaconed"),
-                    REJECT_INVALID,
-                    "bad-invite-not-beaconed");
         }
 
         IndexTransactions(

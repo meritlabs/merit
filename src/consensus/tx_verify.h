@@ -21,6 +21,8 @@ namespace referral
     class ReferralsViewCache;
 }
 
+using ConfirmationSet = std::set<uint160>;
+
 /** Transaction validation functions */
 
 /** Context-independent validity checks */
@@ -44,7 +46,8 @@ bool CheckTxOutputs(
         const CTransaction& tx,
         CValidationState& state,
         const referral::ReferralsViewCache& referralsCache,
-        const std::vector<referral::ReferralRef>& vExtraReferrals);
+        const std::vector<referral::ReferralRef>& vExtraReferrals,
+        const ConfirmationSet* block_invites = nullptr);
 } // namespace Consensus
 
 /** Auxiliary functions for transaction validation (ideally should not be exposed) */
