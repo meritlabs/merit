@@ -15,10 +15,10 @@ static std::multimap<std::string, CZMQAbstractPublishNotifier*> mapPublishNotifi
 
 static const char *MSG_HASHBLOCK    = "hashblock";
 static const char *MSG_HASHTX       = "hashtx";
-static const char *MSG_HASHREFERRAL = "hashreferraltx";
+static const char *MSG_HASHREFERRAL = "hashreferral";
 static const char *MSG_RAWBLOCK     = "rawblock";
 static const char *MSG_RAWTX        = "rawtx";
-static const char *MSG_RAWREFERRAL  = "rawreferraltx";
+static const char *MSG_RAWREFERRAL  = "rawreferral";
 
 // Internal function to send multipart message
 static int zmq_send_multipart(void *sock, const void* data, size_t size, ...)
@@ -172,7 +172,7 @@ bool CZMQPublishHashTransactionNotifier::NotifyTransaction(const CTransaction &t
 bool CZMQPublishHashReferralNotifier::NotifyReferral(const referral::ReferralRef &ref)
 {
     uint256 hash = ref->GetHash();
-    LogPrint(BCLog::ZMQ, "zmq: Publish hashreferraltx %s\n", hash.GetHex());
+    LogPrint(BCLog::ZMQ, "zmq: Publish hashreferral %s\n", hash.GetHex());
     char data[32];
     for (unsigned int i = 0; i < 32; i++)
         data[31 - i] = hash.begin()[i];
