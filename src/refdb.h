@@ -43,6 +43,7 @@ struct ConfirmedAddress
 {
     char address_type;
     Address address;
+    int invites;
 };
 
 using ConfirmedAddresses = std::vector<ConfirmedAddress>;

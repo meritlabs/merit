@@ -152,6 +152,7 @@ public:
         consensus.daedalus_block_window = 60 * 24 * 3; //Window used to compute invites.
                                                        //Looks at blocks over a 3 day period.
         consensus.daedalus_min_one_invite_for_every_x_blocks = 10; //Minimum of 1 invite every 10 minutes, or 144 per day.
+        consensus.daedalus_max_outstanding_invites_per_address = 500;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 41000; // About January 27, 2018
@@ -268,6 +269,7 @@ public:
         consensus.daedalus_max_invites_per_block = 10;
         consensus.daedalus_block_window = 4;
         consensus.daedalus_min_one_invite_for_every_x_blocks = 2;
+        consensus.daedalus_max_outstanding_invites_per_address = 3;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 500;
@@ -390,6 +392,7 @@ public:
         consensus.daedalus_max_invites_per_block = 10;
         consensus.daedalus_block_window = 4;
         consensus.daedalus_min_one_invite_for_every_x_blocks = 2;
+        consensus.daedalus_max_outstanding_invites_per_address = 3;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 500;
