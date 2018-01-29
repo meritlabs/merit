@@ -46,7 +46,8 @@ namespace pog
             const referral::ReferralsViewDB& db,
             uint256 hash,
             const uint160& genesis_address,
-            size_t n);
+            size_t n,
+            int max_outstanding_invites);
 
 } // namespace pog
 

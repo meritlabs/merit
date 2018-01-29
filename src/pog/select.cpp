@@ -11,7 +11,6 @@ namespace pog
 {
     namespace
     {
-
         bool LegacyAnvCmp(
                 const referral::AddressANV& a,
                 const referral::AddressANV& b) 
@@ -297,28 +296,34 @@ namespace pog
             const referral::ReferralsViewDB& db,
             uint256 hash,
             const uint160& genesis_address,
-            size_t n)
+            size_t n,
+            int max_outstanding_invites)
     {
         assert(n > 0);
+        assert(max_outstanding_invites > 0);
+
         auto requested = n;
 
         const auto total = db.GetTotalConfirmations();
+        auto max_tries = std::min(std::max(n, total / 10), total);
         assert(total > 0);
 
         referral::ConfirmedAddresses addresses;
 
-        while(n--) {
+        while(n-- && max_tries--) {
             const auto selected_idx = SipHashUint256(0, 0, hash) % total;
             const auto sampled = db.GetConfirmation(selected_idx);
 
             if(!sampled) {
                 return {};
-            }
+            } 
             
-            if(sampled->address != genesis_address) {
-                addresses.push_back(*sampled);
-            } else {
+            if(sampled->invites > max_outstanding_invites) {
                 n++;
+            } else if(sampled->address == genesis_address) {
+                n++;
+            } else {
+                addresses.push_back(*sampled);
             }
 
             CHashWriter hasher{SER_DISK, CLIENT_VERSION};
@@ -326,7 +331,7 @@ namespace pog
             hash = hasher.GetHash();
         }
 
-        assert(addresses.size() == requested);
+        assert(addresses.size() <= requested);
         return addresses;
     }
 
