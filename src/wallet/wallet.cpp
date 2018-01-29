@@ -251,12 +251,12 @@ bool CWallet::AliasExists(const std::string& alias) const
     return prefviewcache->Exists(alias);
 }
 
-bool CWallet::AddressBeaconed(const std::string& address) const
+bool CWallet::AddressBeaconed(const CMeritAddress& address) const
 {
     return CheckAddressBeaconed(address, true);
 }
 
-bool CWallet::AddressConfirmed(const std::string& address) const
+bool CWallet::AddressConfirmed(const CMeritAddress& address) const
 {
     return CheckAddressConfirmed(address, true);
 }
@@ -1721,7 +1721,9 @@ referral::ReferralRef CWallet::GenerateNewReferral(
 
     AddReferralAddressPubKey(referral->GetAddress(), signPubKey.GetID());
 
-    referral::ReferralTx rtx{true};
+    const bool is_unlock = !IsReferred();
+
+    referral::ReferralTx rtx{is_unlock};
 
     CValidationState state;
     CreateTransaction(rtx, referral, key);
@@ -1764,12 +1766,11 @@ referral::ReferralRef CWallet::GenerateNewReferral(
     return GenerateNewReferral(1, key_id, pubkey, parentAddress, alias, key);
 }
 
-CTransactionRef CWallet::SendInviteTo(const CTxDestination& dest)
+CTransactionRef CWallet::SendInviteTo(const CScript& scriptPubKey)
 {
     CWalletTx wtx(true);
 
     CCoinControl coin_control;
-    CScript scriptPubKey = GetScriptForDestination(dest);
 
     const int available_invites = GetBalance(true);
 
@@ -1853,8 +1854,7 @@ bool CWallet::IsConfirmed() const
         return false;
     }
 
-    auto address = referral->GetAddress();
-    return AddressConfirmed(address, referral->addressType);
+    return AddressConfirmed(referral->GetAddress(), referral->addressType);
 }
 
 referral::Address CWallet::ReferralAddress() const

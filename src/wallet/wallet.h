@@ -22,6 +22,7 @@
 #include "primitives/referral.h"
 #include "pog/reward.h"
 #include "refdb.h"
+#include "base58.h"
 
 #include <algorithm>
 #include <atomic>
@@ -875,8 +876,8 @@ public:
     referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string alias = "");
 
     bool AliasExists(const std::string& alias) const;
-    bool AddressBeaconed(const std::string& address) const;
-    bool AddressConfirmed(const std::string& address) const;
+    bool AddressBeaconed(const CMeritAddress& address) const;
+    bool AddressConfirmed(const CMeritAddress& address) const;
     bool AddressConfirmed(const uint160& address, char type) const;
 
     //! check whether we are allowed to upgrade (or already support) to the named feature
@@ -1266,7 +1267,7 @@ public:
             const std::string alias = "",
             CKey key = CKey{});
 
-    CTransactionRef SendInviteTo(const CTxDestination& dest);
+    CTransactionRef SendInviteTo(const CScript& scriptPubKey);
 
     bool IsReferred() const;
     bool IsConfirmed() const;

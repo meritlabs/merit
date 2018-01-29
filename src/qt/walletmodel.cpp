@@ -461,13 +461,13 @@ bool WalletModel::AliasExists(const std::string& alias) const
     return wallet->AliasExists(alias);
 }
 
-bool WalletModel::AddressBeaconed(const std::string& address) const
+bool WalletModel::AddressBeaconed(const CMeritAddress& address) const
 {
     assert(wallet);
     return wallet->AddressBeaconed(address);
 }
 
-bool WalletModel::AddressConfirmed(const std::string& address) const
+bool WalletModel::AddressConfirmed(const CMeritAddress& address) const
 {
     assert(wallet);
     return wallet->AddressConfirmed(address);

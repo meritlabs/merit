@@ -535,9 +535,12 @@ static UniValue EasySend(
                 "Unable to generate referral for easy send script");
     }
 
+    CScriptID easy_send_address{script_referral->GetAddress()};
+    CScript script_pub_key = GetScriptForDestination(easy_send_address);
+
     if(pwallet.Daedalus()) {
         auto invite_transaction =
-            pwallet.SendInviteTo(CParamScriptID{script_referral->GetAddress()});
+            pwallet.SendInviteTo(script_pub_key);
 
         if(!invite_transaction) {
             throw JSONRPCError(
@@ -545,9 +548,6 @@ static UniValue EasySend(
                     "Unable to confirm the vault. Vaults require invites");
         }
     }
-
-    CScriptID easy_send_address{script_referral->GetAddress()};
-    CScript script_pub_key = GetScriptForDestination(easy_send_address);
 
     std::string error;
     std::vector<CRecipient> recipients = {
@@ -927,7 +927,7 @@ UniValue inviteaddress(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
     }
 
-    auto tx = pwallet->SendInviteTo(dest);
+    auto tx = pwallet->SendInviteTo(GetScriptForDestination(dest));
     if(!tx) {
        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to confirm the address");
     }
@@ -1249,17 +1249,6 @@ UniValue createvault(const JSONRPCRequest& request)
                     "Unable to generate referral for the vault script");
         }
 
-        if(pwallet->Daedalus()) {
-            auto invite_transaction =
-                pwallet->SendInviteTo(CParamScriptID{script_referral->GetAddress()});
-
-            if(!invite_transaction) {
-                throw JSONRPCError(
-                        RPC_WALLET_ERROR,
-                        "Unable to confirm the vault. Vaults require invites");
-            }
-        }
-
         CParamScriptID vault_address{script_referral->GetAddress()};
 
         auto script_pub_key =
@@ -1272,6 +1261,18 @@ UniValue createvault(const JSONRPCRequest& request)
                     whitelist.size(),
                     ToByteVector(vault_tag),
                     0 /* simple is type 0 */);
+
+        if(pwallet->Daedalus()) {
+            auto invite_transaction =
+                pwallet->SendInviteTo(script_pub_key);
+
+            if(!invite_transaction) {
+                throw JSONRPCError(
+                        RPC_WALLET_ERROR,
+                        "Unable to confirm the vault. Vaults require invites");
+            }
+        }
+
 
 
         CWalletTx wtx;
