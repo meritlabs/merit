@@ -174,15 +174,16 @@ void RefToUniv(const referral::Referral& ref, const uint256& hashBlock, UniValue
     entry.pushKV("refid", ref.GetHash().GetHex());
     entry.pushKV("version", ref.version);
     entry.pushKV("address", CMeritAddress{ref.addressType, ref.GetAddress()}.ToString());
+    entry.pushKV("parentAddress", EncodeDestination(CMeritAddress{ref.addressType, ref.parentAddress}.Get()));
     entry.pushKV("alias", ref.alias);
+    entry.pushKV("pubkey", HexStr(ref.pubkey));
+    entry.pushKV("signature", HexStr(ref.signature));
 
-    if(ref.addressType > 1) {
+    if (ref.addressType > 1) {
         auto signedAddress = ref.pubkey.GetID();
-        entry.pushKV("signedKey", HexStr(ref.pubkey.begin(), ref.pubkey.end()));
         entry.pushKV("signedAddress", EncodeDestination(signedAddress));
     }
 
-    entry.pushKV("parentAddress", EncodeDestination(CMeritAddress{ref.addressType, ref.parentAddress}.Get()));
     entry.pushKV("size", (int)::GetSerializeSize(ref, SER_NETWORK, PROTOCOL_VERSION));
     entry.pushKV("vsize", GetReferralWeight(ref) / WITNESS_SCALE_FACTOR);
 
