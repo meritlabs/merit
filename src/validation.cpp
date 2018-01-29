@@ -1915,9 +1915,10 @@ bool RewardInvites(
             *prefviewdb,
             previous_block_hash,
             params.genesis_address,
-            total_winners);
+            total_winners,
+            params.daedalus_max_outstanding_invites_per_address);
 
-    assert(winners.size() == total_winners);
+    assert(winners.size() <= total_winners);
 
     rewards = pog::RewardInvites(winners);
 
@@ -5075,7 +5076,8 @@ bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool)
     return maybe_hash ? CheckAddressBeaconed(*maybe_hash, checkMempool) : false;
 }
 
-// Check if an address is valid (beaconed)
+// Check if an address has been confirmed. A confirmed address has one ore more
+// invites
 bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempool)
 {
     bool confirmed = prefviewdb->IsConfirmed(addr);
