@@ -13,7 +13,7 @@ namespace pog
     {
         bool LegacyAnvCmp(
                 const referral::AddressANV& a,
-                const referral::AddressANV& b) 
+                const referral::AddressANV& b)
         {
             return a.anv < b.anv;
         };
@@ -172,7 +172,7 @@ namespace pog
 
     /**
      * AnvDistribution uses Inverse Transform Sampling. Computing the
-     * CDF is trivial for the ANV discrete distribution by simply sorting and 
+     * CDF is trivial for the ANV discrete distribution by simply sorting and
      * adding up all the ANVs of the addresss provided.
      *
      * Scaling to probabilities is unnecessary because we will use a hash function
@@ -181,13 +181,13 @@ namespace pog
      * the distribution of ANVs where those with a bigger ANV are sampled more often.
      *
      * The most expensive part of creating the distribution is sorting the ANVs.
-     * However, since the number of ANVs is fixed no matter how large the 
+     * However, since the number of ANVs is fixed no matter how large the
      * blockchain gets, then there should be no issue handling growth.
      */
-    AnvDistribution::AnvDistribution(int height, referral::AddressANVs anvs) : 
+    AnvDistribution::AnvDistribution(int height, referral::AddressANVs anvs) :
         m_inverted(anvs.size())
     {
-        //index anvs by address id for convenience. 
+        //index anvs by address id for convenience.
         std::transform(
                 std::begin(anvs),
                 std::end(anvs),
@@ -201,7 +201,7 @@ namespace pog
         assert(m_anvs.size() == anvs.size());
 
         /**
-         * Prior to block 16000 the sort algorithm was defective because of the 
+         * Prior to block 16000 the sort algorithm was defective because of the
          * comparator. Use legacy sort for old blocks and new sort after 16000
          */
         if(height < 16000) {
@@ -261,7 +261,7 @@ namespace pog
         return m_inverted.size();
     }
 
-    WalletSelector::WalletSelector(int height, const referral::AddressANVs& anvs) : 
+    WalletSelector::WalletSelector(int height, const referral::AddressANVs& anvs) :
         m_distribution{height, anvs} {}
 
     /**
@@ -305,7 +305,8 @@ namespace pog
         auto requested = n;
 
         const auto total = db.GetTotalConfirmations();
-        auto max_tries = std::min(std::max(n, total / 10), total);
+        auto max_tmp = std::max(static_cast<int>(n), static_cast<int>(total) / 10);
+        auto max_tries = std::min(max_tmp, static_cast<int>(total));
         assert(total > 0);
 
         referral::ConfirmedAddresses addresses;
@@ -316,8 +317,8 @@ namespace pog
 
             if(!sampled) {
                 return {};
-            } 
-            
+            }
+
             if(sampled->invites > max_outstanding_invites) {
                 n++;
             } else if(sampled->address == genesis_address) {
