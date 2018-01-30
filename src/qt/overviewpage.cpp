@@ -23,8 +23,11 @@
 #include <QPainter>
 #include <QTimer>
 
-#define DECORATION_SIZE 54
-#define NUM_ITEMS 5
+namespace  
+{
+    const int DECORATION_SIZE = 54;
+    const int NUM_ITEMS = 10;
+}
 
 class TxViewDelegate : public QAbstractItemDelegate
 {
