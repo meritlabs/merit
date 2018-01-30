@@ -13,6 +13,7 @@
 
 class ClientModel;
 class TransactionFilterProxy;
+class ReferralViewDelegate;
 class TxViewDelegate;
 class PlatformStyle;
 class WalletModel;
@@ -66,6 +67,7 @@ private:
     CAmount currentWatchImmatureBalance;
     CAmount currentInviteBalance;
 
+    ReferralViewDelegate *referraldelegate;
     TxViewDelegate *txdelegate;
     std::unique_ptr<TransactionFilterProxy> filter;
     bool is_confirmed = false;

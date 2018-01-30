@@ -4,6 +4,7 @@
 
 #include "referrallistmodel.h"
 
+#include <QDateTime>
 #include <QDebug>
 #include <QList>
 
@@ -110,8 +111,9 @@ QVariant ReferralListModel::data(const QModelIndex &index, int role) const
         case Qt::DisplayRole:
             return record->displayString();
         case Qt::StatusTipRole:
-        case Qt::ToolTipRole:
             return record->statusString();
+        case Qt::ToolTipRole:
+            return QDateTime::fromSecsSinceEpoch(record->date);
         }
     }
     return QVariant();

@@ -110,6 +110,72 @@ public:
     const PlatformStyle *platformStyle;
 
 };
+
+class ReferralViewDelegate : public QAbstractItemDelegate
+{
+    Q_OBJECT
+public:
+    explicit ReferralViewDelegate(const PlatformStyle *_platformStyle, QObject *parent=nullptr):
+        QAbstractItemDelegate(parent), unit(MeritUnits::MRT),
+        platformStyle(_platformStyle)
+    {
+
+    }
+
+    inline void paint(QPainter *painter, const QStyleOptionViewItem &option,
+                      const QModelIndex &index ) const
+    {
+        painter->save();
+
+        QRect mainRect = option.rect;
+        int xpad = 8;
+        int ypad = 10;
+        int halfheight = (mainRect.height() - 2*ypad)/2;
+        QRect addressRect(mainRect.left() + xpad, mainRect.top()+ypad, mainRect.width() - 2*xpad, halfheight);
+        QRect timestampRect(mainRect.left() + xpad, mainRect.top()+ypad+halfheight, mainRect.width() - xpad, halfheight);
+        QLine line(mainRect.left() + xpad, mainRect.bottom(), mainRect.right() - xpad, mainRect.bottom());
+
+        QDateTime date = index.data(Qt::ToolTipRole).toDateTime();
+        QString addressString = index.data(Qt::DisplayRole).toString();
+        QString statusString = index.data(Qt::StatusTipRole).toString();
+        QVariant value = index.data(Qt::ForegroundRole);
+        QColor foreground = option.palette.color(QPalette::Text);
+        if(value.canConvert<QBrush>())
+        {
+            QBrush brush = qvariant_cast<QBrush>(value);
+            foreground = brush.color();
+        }
+
+        painter->setPen(foreground);
+        QRect boundingRect;
+
+        painter->setPen(COLOR_BAREADDRESS);
+        painter->drawText(timestampRect, Qt::AlignLeft|Qt::AlignVCenter, GUIUtil::dateTimeStr(date));
+
+        QFont font;
+        font.setBold(true);
+        font.setWeight(QFont::Bold);
+        painter->setFont(font);
+        painter->setPen(COLOR_NEGATIVE);
+        painter->drawText(addressRect, Qt::AlignLeft|Qt::AlignVCenter, addressString);
+
+        painter->drawText(addressRect, Qt::AlignRight|Qt::AlignVCenter, statusString);
+
+        painter->setPen(Qt::lightGray);
+        painter->drawLine(line);
+
+        painter->restore();
+    }
+
+    inline QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
+    {
+        return QSize(DECORATION_SIZE, DECORATION_SIZE);
+    }
+
+    int unit;
+    const PlatformStyle *platformStyle;
+
+};
 #include "overviewpage.moc"
 
 OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) :
@@ -123,6 +189,7 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     currentWatchOnlyBalance(-1),
     currentWatchUnconfBalance(-1),
     currentWatchImmatureBalance(-1),
+    referraldelegate(new ReferralViewDelegate(platformStyle, this)),
     txdelegate(new TxViewDelegate(platformStyle, this))
 {
     ui->setupUi(this);
@@ -140,6 +207,11 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     ui->listTransactions->setMinimumHeight(NUM_ITEMS * (DECORATION_SIZE + 2));
     ui->listTransactions->setAttribute(Qt::WA_MacShowFocusRect, false);
     ui->inviteNotice->hide();
+
+    // Unlock Requests
+    ui->listRequests->setItemDelegate(referraldelegate);
+    ui->listRequests->setMinimumHeight(NUM_ITEMS * (DECORATION_SIZE + 2));
+    ui->listRequests->setAttribute(Qt::WA_MacShowFocusRect, false);
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
 

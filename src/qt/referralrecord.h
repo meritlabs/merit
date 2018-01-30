@@ -40,12 +40,12 @@ class ReferralRecord
 {
 public:
     ReferralRecord():
-        hash(), time(0), address(""), alias("")
+        hash(), date(0), address(""), alias("")
     {
     }
 
-    ReferralRecord(uint256 _hash, qint64 _time, std::string _address, std::string _alias = ""):
-        hash(_hash), time(_time), address(_address), alias(_alias)
+    ReferralRecord(uint256 _hash, qint64 _date, std::string _address, std::string _alias = ""):
+        hash(_hash), date(_date), address(_address), alias(_alias)
     {
     }
 
@@ -56,7 +56,7 @@ public:
     /** @name Immutable referral attributes
       @{*/
     uint256 hash;
-    qint64 time;
+    qint64 date;
     std::string address;
     std::string alias;
 
