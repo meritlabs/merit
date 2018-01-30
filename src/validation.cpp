@@ -404,7 +404,7 @@ bool CheckReferralAliasUnique(
 
     // check block for same aliases if provided
     if (block != nullptr) {
-        auto it = std::find_if(
+        auto it = std::find_if (
             block->m_vRef.begin(), block->m_vRef.end(),
             [&referral_in](const referral::ReferralRef& ref) {
                 return ref->alias == referral_in->alias && ref->GetHash() != referral_in->GetHash();
@@ -1562,7 +1562,12 @@ bool GetAddressUnspent(
 }
 
 /** Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock */
-bool GetTransaction(const uint256 &hash, CTransactionRef &txOut, const Consensus::Params& consensusParams, uint256 &hashBlock, bool fAllowSlow)
+bool GetTransaction(
+        const uint256 &hash,
+        CTransactionRef &txOut,
+        const Consensus::Params& consensusParams,
+        uint256 &hashBlock,
+        bool fAllowSlow)
 {
     CBlockIndex *pindexSlow = nullptr;
 
@@ -1878,7 +1883,7 @@ bool ComputeInviteLotteryParams(
     auto total_blocks = params.daedalus_block_window;
     assert(total_blocks > 0);
 
-    while(total_blocks-- && pindexPrev) {
+    while (total_blocks-- && pindexPrev) {
 
         CBlock block;
         if (!ReadBlockFromDisk(block, pindexPrev, params)) {
@@ -1908,7 +1913,7 @@ bool RewardInvites(
     assert(prefviewdb != nullptr);
 
     pog::InviteLotteryParams lottery_params;
-    if(!ComputeInviteLotteryParams(
+    if (!ComputeInviteLotteryParams(
                 height,
                 pindexPrev,
                 view,
@@ -1921,7 +1926,7 @@ bool RewardInvites(
     const auto total_winners =
         pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
 
-    if(total_winners == 0 ) {
+    if (total_winners == 0 ) {
         return true;
     }
 
@@ -2412,6 +2417,28 @@ bool CheckInputs(
                 const Coin& coin = inputs.AccessCoin(prevout);
                 assert(!coin.IsSpent());
 
+                if (tx.IsInvite()) {
+                    if (!coin.IsInvite()) {
+                        return state.DoS(
+                                100,
+                                false,
+                                REJECT_INVALID,
+                                "bad-invite-input-is-not-invite",
+                                false,
+                                "Invites cannot use non-invites as input");
+                    }
+                } else {
+                    if (coin.IsInvite()) {
+                        return state.DoS(
+                                100,
+                                false,
+                                REJECT_INVALID,
+                                "bad-transaction-input-is--invite",
+                                false,
+                                "Normal transaction cannot cannot use invites as input");
+                    }
+                }
+
                 // We very carefully only pass in things to CScriptCheck which
                 // are clearly committed to by tx' witness hash. This provides
                 // a sanity check that our caching is not introducing consensus
@@ -2645,7 +2672,7 @@ bool UpdateConfirmations(const CBlock& block, const DebitsAndCredits debits_and_
         const auto& address = std::get<1>(entry);
         const CAmount amount = std::get<2>(entry);
 
-        if(!prefviewdb->UpdateConfirmation(type, address, amount)) {
+        if (!prefviewdb->UpdateConfirmation(type, address, amount)) {
             return false;
         }
     }
@@ -2720,7 +2747,7 @@ void UnIndexTransactions(
             if (out.scriptPubKey.IsPayToScriptHash()) { 
                 type = 2;
                 hashBytes.assign(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
-            }else if(out.scriptPubKey.IsParameterizedPayToScriptHash()) {
+            }else if (out.scriptPubKey.IsParameterizedPayToScriptHash()) {
                 type = 3;
                 hashBytes.assign(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
             } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
@@ -2813,7 +2840,7 @@ DisconnectResult DisconnectTransactions(
 
         clean &= DisconnectOutputs(pindex->nHeight, tx, view);
 
-        if(are_invites && !tx.IsCoinBase()) {
+        if (are_invites && !tx.IsCoinBase()) {
             CTxUndo &txundo = block_undo.invites_undo[i];
             if (txundo.vprevout.size() != tx.vin.size()) {
                 error("DisconnectBlock(): not coinbase %s and undo data inconsistent for", are_invites ? "invite" : "transaction");
@@ -3156,14 +3183,7 @@ bool ValidateInvites(
         CCoinsViewCache& view,
         CValidationState& state)
 {
-    InviteMap invites_in_block;
-    std::transform(block.invites.begin(), block.invites.end(),
-            std::inserter(invites_in_block, invites_in_block.end()),
-            [](const CTransactionRef& inv) {
-                return std::make_pair(inv->GetHash(), inv);
-            });
-
-    bool coinbase = true;
+    bool first = true;
     std::vector<PrecomputedTransactionData> invdata;
     invdata.reserve(block.invites.size()); // Required so that pointers to individual PrecomputedTransactionData don't get invalidated
 
@@ -3192,13 +3212,8 @@ bool ValidateInvites(
                         state.GetDebugMessage()));
         }
 
-        if (coinbase)  {
-            coinbase = false;
-            continue;
-        }
-
         //Only the first invite can be a coinbase
-        if (inv->IsCoinBase()) {
+        if (!first && inv->IsCoinBase()) {
             return state.DoS(
                     100,
                     false,
@@ -3207,12 +3222,16 @@ bool ValidateInvites(
                     false,
                     "more than one invite coinbase");
         }
+
+        if (first)  {
+            first = false;
+        }
     }
 
     return true;
 }
 
-bool ValidateTransactionInputsNotInvites(
+bool ValidateTransactionNotInvites(
         const CBlock& block,
         const Consensus::Params& params,
         CValidationState& state)
@@ -3245,13 +3264,21 @@ bool ValidateContextualDaedalusBlock(
     if (!ExpectDaedalus(pindexPrev, params)) {
         // During the Daedalus deployment, no other block types will be accepted.
         // This is unique to the daedalus deployment.
-        return !(block.nVersion & DAEDALUS_BIT);
+        if(block.IsDaedalus()) {
+            return state.DoS(100,
+                    false,
+                    REJECT_INVALID,
+                    "bad-blk-did-not-expect-daedalus",
+                    false,
+                    "got daedalus block when we didn't expect a daedalus block");
+        }
+        return true;
     }
 
     // This is a daedalus block; so let's be sure that the block conforms to:
     // 1) All recipients have confirmed invitations
     // 2) The coinbase includes invitation rewards
-    if ((block.nVersion & DAEDALUS_BIT) == 0) {
+    if (!block.IsDaedalus()) {
         return state.DoS(100,
                 false,
                 REJECT_INVALID,
@@ -3266,7 +3293,7 @@ bool ValidateContextualDaedalusBlock(
             ::GetSerializeSize(
                 block,
                 SER_NETWORK,
-                PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT)
+                PROTOCOL_VERSION | SERIALIZE_TRANSACTION_NO_WITNESS) * WITNESS_SCALE_FACTOR > MAX_BLOCK_WEIGHT) {
 
         return state.DoS(
                 100,
@@ -3276,12 +3303,14 @@ bool ValidateContextualDaedalusBlock(
                 false,
                 "size limits failed");
 
+    }
+
     if (!ValidateInvites(block, params, view, state)) {
         //state is assumed to be set.
         return false;
     }
 
-    if (!ValidateTransactionInputsNotInvites(block, params, state)) {
+    if (!ValidateTransactionNotInvites(block, params, state)) {
         //state is assumed set
         return false;
     }
@@ -3828,7 +3857,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     if (block.IsDaedalus()) {
         pog::InviteRewards invite_rewards;
-        if(!RewardInvites(
+        if (!RewardInvites(
                 pindex->nHeight,
                 pindex->pprev,
                 hashPrevBlock,
@@ -3847,11 +3876,11 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         }
 
         size_t coinbase_end = 0;
-        if(!invite_rewards.empty()) {
+        if (!invite_rewards.empty()) {
             const CTransaction& coinbase_invites = *block.invites[0];
             coinbase_end = 1;
 
-            if(!coinbase_invites.IsCoinBase()) {
+            if (!coinbase_invites.IsCoinBase()) {
                 return state.DoS(100,
                         error("ConnectBlock(): expected first invite to be a coinbase"),
                         REJECT_INVALID, "bad-cb-invite-expected-coinbase");
@@ -3866,7 +3895,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
         //Make sure we don't have a coinbase after the expected coinbase
         for(size_t i = coinbase_end; i < block.invites.size(); i++) {
-            if(block.invites[i]->IsCoinBase()) {
+            if (block.invites[i]->IsCoinBase()) {
                 return state.DoS(100,
                         error("ConnectBlock(): coinbase invite is unexpected"),
                         REJECT_INVALID, "bad-cb-invite-unexpected-coinbase");
@@ -4475,7 +4504,7 @@ static CBlockIndex* FindMostWorkChain() {
         }
         if (!fInvalidAncestor)
             return pindexNew;
-    } while(true);
+    } while (true);
 }
 
 /** Delete all entries in setBlockIndexCandidates that are worse than the current tip. */
@@ -5281,7 +5310,7 @@ static bool ContextualCheckBlock(
                 !std::equal(expect.begin(), expect.end(), block.vtx[0]->vin[0].scriptSig.begin())) {
             return state.DoS(100, false, REJECT_INVALID, "bad-cb-height", false, "block height mismatch in coinbase");
         }
-        if(!block.invites.empty() && block.invites[0]->IsCoinBase()) {
+        if (!block.invites.empty() && block.invites[0]->IsCoinBase()) {
             if (block.invites[0]->vin[0].scriptSig.size() < expect.size() ||
                     !std::equal(expect.begin(), expect.end(), block.invites[0]->vin[0].scriptSig.begin())) {
                 return state.DoS(100, false, REJECT_INVALID, "bad-cb-invite=height", false, "block height mismatch in invite coinbase");
