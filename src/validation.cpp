@@ -1052,27 +1052,29 @@ static bool AcceptToMemoryPoolWorker(
                     return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
                 }
 
-                // find all referrals from mempool with the same alias
-                auto it = mempoolReferral.Find(referral->alias);
-                while (it.first != it.second) {
-                    const auto duplicate_referral = it.first->GetSharedEntryValue();
+                // find all referrals from mempool with the same alias if alias is set
+                if (referral->alias.size() > 0) {
+                    auto it = mempoolReferral.Find(referral->alias);
+                    while (it.first != it.second) {
+                        const auto duplicate_referral = it.first->GetSharedEntryValue();
 
-                    std::vector<AddressPair> addresses{{duplicate_referral->GetAddress(), duplicate_referral->addressType}};
-                    std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
+                        std::vector<AddressPair> addresses{{duplicate_referral->GetAddress(), duplicate_referral->addressType}};
+                        std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
 
-                    // check tx mempool for invite txs for this referral
-                    mempool.getAddressIndex(addresses, indexes);
+                        // check tx mempool for invite txs for this referral
+                        mempool.getAddressIndex(addresses, indexes);
 
-                    for (const auto& address: indexes) {
-                        // if address is of invite tx and it is out,
-                        // then we found confirmation invite in mempool ==> duplicate
-                        if (address.second.is_invite && address.second.prevhash.IsNull()) {
-                            debug("Found confirmation tx in mempool for same alias \"%s\"", referral->alias);
-                            return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
+                        for (const auto& address: indexes) {
+                            // if address is of invite tx and it is out,
+                            // then we found confirmation invite in mempool ==> duplicate
+                            if (address.second.is_invite && address.second.prevhash.IsNull()) {
+                                debug("Found confirmation tx in mempool for same alias \"%s\"", referral->alias);
+                                return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
+                            }
                         }
-                    }
 
-                    it.first++;
+                        it.first++;
+                    }
                 }
             }
         }
@@ -2744,7 +2746,7 @@ void UnIndexTransactions(
             unsigned int type = 0;
             std::vector<unsigned char> hashBytes(20);
 
-            if (out.scriptPubKey.IsPayToScriptHash()) { 
+            if (out.scriptPubKey.IsPayToScriptHash()) {
                 type = 2;
                 hashBytes.assign(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
             }else if (out.scriptPubKey.IsParameterizedPayToScriptHash()) {
