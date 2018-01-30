@@ -3428,6 +3428,20 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                         vInv.clear();
                     }
                 }
+
+                const auto referrals = mempoolReferral.GetReferrals();
+                for (const auto& ref : referrals) {
+                    const uint256& hash = ref->GetHash();
+                    pto->setInventoryReferralToSend.erase(hash);
+                    pto->filterInventoryKnown.insert(hash);
+
+                    CInv inv(MSG_REFERRAL, hash);
+                    vInv.push_back(inv);
+                    if (vInv.size() == MAX_INV_SZ) {
+                        connman.PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
+                        vInv.clear();
+                    }
+                }
                 pto->timeLastMempoolReq = GetTime();
             }
 
