@@ -1423,8 +1423,9 @@ UniValue renewvault(const JSONRPCRequest& request)
                 "2. \"options\"            (json object) Options about which parts of the vault to change.\n"
                 "       {\n"
                 "           \"whitelist\": [\"addr1\", ...],\n"
-                "           \"master_sk\": \"master secret key in wif\",\n"
-                "           \"new_master_sk\": \"master secret key in hex\",\n"
+                "           \"spendlimit\": merit,\n"
+                "           \"orig_master_sk\": \"required master secret key in wif\",\n"
+                "           \"new_master_sk\": \"master secret key in wif\",\n"
                 "           \"new_master_pk\": \"master public key in hex\",\n"
                 "           \"new_spend_pk\": \"master public key in hex\"\n"
                 "       }\n"
@@ -1454,7 +1455,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     UniValue options;
     if(!request.params[1].isNull()) {
-        RPCTypeCheck(request.params, {UniValue::VSTR, UniValue::VSTR, UniValue::VOBJ});
+        RPCTypeCheck(request.params, {UniValue::VSTR, UniValue::VOBJ});
         options = request.params[1].get_obj();
     }
 
