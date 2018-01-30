@@ -1773,8 +1773,8 @@ UniValue relaymempool(const JSONRPCRequest& request)
     }
 
     UniValue ret(UniValue::VOBJ);
-    ret.push_back(Pair("transactions", vtxinfo.size()));
-    ret.push_back(Pair("referrals", referrals.size()));
+    ret.push_back(Pair("transactions", static_cast<int>(vtxinfo.size())));
+    ret.push_back(Pair("referrals", static_cast<int>(referrals.size())));
     return ret;
 }
 
