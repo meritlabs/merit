@@ -1117,6 +1117,44 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
 
 }
 
+void getAddressTxs(const std::vector<AddressPair>& addresses, bool invite, int start, int end, UniValue& result)
+{
+    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
+
+    for (const auto& it: addresses) {
+        if (start > 0 && end > 0) {
+            if (!GetAddressIndex(it.first, it.second, invite, addressIndex, start, end)) {
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+            }
+        } else {
+            if (!GetAddressIndex(it.first, it.second, invite, addressIndex)) {
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+            }
+        }
+    }
+
+    std::set<std::pair<int, std::string>> txids;
+
+    for (const auto& it: addressIndex) {
+        int height = it.first.blockHeight;
+        std::string txid = it.first.txhash.GetHex();
+
+        if (addresses.size() > 1) {
+            txids.insert(std::make_pair(height, txid));
+        } else {
+            if (txids.insert(std::make_pair(height, txid)).second) {
+                result.push_back(txid);
+            }
+        }
+    }
+
+    if (addresses.size() > 1) {
+        for (const auto& it: txids) {
+            result.push_back(it.second);
+        }
+    }
+}
+
 UniValue getaddresstxids(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1)
@@ -1160,41 +1198,11 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
         }
     }
 
-    std::vector<std::pair<CAddressIndexKey, CAmount> > addressIndex;
-
-    for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
-        if (start > 0 && end > 0) {
-            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex, start, end)) {
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
-            }
-        } else {
-            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex)) {
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
-            }
-        }
-    }
-
-    std::set<std::pair<int, std::string> > txids;
     UniValue result(UniValue::VARR);
 
-    for (std::vector<std::pair<CAddressIndexKey, CAmount> >::const_iterator it=addressIndex.begin(); it!=addressIndex.end(); it++) {
-        int height = it->first.blockHeight;
-        std::string txid = it->first.txhash.GetHex();
+    getAddressTxs(addresses, false, start, end, result);
+    getAddressTxs(addresses, true, start, end, result);
 
-        if (addresses.size() > 1) {
-            txids.insert(std::make_pair(height, txid));
-        } else {
-            if (txids.insert(std::make_pair(height, txid)).second) {
-                result.push_back(txid);
-            }
-        }
-    }
-
-    if (addresses.size() > 1) {
-        for (std::set<std::pair<int, std::string> >::const_iterator it=txids.begin(); it!=txids.end(); it++) {
-            result.push_back(it->second);
-        }
-    }
 
     return result;
 
@@ -1241,7 +1249,8 @@ UniValue getaddressrefids(const JSONRPCRequest& request)
         const auto children = prefviewdb->GetChildren(address.first);
 
         if (!referral) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+            continue;
+            // throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
         }
 
         result.push_back(referral->GetHash().GetHex());
