@@ -1535,19 +1535,27 @@ using KeyActivity = std::vector<std::pair<CAddressIndexKey, CAmount>>;
 using AddressUnspentIndex = std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>;
 using SpentIndex = std::vector<std::pair<CSpentIndexKey, CSpentIndexValue>>;
 
-bool GetAddressIndex(uint160 addressHash, int type,
-                     KeyActivity& addressIndex, int start, int end)
+bool GetAddressIndex(
+        uint160 addressHash,
+        unsigned int type,
+        bool invite,
+        KeyActivity& addressIndex,
+        int start,
+        int end)
 {
-    if (!pblocktree->ReadAddressIndex(addressHash, type, addressIndex, start, end))
+    if (!pblocktree->ReadAddressIndex(addressHash, type, invite, addressIndex, start, end))
         return error("unable to get txids for address");
 
     return true;
 }
 
-bool GetAddressUnspent(uint160 addressHash, int type,
-                       std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs)
+bool GetAddressUnspent(
+        uint160 addressHash,
+        unsigned int type,
+        bool invite,
+        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs)
 {
-    if (!pblocktree->ReadAddressUnspentIndex(addressHash, type, unspentOutputs))
+    if (!pblocktree->ReadAddressUnspentIndex(addressHash, type, invite, unspentOutputs))
         return error("unable to get txids for address");
 
     return true;
@@ -2707,67 +2715,47 @@ void UnIndexTransactions(
         for (unsigned int k = tx->vout.size(); k-- > 0;) {
             const CTxOut &out = tx->vout[k];
 
-            if (out.scriptPubKey.IsPayToScriptHash() || out.scriptPubKey.IsParameterizedPayToScriptHash()) {
-                std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
+            unsigned int type = 0;
+            std::vector<unsigned char> hashBytes(20);
 
-                // undo receiving activity
-                addressIndex.push_back(
-                        std::make_pair(
-                            CAddressIndexKey(
-                                2,
-                                uint160(hashBytes),
-                                pindex->nHeight,
-                                i,
-                                hash,
-                                k,
-                                false),
-                            out.nValue));
-
-                // undo unspent index
-                addressUnspentIndex.push_back(
-                        std::make_pair(
-                            CAddressUnspentKey(
-                                2,
-                                uint160(hashBytes),
-                                hash,
-                                k,
-                                tx->IsCoinBase(),
-                                tx->IsInvite()),
-                            CAddressUnspentValue()));
-
+            if (out.scriptPubKey.IsPayToScriptHash()) { 
+                type = 2;
+                hashBytes.assign(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
+            }else if(out.scriptPubKey.IsParameterizedPayToScriptHash()) {
+                type = 3;
+                hashBytes.assign(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
             } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
-                std::vector<unsigned char> hashBytes(
-                        out.scriptPubKey.begin()+3,
-                        out.scriptPubKey.begin()+23);
-
-                // undo receiving activity
-                addressIndex.push_back(
-                        std::make_pair(
-                            CAddressIndexKey(
-                                1,
-                                uint160(hashBytes),
-                                pindex->nHeight,
-                                i,
-                                hash,
-                                k,
-                                false),
-                            out.nValue));
-
-                // undo unspent index
-                addressUnspentIndex.push_back(
-                        std::make_pair(
-                            CAddressUnspentKey(
-                                1,
-                                uint160(hashBytes),
-                                hash,
-                                k,
-                                tx->IsCoinBase(),
-                                tx->IsInvite()),
-                            CAddressUnspentValue()));
-
+                type = 1;
+                hashBytes.assign(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
             } else {
                 continue;
             }
+
+            // undo receiving activity
+            addressIndex.push_back(
+                    std::make_pair(
+                        CAddressIndexKey{
+                            type,
+                            uint160(hashBytes),
+                            pindex->nHeight,
+                            i,
+                            hash,
+                            k,
+                            false,
+                            tx->IsInvite()},
+                        out.nValue));
+
+            // undo unspent index
+            addressUnspentIndex.push_back(
+                    std::make_pair(
+                        CAddressUnspentKey(
+                            type,
+                            uint160(hashBytes),
+                            hash,
+                            k,
+                            tx->IsCoinBase(),
+                            tx->IsInvite()),
+                        CAddressUnspentValue()));
         }
     }
 }
@@ -3364,7 +3352,8 @@ void IndexTransactions(
                                     i,
                                     txhash,
                                     j,
-                                    true},
+                                    true,
+                                    tx.IsInvite()},
                                 prevout.nValue * -1));
 
                     // remove address from unspent index
@@ -3411,7 +3400,8 @@ void IndexTransactions(
                                 i,
                                 txhash,
                                 k,
-                                false},
+                                false,
+                                tx.IsInvite()},
                             out.nValue));
 
                 // record unspent output

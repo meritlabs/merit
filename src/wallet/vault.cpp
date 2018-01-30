@@ -121,7 +121,7 @@ VaultCoins FindUnspentVaultCoins(const uint160& address)
     //Get outputs from chain
     using ChainOutputs = std::vector<std::pair<CAddressIndexKey, CAmount>>;
     ChainOutputs chain_outputs;
-    GetAddressIndex(address, PARAM_SCRIPT_TYPE, chain_outputs);
+    GetAddressIndex(address, PARAM_SCRIPT_TYPE, false, chain_outputs);
     ConvertToVaultOutputs(chain_outputs, outputs);
 
     //Filter outputs and return only unspent coins

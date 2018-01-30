@@ -628,7 +628,7 @@ void FindEasySendCoins(const CScriptID& easy_send_address, EasySendCoins& coins)
     }
 
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > chain_outputs;
-    if(!GetAddressUnspent(easy_send_address, SCRIPT_TYPE, chain_outputs)) {
+    if(!GetAddressUnspent(easy_send_address, SCRIPT_TYPE, false, chain_outputs)) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Cannot find coin with address: " + EncodeDestination(easy_send_address));
