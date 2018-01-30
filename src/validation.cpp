@@ -3321,7 +3321,7 @@ void IndexTransactions(
         const CBlockIndex *pindex,
         CCoinsViewCache& view,
         const std::vector<CTransactionRef>& vtx,
-        KeyActivity addressIndex,
+        KeyActivity& addressIndex,
         AddressUnspentIndex& addressUnspentIndex,
         SpentIndex& spentIndex)
 {
@@ -3337,16 +3337,16 @@ void IndexTransactions(
                 const CTxIn input = tx.vin[j];
                 const CTxOut &prevout = view.AccessCoin(input.prevout).out;
 
-                auto address = ExtractAddress(prevout);
-                const uint160& hashBytes = address.first;
-                const int addressType = address.second;
+                const auto address = ExtractAddress(prevout);
+                const auto& hashBytes = address.first;
+                const unsigned int addressType = address.second;
 
                 if (addressType > 0) {
                     // record spending activity
                     addressIndex.push_back(
                             std::make_pair(
                                 CAddressIndexKey{
-                                    static_cast<unsigned int>(addressType),
+                                    addressType,
                                     hashBytes,
                                     pindex->nHeight,
                                     i,
@@ -3360,7 +3360,7 @@ void IndexTransactions(
                     addressUnspentIndex.push_back(
                             std::make_pair(
                                 CAddressUnspentKey{
-                                    static_cast<unsigned int>(addressType),
+                                    addressType,
                                     hashBytes,
                                     input.prevout.hash,
                                     input.prevout.n,
@@ -3377,50 +3377,52 @@ void IndexTransactions(
                                 j,
                                 pindex->nHeight,
                                 prevout.nValue,
-                                addressType,
+                                static_cast<int>(addressType),
                                 hashBytes}));
             }
 
-        } else {
-            for (unsigned int k = 0; k < tx.vout.size(); k++) {
-                const CTxOut &out = tx.vout[k];
-                auto address = ExtractAddress(out);
-                if (address.second == 0) continue;
+        }
 
-                const uint160& hashBytes = address.first;
-                const unsigned int addressType = address.second;
-
-                // record receiving activity
-                addressIndex.push_back(
-                        std::make_pair(
-                            CAddressIndexKey{
-                                addressType,
-                                uint160(hashBytes),
-                                pindex->nHeight,
-                                i,
-                                txhash,
-                                k,
-                                false,
-                                tx.IsInvite()},
-                            out.nValue));
-
-                // record unspent output
-                addressUnspentIndex.push_back(
-                        std::make_pair(
-                            CAddressUnspentKey{
-                                addressType,
-                                uint160(hashBytes),
-                                txhash,
-                                k,
-                                tx.IsCoinBase(),
-                                tx.IsInvite()
-                            },
-                            CAddressUnspentValue{
-                            out.nValue,
-                            out.scriptPubKey,
-                            pindex->nHeight}));
-
+        for (unsigned int k = 0; k < tx.vout.size(); k++) {
+            const CTxOut &out = tx.vout[k];
+            const auto address = ExtractAddress(out);
+            if (address.second == 0) {
+                continue;
             }
+
+            const auto& hashBytes = address.first;
+            const unsigned int addressType = address.second;
+
+            // record receiving activity
+            addressIndex.push_back(
+                    std::make_pair(
+                        CAddressIndexKey{
+                        addressType,
+                        hashBytes,
+                        pindex->nHeight,
+                        i,
+                        txhash,
+                        k,
+                        false,
+                        tx.IsInvite()},
+                        out.nValue));
+
+            // record unspent output
+            addressUnspentIndex.push_back(
+                    std::make_pair(
+                        CAddressUnspentKey{
+                        addressType,
+                        hashBytes,
+                        txhash,
+                        k,
+                        tx.IsCoinBase(),
+                        tx.IsInvite()
+                        },
+                        CAddressUnspentValue{
+                        out.nValue,
+                        out.scriptPubKey,
+                        pindex->nHeight}));
+
         }
     }
 }

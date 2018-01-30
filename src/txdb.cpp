@@ -264,11 +264,11 @@ bool CBlockTreeDB::ReadSpentIndex(const CSpentIndexKey &key, CSpentIndexValue &v
 
 bool CBlockTreeDB::UpdateSpentIndex(const std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> >&vect) {
     CDBBatch batch(*this);
-    for (std::vector<std::pair<CSpentIndexKey,CSpentIndexValue> >::const_iterator it=vect.begin(); it!=vect.end(); it++) {
-        if (it->second.IsNull()) {
-            batch.Erase(std::make_pair(DB_SPENTINDEX, it->first));
+    for (const auto& addr : vect) {
+        if (addr.second.IsNull()) {
+            batch.Erase(std::make_pair(DB_SPENTINDEX, addr.first));
         } else {
-            batch.Write(std::make_pair(DB_SPENTINDEX, it->first), it->second);
+            batch.Write(std::make_pair(DB_SPENTINDEX, addr.first), addr.second);
         }
     }
     return WriteBatch(batch);
@@ -320,15 +320,17 @@ bool CBlockTreeDB::ReadAddressUnspentIndex(
 
 bool CBlockTreeDB::WriteAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAmount > >&vect) {
     CDBBatch batch(*this);
-    for (std::vector<std::pair<CAddressIndexKey, CAmount> >::const_iterator it=vect.begin(); it!=vect.end(); it++)
-        batch.Write(std::make_pair(DB_ADDRESSINDEX, it->first), it->second);
+    for (const auto& addr : vect) {
+        batch.Write(std::make_pair(DB_ADDRESSINDEX, addr.first), addr.second);
+    }
     return WriteBatch(batch);
 }
 
 bool CBlockTreeDB::EraseAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAmount > >&vect) {
     CDBBatch batch(*this);
-    for (std::vector<std::pair<CAddressIndexKey, CAmount> >::const_iterator it=vect.begin(); it!=vect.end(); it++)
-        batch.Erase(std::make_pair(DB_ADDRESSINDEX, it->first));
+    for (const auto& addr : vect ) {
+        batch.Erase(std::make_pair(DB_ADDRESSINDEX, addr.first));
+    }
     return WriteBatch(batch);
 }
 
