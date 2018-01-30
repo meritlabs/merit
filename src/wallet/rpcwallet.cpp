@@ -535,9 +535,12 @@ static UniValue EasySend(
                 "Unable to generate referral for easy send script");
     }
 
+    CScriptID easy_send_address{script_referral->GetAddress()};
+    CScript script_pub_key = GetScriptForDestination(easy_send_address);
+
     if(pwallet.Daedalus()) {
         auto invite_transaction =
-            pwallet.SendInviteTo(CParamScriptID{script_referral->GetAddress()});
+            pwallet.SendInviteTo(script_pub_key);
 
         if(!invite_transaction) {
             throw JSONRPCError(
@@ -545,9 +548,6 @@ static UniValue EasySend(
                     "Unable to confirm the vault. Vaults require invites");
         }
     }
-
-    CScriptID easy_send_address{script_referral->GetAddress()};
-    CScript script_pub_key = GetScriptForDestination(easy_send_address);
 
     std::string error;
     std::vector<CRecipient> recipients = {
@@ -628,7 +628,7 @@ void FindEasySendCoins(const CScriptID& easy_send_address, EasySendCoins& coins)
     }
 
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > chain_outputs;
-    if(!GetAddressUnspent(easy_send_address, SCRIPT_TYPE, chain_outputs)) {
+    if(!GetAddressUnspent(easy_send_address, SCRIPT_TYPE, false, chain_outputs)) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Cannot find coin with address: " + EncodeDestination(easy_send_address));
@@ -927,7 +927,7 @@ UniValue inviteaddress(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
     }
 
-    auto tx = pwallet->SendInviteTo(dest);
+    auto tx = pwallet->SendInviteTo(GetScriptForDestination(dest));
     if(!tx) {
        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to confirm the address");
     }
@@ -1249,17 +1249,6 @@ UniValue createvault(const JSONRPCRequest& request)
                     "Unable to generate referral for the vault script");
         }
 
-        if(pwallet->Daedalus()) {
-            auto invite_transaction =
-                pwallet->SendInviteTo(CParamScriptID{script_referral->GetAddress()});
-
-            if(!invite_transaction) {
-                throw JSONRPCError(
-                        RPC_WALLET_ERROR,
-                        "Unable to confirm the vault. Vaults require invites");
-            }
-        }
-
         CParamScriptID vault_address{script_referral->GetAddress()};
 
         auto script_pub_key =
@@ -1272,6 +1261,18 @@ UniValue createvault(const JSONRPCRequest& request)
                     whitelist.size(),
                     ToByteVector(vault_tag),
                     0 /* simple is type 0 */);
+
+        if(pwallet->Daedalus()) {
+            auto invite_transaction =
+                pwallet->SendInviteTo(script_pub_key);
+
+            if(!invite_transaction) {
+                throw JSONRPCError(
+                        RPC_WALLET_ERROR,
+                        "Unable to confirm the vault. Vaults require invites");
+            }
+        }
+
 
 
         CWalletTx wtx;
@@ -1422,8 +1423,9 @@ UniValue renewvault(const JSONRPCRequest& request)
                 "2. \"options\"            (json object) Options about which parts of the vault to change.\n"
                 "       {\n"
                 "           \"whitelist\": [\"addr1\", ...],\n"
-                "           \"master_sk\": \"master secret key in wif\",\n"
-                "           \"new_master_sk\": \"master secret key in hex\",\n"
+                "           \"spendlimit\": merit,\n"
+                "           \"orig_master_sk\": \"required master secret key in wif\",\n"
+                "           \"new_master_sk\": \"master secret key in wif\",\n"
                 "           \"new_master_pk\": \"master public key in hex\",\n"
                 "           \"new_spend_pk\": \"master public key in hex\"\n"
                 "       }\n"
@@ -1453,7 +1455,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     UniValue options;
     if(!request.params[1].isNull()) {
-        RPCTypeCheck(request.params, {UniValue::VSTR, UniValue::VSTR, UniValue::VOBJ});
+        RPCTypeCheck(request.params, {UniValue::VSTR, UniValue::VOBJ});
         options = request.params[1].get_obj();
     }
 

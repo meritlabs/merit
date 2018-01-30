@@ -1535,19 +1535,27 @@ using KeyActivity = std::vector<std::pair<CAddressIndexKey, CAmount>>;
 using AddressUnspentIndex = std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>;
 using SpentIndex = std::vector<std::pair<CSpentIndexKey, CSpentIndexValue>>;
 
-bool GetAddressIndex(uint160 addressHash, int type,
-                     KeyActivity& addressIndex, int start, int end)
+bool GetAddressIndex(
+        uint160 addressHash,
+        unsigned int type,
+        bool invite,
+        KeyActivity& addressIndex,
+        int start,
+        int end)
 {
-    if (!pblocktree->ReadAddressIndex(addressHash, type, addressIndex, start, end))
+    if (!pblocktree->ReadAddressIndex(addressHash, type, invite, addressIndex, start, end))
         return error("unable to get txids for address");
 
     return true;
 }
 
-bool GetAddressUnspent(uint160 addressHash, int type,
-                       std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs)
+bool GetAddressUnspent(
+        uint160 addressHash,
+        unsigned int type,
+        bool invite,
+        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs)
 {
-    if (!pblocktree->ReadAddressUnspentIndex(addressHash, type, unspentOutputs))
+    if (!pblocktree->ReadAddressUnspentIndex(addressHash, type, invite, unspentOutputs))
         return error("unable to get txids for address");
 
     return true;
@@ -1751,6 +1759,12 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
     return {miner_subsidy, ambassador_subsidy};
 }
 
+bool IsValidAmbassadorDestination(const CTxDestination& dest)
+{
+    const char which = dest.which();
+    return pog::IsValidAmbassadorDestination(which);
+}
+
 /**
  * After block 13499 the genesis address does not participate in the lottery.
  * TreeToForest removes the root address from the entrants.
@@ -1767,7 +1781,7 @@ void TreeToForest(
     entrants.erase(
             std::remove_if (entrants.begin(), entrants.end(),
                 [&params](const referral::AddressANV& e) {
-                    return e.address == params.genesis_address;
+                    return e.address == params.genesis_address || e.address_type;
                 }), entrants.end());
 }
 
@@ -1915,20 +1929,14 @@ bool RewardInvites(
             *prefviewdb,
             previous_block_hash,
             params.genesis_address,
-            total_winners);
+            total_winners,
+            params.daedalus_max_outstanding_invites_per_address);
 
-    assert(winners.size() == total_winners);
+    assert(winners.size() <= total_winners);
 
     rewards = pog::RewardInvites(winners);
 
     return true;
-}
-
-bool IsValidAmbassadorDestination(const CTxDestination& dest)
-{
-    const auto which = dest.which();
-    //KeyID or ScriptID
-    return which == 1 || which == 2;
 }
 
 void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx)
@@ -2706,67 +2714,47 @@ void UnIndexTransactions(
         for (unsigned int k = tx->vout.size(); k-- > 0;) {
             const CTxOut &out = tx->vout[k];
 
-            if (out.scriptPubKey.IsPayToScriptHash() || out.scriptPubKey.IsParameterizedPayToScriptHash()) {
-                std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
+            unsigned int type = 0;
+            std::vector<unsigned char> hashBytes(20);
 
-                // undo receiving activity
-                addressIndex.push_back(
-                        std::make_pair(
-                            CAddressIndexKey(
-                                2,
-                                uint160(hashBytes),
-                                pindex->nHeight,
-                                i,
-                                hash,
-                                k,
-                                false),
-                            out.nValue));
-
-                // undo unspent index
-                addressUnspentIndex.push_back(
-                        std::make_pair(
-                            CAddressUnspentKey(
-                                2,
-                                uint160(hashBytes),
-                                hash,
-                                k,
-                                tx->IsCoinBase(),
-                                tx->IsInvite()),
-                            CAddressUnspentValue()));
-
+            if (out.scriptPubKey.IsPayToScriptHash()) { 
+                type = 2;
+                hashBytes.assign(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
+            }else if(out.scriptPubKey.IsParameterizedPayToScriptHash()) {
+                type = 3;
+                hashBytes.assign(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
             } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
-                std::vector<unsigned char> hashBytes(
-                        out.scriptPubKey.begin()+3,
-                        out.scriptPubKey.begin()+23);
-
-                // undo receiving activity
-                addressIndex.push_back(
-                        std::make_pair(
-                            CAddressIndexKey(
-                                1,
-                                uint160(hashBytes),
-                                pindex->nHeight,
-                                i,
-                                hash,
-                                k,
-                                false),
-                            out.nValue));
-
-                // undo unspent index
-                addressUnspentIndex.push_back(
-                        std::make_pair(
-                            CAddressUnspentKey(
-                                1,
-                                uint160(hashBytes),
-                                hash,
-                                k,
-                                tx->IsCoinBase(),
-                                tx->IsInvite()),
-                            CAddressUnspentValue()));
-
+                type = 1;
+                hashBytes.assign(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
             } else {
                 continue;
             }
+
+            // undo receiving activity
+            addressIndex.push_back(
+                    std::make_pair(
+                        CAddressIndexKey{
+                            type,
+                            uint160(hashBytes),
+                            pindex->nHeight,
+                            i,
+                            hash,
+                            k,
+                            false,
+                            tx->IsInvite()},
+                        out.nValue));
+
+            // undo unspent index
+            addressUnspentIndex.push_back(
+                    std::make_pair(
+                        CAddressUnspentKey(
+                            type,
+                            uint160(hashBytes),
+                            hash,
+                            k,
+                            tx->IsCoinBase(),
+                            tx->IsInvite()),
+                        CAddressUnspentValue()));
         }
     }
 }
@@ -3332,7 +3320,7 @@ void IndexTransactions(
         const CBlockIndex *pindex,
         CCoinsViewCache& view,
         const std::vector<CTransactionRef>& vtx,
-        KeyActivity addressIndex,
+        KeyActivity& addressIndex,
         AddressUnspentIndex& addressUnspentIndex,
         SpentIndex& spentIndex)
 {
@@ -3348,29 +3336,30 @@ void IndexTransactions(
                 const CTxIn input = tx.vin[j];
                 const CTxOut &prevout = view.AccessCoin(input.prevout).out;
 
-                auto address = ExtractAddress(prevout);
-                const uint160& hashBytes = address.first;
-                const int addressType = address.second;
+                const auto address = ExtractAddress(prevout);
+                const auto& hashBytes = address.first;
+                const unsigned int addressType = address.second;
 
                 if (addressType > 0) {
                     // record spending activity
                     addressIndex.push_back(
                             std::make_pair(
                                 CAddressIndexKey{
-                                    static_cast<unsigned int>(addressType),
+                                    addressType,
                                     hashBytes,
                                     pindex->nHeight,
                                     i,
                                     txhash,
                                     j,
-                                    true},
+                                    true,
+                                    tx.IsInvite()},
                                 prevout.nValue * -1));
 
                     // remove address from unspent index
                     addressUnspentIndex.push_back(
                             std::make_pair(
                                 CAddressUnspentKey{
-                                    static_cast<unsigned int>(addressType),
+                                    addressType,
                                     hashBytes,
                                     input.prevout.hash,
                                     input.prevout.n,
@@ -3387,49 +3376,52 @@ void IndexTransactions(
                                 j,
                                 pindex->nHeight,
                                 prevout.nValue,
-                                addressType,
+                                static_cast<int>(addressType),
                                 hashBytes}));
             }
 
-        } else {
-            for (unsigned int k = 0; k < tx.vout.size(); k++) {
-                const CTxOut &out = tx.vout[k];
-                auto address = ExtractAddress(out);
-                if (address.second == 0) continue;
+        }
 
-                const uint160& hashBytes = address.first;
-                const unsigned int addressType = address.second;
-
-                // record receiving activity
-                addressIndex.push_back(
-                        std::make_pair(
-                            CAddressIndexKey{
-                                addressType,
-                                uint160(hashBytes),
-                                pindex->nHeight,
-                                i,
-                                txhash,
-                                k,
-                                false},
-                            out.nValue));
-
-                // record unspent output
-                addressUnspentIndex.push_back(
-                        std::make_pair(
-                            CAddressUnspentKey{
-                                addressType,
-                                uint160(hashBytes),
-                                txhash,
-                                k,
-                                tx.IsCoinBase(),
-                                tx.IsInvite()
-                            },
-                            CAddressUnspentValue{
-                            out.nValue,
-                            out.scriptPubKey,
-                            pindex->nHeight}));
-
+        for (unsigned int k = 0; k < tx.vout.size(); k++) {
+            const CTxOut &out = tx.vout[k];
+            const auto address = ExtractAddress(out);
+            if (address.second == 0) {
+                continue;
             }
+
+            const auto& hashBytes = address.first;
+            const unsigned int addressType = address.second;
+
+            // record receiving activity
+            addressIndex.push_back(
+                    std::make_pair(
+                        CAddressIndexKey{
+                        addressType,
+                        hashBytes,
+                        pindex->nHeight,
+                        i,
+                        txhash,
+                        k,
+                        false,
+                        tx.IsInvite()},
+                        out.nValue));
+
+            // record unspent output
+            addressUnspentIndex.push_back(
+                    std::make_pair(
+                        CAddressUnspentKey{
+                        addressType,
+                        hashBytes,
+                        txhash,
+                        k,
+                        tx.IsCoinBase(),
+                        tx.IsInvite()
+                        },
+                        CAddressUnspentValue{
+                        out.nValue,
+                        out.scriptPubKey,
+                        pindex->nHeight}));
+
         }
     }
 }
@@ -5075,7 +5067,8 @@ bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool)
     return maybe_hash ? CheckAddressBeaconed(*maybe_hash, checkMempool) : false;
 }
 
-// Check if an address is valid (beaconed)
+// Check if an address has been confirmed. A confirmed address has one ore more
+// invites
 bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempool)
 {
     bool confirmed = prefviewdb->IsConfirmed(addr);

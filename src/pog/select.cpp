@@ -11,10 +11,9 @@ namespace pog
 {
     namespace
     {
-
         bool LegacyAnvCmp(
                 const referral::AddressANV& a,
-                const referral::AddressANV& b) 
+                const referral::AddressANV& b)
         {
             return a.anv < b.anv;
         };
@@ -171,9 +170,15 @@ namespace pog
         }
     }
 
+    bool IsValidAmbassadorDestination(char type)
+    {
+        //KeyID or ScriptID
+        return type == 1 || type == 2;
+    }
+
     /**
      * AnvDistribution uses Inverse Transform Sampling. Computing the
-     * CDF is trivial for the ANV discrete distribution by simply sorting and 
+     * CDF is trivial for the ANV discrete distribution by simply sorting and
      * adding up all the ANVs of the addresss provided.
      *
      * Scaling to probabilities is unnecessary because we will use a hash function
@@ -182,13 +187,13 @@ namespace pog
      * the distribution of ANVs where those with a bigger ANV are sampled more often.
      *
      * The most expensive part of creating the distribution is sorting the ANVs.
-     * However, since the number of ANVs is fixed no matter how large the 
+     * However, since the number of ANVs is fixed no matter how large the
      * blockchain gets, then there should be no issue handling growth.
      */
-    AnvDistribution::AnvDistribution(int height, referral::AddressANVs anvs) : 
+    AnvDistribution::AnvDistribution(int height, referral::AddressANVs anvs) :
         m_inverted(anvs.size())
     {
-        //index anvs by address id for convenience. 
+        //index anvs by address id for convenience.
         std::transform(
                 std::begin(anvs),
                 std::end(anvs),
@@ -202,7 +207,7 @@ namespace pog
         assert(m_anvs.size() == anvs.size());
 
         /**
-         * Prior to block 16000 the sort algorithm was defective because of the 
+         * Prior to block 16000 the sort algorithm was defective because of the
          * comparator. Use legacy sort for old blocks and new sort after 16000
          */
         if(height < 16000) {
@@ -262,7 +267,7 @@ namespace pog
         return m_inverted.size();
     }
 
-    WalletSelector::WalletSelector(int height, const referral::AddressANVs& anvs) : 
+    WalletSelector::WalletSelector(int height, const referral::AddressANVs& anvs) :
         m_distribution{height, anvs} {}
 
     /**
@@ -297,28 +302,36 @@ namespace pog
             const referral::ReferralsViewDB& db,
             uint256 hash,
             const uint160& genesis_address,
-            size_t n)
+            size_t n,
+            int max_outstanding_invites)
     {
         assert(n > 0);
+        assert(max_outstanding_invites > 0);
+
         auto requested = n;
 
         const auto total = db.GetTotalConfirmations();
+        auto max_tries = std::min(std::max(static_cast<uint64_t>(n), total / 10), total);
         assert(total > 0);
 
         referral::ConfirmedAddresses addresses;
 
-        while(n--) {
+        while(n-- && max_tries--) {
             const auto selected_idx = SipHashUint256(0, 0, hash) % total;
             const auto sampled = db.GetConfirmation(selected_idx);
 
             if(!sampled) {
                 return {};
             }
-            
-            if(sampled->address != genesis_address) {
-                addresses.push_back(*sampled);
-            } else {
+
+            if(!IsValidAmbassadorDestination(sampled->address_type)) {
                 n++;
+            } else if(sampled->invites > max_outstanding_invites) {
+                n++;
+            } else if(sampled->address == genesis_address) {
+                n++;
+            } else {
+                addresses.push_back(*sampled);
             }
 
             CHashWriter hasher{SER_DISK, CLIENT_VERSION};
@@ -326,7 +339,7 @@ namespace pog
             hash = hasher.GetHash();
         }
 
-        assert(addresses.size() == requested);
+        assert(addresses.size() <= requested);
         return addresses;
     }
 

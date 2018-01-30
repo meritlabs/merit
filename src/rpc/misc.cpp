@@ -176,13 +176,13 @@ UniValue validateaddress(const JSONRPCRequest& request)
         ret.push_back(Pair("address", address.ToString()));
         ret.push_back(Pair("addresstype", address.GetTypeStr()));
 
-        CScript scriptPubKey = GetScriptForDestination(dest);
-        ret.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
-
 #ifdef ENABLE_WALLET
-        isminetype mine = pwallet ? IsMine(*pwallet, dest) : ISMINE_NO;
-        ret.push_back(Pair("ismine", bool(mine & ISMINE_SPENDABLE)));
-        ret.push_back(Pair("iswatchonly", bool(mine & ISMINE_WATCH_ONLY)));
+        bool is_param_script = boost::get<CParamScriptID>(&dest) != nullptr;
+        if(!is_param_script) {
+            isminetype mine = pwallet ? IsMine(*pwallet, dest) : ISMINE_NO;
+            ret.push_back(Pair("ismine", bool(mine & ISMINE_SPENDABLE)));
+            ret.push_back(Pair("iswatchonly", bool(mine & ISMINE_WATCH_ONLY)));
+        }
         UniValue detail = boost::apply_visitor(DescribeAddressVisitor(pwallet), dest);
         ret.pushKVs(detail);
         if (pwallet && pwallet->mapAddressBook.count(dest)) {
@@ -190,9 +190,10 @@ UniValue validateaddress(const JSONRPCRequest& request)
         }
         if (pwallet) {
             const auto& meta = pwallet->mapKeyMetadata;
-            const CKeyID *keyID = boost::get<CKeyID>(&dest);
+            const auto keyID = boost::get<CKeyID>(&dest);
             auto it = keyID ? meta.find(*keyID) : meta.end();
-            if (it == meta.end()) {
+            if (it == meta.end() && boost::get<CScriptID>(&dest) != nullptr) {
+                CScript scriptPubKey = GetScriptForDestination(dest);
                 it = meta.find(CScriptID(scriptPubKey));
             }
             if (it != meta.end()) {
@@ -896,7 +897,7 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
 
     for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
-        if (!GetAddressUnspent((*it).first, (*it).second, unspentOutputs)) {
+        if (!GetAddressUnspent((*it).first, (*it).second, false, unspentOutputs)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
         }
     }
@@ -1001,11 +1002,11 @@ UniValue getaddressdeltas(const JSONRPCRequest& request)
 
     for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
         if (start > 0 && end > 0) {
-            if (!GetAddressIndex((*it).first, (*it).second, addressIndex, start, end)) {
+            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex, start, end)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
             }
         } else {
-            if (!GetAddressIndex((*it).first, (*it).second, addressIndex)) {
+            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
             }
         }
@@ -1093,7 +1094,7 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
     std::vector<std::pair<CAddressIndexKey, CAmount> > addressIndex;
 
     for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
-        if (!GetAddressIndex((*it).first, (*it).second, addressIndex)) {
+        if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
         }
     }
@@ -1163,11 +1164,11 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
 
     for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
         if (start > 0 && end > 0) {
-            if (!GetAddressIndex((*it).first, (*it).second, addressIndex, start, end)) {
+            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex, start, end)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
             }
         } else {
-            if (!GetAddressIndex((*it).first, (*it).second, addressIndex)) {
+            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
             }
         }
@@ -1381,7 +1382,7 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
     } else {
 
         std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
-        GetAddressIndex(*script_id, SCRIPT_TYPE, coins);
+        GetAddressIndex(*script_id, SCRIPT_TYPE, false, coins);
 
         if(!coins.empty()) {
             size_t confirmations = std::max(0, chainActive.Height() - coins[0].first.blockHeight);
@@ -1435,7 +1436,7 @@ UniValue getaddressrewards(const JSONRPCRequest& request)
     for (const auto& addrit : addresses) {
         std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>> unspentOutputs;
 
-        if (!GetAddressUnspent(addrit.first, addrit.second, unspentOutputs)) {
+        if (!GetAddressUnspent(addrit.first, addrit.second, false, unspentOutputs)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
         }
 

@@ -31,6 +31,7 @@ bool MeritUnits::valid(int unit)
     case MRT:
     case mMRT:
     case uMRT:
+    case INV:
         return true;
     default:
         return false;
@@ -44,6 +45,7 @@ QString MeritUnits::name(int unit)
     case MRT: return QString("MRT");
     case mMRT: return QString("mMRT");
     case uMRT: return QString::fromUtf8("μMRT");
+    case INV: return QString("Invite");
     default: return QString("???");
     }
 }
@@ -55,6 +57,7 @@ QString MeritUnits::description(int unit)
     case MRT: return QString("Merits");
     case mMRT: return QString("Milli-Merits (1 / 1" THIN_SP_UTF8 "000)");
     case uMRT: return QString("Micro-Merits (1 / 1" THIN_SP_UTF8 "000" THIN_SP_UTF8 "000)");
+    case INV: return QString("Invites Used to Confirm Addresses");
     default: return QString("???");
     }
 }
@@ -66,6 +69,7 @@ qint64 MeritUnits::factor(int unit)
     case MRT:  return 100000000;
     case mMRT: return 100000;
     case uMRT: return 100;
+    case INV:  return 1;
     default:   return 100000000;
     }
 }
@@ -77,6 +81,7 @@ int MeritUnits::decimals(int unit)
     case MRT: return 8;
     case mMRT: return 5;
     case uMRT: return 2;
+    case INV: return 0;
     default: return 0;
     }
 }
