@@ -49,6 +49,10 @@ namespace pog
             size_t n,
             int max_outstanding_invites);
 
+    /**
+     * Returns true if the address type is valid for ambassador lottery.
+     */
+    bool IsValidAmbassadorDestination(char type);
 } // namespace pog
 
 #endif //MERIT_POG_SELECT_H

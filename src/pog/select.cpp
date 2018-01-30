@@ -170,6 +170,12 @@ namespace pog
         }
     }
 
+    bool IsValidAmbassadorDestination(char type)
+    {
+        //KeyID or ScriptID
+        return type == 1 || type == 2;
+    }
+
     /**
      * AnvDistribution uses Inverse Transform Sampling. Computing the
      * CDF is trivial for the ANV discrete distribution by simply sorting and
@@ -318,7 +324,9 @@ namespace pog
                 return {};
             }
 
-            if(sampled->invites > max_outstanding_invites) {
+            if(!IsValidAmbassadorDestination(sampled->address_type)) {
+                n++;
+            } else if(sampled->invites > max_outstanding_invites) {
                 n++;
             } else if(sampled->address == genesis_address) {
                 n++;

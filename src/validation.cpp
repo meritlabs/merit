@@ -1759,6 +1759,12 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
     return {miner_subsidy, ambassador_subsidy};
 }
 
+bool IsValidAmbassadorDestination(const CTxDestination& dest)
+{
+    const char which = dest.which();
+    return pog::IsValidAmbassadorDestination(which);
+}
+
 /**
  * After block 13499 the genesis address does not participate in the lottery.
  * TreeToForest removes the root address from the entrants.
@@ -1775,7 +1781,7 @@ void TreeToForest(
     entrants.erase(
             std::remove_if (entrants.begin(), entrants.end(),
                 [&params](const referral::AddressANV& e) {
-                    return e.address == params.genesis_address;
+                    return e.address == params.genesis_address || e.address_type;
                 }), entrants.end());
 }
 
@@ -1931,13 +1937,6 @@ bool RewardInvites(
     rewards = pog::RewardInvites(winners);
 
     return true;
-}
-
-bool IsValidAmbassadorDestination(const CTxDestination& dest)
-{
-    const auto which = dest.which();
-    //KeyID or ScriptID
-    return which == 1 || which == 2;
 }
 
 void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx)
