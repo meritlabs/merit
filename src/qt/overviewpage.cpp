@@ -135,9 +135,9 @@ public:
         QRect timestampRect(mainRect.left() + xpad, mainRect.top()+ypad+halfheight, mainRect.width() - xpad, halfheight);
         QLine line(mainRect.left() + xpad, mainRect.bottom(), mainRect.right() - xpad, mainRect.bottom());
 
-        QDateTime date = index.data(Qt::ToolTipRole).toDateTime();
-        QString addressString = index.data(Qt::DisplayRole).toString();
-        QString statusString = index.data(Qt::StatusTipRole).toString();
+        QDateTime date = index.data(ReferralListModel::DateRole).toDateTime();
+        QString addressString = index.data(ReferralListModel::AddressRole).toString();
+        QString statusString = index.data(ReferralListModel::StatusRole).toString();
         QVariant value = index.data(Qt::ForegroundRole);
         QColor foreground = option.palette.color(QPalette::Text);
         if(value.canConvert<QBrush>())

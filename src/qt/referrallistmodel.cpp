@@ -108,11 +108,11 @@ QVariant ReferralListModel::data(const QModelIndex &index, int role) const
     {
         switch(role)
         {
-        case Qt::DisplayRole:
+        case AddressRole:
             return record->displayString();
-        case Qt::StatusTipRole:
+        case StatusRole:
             return record->statusString();
-        case Qt::ToolTipRole:
+        case DateRole:
             return QDateTime::fromSecsSinceEpoch(record->date);
         }
     }

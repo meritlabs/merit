@@ -33,6 +33,13 @@ public:
     QVariant data(const QModelIndex &index, int role) const;
     // QVariant headerData(int section, Qt::Orientation orientation, int role) const;
 
+    enum RoleIndex {
+        // includes alias if availabl
+        AddressRole,
+        DateRole,
+        StatusRole
+    };
+
 private:
     const PlatformStyle *platformStyle;
     CWallet* wallet;
