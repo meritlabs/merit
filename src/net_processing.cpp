@@ -1029,7 +1029,7 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     return true;
 }
 
-static void RelayInventory(const CInv& inv, CConnman& connman)
+void RelayInventory(const CInv& inv, CConnman& connman)
 {
     connman.ForEachNode([&inv](CNode* pnode)
     {
@@ -1037,13 +1037,13 @@ static void RelayInventory(const CInv& inv, CConnman& connman)
     });
 }
 
-static void RelayTransaction(const CTransaction& tx, CConnman& connman)
+void RelayTransaction(const CTransaction& tx, CConnman& connman)
 {
     CInv inv(MSG_TX, tx.GetHash());
     RelayInventory(inv, connman);
 }
 
-static void RelayReferral(const referral::Referral& rtx, CConnman& connman)
+void RelayReferral(const referral::Referral& rtx, CConnman& connman)
 {
     CInv inv(MSG_REFERRAL, rtx.GetHash());
     RelayInventory(inv, connman);
@@ -3453,6 +3453,7 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                 for (std::set<uint256>::iterator it = pto->setInventoryTxToSend.begin(); it != pto->setInventoryTxToSend.end(); it++) {
                     vInvTx.push_back(it);
                 }
+
                 CAmount filterrate = 0;
                 {
                     LOCK(pto->cs_feeFilter);

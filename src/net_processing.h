@@ -68,4 +68,8 @@ bool ProcessMessages(CNode* pfrom, CConnman& connman, const std::atomic<bool>& i
  */
 bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interrupt);
 
+void RelayInventory(const CInv& inv, CConnman& connman);
+void RelayTransaction(const CTransaction& tx, CConnman& connman);
+void RelayReferral(const referral::Referral& rtx, CConnman& connman);
+
 #endif // MERIT_NET_PROCESSING_H

@@ -29,6 +29,7 @@
 #include "txmempool.h"
 #include "util.h"
 #include "utilstrencodings.h"
+#include "net_processing.h"
 #include "hash.h"
 #include "base58.h"
 
@@ -40,6 +41,8 @@
 
 #include <mutex>
 #include <condition_variable>
+
+extern std::unique_ptr<CConnman> g_connman;
 
 struct CUpdatedBlock
 {
@@ -1741,6 +1744,40 @@ UniValue savemempool(const JSONRPCRequest& request)
     return NullUniValue;
 }
 
+UniValue relaymempool(const JSONRPCRequest& request)
+{
+    if (request.fHelp)
+        throw std::runtime_error(
+            "relaymempool\n"
+            "\nRelays mempool to all peers.\n"
+            "\nResult:\n"
+            " {\n"
+            "   \"transactionsent\" : 100,   (number) Number of transactions sent.\n"
+            "   \"referralssent\" : 10,      (number) Number of referrals sent\n"
+            " }\n"
+            "\nExamples:\n"
+            + HelpExampleCli("relaymempool", "")
+        );
+
+    if(!g_connman)
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+
+    auto vtxinfo = mempool.infoAll();
+    for (const auto& txinfo : vtxinfo) {
+        RelayTransaction(*txinfo.tx, *g_connman);
+    }
+
+    const auto referrals = mempoolReferral.GetReferrals();
+    for (const auto& ref : referrals) {
+        RelayReferral(*ref, *g_connman);
+    }
+
+    UniValue ret(UniValue::VOBJ);
+    ret.push_back(Pair("transactions", vtxinfo.size()));
+    ret.push_back(Pair("referrals", referrals.size()));
+    return ret;
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
@@ -1761,6 +1798,7 @@ static const CRPCCommand commands[] =
     { "blockchain",         "getmempoolinfo",         &getmempoolinfo,         {} },
     { "blockchain",         "getrefmempoolinfo",      &getrefmempoolinfo,      {} },
     { "blockchain",         "getrawmempool",          &getrawmempool,          {"verbose"} },
+    { "blockchain",         "relaymempool",           &relaymempool,           {} },
     { "blockchain",         "gettxout",               &gettxout,               {"txid","n","include_mempool"} },
     { "blockchain",         "gettxoutsetinfo",        &gettxoutsetinfo,        {} },
     { "blockchain",         "pruneblockchain",        &pruneblockchain,        {"height"} },
