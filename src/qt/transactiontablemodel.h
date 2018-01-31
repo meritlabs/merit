@@ -58,6 +58,8 @@ public:
         LabelRole,
         /** Net amount of transaction */
         AmountRole,
+        /** Is transaction an invite transaction */
+        IsInviteRole,
         /** Number of invites */
         InviteRole,
         /** Unique identifier */

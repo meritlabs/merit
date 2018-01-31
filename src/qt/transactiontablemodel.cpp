@@ -655,6 +655,8 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
         return walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(rec->address));
     case AmountRole:
         return qint64(rec->credit + rec->debit);
+    case IsInviteRole:
+        return rec->IsInvite();
     case InviteRole:
         return rec->IsInvite() ? qint64(1) : qint64(0); // dirty hack until we get transactions with multiple invites
     case TxIDRole:
