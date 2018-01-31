@@ -1093,6 +1093,7 @@ public:
 
     isminetype IsMine(const CTxIn& txin) const;
     isminetype IsMine(const referral::Referral& ref) const;
+    bool IsMe(const referral::Referral& ref) const;
 
     /**
      * Returns amount of debit if the input matches the

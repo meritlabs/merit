@@ -11,6 +11,7 @@
 #include "wallet/wallet.h"
 
 #include <QAbstractListModel>
+#include <QList>
 
 class PlatformStyle;
 class ReferralRecord;
@@ -18,6 +19,27 @@ class ReferralListPriv;
 class WalletModel;
 
 class CWallet;
+
+class ReferralListPriv
+{
+public:
+    ReferralListPriv(CWallet *_wallet);
+
+    /* Query entire wallet anew from core.
+     */
+    void RefreshWallet();
+    int Size() const;
+
+    ReferralRecord *Index(int idx);
+
+    CWallet *wallet;
+
+    /* Local cache of wallet.
+     * As it is in the same order as the CWallet, by definition
+     * this is sorted by sha256.
+     */
+    QList<ReferralRecord> cachedWallet;
+};
 
 /** UI model for the referral list of a wallet.
  */
@@ -27,10 +49,9 @@ class ReferralListModel : public QAbstractListModel
 
 public:
     explicit ReferralListModel(const PlatformStyle *platformStyle, CWallet* wallet, WalletModel *parent = 0);
-    ~ReferralListModel();
 
-    int rowCount(const QModelIndex &parent) const;
-    QVariant data(const QModelIndex &index, int role) const;
+    int rowCount(const QModelIndex &parent) const override;
+    QVariant data(const QModelIndex &index, int role) const override;
     // QVariant headerData(int section, Qt::Orientation orientation, int role) const;
 
     enum RoleIndex {
@@ -44,7 +65,7 @@ private:
     const PlatformStyle *platformStyle;
     CWallet* wallet;
     WalletModel *walletModel;
-    ReferralListPriv *priv;
+    std::unique_ptr<ReferralListPriv> priv;
 
 public Q_SLOTS:
     /* New referral, or referral changed status */

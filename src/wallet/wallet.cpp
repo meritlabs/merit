@@ -1509,6 +1509,13 @@ isminetype CWallet::IsMine(const referral::Referral& ref) const
         (root && ref.parentAddress == root->GetAddress()) ? ISMINE_ALL : ISMINE_NO;
 }
 
+bool CWallet::IsMe(const referral::Referral& ref) const
+{
+    LOCK(cs_wallet);
+    const auto root = GetRootReferral();
+    return root && root->GetAddress() == ref.GetAddress();
+}
+
 // Note that this function doesn't distinguish between a 0-valued input,
 // and a not-"is mine" (according to the filter) input.
 CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter) const

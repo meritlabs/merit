@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "referralrecord.h"
+#include "refmempool.h"
 
 #include "base58.h"
 #include "validation.h"
@@ -10,46 +11,21 @@
 
 #include <stdint.h>
 
-/*
- * Decompose CWallet referral to model referral records.
- */
-ReferralRecord ReferralRecord::decomposeReferral(const CWallet *wallet, referral::ReferralTx &rtx)
+void ReferralRecord::UpdateStatus(const referral::ReferralRef& ref)
 {
-    const referral::ReferralRef pref{rtx.GetReferral()};
-    assert(pref);
-
-    const uint160 address{pref->GetAddress()};
-    const std::string alias{pref->alias};
-    const CMeritAddress meritAddress{pref->addressType, address};
-    
-    if(alias.length() > 0) {
-      return ReferralRecord(rtx.GetHash(), rtx.nTimeReceived, meritAddress.ToString(), alias);
-    }
-    return ReferralRecord(rtx.GetHash(), rtx.nTimeReceived, meritAddress.ToString());
-}
-
-void ReferralRecord::updateStatus(referral::ReferralTx &rtx)
-{
+    assert(ref);
     AssertLockHeld(cs_main);
+
     // Determine referral status
-    const referral::ReferralRef pref{rtx.GetReferral()};
-    assert(pref);
     if(status.status != ReferralStatus::Pending)
       return;
-    if(CheckAddressConfirmed(pref->GetAddress(), pref->addressType, true)) {
+    if(CheckAddressConfirmed(ref->GetAddress(), ref->addressType, true)) {
       status.status = ReferralStatus::Confirmed;
     }
 }
 
-bool ReferralRecord::showReferral(referral::ReferralTx &rtx)
-{
-    const referral::ReferralRef pref{rtx.GetReferral()};
-    assert(pref);
-    return pref->addressType == 1;
-}
-
 // temporary
-QString ReferralRecord::displayString() const
+QString ReferralRecord::DisplayString() const
 {
     return alias.length() > 0 ?
         QString::fromStdString(address) + " (" + QString::fromStdString(alias) + ")":
@@ -57,7 +33,7 @@ QString ReferralRecord::displayString() const
 }
 
 // temporary
-QString ReferralRecord::statusString() const
+QString ReferralRecord::StatusString() const
 {
     switch(status.status)
     {
@@ -70,3 +46,31 @@ QString ReferralRecord::statusString() const
     }
     return "";
 }
+
+bool ShowReferral(const referral::ReferralRef& ref)
+{
+    assert(ref);
+    return ref->addressType == 1;
+}
+
+ReferralRecord DecomposeReferral(const referral::ReferralRef ref, uint64_t time_received)
+{
+    assert(ref);
+
+    const CMeritAddress meritAddress{ref->addressType, ref->GetAddress()};
+    return ReferralRecord{ref->GetHash(), time_received, meritAddress.ToString(), ref->alias};
+}
+
+/*
+ * Decompose CWallet referral to model referral records.
+ */
+ReferralRecord DecomposeReferral(const referral::ReferralTx &rtx)
+{
+    return DecomposeReferral(rtx.GetReferral(), rtx.nTimeReceived);
+}
+
+ReferralRecord DecomposeReferral(const referral::RefMemPoolEntry &e)
+{
+    return DecomposeReferral(e.GetSharedEntryValue(), static_cast<qint64>(e.GetTime()));
+}
+

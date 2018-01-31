@@ -40,18 +40,10 @@ class ReferralRecord
 {
 public:
     ReferralRecord():
-        hash(), date(0), address(""), alias("")
-    {
-    }
+        hash{}, date{0}, address{}, alias{} {}
 
     ReferralRecord(uint256 _hash, qint64 _date, std::string _address, std::string _alias = ""):
-        hash(_hash), date(_date), address(_address), alias(_alias)
-    {
-    }
-
-    // addressType other than 1 means address is a script, no need to show those beacons here
-    static bool showReferral(referral::ReferralTx &rtx);
-    static ReferralRecord decomposeReferral(const CWallet *wallet, referral::ReferralTx &rtx);
+        hash{_hash}, date{_date}, address{_address}, alias{_alias} {}
 
     /** @name Immutable referral attributes
       @{*/
@@ -70,15 +62,27 @@ public:
 
     /** Update status from core wallet tx.
      */
-    void updateStatus(referral::ReferralTx &rtx);
+    void UpdateStatus(const referral::ReferralRef&);
 
     /** Return whether a status update is needed.
      */
-    bool statusUpdateNeeded() const { return true; } // TODO: implement this. Otherwise we always replae cache data
+    bool StatusUpdateNeeded() const { return true; } // TODO: implement this. Otherwise we always replae cache data
 
     // temporary
-    QString displayString() const;
-    QString statusString() const;
+    QString DisplayString() const;
+    QString StatusString() const;
 };
+
+// addressType other than 1 means address is a script, no need to show those beacons here
+bool ShowReferral(const referral::ReferralRef&);
+
+namespace referral
+{
+    class RefMemPoolEntry;
+}
+
+ReferralRecord DecomposeReferral(const referral::ReferralTx &);
+ReferralRecord DecomposeReferral(const referral::RefMemPoolEntry &);
+
 
 #endif // MERIT_QT_REFERRALRECORD_H
