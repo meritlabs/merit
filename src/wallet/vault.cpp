@@ -12,9 +12,9 @@
 namespace vault
 {
 
-bool Vault::SameKind(const Vault& o) const 
+bool Vault::SameKind(const Vault& o) const
 {
-    return 
+    return
     type == o.type &&
     coin.out.scriptPubKey == o.coin.out.scriptPubKey;
 }
@@ -26,7 +26,7 @@ void FilterMempoolOutputs(const MempoolOutputs& outputs, MempoolOutputs& filtere
 {
     std::set<uint256> spending;
 
-    for(const auto& out : outputs) { 
+    for(const auto& out : outputs) {
         if(!out.first.spending) continue;
 
         spending.insert(out.second.prevhash);
@@ -35,7 +35,7 @@ void FilterMempoolOutputs(const MempoolOutputs& outputs, MempoolOutputs& filtere
     filtered.reserve(outputs.size());
 
     std::copy_if(outputs.begin(), outputs.end(), std::back_inserter(filtered),
-            [&spending](const MempoolOutput& out) { 
+            [&spending](const MempoolOutput& out) {
                 return !spending.count(out.first.txhash);
             });
 }
@@ -47,8 +47,8 @@ void ConvertToVaultOutputs(const Transactions& txns, VaultOutputs& outputs)
     Transactions utxos;
     utxos.reserve(txns.size());
 
-    std::copy_if(txns.begin(), txns.end(), std::back_inserter(utxos), 
-            [](const Transaction& t) { 
+    std::copy_if(txns.begin(), txns.end(), std::back_inserter(utxos),
+            [](const Transaction& t) {
                 return !t.first.spending;
             });
 
@@ -110,7 +110,7 @@ VaultCoins FindUnspentVaultCoins(const uint160& address)
 
     //Get outputs from mempool
     const int PARAM_SCRIPT_TYPE = 3;
-    std::vector<std::pair<uint160, int> > addresses = {{address, PARAM_SCRIPT_TYPE}};
+    std::vector<AddressPair> addresses = {{address, PARAM_SCRIPT_TYPE}};
     MempoolOutputs mempool_outputs;
     mempool.getAddressIndex(addresses, mempool_outputs);
 
@@ -121,7 +121,7 @@ VaultCoins FindUnspentVaultCoins(const uint160& address)
     //Get outputs from chain
     using ChainOutputs = std::vector<std::pair<CAddressIndexKey, CAmount>>;
     ChainOutputs chain_outputs;
-    GetAddressIndex(address, PARAM_SCRIPT_TYPE, chain_outputs);
+    GetAddressIndex(address, PARAM_SCRIPT_TYPE, false, chain_outputs);
     ConvertToVaultOutputs(chain_outputs, outputs);
 
     //Filter outputs and return only unspent coins
@@ -138,16 +138,16 @@ VaultCoins FindUnspentVaultCoins(const uint160& address)
 
 void ExtractPubKeys(const Stack& stack, int num_keys_idx, PubKeys& keys)
 {
-        if(num_keys_idx < 1) { 
-            throw JSONRPCError(RPC_TYPE_ERROR, 
+        if(num_keys_idx < 1) {
+            throw JSONRPCError(RPC_TYPE_ERROR,
                     "Vault seem sto be incompatible");
         }
-        
+
         const auto num_keys = CScriptNum{stack[num_keys_idx], false}.getint();
         if(num_keys > num_keys_idx) {
-            throw JSONRPCError(RPC_TYPE_ERROR, 
+            throw JSONRPCError(RPC_TYPE_ERROR,
                     "Vault does not have expected amount of keys");
-        } 
+        }
 
         for(int i = num_keys_idx - num_keys; i < num_keys_idx; i++) {
             CPubKey key{stack[i]};
@@ -210,9 +210,9 @@ Vault ParseVaultCoin(const VaultCoin& coin)
 
         if(stack_size < 6) {
             std::stringstream e;
-            e << "Simple vault requires 6 or more parameters. " 
-              << stack_size 
-              << " were provided"; 
+            e << "Simple vault requires 6 or more parameters. "
+              << stack_size
+              << " were provided";
 
             throw JSONRPCError(RPC_TYPE_ERROR, e.str());
         }

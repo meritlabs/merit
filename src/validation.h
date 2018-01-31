@@ -195,11 +195,6 @@ extern CConditionVariable cvBlockChange;
 extern std::atomic_bool fImporting;
 extern bool fReindex;
 extern int nScriptCheckThreads;
-extern bool fTxIndex;
-extern bool fAddressIndex;
-extern bool fSpentIndex;
-extern bool fReferralIndex;
-extern bool fTimestampIndex;
 extern bool fIsBareMultisigStd;
 extern bool fRequireStandard;
 extern bool fCheckBlockIndex;
@@ -247,6 +242,9 @@ static const unsigned int DEFAULT_CHECKLEVEL = 3;
 // one 128MB block file + added 15% undo data = 147MB greater for a total of 545MB
 // Setting the target to > than 550MB will make it likely we can respect the target.
 static const uint64_t MIN_DISK_SPACE_FOR_BLOCK_FILES = 550 * 1024 * 1024;
+
+using ConfirmationSet = std::set<uint160>;
+using AddressPair = std::pair<uint160, char>;
 
 /**
  * Process an incoming block. This only returns after the best known valid
@@ -309,7 +307,11 @@ bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &ha
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
 /** Check whether referral signature is valid */
-bool CheckReferralSignature(const referral::Referral& ref, const std::vector<referral::ReferralRef>& extraReferrals);
+bool CheckReferralSignature(const referral::Referral& ref);
+/** Build a set of confirmed address in block */
+void BuildConfirmationSet(const CTransactionRef& invite, ConfirmationSet& confirmations_in_block);
+/** Extract address and address type from tx out */
+AddressPair ExtractAddress(const CTxOut& tout);
 
 CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params);
 
@@ -334,14 +336,28 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
  */
 pog::AmbassadorLottery RewardAmbassadors(
         int height,
-        const uint256& previousBlockHash,
+        const uint256& previous_block_hash,
         CAmount total,
         const Consensus::Params&);
+
+bool RewardInvites(
+        int height,
+        CBlockIndex* pindexPrev,
+        const uint256& previous_block_hash,
+        CCoinsViewCache& view,
+        const Consensus::Params& params,
+        CValidationState& state,
+        pog::InviteRewards& rewards);
 
 /**
  * Include ambassadors into the coinbase transaction and split the total payment between them.
  */
 void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx);
+
+/**
+ * Include invites into the coinbase invite transaction.
+ */
+void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& tx);
 
 /** Guess verification progress (as a fraction between 0.0=genesis and 1.0=current tip). */
 double GuessVerificationProgress(const ChainTxData& data, CBlockIndex* pindex);
@@ -495,11 +511,20 @@ public:
 bool GetTimestampIndex(const unsigned int &high, const unsigned int &low, const bool fActiveOnly, std::vector<std::pair<uint256, unsigned int> > &hashes);
 bool GetSpentIndex(const CSpentIndexKey &key, CSpentIndexValue &value);
 bool HashOnchainActive(const uint256 &hash);
-bool GetAddressIndex(uint160 addressHash, int type,
-                     std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex,
-                     int start = 0, int end = 0);
-bool GetAddressUnspent(uint160 addressHash, int type,
-                       std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
+bool GetAddressIndex(
+        uint160 addressHash,
+        unsigned int type,
+        bool invite,
+        std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex,
+        int start = 0,
+        int end = 0);
+
+bool GetAddressUnspent(
+        uint160 addressHash,
+        unsigned int type, 
+        bool invite,
+        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
+
 /** Initializes the script-execution cache */
 void InitScriptExecutionCache();
 
@@ -522,6 +547,19 @@ bool CheckAddressBeaconed(const uint160&, bool checkMempool = true);
 /** Check that an address is valid and ready to use */
 bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool = true);
 
+/** Check that an address is valid and ready to use */
+bool CheckAddressConfirmed(const uint160&, char addr_type, bool checkMempool = true);
+
+/** Check that an address is valid and ready to use */
+bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool = true);
+
+/**
+ * Try to decide if the address is an alias or an address.
+ * If it is an alias, lookup the address.
+ */
+CTxDestination LookupDestination(const std::string& address);
+
+const referral::ReferralRef LookupReferral(referral::ReferralId& referral_id);
 
 /** When there are blocks in the active chain with missing data, rewind the chainstate and remove them from the block index */
 bool RewindBlockIndex(const CChainParams& params);
@@ -586,6 +624,11 @@ extern VersionBitsCache versionbitscache;
  * Determine what nVersion a new block should use.
  */
 int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Params& params);
+
+/**
+ * Returns true if we expect to be in daedalus mode.
+ */
+bool ExpectDaedalus(const CBlockIndex* pindexPrev, const Consensus::Params& params);
 
 /** Reject codes greater or equal to this can be returned by AcceptToMemPool
  * for transactions, to signal internal conditions. They cannot and should not

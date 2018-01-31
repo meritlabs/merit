@@ -14,16 +14,18 @@
 #include <stdint.h>
 #include <vector>
 #include <boost/optional.hpp>
+#include <boost/variant.hpp>
 
 typedef std::vector<unsigned char> valtype;
 
 namespace referral
 {
 using Address = uint160;
+using ReferralId = boost::variant<uint256, referral::Address, std::string>;
 
 struct MutableReferral;
 
-static const int SERIALIZE_REFERRAL = 0x40000000;
+static const int MAX_ALIAS_LENGTH = 20;
 
 struct MutableReferral;
 
@@ -38,12 +40,13 @@ friend struct MutableReferral;
 public:
     // Default referral version.
     static const int32_t CURRENT_VERSION = 0;
+    static const int32_t INVITE_VERSION = 1;
 
     // Changing the default referral version requires a two step process: first
     // adapting relay policy by bumping MAX_STANDARD_VERSION, and then later date
     // bumping the default CURRENT_VERSION at which point both CURRENT_VERSION and
     // MAX_STANDARD_VERSION will be equal.
-    static const int32_t MAX_STANDARD_VERSION = 0;
+    static const int32_t MAX_STANDARD_VERSION = 1;
 
     const int32_t version;
 
@@ -56,14 +59,16 @@ public:
     // pubky used to sign referral
     // pubkey of beaconed address in case addressType = 1
     // signer pubkey otherwise
-    CPubKey pubkey;
+    const CPubKey pubkey;
 
     // signature of parentAddress + address
-    valtype signature;
+    const valtype signature;
+
+    // referral alias aka name
+    const std::string alias;
 
 private:
-    // address that this referral is related to.
-    Address address;
+    const Address address;
 
     /** Memory only. */
     const uint256 hash;
@@ -73,7 +78,6 @@ private:
 public:
     /** Convert a MutableReferral into a Referral. */
     Referral(const MutableReferral& ref);
-
     Referral(MutableReferral&& ref);
 
     template <typename Stream>
@@ -127,7 +131,6 @@ public:
 struct MutableReferral {
 friend class Referral;
 
-private:
     Address address;
 
 public:
@@ -136,8 +139,11 @@ public:
     char addressType;
     CPubKey pubkey;
     valtype signature;
+    std::string alias;
 
-    MutableReferral() : version(Referral::CURRENT_VERSION), addressType{0} {}
+    MutableReferral(int32_t versionIn = Referral::CURRENT_VERSION) : version(versionIn),
+                                                                     addressType{0},
+                                                                     alias{""} {}
 
     MutableReferral(const Referral& ref);
 
@@ -145,8 +151,11 @@ public:
         char addressTypeIn,
         const Address& addressIn,
         const CPubKey& pubkeyIn,
-        const Address& parentAddressIn);
+        const Address& parentAddressIn,
+        std::string aliasIn = "",
+        int32_t versionIn = Referral::CURRENT_VERSION);
 
+    Address GetAddress() const;
 
     template <typename Stream>
     inline void Serialize(Stream& s) const
@@ -183,6 +192,7 @@ public:
 
     template <typename Stream, typename RefType>
     friend void UnserializeReferral(RefType& ref, Stream& s);
+
 };
 
 using ReferralRef =  std::shared_ptr<const Referral>;
@@ -202,14 +212,20 @@ inline void UnserializeReferral(RefType& ref, Stream& s)
     s >> ref.address;
     s >> ref.pubkey;
     s >> ref.signature;
+    if (ref.version >= Referral::INVITE_VERSION) {
+        s >> LIMITED_STRING(ref.alias, MAX_ALIAS_LENGTH);
+    }
 
-    assert(ref.pubkey.IsValid());
+    if(!ref.pubkey.IsValid()) {
+        throw std::runtime_error{"invalid referral pubkey"};
+    }
 }
 
 template <typename Stream, typename RefType>
 inline void SerializeReferral(const RefType& ref, Stream& s)
 {
     assert(ref.pubkey.IsValid());
+    assert(ref.alias.size() <= MAX_ALIAS_LENGTH);
 
     s << ref.version;
     s << ref.parentAddress;
@@ -217,6 +233,9 @@ inline void SerializeReferral(const RefType& ref, Stream& s)
     s << ref.address;
     s << ref.pubkey;
     s << ref.signature;
+    if (ref.version >= Referral::INVITE_VERSION) {
+        s << LIMITED_STRING(ref.alias, MAX_ALIAS_LENGTH);
+    }
 }
 
 typedef std::shared_ptr<const Referral> ReferralRef;
@@ -227,6 +246,14 @@ static inline ReferralRef MakeReferralRef(Ref&& referralIn)
     return std::make_shared<const Referral>(std::forward<Ref>(referralIn));
 }
 
+/**
+ * Returns true if the referral's alias passes validation.
+ * It must not be greater than a certain size and not use certain
+ * blacklisted words
+ */
+bool CheckReferralAlias(std::string ref);
+
 } //namespace referral
+
 
 #endif // MERIT_PRIMITIVES_REFERRAL_H

@@ -38,8 +38,6 @@ SendCoinsEntry::SendCoinsEntry(const PlatformStyle *_platformStyle, QWidget *par
     ui->addAsLabel->setPlaceholderText(tr("Enter a label for this address to add it to your address book"));
 #endif
 
-    // normal merit address field
-    GUIUtil::setupAddressWidget(ui->payTo, this);
     // just a label for displaying merit address(es)
     ui->payTo_is->setFont(GUIUtil::fixedPitchFont());
 
@@ -66,7 +64,7 @@ void SendCoinsEntry::on_addressBookButton_clicked()
 {
     if(!model)
         return;
-    AddressBookPage dlg(platformStyle, AddressBookPage::ForSelection, AddressBookPage::SendingTab, this);
+    AddressBookPage dlg(platformStyle, AddressBookPage::ForSelection, AddressBookPage::SendingTab, this, model);
     dlg.setModel(model->getAddressTableModel());
     if(dlg.exec())
     {
@@ -84,8 +82,12 @@ void SendCoinsEntry::setModel(WalletModel *_model)
 {
     this->model = _model;
 
-    if (_model && _model->getOptionsModel())
+    if (_model && _model->getOptionsModel()) {
+        // normal merit address field
+        GUIUtil::setupAddressWidget(ui->payTo, this, model);
+
         connect(_model->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
+    }
 
     clear();
 }

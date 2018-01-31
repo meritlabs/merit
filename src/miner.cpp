@@ -53,6 +53,7 @@ uint64_t nLastBlockSize = 0;
 uint64_t nLastBlockWeight = 0;
 
 extern std::unique_ptr<CConnman> g_connman;
+extern CCoinsViewCache *pcoinsTip;
 
 int64_t UpdateTime(
         CBlockHeader* pblock,
@@ -174,12 +175,18 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblocktemplate->vTxFees.push_back(-1);       // updated at end
     pblocktemplate->vTxSigOpsCost.push_back(-1); // updated at end
 
-    LOCK2(cs_main, mempool.cs);
+    LOCK(cs_main);
     CBlockIndex* pindexPrev = chainActive.Tip();
     assert(pindexPrev != nullptr);
     nHeight = pindexPrev->nHeight + 1;
 
     pblock->nVersion = ComputeBlockVersion(pindexPrev, chain_params);
+
+    //Add a dummy coinbase invite as first invite in daedalus block
+    if (pblock->IsDaedalus()) {
+        pblock->invites.emplace_back();
+    }
+
     // -regtest only: allow overriding block.nVersion with
     // -blockversion=N to test forking scenarios
     if (chainparams.MineBlocksOnDemand())
@@ -193,12 +200,14 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     int nPackagesSelected = 0;
     int nDescendantsUpdated = 0;
+    {
+        LOCK2(mempool.cs, mempoolReferral.cs);
 
+        addPackageTxs(nPackagesSelected, nDescendantsUpdated);
 
-    addPackageTxs(nPackagesSelected, nDescendantsUpdated);
-
-    // add left referrals to the block after dependant transactions and referrals already added
-    AddReferrals();
+        // add left referrals to the block after dependant transactions and referrals already added
+        AddReferrals();
+    }
 
     int64_t nTime1 = GetTimeMicros();
 
@@ -252,10 +261,43 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     coinbaseTx.vout[0].nValue = nFees + miner_subsidy;
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
 
+    CValidationState state;
+
+    //Include invites if we are mining a daudalus block
+    if (pblock->IsDaedalus()) {
+        CMutableTransaction coinbaseInvites;
+        coinbaseInvites.vin.resize(1);
+        coinbaseInvites.vin[0].prevout.SetNull();
+        coinbaseInvites.vin[0].scriptSig = CScript() << nHeight << OP_0;
+
+        coinbaseInvites.nVersion = CTransaction::INVITE_VERSION;
+
+        assert(pcoinsTip);
+
+        pog::InviteRewards invites;
+        RewardInvites(
+                nHeight,
+                pindexPrev,
+                previousBlockHash,
+                *pcoinsTip,
+                chain_params,
+                state,
+                invites);
+
+        if(invites.empty()) {
+            //remove empty coinbase
+            pblock->invites.erase(pblock->invites.begin());
+        } else {
+            DistributeInvites(invites, coinbaseInvites);
+            pblock->invites[0] = MakeTransactionRef(std::move(coinbaseInvites));
+        }
+    }
+
     pblocktemplate->vchCoinbaseCommitment =
         GenerateCoinbaseCommitment(*pblock, pindexPrev, chain_params);
 
     pblocktemplate->vTxFees[0] = -nFees;
+
 
     uint64_t nSerializeSize = GetSerializeSize(*pblock, SER_NETWORK, PROTOCOL_VERSION);
 
@@ -279,7 +321,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     pblock->nEdgeBits = pow.nEdgeBits;
     pblocktemplate->vTxSigOpsCost[0] = WITNESS_SCALE_FACTOR * GetLegacySigOpCount(*pblock->vtx[0]);
 
-    CValidationState state;
     if (!TestBlockValidity(state, chainparams, *pblock, pindexPrev, false, false)) {
         throw std::runtime_error(
                 strprintf(
@@ -313,6 +354,16 @@ void BlockAssembler::onlyUnconfirmed(CTxMemPool::setEntries& testSet)
     }
 }
 
+void BuildConfirmationSet(const CTxMemPool::setEntries& testSet, ConfirmationSet& confirmations)
+{
+    for (const auto& txentry : testSet) {
+        if (txentry->GetSharedEntryValue()->IsInvite()) {
+            BuildConfirmationSet(txentry->GetSharedEntryValue(), confirmations);
+        }
+    }
+}
+
+
 bool BlockAssembler::CheckReferrals(
         CTxMemPool::setEntries& testSet,
         referral::ReferralTxMemPool::setEntries& candidateReferrals)
@@ -320,19 +371,37 @@ bool BlockAssembler::CheckReferrals(
     std::vector<referral::ReferralRef> vRefs(candidateReferrals.size());
 
     std::transform(candidateReferrals.begin(), candidateReferrals.end(), vRefs.begin(),
-        [](const referral::ReferralTxMemPool::refiter& entryit) {
+        [](const referral::ReferralTxMemPool::RefIter& entryit) {
             return entryit->GetSharedEntryValue();
         });
 
+    ConfirmationSet confirmations;
+    BuildConfirmationSet(testSet, confirmations);
+
     // test all referrals are signed
     for (const auto& entryit: candidateReferrals) {
-        CheckReferralSignature(entryit->GetEntryValue(), vRefs);
+        const auto referral = entryit->GetEntryValue();
+
+        if (!CheckReferralSignature(referral)) {
+            return false;
+        }
+
+        if (pblock->IsDaedalus()) {
+            // Check package for confirmation for give referral
+            if (confirmations.count(referral.GetAddress()) == 0) {
+                debug("ERROR: Referral confirmation not found: %s", 
+                        CMeritAddress{referral.addressType, referral.GetAddress()}.ToString());
+                return false;
+            }
+        }
     }
 
-    // test all tx's outputs are beaconed
-    for (const CTxMemPool::txiter it : testSet) {
+    // test all tx's outputs are beaconed and confirmed
+    for (const auto it : testSet) {
+        const auto tx = it->GetEntryValue();
+
         CValidationState dummy;
-        if (!Consensus::CheckTxOutputs(it->GetEntryValue(), dummy, *prefviewcache, vRefs)) {
+        if (!Consensus::CheckTxOutputs(tx, dummy, *prefviewcache, vRefs)) {
             return false;
         }
     }
@@ -402,28 +471,36 @@ bool BlockAssembler::TestPackageContent(
 
 void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 {
-    pblock->vtx.emplace_back(iter->GetSharedEntryValue());
-    pblocktemplate->vTxFees.push_back(iter->GetFee());
+    const auto& tx = iter->GetEntryValue();
+    if(tx.IsInvite()) {
+        debug("Miner Assembler: adding invite transaction to block");
+        pblock->invites.emplace_back(iter->GetSharedEntryValue());
+    } else {
+        pblock->vtx.emplace_back(iter->GetSharedEntryValue());
+        pblocktemplate->vTxFees.push_back(iter->GetFee());
+        nFees += iter->GetFee();
+    }
+
     pblocktemplate->vTxSigOpsCost.push_back(iter->GetSigOpCost());
-    auto txSize = ::GetSerializeSize(iter->GetEntryValue(), SER_NETWORK, PROTOCOL_VERSION);
+    auto txSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
     if (fNeedSizeAccounting) {
         nBlockSize += txSize;
     }
+
     nBlockWeight += iter->GetWeight();
     ++nBlockTx;
     nBlockSigOpsCost += iter->GetSigOpCost();
-    nFees += iter->GetFee();
     txsInBlock.insert(iter);
 
     bool fPrintPriority = gArgs.GetBoolArg("-printpriority", DEFAULT_PRINTPRIORITY);
     if (fPrintPriority) {
         LogPrintf("fee %s txid %s\n",
             CFeeRate(iter->GetModifiedFee(), iter->GetSize()).ToString(),
-            iter->GetEntryValue().GetHash().ToString());
+            tx.GetHash().ToString());
     }
 }
 
-void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::refiter iter)
+void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::RefIter iter)
 {
     if (refsInBlock.count(iter)) {
         debug("\t%s: Referral %s is already in block\n", __func__,
@@ -431,7 +508,14 @@ void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::refiter ite
         return;
     }
 
-    pblock->m_vRef.push_back(iter->GetSharedEntryValue());
+    auto ref = iter->GetSharedEntryValue();
+    if (!mempoolReferral.Exists(ref->parentAddress)
+            && !prefviewdb->GetReferral(ref->parentAddress)) {
+        return;
+    } 
+
+    pblock->m_vRef.push_back(ref);
+
     if (fNeedSizeAccounting) {
         nBlockSize += iter->GetSize();
     }
@@ -506,14 +590,27 @@ void BlockAssembler::AddReferrals()
 {
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
 
+    ConfirmationSet confirmations;
+    BuildConfirmationSet(txsInBlock, confirmations);
 
     for (auto it = mempoolReferral.mapRTx.begin(); it != mempoolReferral.mapRTx.end(); it++) {
         const auto ref = it->GetSharedEntryValue();
 
         if (refsInBlock.count(it)) {
-            debug("\t%s: Referral %s is already in block\n", __func__,
-                    ref->GetHash().GetHex());
+            debug("\t%s: Referral %s is already in block", __func__, ref->GetHash().GetHex());
             continue;
+        }
+
+        // test all referrals are signed
+        if (!CheckReferralSignature(*ref)) {
+            continue;
+        }
+
+        if (pblock->IsDaedalus()) {
+            // Check package for confirmation for give referral
+            if (confirmations.count(ref->GetAddress()) == 0) {
+                continue;
+            }
         }
 
         uint64_t nRefSize = it->GetSize();
@@ -525,6 +622,14 @@ void BlockAssembler::AddReferrals()
             }
             nPotentialBlockSize += nRefSize;
         }
+
+        //Check mempoolForParent
+        //If we don't find the parent in the mempool (it's also not in block at this point)
+        //Look in the blockchain.
+        if (!mempoolReferral.Exists(ref->parentAddress)
+                && !prefviewdb->GetReferral(ref->parentAddress)) {
+            continue;
+        } 
 
         pblock->m_vRef.push_back(ref);
         if (fNeedSizeAccounting) {
@@ -615,7 +720,8 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
             packageSigOpsCost = modit->nSigOpCostWithAncestors;
         }
 
-        if (packageFees < blockMinFeeRate.GetFee(packageSize)) {
+        if (!iter->GetEntryValue().IsInvite() &&
+                packageFees < blockMinFeeRate.GetFee(packageSize)) {
             // Everything else we might consider has a lower fee rate
             return;
         }
@@ -658,6 +764,16 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
 
         referral::ReferralTxMemPool::setEntries referrals;
         mempool.CalculateMemPoolAncestorsReferrals(ancestors, referrals);
+
+        CTxMemPool::setEntries confirmations;
+
+        // Add confirmations only for daedalus block
+        if (pblock->IsDaedalus()) {
+            // TODO: test block size limits and update confirmations selection
+            // when transactions weight is close to limit
+            mempool.CalculateReferralsConfirmations(referrals, ancestors);
+            onlyUnconfirmed(ancestors);
+        }
 
         // Test if all tx's have required referrals and all tx's are Final
         if (!CheckReferrals(ancestors, referrals) || !TestPackageContent(ancestors, referrals)) {
@@ -755,7 +871,7 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
         if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
             throw std::runtime_error(
                     "No coinbase script available "
-                    "(mining requires a wallet)");
+                    "(mining requires confirmed wallet)");
         }
 
         while (true) {

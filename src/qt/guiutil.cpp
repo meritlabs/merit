@@ -121,7 +121,7 @@ static std::string DummyAddress(const CChainParams &params)
     return "";
 }
 
-void setupAddressWidget(QValidatedLineEdit *widget, QWidget *parent)
+void setupAddressWidget(QValidatedLineEdit *widget, QWidget *parent, WalletModel* wallet)
 {
     parent->setFocusProxy(widget);
 
@@ -132,8 +132,8 @@ void setupAddressWidget(QValidatedLineEdit *widget, QWidget *parent)
     widget->setPlaceholderText(QObject::tr("Enter a Merit address (e.g. %1)").arg(
         QString::fromStdString(DummyAddress(Params()))));
 #endif
-    widget->setValidator(new MeritAddressEntryValidator(parent));
-    widget->setCheckValidator(new MeritAddressCheckValidator(parent));
+    widget->setValidator(new MeritAddressEntryValidator(parent, wallet));
+    widget->setCheckValidator(new MeritAddressCheckValidator(parent, wallet));
 }
 
 void setupAmountWidget(QLineEdit *widget, QWidget *parent)

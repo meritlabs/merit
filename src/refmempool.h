@@ -71,6 +71,15 @@ public:
     }
 };
 
+struct referral_address {
+};
+
+struct referral_alias {
+};
+
+Address GetAddress(const RefMemPoolEntry& entry);
+std::string GetAlias(const RefMemPoolEntry& entry);
+
 class ReferralTxMemPool
 {
 private:
@@ -85,6 +94,23 @@ public:
             boost::multi_index::hashed_unique<
                 MemPoolEntryHash<Referral>,
                 SaltedTxidHasher>,
+                // sorted by address
+            boost::multi_index::hashed_unique<
+                boost::multi_index::tag<referral_address>,
+                boost::multi_index::global_fun<
+                    const RefMemPoolEntry&,
+                    Address,
+                    &GetAddress>,
+                SaltedHasher<160>>,
+            // use non-unique here to support empty tags.
+            // otherwise it won't add such referrals to index
+            // uniqueness is provided by validation
+            boost::multi_index::hashed_non_unique<
+                boost::multi_index::tag<referral_alias>,
+                boost::multi_index::global_fun<
+                    const RefMemPoolEntry&,
+                    std::string,
+                    &GetAlias>>,
             // sorted by descendants count
             boost::multi_index::ordered_non_unique<
                 boost::multi_index::tag<descendants_count>,
@@ -96,9 +122,11 @@ public:
                 boost::multi_index::identity<RefMemPoolEntry>,
                 CompareMemPoolEntryByEntryTime<Referral>>>>;
 
-    using refiter = indexed_referrals_set::nth_index<0>::type::iterator;
+    using RefIter = indexed_referrals_set::nth_index<0>::type::iterator;
+    using RefAddressIter = indexed_referrals_set::nth_index<1>::type::iterator;
+    using RefAliasIter = indexed_referrals_set::nth_index<2>::type::iterator;
 
-    using setEntries = std::set<refiter, CompareIteratorByHash<refiter>>;
+    using setEntries = std::set<RefIter, CompareIteratorByHash<RefIter>>;
 
     mutable CCriticalSection cs;
 
@@ -128,7 +156,7 @@ public:
     /**
      *  Remove referral from the mempool
      */
-    void RemoveUnchecked(refiter it, MemPoolRemovalReason reason);
+    void RemoveUnchecked(RefIter it, MemPoolRemovalReason reason);
 
     /**
      *  Remove a set of referrals from the mempool.
@@ -153,37 +181,43 @@ public:
      *  Assumes that setDescendants includes all in-mempool descendants of anything
      *  already in it.
      */
-    void CalculateDescendants(refiter entryit, setEntries& setDescendants) const;
+    void CalculateDescendants(RefIter entryit, setEntries& setDescendants) const;
 
     /**
      * Get children of a given referral
      */
-    const setEntries& GetMemPoolChildren(refiter entry) const;
+    const setEntries& GetMemPoolChildren(RefIter entry) const;
+
+    /**
+     * Check if referral with a given hash exists in mempoll
+     */
+    bool Exists(const uint256& hash) const;
 
     /**
      *  Check if referral with a given address exists in mempool
      */
-    bool ExistsWithAddress(const Address& address) const;
+    bool Exists(const Address& address) const;
 
     /**
-     *  Get referral with a given address from mempool
+     * Check if referral with a given alias exists in mempoll
      */
-    ReferralRef GetWithAddress(const Address& address) const;
+    bool Exists(const std::string& alias) const;
 
-    /**
-     * Check if referral with a given hash exists in mempoll
-     *
-     * TODO: update referral model to use one hash for referral id and unlock code
-     */
-    bool Exists(const uint256& hash) const
-    {
-        LOCK(cs);
-        return (mapRTx.count(hash) != 0);
-    }
-
+    /** Get referral by hash */
     ReferralRef Get(const uint256& hash) const;
 
-    unsigned long Size()
+    /** Get referral by address */
+    ReferralRef Get(const Address& address) const;
+
+    /** Get referral by alias */
+    ReferralRef Get(const std::string& alias) const;
+
+    /** Get referral by id - hash, address or alias */
+    ReferralRef Get(const ReferralId& referral_id) const;
+
+    std::pair<RefAliasIter, RefAliasIter> Find(const std::string& alias) const;
+
+    unsigned long Size() const
     {
         LOCK(cs);
         return mapRTx.size();
@@ -204,8 +238,8 @@ public:
     boost::signals2::signal<void(ReferralRef, MemPoolRemovalReason)> NotifyEntryRemoved;
 
 private:
-    using reflinksMap = std::map<refiter, setEntries, CompareIteratorByHash<refiter>>;
-    reflinksMap mapChildren;
+    using RefLinksMap = std::map<RefIter, setEntries, CompareIteratorByHash<RefIter>>;
+    RefLinksMap mapChildren;
 };
 }
 

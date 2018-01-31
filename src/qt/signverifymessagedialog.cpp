@@ -42,18 +42,6 @@ SignVerifyMessageDialog::SignVerifyMessageDialog(const PlatformStyle *_platformS
     ui->signatureOut_SM->setPlaceholderText(tr("Click \"Sign Message\" to generate signature"));
 #endif
 
-    GUIUtil::setupAddressWidget(ui->addressIn_SM, this);
-    GUIUtil::setupAddressWidget(ui->addressIn_VM, this);
-
-    ui->addressIn_SM->installEventFilter(this);
-    ui->messageIn_SM->installEventFilter(this);
-    ui->signatureOut_SM->installEventFilter(this);
-    ui->addressIn_VM->installEventFilter(this);
-    ui->messageIn_VM->installEventFilter(this);
-    ui->signatureIn_VM->installEventFilter(this);
-
-    ui->signatureOut_SM->setFont(GUIUtil::fixedPitchFont());
-    ui->signatureIn_VM->setFont(GUIUtil::fixedPitchFont());
 }
 
 SignVerifyMessageDialog::~SignVerifyMessageDialog()
@@ -64,6 +52,18 @@ SignVerifyMessageDialog::~SignVerifyMessageDialog()
 void SignVerifyMessageDialog::setModel(WalletModel *_model)
 {
     this->model = _model;
+    GUIUtil::setupAddressWidget(ui->addressIn_SM, this, model);
+    GUIUtil::setupAddressWidget(ui->addressIn_VM, this, model);
+
+    ui->addressIn_SM->installEventFilter(this);
+    ui->messageIn_SM->installEventFilter(this);
+    ui->signatureOut_SM->installEventFilter(this);
+    ui->addressIn_VM->installEventFilter(this);
+    ui->messageIn_VM->installEventFilter(this);
+    ui->signatureIn_VM->installEventFilter(this);
+
+    ui->signatureOut_SM->setFont(GUIUtil::fixedPitchFont());
+    ui->signatureIn_VM->setFont(GUIUtil::fixedPitchFont());
 }
 
 void SignVerifyMessageDialog::setAddress_SM(const QString &address)
@@ -96,7 +96,12 @@ void SignVerifyMessageDialog::on_addressBookButton_SM_clicked()
 {
     if (model && model->getAddressTableModel())
     {
-        AddressBookPage dlg(platformStyle, AddressBookPage::ForSelection, AddressBookPage::ReceivingTab, this);
+        AddressBookPage dlg(
+                platformStyle,
+                AddressBookPage::ForSelection,
+                AddressBookPage::ReceivingTab,
+                this,
+                model);
         dlg.setModel(model->getAddressTableModel());
         if (dlg.exec())
         {
@@ -118,7 +123,7 @@ void SignVerifyMessageDialog::on_signMessageButton_SM_clicked()
     /* Clear old signature to ensure users don't get confused on error with an old signature displayed */
     ui->signatureOut_SM->clear();
 
-    CTxDestination destination = DecodeDestination(ui->addressIn_SM->text().toStdString());
+    CTxDestination destination = LookupDestination(ui->addressIn_SM->text().toStdString());
     if (!IsValidDestination(destination)) {
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(tr("The entered address is invalid.") + QString(" ") + tr("Please check the address and try again."));
@@ -185,7 +190,12 @@ void SignVerifyMessageDialog::on_addressBookButton_VM_clicked()
 {
     if (model && model->getAddressTableModel())
     {
-        AddressBookPage dlg(platformStyle, AddressBookPage::ForSelection, AddressBookPage::SendingTab, this);
+        AddressBookPage dlg(
+                platformStyle,
+                AddressBookPage::ForSelection,
+                AddressBookPage::SendingTab,
+                this,
+                model);
         dlg.setModel(model->getAddressTableModel());
         if (dlg.exec())
         {
@@ -196,7 +206,7 @@ void SignVerifyMessageDialog::on_addressBookButton_VM_clicked()
 
 void SignVerifyMessageDialog::on_verifyMessageButton_VM_clicked()
 {
-    CTxDestination destination = DecodeDestination(ui->addressIn_VM->text().toStdString());
+    CTxDestination destination = LookupDestination(ui->addressIn_VM->text().toStdString());
     if (!IsValidDestination(destination)) {
         ui->statusLabel_VM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_VM->setText(tr("The entered address is invalid.") + QString(" ") + tr("Please check the address and try again."));

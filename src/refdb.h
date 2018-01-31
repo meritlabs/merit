@@ -9,6 +9,7 @@
 #include "amount.h"
 #include "serialize.h"
 #include "primitives/referral.h"
+#include "primitives/transaction.h"
 #include "pog/wrs.h"
 
 #include <boost/optional.hpp>
@@ -26,7 +27,7 @@ using LotteryEntrant = std::tuple<pog::WeightedKey, char, Address>;
 using MaybeLotteryEntrant = boost::optional<LotteryEntrant>;
 using AddressPair = std::pair<char, Address>;
 using MaybeAddressPair = boost::optional<AddressPair>;
-
+using TransactionHash = uint256;
 
 struct AddressANV
 {
@@ -37,6 +38,16 @@ struct AddressANV
 
 using AddressANVs = std::vector<AddressANV>;
 using MaybeAddressANV = boost::optional<AddressANV>;
+
+struct ConfirmedAddress
+{
+    char address_type;
+    Address address;
+    int invites;
+};
+
+using ConfirmedAddresses = std::vector<ConfirmedAddress>;
+using MaybeConfirmedAddress = boost::optional<ConfirmedAddress>;
 
 /**
  * These are the replaced samples in the lottery.
@@ -74,6 +85,8 @@ public:
 
     MaybeReferral GetReferral(const Address&) const;
     MaybeReferral GetReferral(const uint256&) const;
+    MaybeReferral GetReferral(const std::string&) const;
+    MaybeReferral GetReferral(const ReferralId&) const;
     MaybeAddressPair GetParentAddress(const Address&) const;
     MaybeAddress GetAddressByPubKey(const CPubKey&) const;
     ChildAddresses GetChildren(const Address&) const;
@@ -85,8 +98,6 @@ public:
 
     bool InsertReferral(const Referral&, bool allow_no_parent = false);
     bool RemoveReferral(const Referral&);
-
-    bool Exists(const Address&) const;
 
     AddressANVs GetAllRewardableANVs() const;
 
@@ -101,6 +112,18 @@ public:
     bool UndoLotteryEntrant(
             const LotteryUndo&,
             const uint64_t max_reservoir_size);
+
+    //Daedalus code.
+    bool Exists(const Address&) const;
+    bool Exists(const std::string&) const;
+    bool IsConfirmed(const Address&) const;
+    bool UpdateConfirmation(char address_type, const Address&, CAmount amount);
+
+    bool ConfirmAllPreDaedalusAddresses();
+    bool AreAllPreDaedalusAddressesConfirmed() const;
+    uint64_t GetTotalConfirmations() const;
+    MaybeConfirmedAddress GetConfirmation(uint64_t idx) const;
+
 
 private:
     uint64_t GetLotteryHeapSize() const;

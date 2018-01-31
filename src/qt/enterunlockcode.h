@@ -1,6 +1,8 @@
 #ifndef MERIT_QT_ENTERUNLOCKCODE_H
 #define MERIT_QT_ENTERUNLOCKCODE_H
 
+#include "base58.h"
+
 #include "walletmodel.h"
 #include <QWidget>
 
@@ -18,10 +20,13 @@ public:
     ~EnterUnlockCode();
 
 Q_SIGNALS:
-    void walletReferred();
+    void WalletReferred();
+    void CanSubmitChanged(bool);
 
 public Q_SLOTS:
-    void submitButtonClicked();
+    void unlockCodeChanged(const QString &text);
+    void aliasChanged(const QString &text);
+    void submit();
     void setModel(WalletModel *model);
     // will show or hide the modal layer
     void showHide(bool hide = false, bool userRequested = false);
@@ -36,7 +41,12 @@ private:
     WalletModel *walletModel;
     bool layerIsVisible;
     bool userClosed;
+    CMeritAddress parentAddress;
+    bool canSubmit = false;
+    bool addressValid = false;
+    bool aliasValid = true;
 
+    void UpdateCanSubmit();
     void InvalidAddressMessageBox();
 };
 

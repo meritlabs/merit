@@ -69,6 +69,7 @@ bool CCoinsViewCache::GetCoin(const COutPoint &outpoint, Coin &coin) const {
 
 void CCoinsViewCache::AddCoin(const COutPoint &outpoint, Coin&& coin, bool possible_overwrite) {
     assert(!coin.IsSpent());
+    assert(!outpoint.IsNull());
     if (coin.out.scriptPubKey.IsUnspendable()) return;
     CCoinsMap::iterator it;
     bool inserted;
@@ -89,13 +90,17 @@ void CCoinsViewCache::AddCoin(const COutPoint &outpoint, Coin&& coin, bool possi
 }
 
 void AddCoins(CCoinsViewCache& cache, const CTransaction &tx, int nHeight, bool check) {
-    bool fCoinbase = tx.IsCoinBase();
+    bool coinbase = tx.IsCoinBase();
+    bool invite = tx.IsInvite();
     const uint256& txid = tx.GetHash();
     for (size_t i = 0; i < tx.vout.size(); ++i) {
-        bool overwrite = check ? cache.HaveCoin(COutPoint(txid, i)) : fCoinbase;
+        bool overwrite = check ? cache.HaveCoin(COutPoint(txid, i)) : coinbase;
         // Always set the possible_overwrite flag to AddCoin for coinbase txn, in order to correctly
         // deal with the pre-BIP30 occurrences of duplicate coinbase transactions.
-        cache.AddCoin(COutPoint(txid, i), Coin(tx.vout[i], nHeight, fCoinbase), overwrite);
+        cache.AddCoin(
+                COutPoint(txid,i),
+                Coin(tx.vout[i], nHeight, coinbase, invite),
+                overwrite);
     }
 }
 

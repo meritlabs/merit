@@ -190,7 +190,7 @@ private:
     void resetBlock();
     /** Add a tx to the block */
     void AddTransactionToBlock(CTxMemPool::txiter iter);
-    void AddReferralToBlock(referral::ReferralTxMemPool::refiter iter);
+    void AddReferralToBlock(referral::ReferralTxMemPool::RefIter iter);
 
     // Methods for how to add transactions to a block.
     /** Add transactions based on feerate including unconfirmed ancestors

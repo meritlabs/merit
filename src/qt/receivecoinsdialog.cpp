@@ -143,7 +143,7 @@ void ReceiveCoinsDialog::on_receiveButton_clicked()
     if(ui->reuseAddress->isChecked())
     {
         /* Choose existing receiving address */
-        AddressBookPage dlg(platformStyle, AddressBookPage::ForSelection, AddressBookPage::ReceivingTab, this);
+        AddressBookPage dlg(platformStyle, AddressBookPage::ForSelection, AddressBookPage::ReceivingTab, this, model);
         dlg.setModel(model->getAddressTableModel());
         if(dlg.exec())
         {

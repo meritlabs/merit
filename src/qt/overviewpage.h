@@ -13,6 +13,7 @@
 
 class ClientModel;
 class TransactionFilterProxy;
+class ReferralViewDelegate;
 class TxViewDelegate;
 class PlatformStyle;
 class WalletModel;
@@ -39,8 +40,18 @@ public:
     void showOutOfSyncWarning(bool fShow);
 
 public Q_SLOTS:
-    void setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance,
-                    const CAmount& watchOnlyBalance, const CAmount& watchUnconfBalance, const CAmount& watchImmatureBalance);
+    void setBalance(
+            CAmount balance,
+            CAmount unconfirmedBalance,
+            CAmount immatureBalance,
+            CAmount watchOnlyBalance,
+            CAmount watchUnconfBalance,
+            CAmount watchImmatureBalance,
+            CAmount inviteBalance);
+    void UpdateInvitationStatus();
+    void UpdateNetworkView();
+    void HideInviteNotice();
+    void MempoolSizeChanged(long size, size_t bytes);
 
 Q_SIGNALS:
     void transactionClicked(const QModelIndex &index);
@@ -56,13 +67,26 @@ private:
     CAmount currentWatchOnlyBalance;
     CAmount currentWatchUnconfBalance;
     CAmount currentWatchImmatureBalance;
+    CAmount currentInviteBalance;
+    bool currentIsDaedalus;
 
+    ReferralViewDelegate *referraldelegate;
     TxViewDelegate *txdelegate;
     std::unique_ptr<TransactionFilterProxy> filter;
+    bool is_confirmed = false;
+
+    long mempool_size = 0;
+    size_t mempool_bytes = 0;
+
+private:
+    QString FormatInviteBalance(CAmount invites);
+    void SetShadows();
+
 
 private Q_SLOTS:
     void updateDisplayUnit();
     void handleTransactionClicked(const QModelIndex &index);
+    void handleReferralClicked(const QModelIndex &index);
     void updateAlerts(const QString &warnings);
     void updateWatchOnlyLabels(bool showWatchOnly);
     void handleOutOfSyncWarningClicks();

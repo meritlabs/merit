@@ -13,6 +13,10 @@
 #include "uint256.h"
 #include <set>
 
+#include <iostream>
+
+const uint32_t DAEDALUS_BIT = static_cast<uint32_t>(1) << 27;
+
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work
  * requirements.  When they solve the proof-of-work, they broadcast the block
@@ -77,6 +81,11 @@ public:
     {
         return (int64_t)nTime;
     }
+
+    bool IsDaedalus() const
+    {
+        return (nVersion & DAEDALUS_BIT) != 0;
+    }
 };
 
 class CBlock : public CBlockHeader
@@ -85,6 +94,7 @@ public:
     // network and disk
     std::vector<CTransactionRef> vtx;
     referral::ReferralRefs m_vRef;
+    std::vector<CTransactionRef> invites;
 
 
     // memory only
@@ -107,6 +117,9 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
+        if(IsDaedalus()) {
+            READWRITE(invites);
+        }
         READWRITE(m_vRef);
     }
 

@@ -17,28 +17,41 @@ struct CAddressUnspentKey {
     uint256 txhash;
     uint32_t index;
     bool isCoinbase;
+    bool isInvite;
 
     size_t GetSerializeSize() const {
         return 57;
     }
     template<typename Stream>
     void Serialize(Stream& s) const {
-        ser_writedata8(s, type);
+        unsigned int encoded_type = isInvite ? type + 10 : type;
+        ser_writedata8(s, encoded_type);
         hashBytes.Serialize(s);
         txhash.Serialize(s);
         ser_writedata32(s, index);
         ser_writedata8(s, isCoinbase); //TODO: Make this even more compact than a byte.
     }
+
     template<typename Stream>
     void Unserialize(Stream& s) {
-        type = ser_readdata8(s);
+        unsigned int encoded_type = ser_readdata8(s);
+
+        if(encoded_type >= 10) {
+            type = encoded_type - 10;
+            isInvite = true; 
+        } else {
+            type = encoded_type;
+            isInvite = false;
+        }
+
         hashBytes.Unserialize(s);
         txhash.Unserialize(s);
         index = ser_readdata32(s);
         isCoinbase = ser_readdata8(s);
     }
 
-    CAddressUnspentKey(unsigned int addressType, uint160 addressHash, uint256 txid, size_t indexValue, bool isCoinbaseIn) {
+    CAddressUnspentKey(unsigned int addressType, uint160 addressHash, uint256 txid, size_t indexValue, bool isCoinbaseIn, bool isInviteIn) {
+        isInvite = isInviteIn;
         type = addressType;
         hashBytes = addressHash;
         txhash = txid;
@@ -56,6 +69,7 @@ struct CAddressUnspentKey {
         txhash.SetNull();
         index = 0;
         isCoinbase = false;
+        isInvite = false;
     }
 };
 
@@ -102,13 +116,15 @@ struct CAddressIndexKey {
     uint256 txhash;
     size_t index;
     bool spending;
+    bool invite;
 
     size_t GetSerializeSize() const {
         return 66;
     }
     template<typename Stream>
     void Serialize(Stream& s) const {
-        ser_writedata8(s, type);
+        unsigned int encoded_type = invite ? type + 10 : type;
+        ser_writedata8(s, encoded_type);
         hashBytes.Serialize(s);
         // Heights are stored big-endian for key sorting in LevelDB
         ser_writedata32be(s, blockHeight);
@@ -120,7 +136,16 @@ struct CAddressIndexKey {
     }
     template<typename Stream>
     void Unserialize(Stream& s) {
-        type = ser_readdata8(s);
+        unsigned int encoded_type = ser_readdata8(s);
+
+        if(encoded_type >= 10) {
+            invite = true;
+            type = encoded_type - 10;
+        } else {
+            invite = false;
+            type = encoded_type;
+        }
+
         hashBytes.Unserialize(s);
         blockHeight = ser_readdata32be(s);
         txindex = ser_readdata32be(s);
@@ -137,7 +162,8 @@ struct CAddressIndexKey {
             int blockindex,
             uint256 txid,
             size_t indexValue,
-            bool isSpending) {
+            bool isSpending,
+            bool is_invite) {
 
         type = addressType;
         hashBytes = addressHash;
@@ -146,6 +172,7 @@ struct CAddressIndexKey {
         txhash = txid;
         index = indexValue;
         spending = isSpending;
+        invite = is_invite;
     }
 
     CAddressIndexKey() {
@@ -160,6 +187,7 @@ struct CAddressIndexKey {
         txhash.SetNull();
         index = 0;
         spending = false;
+        invite = false;
     }
 
 };
@@ -242,20 +270,23 @@ struct CMempoolAddressDelta
     CScript scriptPubKey;
     uint256 prevhash;
     unsigned int prevout;
+    bool is_invite;
 
-    CMempoolAddressDelta(int64_t t, CAmount a, uint256 hash, unsigned int out) {
+    CMempoolAddressDelta(int64_t t, CAmount a, uint256 hash, unsigned int out, bool invite) {
         time = t;
         amount = a;
         prevhash = hash;
         prevout = out;
+        is_invite = invite;
     }
 
-    CMempoolAddressDelta(int64_t t, CAmount a, const CScript& script) {
+    CMempoolAddressDelta(int64_t t, CAmount a, const CScript& script, bool invite) {
         time = t;
         amount = a;
         scriptPubKey = script;
         prevhash.SetNull();
         prevout = 0;
+        is_invite = invite;
     }
 };
 

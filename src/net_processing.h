@@ -18,6 +18,9 @@ static const int64_t ORPHAN_TX_EXPIRE_TIME = 20 * 60;
 static const int64_t ORPHAN_TX_EXPIRE_INTERVAL = 5 * 60;
 /** Default number of orphan+recently-replaced txn to keep around for block reconstruction */
 static const unsigned int DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_TXN = 100;
+/** Default number of orphan+recently-replaced invites to keep around for block reconstruction */
+static const unsigned int DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_INV = 100;
+
 /** Headers download timeout expressed in microseconds
  *  Timeout = base + per_header * (expected number of headers) */
 static constexpr int64_t HEADERS_DOWNLOAD_TIMEOUT_BASE = 15 * 60 * 1000000; // 15 minutes
@@ -64,5 +67,9 @@ bool ProcessMessages(CNode* pfrom, CConnman& connman, const std::atomic<bool>& i
  * @return                      True if there is more work to be done
  */
 bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interrupt);
+
+void RelayInventory(const CInv& inv, CConnman& connman);
+void RelayTransaction(const CTransaction& tx, CConnman& connman);
+void RelayReferral(const referral::Referral& rtx, CConnman& connman);
 
 #endif // MERIT_NET_PROCESSING_H

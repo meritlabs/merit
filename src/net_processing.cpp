@@ -798,12 +798,9 @@ PeerLogicValidation::PeerLogicValidation(CConnman* connmanIn) : connman(connmanI
     recentRejects.reset(new CRollingBloomFilter(120000, 0.000001));
 }
 
-void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex* pindex, const std::vector<CTransactionRef>& vtxConflicted) {
-    LOCK(cs_main);
-
-    std::vector<uint256> vOrphanErase;
-
-    for (const auto& ptx : pblock->vtx) {
+void FindOrphans(const std::vector<CTransactionRef>& vtx, std::vector<uint256>& vOrphanErase)
+{
+    for (const auto& ptx : vtx) {
         assert(ptx);
         const CTransaction& tx = *ptx;
 
@@ -822,6 +819,20 @@ void PeerLogicValidation::BlockConnected(const std::shared_ptr<const CBlock>& pb
                     });
         }
     }
+}
+
+void PeerLogicValidation::BlockConnected(
+        const std::shared_ptr<const CBlock>& pblock,
+        const CBlockIndex* pindex,
+        const std::vector<CTransactionRef>& vtxConflicted)
+{
+    assert(pblock);
+    LOCK(cs_main);
+
+    std::vector<uint256> vOrphanErase;
+
+    FindOrphans(pblock->vtx, vOrphanErase);
+    FindOrphans(pblock->invites, vOrphanErase);
 
     // Erase orphan transactions include or precluded by this block
     {
@@ -1018,7 +1029,7 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     return true;
 }
 
-static void RelayInventory(const CInv& inv, CConnman& connman)
+void RelayInventory(const CInv& inv, CConnman& connman)
 {
     connman.ForEachNode([&inv](CNode* pnode)
     {
@@ -1026,13 +1037,13 @@ static void RelayInventory(const CInv& inv, CConnman& connman)
     });
 }
 
-static void RelayTransaction(const CTransaction& tx, CConnman& connman)
+void RelayTransaction(const CTransaction& tx, CConnman& connman)
 {
     CInv inv(MSG_TX, tx.GetHash());
     RelayInventory(inv, connman);
 }
 
-static void RelayReferral(const referral::Referral& rtx, CConnman& connman)
+void RelayReferral(const referral::Referral& rtx, CConnman& connman)
 {
     CInv inv(MSG_REFERRAL, rtx.GetHash());
     RelayInventory(inv, connman);
@@ -1301,6 +1312,15 @@ inline void static SendBlockTransactions(const CBlock& block, const BlockTransac
             return;
         }
         resp.refs[i] = block.m_vRef[req.m_referral_indices[i]];
+    }
+    for (size_t i = 0; i < req.m_invite_indices.size(); i++) {
+        if (req.m_invite_indices[i] >= block.invites.size()) {
+            LOCK(cs_main);
+            Misbehaving(pfrom->GetId(), 100);
+            LogPrintf("Peer %d sent us a getblocktxn with out-of-bounds invite indices", pfrom->GetId());
+            return;
+        }
+        resp.invites[i] = block.invites[req.m_invite_indices[i]];
     }
     LOCK(cs_main);
     const CNetMsgMaker msgMaker(pfrom->GetSendVersion());
@@ -1975,7 +1995,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                     // anyone relaying LegitTxX banned)
                     CValidationState stateDummy;
 
-
                     if (setMisbehaving.count(fromPeer))
                         continue;
                     if (AcceptToMemoryPool(mempool, stateDummy, porphanTx, true, &fMissingInputs2, &lRemovedTxn)) {
@@ -2339,7 +2358,13 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                     if (!partialBlock.IsTxAvailable(i))
                         req.m_transaction_indices.push_back(i);
                 }
-                if (req.m_transaction_indices.empty()) {
+
+                for (size_t i = 0; i < cmpctblock.BlockInvCount(); i++) {
+                    if (!partialBlock.IsInviteAvailable(i))
+                        req.m_invite_indices.push_back(i);
+                }
+
+                if (req.m_transaction_indices.empty() && req.m_invite_indices.empty()) {
                     // Dirty hack to jump to BLOCKTXN code (TODO: move message handling into their own functions)
                     BlockTransactions txn;
                     txn.blockhash = cmpctblock.header.GetHash();
@@ -2362,8 +2387,9 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                     return true;
                 }
                 std::vector<CTransactionRef> dummyTxns;
+                std::vector<CTransactionRef> dummyInvites;
                 std::vector<referral::ReferralRef> dummyRefs;
-                status = tempBlock.FillBlock(*pblock, dummyTxns, dummyRefs);
+                status = tempBlock.FillBlock(*pblock, dummyTxns, dummyInvites, dummyRefs);
                 if (status == READ_STATUS_OK) {
                     fBlockReconstructed = true;
                 }
@@ -2438,7 +2464,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             }
 
             PartiallyDownloadedBlock& partialBlock = *it->second.second->partialBlock;
-            ReadStatus status = partialBlock.FillBlock(*pblock, resp.txn, resp.refs);
+            ReadStatus status = partialBlock.FillBlock(*pblock, resp.txn, resp.invites, resp.refs);
             if (status == READ_STATUS_INVALID) {
                 MarkBlockAsReceived(resp.blockhash); // Reset in-flight state in case of whitelist
                 Misbehaving(pfrom->GetId(), 100);
@@ -2507,6 +2533,9 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         for (unsigned int n = 0; n < nCount; n++) {
             vRecv >> headers[n];
             ReadCompactSize(vRecv); // ignore tx count; assume it is 0.
+            if(headers[n].IsDaedalus()) {
+                ReadCompactSize(vRecv); // ignore invite count; assume it is 0.
+            }
             ReadCompactSize(vRecv); // ignore ref count; assume it is 0.
         }
 
@@ -3078,8 +3107,9 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
     const Consensus::Params& consensusParams = Params().GetConsensus();
     {
         // Don't send anything until the version handshake is complete
-        if (!pto->fSuccessfullyConnected || pto->fDisconnect)
+        if (!pto->fSuccessfullyConnected || pto->fDisconnect) {
             return true;
+        }
 
         // If we get here, the outgoing message serialization version is set and can't change.
         const CNetMsgMaker msgMaker(pto->GetSendVersion());
@@ -3114,11 +3144,13 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
         }
 
         TRY_LOCK(cs_main, lockMain); // Acquire cs_main for IsInitialBlockDownload() and CNodeState()
-        if (!lockMain)
+        if (!lockMain) {
             return true;
+        }
 
-        if (SendRejectsAndCheckIfBanned(pto, connman))
+        if (SendRejectsAndCheckIfBanned(pto, connman)) {
             return true;
+        }
         CNodeState &state = *State(pto->GetId());
 
         // Address refresh broadcast
@@ -3270,9 +3302,9 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                     {
                         LOCK(cs_most_recent_block);
                         if (most_recent_block_hash == pBestIndex->GetBlockHash()) {
-                            if (state.fWantsCmpctWitness || !fWitnessesPresentInMostRecentCompactBlock)
+                            if (state.fWantsCmpctWitness || !fWitnessesPresentInMostRecentCompactBlock) {
                                 connman.PushMessage(pto, msgMaker.Make(nSendFlags, NetMsgType::CMPCTBLOCK, *most_recent_compact_block));
-                            else {
+                            } else {
                                 BlockHeaderAndShortIDs cmpctblock(*most_recent_block, state.fWantsCmpctWitness);
                                 connman.PushMessage(pto, msgMaker.Make(nSendFlags, NetMsgType::CMPCTBLOCK, cmpctblock));
                             }
@@ -3383,13 +3415,27 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                     CInv inv(MSG_TX, hash);
                     pto->setInventoryTxToSend.erase(hash);
                     if (filterrate) {
-                        if (txinfo.feeRate.GetFeePerK() < filterrate)
+                        if (!txinfo.tx->IsInvite() && txinfo.feeRate.GetFeePerK() < filterrate)
                             continue;
                     }
                     if (pto->pfilter) {
                         if (!pto->pfilter->IsRelevantAndUpdate(*txinfo.tx)) continue;
                     }
                     pto->filterInventoryKnown.insert(hash);
+                    vInv.push_back(inv);
+                    if (vInv.size() == MAX_INV_SZ) {
+                        connman.PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
+                        vInv.clear();
+                    }
+                }
+
+                const auto referrals = mempoolReferral.GetReferrals();
+                for (const auto& ref : referrals) {
+                    const uint256& hash = ref->GetHash();
+                    pto->setInventoryReferralToSend.erase(hash);
+                    pto->filterInventoryKnown.insert(hash);
+
+                    CInv inv(MSG_REFERRAL, hash);
                     vInv.push_back(inv);
                     if (vInv.size() == MAX_INV_SZ) {
                         connman.PushMessage(pto, msgMaker.Make(NetMsgType::INV, vInv));
@@ -3407,6 +3453,7 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                 for (std::set<uint256>::iterator it = pto->setInventoryTxToSend.begin(); it != pto->setInventoryTxToSend.end(); it++) {
                     vInvTx.push_back(it);
                 }
+
                 CAmount filterrate = 0;
                 {
                     LOCK(pto->cs_feeFilter);
@@ -3437,7 +3484,7 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                     if (!txinfo.tx) {
                         continue;
                     }
-                    if (filterrate && txinfo.feeRate.GetFeePerK() < filterrate) {
+                    if (!txinfo.tx->IsInvite() && filterrate && txinfo.feeRate.GetFeePerK() < filterrate) {
                         continue;
                     }
                     if (pto->pfilter && !pto->pfilter->IsRelevantAndUpdate(*txinfo.tx)) continue;
@@ -3570,8 +3617,9 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
             }
             pto->mapAskFor.erase(pto->mapAskFor.begin());
         }
-        if (!vGetData.empty())
+        if (!vGetData.empty()) {
             connman.PushMessage(pto, msgMaker.Make(NetMsgType::GETDATA, vGetData));
+        }
 
         //
         // Message: feefilter

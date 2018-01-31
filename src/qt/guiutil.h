@@ -20,6 +20,7 @@
 
 class QValidatedLineEdit;
 class SendCoinsRecipient;
+class WalletModel;
 
 QT_BEGIN_NAMESPACE
 class QAbstractItemView;
@@ -42,7 +43,7 @@ namespace GUIUtil
     QFont fixedPitchFont();
 
     // Set up widgets for address and amounts
-    void setupAddressWidget(QValidatedLineEdit *widget, QWidget *parent);
+    void setupAddressWidget(QValidatedLineEdit *widget, QWidget *parent, WalletModel* wallet);
     void setupAmountWidget(QLineEdit *widget, QWidget *parent);
 
     // Parse "merit:" URI into recipient object, return true on successful parsing

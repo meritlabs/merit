@@ -9,6 +9,8 @@
 #include "net.h"
 #include "policy/policy.h"
 #include "primitives/referral.h"
+#include "referrals.h"
+#include "refmempool.h"
 #include "rpc/safemode.h"
 #include "rpc/server.h"
 #include "uint256.h"
@@ -61,17 +63,18 @@ UniValue getrawreferral(const JSONRPCRequest& request)
 
             "\nResult (if verbose is set to true):\n"
             "{\n"
-            "  \"hex\" : \"data\",         (string) The serialized, hex-encoded data for 'refid'\n"
-            "  \"refid\" : \"id\",         (string) Referral id - hash (same as provided)\n"
-            "  \"size\" : n,             (numeric) The serialized referral size\n"
-            "  \"vsize\" : n,            (numeric) The virtual referral size\n"
-            "  \"version\" : n,          (numeric) The version\n"
-            "  \"address\" : n,          (string) Beaconed address\n"
-            "  \"parentAddress\" : n,    (string) Parent address, that was used to unlock this referral\n"
-            "  \"blockhash\" : \"hash\",   (string) Block hash\n"
-            "  \"height\" : n,           (numeric) Block height\n"
-            "  \"confirmations\" : n,    (numeric) Confirmations count\n"
-            "  \"blocktime\" : ttt       (numeric) Block time in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"hex\" : \"data\",          (string) The serialized, hex-encoded data for 'refid'\n"
+            "  \"refid\" : \"id\",          (string) Referral id - hash (same as provided), address or alias\n"
+            "  \"size\" : n,                (numeric) The serialized referral size\n"
+            "  \"vsize\" : n,               (numeric) The virtual referral size\n"
+            "  \"version\" : n,             (numeric) The version\n"
+            "  \"address\" : \"xxx\",       (string) Beaconed address\n"
+            "  \"alias\" : \"xxx\",         (string, optional) Address alias\n"
+            "  \"parentAddress\" : \"xxx\", (string) Parent address, that was used to unlock this referral\n"
+            "  \"blockhash\" : \"hash\",    (string) Block hash\n"
+            "  \"height\" : n,              (numeric) Block height\n"
+            "  \"confirmations\" : n,       (numeric) Confirmations count\n"
+            "  \"blocktime\" : ttt          (numeric) Block time in seconds since epoch (Jan 1 1970 GMT)\n"
             "}\n"
 
             "\nExamples:\n" +
@@ -79,8 +82,6 @@ UniValue getrawreferral(const JSONRPCRequest& request)
             HelpExampleCli("getrawreferral", "\"myrefid\" true") +
             HelpExampleCli("getrawreferral", "\"myrefid\" 1") +
             HelpExampleRpc("getrawreferral", "\"myrefid\", true"));
-
-    uint256 hash = ParseHashV(request.params[0], "refid");
 
     // Accept either a bool (true) or a num (>=1) to indicate verbose output.
     bool fVerbose = false;
@@ -98,7 +99,34 @@ UniValue getrawreferral(const JSONRPCRequest& request)
         }
     }
 
+    ReferralId referral_id;
+
+    try {
+        referral_id = ParseHashV(request.params[0], "refid");
+    } catch (const UniValue& e) {
+        auto address_or_alias = request.params[0];
+        if (!address_or_alias.isStr()) {
+            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid type provided. refid should be a string.");
+        }
+
+        auto dest = LookupDestination(address_or_alias.get_str());
+        if (!IsValidDestination(dest)) {
+            throw JSONRPCError(RPC_TYPE_ERROR, "Provided refid is not a valid referral address or known alias.");
+        }
+
+        auto address = CMeritAddress{dest};
+        referral_id = *(address.GetUint160());
+    }
+
     ReferralRef ref;
+    ref = LookupReferral(referral_id);
+
+    if (!ref) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about referral");
+    }
+
+    auto hash = ref->GetHash();
+
     uint256 hashBlock;
     {
         LOCK(cs_main);
@@ -144,12 +172,6 @@ UniValue sendrawreferral(const JSONRPCRequest& request)
     ReferralRef ref(MakeReferralRef(std::move(mref)));
     const uint256& hashRef = ref->GetHash();
 
-    bool alreadyBeaconed = CheckAddressBeaconed(CMeritAddress{ref->addressType, ref->GetAddress()}, true);
-
-    if (alreadyBeaconed) {
-        throw JSONRPCError(RPC_REFERRAL_ALREADY_IN_CHAIN, "referral already in block chain");
-    }
-
     // push to local node mempool
     CValidationState state;
     bool fMissingReferrer;
@@ -177,12 +199,53 @@ UniValue sendrawreferral(const JSONRPCRequest& request)
     return hashRef.GetHex();
 }
 
+UniValue decoderawreferral(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 1)
+        throw std::runtime_error(
+            "decoderawreferral \"hexstring\"\n"
+            "\nReturn a JSON object representing unserialized referral.\n"
+
+            "\nArguments:\n"
+            "1. \"hexstring\"  (string, required) Serialized referral hex string\n"
+
+            "\nResult:\n"
+            "{\n"
+            "  \"refid\": \"id\",           (string) Referral hash\n"
+            "  \"version\": n,            (numeric) Referral version\n"
+            "  \"address\": \"xxx\",        (string) Beaconed address\n"
+            "  \"alias\": \"xxx\",          (string) Address alias\n"
+            "  \"parentAddress\": \"xxx\",  (string) Unlock address\n"
+            "  \"size\": n,               (numeric) Referral size\n"
+            "  \"vsize\": n,              (numeric) Virtual referral size\n"
+            "}\n"
+
+            "\nExamples:\n"
+            + HelpExampleCli("decoderawreferral", "\"hexstring\"")
+            + HelpExampleRpc("decoderawreferral", "\"hexstring\"")
+        );
+
+    LOCK(cs_main);
+    RPCTypeCheck(request.params, {UniValue::VSTR});
+
+    referral::MutableReferral ref;
+
+    if (!DecodeHexRef(ref, request.params[0].get_str()))
+        throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Referral decode failed");
+
+    UniValue result(UniValue::VOBJ);
+    RefToUniv(Referral(std::move(ref)), uint256(), result, false);
+
+    return result;
+}
+
 static const CRPCCommand commands[] =
     {
         //  category              name                      actor (function)         argNames
         //  --------------------- ------------------------  -----------------------  ----------
         {"rawreferral", "getrawreferral", &getrawreferral, {"refid", "verbose"}},
         {"rawreferral", "sendrawreferral", &sendrawreferral, {"hexstring"}},
+        {"rawreferral", "decoderawreferral", &decoderawreferral, {"hexstring"}},
 };
 
 void RegisterRawReferralRPCCommands(CRPCTable& t)

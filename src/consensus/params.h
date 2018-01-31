@@ -17,6 +17,7 @@ namespace Consensus {
 enum DeploymentPos
 {
     DEPLOYMENT_GENESIS,
+    DEPLOYMENT_DAEDALUS,
     MAX_VERSION_BITS_DEPLOYMENTS
 };
 
@@ -30,6 +31,9 @@ struct BIP9Deployment {
     int64_t nStartTime;
     /** Timeout/expiry MedianTime for the deployment attempt. */
     int64_t nTimeout;
+
+    int start_block = 0;
+    int end_block = 0;
 };
 
 struct PoW {
@@ -77,6 +81,12 @@ struct Params {
     uint256 defaultAssumeValid;
     /** Cuckoo cycle length */
     uint8_t nCuckooProofSize;
+
+    /** Daedalus parameters **/
+    int daedalus_max_invites_per_block;
+    int daedalus_block_window;
+    int daedalus_min_one_invite_for_every_x_blocks;
+    int daedalus_max_outstanding_invites_per_address;
 
 };
 } // namespace Consensus

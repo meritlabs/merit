@@ -29,6 +29,7 @@
 #include "txmempool.h"
 #include "util.h"
 #include "utilstrencodings.h"
+#include "net_processing.h"
 #include "hash.h"
 #include "base58.h"
 
@@ -40,6 +41,8 @@
 
 #include <mutex>
 #include <condition_variable>
+
+extern std::unique_ptr<CConnman> g_connman;
 
 struct CUpdatedBlock
 {
@@ -156,6 +159,18 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
         else
             txs.push_back(tx->GetHash().GetHex());
     }
+    UniValue invites(UniValue::VARR);
+    for(const auto& invite : block.invites)
+    {
+        if(txDetails)
+        {
+            UniValue objInv(UniValue::VOBJ);
+            TxToUniv(*invite, uint256(), objInv, true, RPCSerializationFlags());
+            invites.push_back(objInv);
+        }
+        else
+            invites.push_back(invite->GetHash().GetHex());
+    }
 
     UniValue refs(UniValue::VARR);
     for(const auto& ref : block.m_vRef)
@@ -171,6 +186,7 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
     }
 
     result.push_back(Pair("tx", txs));
+    result.push_back(Pair("invites", invites));
     result.push_back(Pair("referrals", refs));
     result.push_back(Pair("time", block.GetBlockTime()));
     result.push_back(Pair("mediantime", (int64_t)blockindex->GetMedianTimePast()));
@@ -1503,6 +1519,32 @@ UniValue getmempoolinfo(const JSONRPCRequest& request)
     return mempoolInfoToJSON();
 }
 
+UniValue getrefmempoolinfo(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 0)
+        throw std::runtime_error(
+            "getrefmempoolinfo\n"
+            "\nReturns details on the active state of the referrals memory pool.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"size\": xxxxx,               (numeric) Current referrals count\n"
+            "  \"usage\": xxxxx,              (numeric) Total memory usage for the mempool\n"
+            "  \"maxmempool\": xxxxx,         (numeric) Maximum memory usage for the mempool\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getrefmempoolinfo", "")
+            + HelpExampleRpc("getrefmempoolinfo", "")
+        );
+
+    UniValue ret(UniValue::VOBJ);
+    ret.push_back(Pair("size", (int64_t) mempoolReferral.Size()));
+    ret.push_back(Pair("usage", (int64_t) mempoolReferral.DynamicMemoryUsage()));
+    size_t maxmempool = gArgs.GetArg("-maxmempool", DEFAULT_MAX_REFERRALS_MEMPOOL_SIZE) * 1000000;
+    ret.push_back(Pair("maxmempool", (int64_t) maxmempool));
+
+    return ret;
+}
+
 UniValue preciousblock(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1)
@@ -1702,6 +1744,40 @@ UniValue savemempool(const JSONRPCRequest& request)
     return NullUniValue;
 }
 
+UniValue relaymempool(const JSONRPCRequest& request)
+{
+    if (request.fHelp)
+        throw std::runtime_error(
+            "relaymempool\n"
+            "\nRelays mempool to all peers.\n"
+            "\nResult:\n"
+            " {\n"
+            "   \"transactionsent\" : 100,   (number) Number of transactions sent.\n"
+            "   \"referralssent\" : 10,      (number) Number of referrals sent\n"
+            " }\n"
+            "\nExamples:\n"
+            + HelpExampleCli("relaymempool", "")
+        );
+
+    if(!g_connman)
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+
+    auto vtxinfo = mempool.infoAll();
+    for (const auto& txinfo : vtxinfo) {
+        RelayTransaction(*txinfo.tx, *g_connman);
+    }
+
+    const auto referrals = mempoolReferral.GetReferrals();
+    for (const auto& ref : referrals) {
+        RelayReferral(*ref, *g_connman);
+    }
+
+    UniValue ret(UniValue::VOBJ);
+    ret.push_back(Pair("transactions", static_cast<int>(vtxinfo.size())));
+    ret.push_back(Pair("referrals", static_cast<int>(referrals.size())));
+    return ret;
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
@@ -1720,7 +1796,9 @@ static const CRPCCommand commands[] =
     { "blockchain",         "getmempooldescendants",  &getmempooldescendants,  {"txid","verbose"} },
     { "blockchain",         "getmempoolentry",        &getmempoolentry,        {"txid"} },
     { "blockchain",         "getmempoolinfo",         &getmempoolinfo,         {} },
+    { "blockchain",         "getrefmempoolinfo",      &getrefmempoolinfo,      {} },
     { "blockchain",         "getrawmempool",          &getrawmempool,          {"verbose"} },
+    { "blockchain",         "relaymempool",           &relaymempool,           {} },
     { "blockchain",         "gettxout",               &gettxout,               {"txid","n","include_mempool"} },
     { "blockchain",         "gettxoutsetinfo",        &gettxoutsetinfo,        {} },
     { "blockchain",         "pruneblockchain",        &pruneblockchain,        {"height"} },

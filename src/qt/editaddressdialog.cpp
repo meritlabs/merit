@@ -12,7 +12,7 @@
 #include <QDataWidgetMapper>
 #include <QMessageBox>
 
-EditAddressDialog::EditAddressDialog(Mode _mode, QWidget *parent) :
+EditAddressDialog::EditAddressDialog(Mode _mode, QWidget *parent, WalletModel* wallet) :
     QDialog(parent),
     ui(new Ui::EditAddressDialog),
     mapper(0),
@@ -21,7 +21,7 @@ EditAddressDialog::EditAddressDialog(Mode _mode, QWidget *parent) :
 {
     ui->setupUi(this);
 
-    GUIUtil::setupAddressWidget(ui->addressEdit, this);
+    GUIUtil::setupAddressWidget(ui->addressEdit, this, wallet);
 
     switch(mode)
     {

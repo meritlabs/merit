@@ -27,6 +27,7 @@
 #include "utilstrencodings.h"
 #include "validation.h"
 #include "validationinterface.h"
+#include "wallet/wallet.h"
 #include "warnings.h"
 
 #include <numeric>
@@ -131,13 +132,12 @@ UniValue generateBlocks(
     UniValue blockHashes(UniValue::VARR);
     auto consensusParams = Params().GetConsensus();
 
-    std::unique_ptr<CBlockTemplate> pblocktemplate{
-            BlockAssembler{Params()}.CreateNewBlock(coinbaseScript->reserveScript)};
-
     ctpl::thread_pool pool{nThreads};
 
-    while (nHeight < nHeightEnd)
-    {
+    do {
+        const auto pblocktemplate =
+            BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript);
+
         if (!pblocktemplate.get())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't create new block");
         CBlock *pblock = &pblocktemplate->block;
@@ -186,10 +186,7 @@ UniValue generateBlocks(
         if (keepScript) {
             coinbaseScript->KeepScript();
         }
-
-        pblocktemplate =
-            BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript);
-    }
+    } while (nHeight < nHeightEnd);
     return blockHashes;
 }
 
@@ -224,7 +221,7 @@ UniValue generatetoaddress(const JSONRPCRequest& request)
         nThreads = request.params[3].get_int();
     }
 
-    CTxDestination destination = DecodeDestination(request.params[1].get_str());
+    CTxDestination destination = LookupDestination(request.params[1].get_str());
     if (!IsValidDestination(destination)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Error: Invalid address");
     }
