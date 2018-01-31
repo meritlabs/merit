@@ -68,6 +68,7 @@ private:
     CAmount currentWatchUnconfBalance;
     CAmount currentWatchImmatureBalance;
     CAmount currentInviteBalance;
+    bool currentIsDaedalus;
 
     ReferralViewDelegate *referraldelegate;
     TxViewDelegate *txdelegate;

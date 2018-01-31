@@ -118,9 +118,9 @@ class ReferralViewDelegate : public QAbstractItemDelegate
 {
     Q_OBJECT
 public:
-    explicit ReferralViewDelegate(const CAmount& _invite_balance, const PlatformStyle *_platformStyle, QObject *parent=nullptr):
+    explicit ReferralViewDelegate(const CAmount& _invite_balance, const bool& _is_daedalus, const PlatformStyle *_platformStyle, QObject *parent=nullptr):
         QAbstractItemDelegate{parent}, unit{MeritUnits::MRT},
-        platformStyle{_platformStyle}, invite_balance{_invite_balance}
+        platformStyle{_platformStyle}, invite_balance{_invite_balance}, is_daedalus{_is_daedalus}
     {}
 
     inline void paint(QPainter *painter, const QStyleOptionViewItem &option,
@@ -166,7 +166,7 @@ public:
 
         QString statusString = index.data(ReferralListModel::StatusRole).toString();
 
-        if(statusString == "Pending") {
+        if(statusString == "Pending" && is_daedalus) {
             const int INVITE_BUTTON_WIDTH = 80;
             QRect rect(addressRect.right() - INVITE_BUTTON_WIDTH - xpad, mainRect.top()+ypad, INVITE_BUTTON_WIDTH, halfheight);
             auto button_rect = painter->boundingRect(rect, tr("Send Invite"));
@@ -205,6 +205,7 @@ public:
     int unit;
     const PlatformStyle *platformStyle;
     const CAmount& invite_balance;
+    const bool& is_daedalus;
 
 };
 #include "overviewpage.moc"
@@ -220,7 +221,7 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     currentWatchOnlyBalance(-1),
     currentWatchUnconfBalance(-1),
     currentWatchImmatureBalance(-1),
-    referraldelegate(new ReferralViewDelegate(currentInviteBalance, platformStyle, this)),
+    referraldelegate(new ReferralViewDelegate(currentInviteBalance, currentIsDaedalus, platformStyle, this)),
     txdelegate(new TxViewDelegate(platformStyle, this))
 {
     ui->setupUi(this);
@@ -232,6 +233,7 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     icon.addPixmap(icon.pixmap(QSize(64,64), QIcon::Normal), QIcon::Disabled); // also set the disabled icon because we are using a disabled QPushButton to work around missing HiDPI support of QLabel (https://bugreports.qt.io/browse/QTBUG-42503)
     ui->labelTransactionsStatus->setIcon(icon);
     ui->labelWalletStatus->setIcon(icon);
+    ui->networkAlertLabel->setIcon(icon);
 
     // Recent transactions
     ui->listTransactions->setItemDelegate(txdelegate);
@@ -251,6 +253,7 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     showOutOfSyncWarning(true);
     connect(ui->labelWalletStatus, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
     connect(ui->labelTransactionsStatus, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
+    connect(ui->networkAlertLabel, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
 }
 
 void OverviewPage::handleTransactionClicked(const QModelIndex &index)
@@ -479,6 +482,7 @@ void OverviewPage::showOutOfSyncWarning(bool fShow)
 {
     ui->labelWalletStatus->setVisible(fShow);
     ui->labelTransactionsStatus->setVisible(fShow);
+    ui->networkAlertLabel->setVisible(fShow);
 }
 
 void OverviewPage::HideInviteNotice()
@@ -496,6 +500,9 @@ void OverviewPage::UpdateInvitationStatus()
 {
     assert(ui); 
     if(!walletModel) return;
+
+    currentIsDaedalus = walletModel->Daedalus();
+
     if(is_confirmed || !walletModel->Daedalus()) {
         ui->inviteNotice->hide();
         return;
