@@ -91,6 +91,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
     connectionsControl(nullptr),
     labelBlocksIcon(nullptr),
     progressBarLabel(nullptr),
+    miningStatusIcon(nullptr),
     progressBar(nullptr),
     progressDialog(nullptr),
     appMenuBar(nullptr),
@@ -201,6 +202,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
     frameBlocksLayout->setSpacing(3);
     unitDisplayControl = new UnitDisplayStatusBarControl(platformStyle);
     labelWalletEncryptionIcon = new QLabel();
+    miningStatusIcon = new QLabel();
     labelWalletHDStatusIcon = new QLabel();
     connectionsControl = new GUIUtil::ClickableLabel();
     labelBlocksIcon = new GUIUtil::ClickableLabel();
@@ -211,6 +213,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
         frameBlocksLayout->addStretch();
         frameBlocksLayout->addWidget(labelWalletEncryptionIcon);
         frameBlocksLayout->addWidget(labelWalletHDStatusIcon);
+        frameBlocksLayout->addWidget(miningStatusIcon);
     }
     frameBlocksLayout->addStretch();
     frameBlocksLayout->addWidget(connectionsControl);
@@ -381,6 +384,10 @@ void MeritGUI::createActions()
     showHelpMessageAction->setMenuRole(QAction::NoRole);
     showHelpMessageAction->setStatusTip(tr("Show the %1 help message to get a list with possible Merit command-line options").arg(tr(PACKAGE_NAME)));
 
+    // Mining
+    startMiningAction = new QAction(platformStyle->TextColorIcon(":/icons/tx_mined"), tr("&Start mining"), this);
+    stopMiningAction = new QAction(platformStyle->TextColorIcon(":/icons/quit"), tr("&Stop mining"), this);
+
     connect(quitAction, SIGNAL(triggered()), qApp, SLOT(quit()));
     connect(aboutAction, SIGNAL(triggered()), this, SLOT(aboutClicked()));
     connect(aboutQtAction, SIGNAL(triggered()), qApp, SLOT(aboutQt()));
@@ -403,6 +410,9 @@ void MeritGUI::createActions()
         connect(usedReceivingAddressesAction, SIGNAL(triggered()), walletFrame, SLOT(usedReceivingAddresses()));
         connect(openAction, SIGNAL(triggered()), this, SLOT(openClicked()));
     }
+
+    connect(startMiningAction, SIGNAL(triggered()), this, SLOT(startMiningClicked()));
+    connect(stopMiningAction, SIGNAL(triggered()), this, SLOT(stoptMiningClicked()));
 #endif // ENABLE_WALLET
 
     new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_C), this, SLOT(showDebugWindowActivateConsole()));
@@ -442,6 +452,10 @@ void MeritGUI::createMenuBar()
         settings->addSeparator();
     }
     settings->addAction(optionsAction);
+
+    QMenu *mining = appMenuBar->addMenu(tr("&Mining"));
+    mining->addAction(startMiningAction);
+    mining->addAction(stopMiningAction);
 
     QMenu *help = appMenuBar->addMenu(tr("&Help"));
     if(walletFrame)
@@ -1107,6 +1121,21 @@ void MeritGUI::setEncryptionStatus(int status)
         changePassphraseAction->setEnabled(true);
         encryptWalletAction->setEnabled(false); // TODO: decrypt currently not supported
         break;
+    }
+}
+
+void MeritGUI::setMiningStatus(bool isMining)
+{
+    if (isMining) {
+        miningStatusIcon->show();
+        miningStatusIcon->setPixmap(platformStyle->SingleColorIcon(":/icons/tx_mined").pixmap(STATUSBAR_ICONSIZE,STATUSBAR_ICONSIZE));
+        miningStatusIcon->setToolTip(tr("Mining is <b>enabled</b>"));
+        startMiningAction->setEnabled(false);
+        stopMiningAction->setEnabled(true);
+    } else {
+        miningStatusIcon->hide();
+        startMiningAction->setEnabled(true);
+        stopMiningAction->setEnabled(false);
     }
 }
 #endif // ENABLE_WALLET

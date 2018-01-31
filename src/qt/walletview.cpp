@@ -19,6 +19,7 @@
 #include "transactiontablemodel.h"
 #include "transactionview.h"
 #include "walletmodel.h"
+#include "util.h"
 
 #include "ui_interface.h"
 
@@ -98,8 +99,11 @@ void WalletView::setMeritGUI(MeritGUI *gui)
         // Pass through transaction notifications
         connect(this, SIGNAL(incomingTransaction(QString,int,CAmount,QString,QString,QString)), gui, SLOT(incomingTransaction(QString,int,CAmount,QString,QString,QString)));
 
-        // Connect HD enabled state signal 
+        // Connect HD enabled state signal
         connect(this, SIGNAL(hdEnabledStatusChanged(int)), gui, SLOT(setHDStatus(int)));
+
+        // Set mining status
+        connect(this, SIGNAL(miningStatusChanged(bool)), gui, SLOT(setMiningStatus(bool)));
     }
 }
 
@@ -329,4 +333,16 @@ void WalletView::showProgress(const QString &title, int nProgress)
 void WalletView::requestedSyncWarningInfo()
 {
     Q_EMIT outOfSyncWarningClicked();
+}
+
+void WalletView::startMiningClicked()
+{
+    debug("Start mining");
+    Q_EMIT(miningStatusChanged(true));
+}
+
+void WalletView::stoptMiningClicked()
+{
+    debug("Stop mining");
+    Q_EMIT(miningStatusChanged(false));
 }
