@@ -17,6 +17,7 @@
 
 const QString AddressTableModel::Send = "S";
 const QString AddressTableModel::Receive = "R";
+extern CTxDestination LookupDestination(const std::string& address);
 
 struct AddressTableEntry
 {
@@ -247,7 +248,7 @@ bool AddressTableModel::setData(const QModelIndex &index, const QVariant &value,
     if(role == Qt::EditRole)
     {
         LOCK(wallet->cs_wallet); /* For SetAddressBook / DelAddressBook */
-        CTxDestination curAddress = DecodeDestination(rec->address.toStdString());
+        CTxDestination curAddress = LookupDestination(rec->address.toStdString());
         if(index.column() == Label)
         {
             // Do nothing, if old label == new label
@@ -258,7 +259,7 @@ bool AddressTableModel::setData(const QModelIndex &index, const QVariant &value,
             }
             wallet->SetAddressBook(curAddress, value.toString().toStdString(), strPurpose);
         } else if(index.column() == Address) {
-            CTxDestination newAddress = DecodeDestination(value.toString().toStdString());
+            CTxDestination newAddress = LookupDestination(value.toString().toStdString());
             // Refuse to set invalid address, set error status and return false
             if(boost::get<CNoDestination>(&newAddress))
             {
@@ -359,7 +360,7 @@ QString AddressTableModel::addRow(const QString &type, const QString &label, con
         // Check for duplicate addresses
         {
             LOCK(wallet->cs_wallet);
-            if(wallet->mapAddressBook.count(DecodeDestination(strAddress)))
+            if(wallet->mapAddressBook.count(LookupDestination(strAddress)))
             {
                 editStatus = DUPLICATE_ADDRESS;
                 return QString();
@@ -395,7 +396,7 @@ QString AddressTableModel::addRow(const QString &type, const QString &label, con
     // Add entry
     {
         LOCK(wallet->cs_wallet);
-        wallet->SetAddressBook(DecodeDestination(strAddress), strLabel,
+        wallet->SetAddressBook(LookupDestination(strAddress), strLabel,
                                (type == Send ? "send" : "receive"));
     }
     return QString::fromStdString(strAddress);
@@ -413,7 +414,7 @@ bool AddressTableModel::removeRows(int row, int count, const QModelIndex &parent
     }
     {
         LOCK(wallet->cs_wallet);
-        wallet->DelAddressBook(DecodeDestination(rec->address.toStdString()));
+        wallet->DelAddressBook(LookupDestination(rec->address.toStdString()));
     }
     return true;
 }
@@ -424,7 +425,7 @@ QString AddressTableModel::labelForAddress(const QString &address) const
 {
     {
         LOCK(wallet->cs_wallet);
-        CTxDestination destination = DecodeDestination(address.toStdString());
+        CTxDestination destination = LookupDestination(address.toStdString());
         std::map<CTxDestination, CAddressBookData>::iterator mi = wallet->mapAddressBook.find(destination);
         if (mi != wallet->mapAddressBook.end())
         {

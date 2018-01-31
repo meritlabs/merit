@@ -4,6 +4,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "meritaddressvalidator.h"
+#include "qt/walletmodel.h"
 
 #include "base58.h"
 
@@ -16,18 +17,35 @@
   - All lower-case letters except for 'l'
 */
 
-MeritAddressEntryValidator::MeritAddressEntryValidator(QObject *parent) :
-    QValidator(parent)
+extern CTxDestination LookupDestination(const std::string& address);
+bool Valid(const std::string& input, WalletModel* model)
 {
+    assert(model);
+    auto dest = LookupDestination(input);
+
+    CMeritAddress address;
+    address.Set(dest);
+
+    return address.IsValid() 
+        && model->AddressBeaconed(address)
+        && model->AddressConfirmed(address);
+}
+
+MeritAddressEntryValidator::MeritAddressEntryValidator(QObject *parent, WalletModel* m) :
+    QValidator(parent), model{m}
+{
+    assert(model);
 }
 
 QValidator::State MeritAddressEntryValidator::validate(QString &input, int &pos) const
 {
     Q_UNUSED(pos);
+    assert(model);
 
     // Empty address is "intermediate" input
-    if (input.isEmpty())
+    if (input.isEmpty()) {
         return QValidator::Intermediate;
+    }
 
     // Correction
     for (int idx = 0; idx < input.size();)
@@ -60,37 +78,21 @@ QValidator::State MeritAddressEntryValidator::validate(QString &input, int &pos)
     }
 
     // Validation
-    QValidator::State state = QValidator::Acceptable;
-    for (int idx = 0; idx < input.size(); ++idx)
-    {
-        int ch = input.at(idx).unicode();
-
-        if (((ch >= '0' && ch<='9') ||
-            (ch >= 'a' && ch<='z') ||
-            (ch >= 'A' && ch<='Z')) &&
-            ch != 'l' && ch != 'I' && ch != '0' && ch != 'O')
-        {
-            // Alphanumeric and not a 'forbidden' character
-        }
-        else
-        {
-            state = QValidator::Invalid;
-        }
-    }
-
-    return state;
+    return QValidator::Acceptable;
 }
 
-MeritAddressCheckValidator::MeritAddressCheckValidator(QObject *parent) :
-    QValidator(parent)
+MeritAddressCheckValidator::MeritAddressCheckValidator(QObject *parent, WalletModel* m) :
+    QValidator(parent), model{m}
 {
+    assert(model);
 }
 
 QValidator::State MeritAddressCheckValidator::validate(QString &input, int &pos) const
 {
     Q_UNUSED(pos);
+
     // Validate the passed Merit address
-    if (IsValidDestinationString(input.toStdString())) {
+    if (Valid(input.toStdString(), model)) {
         return QValidator::Acceptable;
     }
 

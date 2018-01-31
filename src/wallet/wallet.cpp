@@ -3549,7 +3549,7 @@ bool CWallet::CreateInviteTransaction(
         //check blockchain and mempool for beacon
         if (!CheckAddressBeaconed(dest, true)) {
             std::stringstream e;
-            e << _("Transaction recipient address \"")
+            e << _("Invite recipient address \"")
               << EncodeDestination(dest)
               << _("\" is not beaconed");
 

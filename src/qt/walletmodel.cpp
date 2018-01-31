@@ -207,7 +207,8 @@ void WalletModel::updateWatchOnlyFlag(bool fHaveWatchonly)
 
 bool WalletModel::validateAddress(const QString &address)
 {
-    return IsValidDestinationString(address.toStdString());
+    const auto dest = LookupDestination(address.toStdString());
+    return CMeritAddress{dest}.IsValid();
 }
 
 WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransaction &transaction, const CCoinControl& coinControl)
@@ -265,7 +266,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
             setAddress.insert(rcp.address);
             ++nAddresses;
 
-            CScript scriptPubKey = GetScriptForDestination(DecodeDestination(rcp.address.toStdString()));
+            CScript scriptPubKey = GetScriptForDestination(LookupDestination(rcp.address.toStdString()));
             CRecipient recipient = {scriptPubKey, rcp.amount, rcp.fSubtractFeeFromAmount};
             vecSend.push_back(recipient);
 
@@ -366,7 +367,7 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction &tran
         if (!rcp.paymentRequest.IsInitialized())
         {
             std::string strAddress = rcp.address.toStdString();
-            CTxDestination dest = DecodeDestination(strAddress);
+            CTxDestination dest = LookupDestination(strAddress);
             std::string strLabel = rcp.label.toStdString();
             {
                 LOCK(wallet->cs_wallet);
@@ -477,6 +478,21 @@ bool WalletModel::Daedalus() const
 {
     assert(wallet);
     return wallet->Daedalus();
+}
+
+bool WalletModel::SendInviteTo(const std::string& address)
+{
+    assert(wallet);
+    CTxDestination dest = LookupDestination(address);
+    if (!IsValidDestination(dest)) {
+        return false;
+    }
+
+    CTransactionRef tx;
+    try {
+        tx = wallet->SendInviteTo(GetScriptForDestination(dest));
+    } catch (...) { }
+    return tx != nullptr;
 }
 
 bool WalletModel::setWalletEncrypted(bool encrypted, const SecureString &passphrase)
@@ -704,7 +720,7 @@ void WalletModel::loadReceiveRequests(std::vector<std::string>& vReceiveRequests
 
 bool WalletModel::saveReceiveRequest(const std::string &sAddress, const int64_t nId, const std::string &sRequest)
 {
-    CTxDestination dest = DecodeDestination(sAddress);
+    CTxDestination dest = LookupDestination(sAddress);
 
     std::stringstream ss;
     ss << nId;

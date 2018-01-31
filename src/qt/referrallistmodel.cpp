@@ -113,7 +113,9 @@ QVariant ReferralListModel::data(const QModelIndex &index, int role) const
     if (record) {
         switch (role) {
         case AddressRole:
-            return record->DisplayString();
+            return QString::fromStdString(record->address);
+        case AliasRole:
+            return QString::fromStdString(record->alias);
         case StatusRole:
             return record->StatusString();
         case DateRole:

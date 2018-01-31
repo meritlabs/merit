@@ -10,6 +10,7 @@
 
 class AddressTableModel;
 class PlatformStyle;
+class WalletModel;
 
 namespace Ui {
     class AddressBookPage;
@@ -39,7 +40,12 @@ public:
         ForEditing  /**< Open address book for editing */
     };
 
-    explicit AddressBookPage(const PlatformStyle *platformStyle, Mode mode, Tabs tab, QWidget *parent);
+    explicit AddressBookPage(
+            const PlatformStyle *platformStyle,
+            Mode mode,
+            Tabs tab,
+            QWidget *parent,
+            WalletModel* wallet);
     ~AddressBookPage();
 
     void setModel(AddressTableModel *model);
@@ -58,6 +64,7 @@ private:
     QMenu *contextMenu;
     QAction *deleteAction; // to be able to explicitly disable it
     QString newAddressToSelect;
+    WalletModel* wallet;
 
 private Q_SLOTS:
     /** Delete currently selected address entry */

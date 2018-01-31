@@ -515,7 +515,7 @@ void TransactionView::editLabel()
             EditAddressDialog dlg(
                 type == AddressTableModel::Receive
                 ? EditAddressDialog::EditReceivingAddress
-                : EditAddressDialog::EditSendingAddress, this);
+                : EditAddressDialog::EditSendingAddress, this, model);
             dlg.setModel(addressBook);
             dlg.loadRow(idx);
             dlg.exec();
@@ -523,8 +523,7 @@ void TransactionView::editLabel()
         else
         {
             // Add sending address
-            EditAddressDialog dlg(EditAddressDialog::NewSendingAddress,
-                this);
+            EditAddressDialog dlg(EditAddressDialog::NewSendingAddress, this, model);
             dlg.setModel(addressBook);
             dlg.setAddress(address);
             dlg.exec();

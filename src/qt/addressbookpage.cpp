@@ -22,12 +22,18 @@
 #include <QMessageBox>
 #include <QSortFilterProxyModel>
 
-AddressBookPage::AddressBookPage(const PlatformStyle *platformStyle, Mode _mode, Tabs _tab, QWidget *parent) :
+AddressBookPage::AddressBookPage(
+        const PlatformStyle *platformStyle,
+        Mode _mode,
+        Tabs _tab,
+        QWidget *parent,
+        WalletModel* w) :
     QDialog(parent),
     ui(new Ui::AddressBookPage),
     model(0),
     mode(_mode),
-    tab(_tab)
+    tab(_tab),
+    wallet{w}
 {
     ui->setupUi(this);
 
@@ -168,6 +174,9 @@ void AddressBookPage::onEditAction()
     if(!model)
         return;
 
+    if(!wallet)
+        return;
+
     if(!ui->tableView->selectionModel())
         return;
     QModelIndexList indexes = ui->tableView->selectionModel()->selectedRows();
@@ -177,7 +186,7 @@ void AddressBookPage::onEditAction()
     EditAddressDialog dlg(
         tab == SendingTab ?
         EditAddressDialog::EditSendingAddress :
-        EditAddressDialog::EditReceivingAddress, this);
+        EditAddressDialog::EditReceivingAddress, this, wallet);
     dlg.setModel(model);
     QModelIndex origIndex = proxyModel->mapToSource(indexes.at(0));
     dlg.loadRow(origIndex.row());
@@ -189,10 +198,13 @@ void AddressBookPage::on_newAddress_clicked()
     if(!model)
         return;
 
+    if(!wallet)
+        return;
+
     EditAddressDialog dlg(
         tab == SendingTab ?
         EditAddressDialog::NewSendingAddress :
-        EditAddressDialog::NewReceivingAddress, this);
+        EditAddressDialog::NewReceivingAddress, this, wallet);
     dlg.setModel(model);
     if(dlg.exec())
     {

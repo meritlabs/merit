@@ -57,6 +57,7 @@ public:
     enum RoleIndex {
         // includes alias if availabl
         AddressRole,
+        AliasRole,
         DateRole,
         StatusRole
     };

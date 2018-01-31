@@ -576,7 +576,7 @@ background-color: rgb(232, 179, 54);</string>
            </layout>
           </item>
           <item>
-           <widget class="QListView" name="listRequests">
+           <widget class="QListView" name="listNetwork">
             <property name="styleSheet">
              <string notr="true">QListView { background: transparent; }</string>
             </property>

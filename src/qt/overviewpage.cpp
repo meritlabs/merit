@@ -118,29 +118,26 @@ class ReferralViewDelegate : public QAbstractItemDelegate
 {
     Q_OBJECT
 public:
-    explicit ReferralViewDelegate(const PlatformStyle *_platformStyle, QObject *parent=nullptr):
-        QAbstractItemDelegate(parent), unit(MeritUnits::MRT),
-        platformStyle(_platformStyle)
-    {
-
-    }
+    explicit ReferralViewDelegate(const CAmount& _invite_balance, const PlatformStyle *_platformStyle, QObject *parent=nullptr):
+        QAbstractItemDelegate{parent}, unit{MeritUnits::MRT},
+        platformStyle{_platformStyle}, invite_balance{_invite_balance}
+    {}
 
     inline void paint(QPainter *painter, const QStyleOptionViewItem &option,
                       const QModelIndex &index ) const
     {
         painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
 
         QRect mainRect = option.rect;
         int xpad = 8;
         int ypad = 10;
         int halfheight = (mainRect.height() - 2*ypad)/2;
+
         QRect addressRect(mainRect.left() + xpad, mainRect.top()+ypad, mainRect.width() - 2*xpad, halfheight);
         QRect timestampRect(mainRect.left() + xpad, mainRect.top()+ypad+halfheight, mainRect.width() - xpad, halfheight);
         QLine line(mainRect.left() + xpad, mainRect.bottom(), mainRect.right() - xpad, mainRect.bottom());
 
-        QDateTime date = index.data(ReferralListModel::DateRole).toDateTime();
-        QString addressString = index.data(ReferralListModel::AddressRole).toString();
-        QString statusString = index.data(ReferralListModel::StatusRole).toString();
         QVariant value = index.data(Qt::ForegroundRole);
         QColor foreground = option.palette.color(QPalette::Text);
         if(value.canConvert<QBrush>())
@@ -150,7 +147,12 @@ public:
         }
 
         painter->setPen(foreground);
-        QRect boundingRect;
+
+        QDateTime date = index.data(ReferralListModel::DateRole).toDateTime();
+        QString addressString = index.data(ReferralListModel::AddressRole).toString();
+        QString aliasString = index.data(ReferralListModel::AliasRole).toString();
+        QString displayString = aliasString.isEmpty() ? addressString : 
+            aliasString + " (" + addressString + ")";
 
         painter->setPen(COLOR_BAREADDRESS);
         painter->drawText(timestampRect, Qt::AlignLeft|Qt::AlignVCenter, GUIUtil::dateTimeStr(date));
@@ -160,9 +162,34 @@ public:
         font.setWeight(QFont::Bold);
         painter->setFont(font);
         painter->setPen(COLOR_NEGATIVE);
-        painter->drawText(addressRect, Qt::AlignLeft|Qt::AlignVCenter, addressString);
+        painter->drawText(addressRect, Qt::AlignLeft|Qt::AlignVCenter, displayString);
 
-        painter->drawText(addressRect, Qt::AlignRight|Qt::AlignVCenter, statusString);
+        QString statusString = index.data(ReferralListModel::StatusRole).toString();
+
+        if(statusString == "Pending") {
+            const int INVITE_BUTTON_WIDTH = 80;
+            QRect rect(addressRect.right() - INVITE_BUTTON_WIDTH - xpad, mainRect.top()+ypad, INVITE_BUTTON_WIDTH, halfheight);
+            auto button_rect = painter->boundingRect(rect, tr("Send Invite"));
+            button_rect.setLeft(button_rect.left() - 10);
+            button_rect.setRight(button_rect.right() + 10);
+            button_rect.setTop(button_rect.top() - 2);
+            button_rect.setBottom(button_rect.bottom() + 2);
+
+            QColor merit_blue = invite_balance > 0 ? QColor{0, 176, 220} : QColor{128, 128, 128};
+
+            QPen pen;
+            pen.setColor(merit_blue);
+            painter->setPen(pen);
+
+            QPainterPath path;
+            path.addRoundedRect(button_rect, 10, 10);
+            painter->fillPath(path, merit_blue);
+            painter->drawPath(path);
+
+            painter->setPen(Qt::white);
+            painter->drawText(button_rect, Qt::AlignCenter|Qt::AlignVCenter, tr("Send Invite"));
+        }
+
 
         painter->setPen(Qt::lightGray);
         painter->drawLine(line);
@@ -177,6 +204,7 @@ public:
 
     int unit;
     const PlatformStyle *platformStyle;
+    const CAmount& invite_balance;
 
 };
 #include "overviewpage.moc"
@@ -192,7 +220,7 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     currentWatchOnlyBalance(-1),
     currentWatchUnconfBalance(-1),
     currentWatchImmatureBalance(-1),
-    referraldelegate(new ReferralViewDelegate(platformStyle, this)),
+    referraldelegate(new ReferralViewDelegate(currentInviteBalance, platformStyle, this)),
     txdelegate(new TxViewDelegate(platformStyle, this))
 {
     ui->setupUi(this);
@@ -212,11 +240,12 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     ui->inviteNotice->hide();
 
     // Unlock Requests
-    ui->listRequests->setItemDelegate(referraldelegate);
-    ui->listRequests->setMinimumHeight(NUM_ITEMS * (DECORATION_SIZE + 2));
-    ui->listRequests->setAttribute(Qt::WA_MacShowFocusRect, false);
+    ui->listNetwork->setItemDelegate(referraldelegate);
+    ui->listNetwork->setMinimumHeight(NUM_ITEMS * (DECORATION_SIZE + 2));
+    ui->listNetwork->setAttribute(Qt::WA_MacShowFocusRect, false);
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
+    connect(ui->listNetwork, SIGNAL(clicked(QModelIndex)), this, SLOT(handleReferralClicked(QModelIndex)));
 
     // start with displaying the "out of sync" warnings
     showOutOfSyncWarning(true);
@@ -228,6 +257,52 @@ void OverviewPage::handleTransactionClicked(const QModelIndex &index)
 {
     if(filter)
         Q_EMIT transactionClicked(filter->mapToSource(index));
+}
+
+void OverviewPage::handleReferralClicked(const QModelIndex &index)
+{
+    if(!walletModel) {
+        return;
+    }
+
+    if(currentInviteBalance == 0) {
+        QMessageBox::warning(this, tr("No Invites Available"), tr("You do not have any invites left"));
+        return;
+    } 
+
+    QString statusString = index.data(ReferralListModel::StatusRole).toString();
+    if(statusString != "Pending") {
+        return;
+    }
+
+    QString addressString = index.data(ReferralListModel::AddressRole).toString();
+    QString aliasString = index.data(ReferralListModel::AliasRole).toString();
+
+    QString title = aliasString.isEmpty() ? 
+        tr("Invite") + " " + addressString :
+        tr("Invite") + " " + aliasString;
+
+    QString text = aliasString.isEmpty() ? 
+        tr("Do you want to invite") + " " + addressString:
+        tr("Do you want to invite") + " " + aliasString + " " + tr("with the address") + " " + addressString;
+
+    auto ret = QMessageBox::question(this, title, text);
+    if(ret != QMessageBox::Yes) {
+        return;
+    }
+
+    auto success = walletModel->SendInviteTo(addressString.toStdString());
+    if(!success) {
+        QString title = aliasString.isEmpty() ? 
+            tr("Error Inviting") + " " + addressString :
+            tr("Error Inviting") + " " + aliasString;
+
+        QString text = aliasString.isEmpty() ? 
+            tr("There was an error inviting") + " " + addressString:
+            tr("There was an error inviting") + " " + aliasString + " " + tr("with the address") + " " + addressString;
+        
+        QMessageBox::critical(this, title, text);
+    }
 }
 
 void OverviewPage::handleOutOfSyncWarningClicks()
@@ -342,7 +417,7 @@ void OverviewPage::setWalletModel(WalletModel *model)
         ui->listTransactions->setModel(filter.get());
         ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
 
-        ui->listRequests->setModel(model->getReferralListModel());
+        ui->listNetwork->setModel(model->getReferralListModel());
 
         is_confirmed = walletModel->IsConfirmed();
         UpdateInvitationStatus();
@@ -458,7 +533,6 @@ void OverviewPage::UpdateNetworkView()
     if(ref_model) {
         ref_model->Refresh();
     }
-    std::cerr << "REFRESH" << std::endl;
 }
 
 QGraphicsDropShadowEffect* MakeFrameShadowEffect()
