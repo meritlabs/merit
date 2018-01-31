@@ -103,7 +103,7 @@ void WalletView::setMeritGUI(MeritGUI *gui)
         connect(this, SIGNAL(hdEnabledStatusChanged(int)), gui, SLOT(setHDStatus(int)));
 
         // Set mining status
-        connect(this, SIGNAL(miningStatusChanged(bool)), gui, SLOT(setMiningStatus(bool)));
+        connect(this, SIGNAL(miningStatusChanged(int)), gui, SLOT(setMiningStatus(int)));
     }
 }
 
@@ -142,6 +142,9 @@ void WalletView::setWalletModel(WalletModel *_walletModel)
 
         // update HD status
         Q_EMIT hdEnabledStatusChanged(_walletModel->hdEnabled());
+
+        // update Mining info
+        Q_EMIT miningStatusChanged(_walletModel->miningEnabled());
 
         // Balloon pop-up for new transaction
         connect(_walletModel->getTransactionTableModel(), SIGNAL(rowsInserted(QModelIndex,int,int)),
@@ -338,11 +341,11 @@ void WalletView::requestedSyncWarningInfo()
 void WalletView::startMiningClicked()
 {
     debug("Start mining");
-    Q_EMIT(miningStatusChanged(true));
+    Q_EMIT miningStatusChanged(true);
 }
 
 void WalletView::stoptMiningClicked()
 {
     debug("Stop mining");
-    Q_EMIT(miningStatusChanged(false));
+    Q_EMIT miningStatusChanged(false);
 }

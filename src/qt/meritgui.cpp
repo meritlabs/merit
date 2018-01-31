@@ -1124,7 +1124,7 @@ void MeritGUI::setEncryptionStatus(int status)
     }
 }
 
-void MeritGUI::setMiningStatus(bool isMining)
+void MeritGUI::setMiningStatus(int isMining)
 {
     if (isMining) {
         miningStatusIcon->show();
@@ -1133,7 +1133,9 @@ void MeritGUI::setMiningStatus(bool isMining)
         startMiningAction->setEnabled(false);
         stopMiningAction->setEnabled(true);
     } else {
-        miningStatusIcon->hide();
+        miningStatusIcon->show();
+        miningStatusIcon->setPixmap(platformStyle->SingleColorIcon(":/icons/transaction_conflicted").pixmap(STATUSBAR_ICONSIZE,STATUSBAR_ICONSIZE));
+        miningStatusIcon->setToolTip(tr("Mining is <b>not enabled</b>"));
         startMiningAction->setEnabled(true);
         stopMiningAction->setEnabled(false);
     }

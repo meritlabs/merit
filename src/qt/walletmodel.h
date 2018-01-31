@@ -231,6 +231,8 @@ public:
 
     bool getDefaultWalletRbf() const;
 
+    bool miningEnabled() const;
+
 private:
     CWallet *wallet;
     bool fHaveWatchOnly;

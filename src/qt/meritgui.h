@@ -191,7 +191,7 @@ public Q_SLOTS:
      */
     void setHDStatus(int hdEnabled);
 
-    void setMiningStatus(bool isMining = false);
+    void setMiningStatus(int isMining);
 
     bool handlePaymentRequest(const SendCoinsRecipient& recipient);
 

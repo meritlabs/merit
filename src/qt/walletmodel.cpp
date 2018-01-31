@@ -159,11 +159,11 @@ void WalletModel::checkBalanceChanged()
     }
 
     if(
-            cachedBalance != newBalance 
-            || cachedUnconfirmedBalance != newUnconfirmedBalance 
-            || cachedImmatureBalance != newImmatureBalance 
-            || cachedWatchOnlyBalance != newWatchOnlyBalance 
-            || cachedWatchUnconfBalance != newWatchUnconfBalance 
+            cachedBalance != newBalance
+            || cachedUnconfirmedBalance != newUnconfirmedBalance
+            || cachedImmatureBalance != newImmatureBalance
+            || cachedWatchOnlyBalance != newWatchOnlyBalance
+            || cachedWatchUnconfBalance != newWatchUnconfBalance
             || cachedWatchImmatureBalance != newWatchImmatureBalance
             || cachedInviteBalance != newInviteBalance)
     {
@@ -842,4 +842,9 @@ int WalletModel::getDefaultConfirmTarget() const
 bool WalletModel::getDefaultWalletRbf() const
 {
     return fWalletRbf;
+}
+
+bool WalletModel::miningEnabled() const
+{
+    return false;
 }

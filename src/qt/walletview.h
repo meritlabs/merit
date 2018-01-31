@@ -132,7 +132,7 @@ Q_SIGNALS:
     /** Notify that the out of sync warning icon has been pressed */
     void outOfSyncWarningClicked();
     /** Mining */
-    void miningStatusChanged(bool isMining);
+    void miningStatusChanged(int isMining);
 };
 
 #endif // MERIT_QT_WALLETVIEW_H
