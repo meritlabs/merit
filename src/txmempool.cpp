@@ -262,7 +262,7 @@ void CTxMemPool::CalculateReferralsConfirmations(
 
         auto tx = it->GetSharedEntryValue();
         if (tx->IsInvite()) {
-            debug("Found confirmation in mempool: %s,  %s",
+            debug("Found confirmation in mempool: %s, %s",
                     tx->GetHash().GetHex(),
                     CMeritAddress{
                         static_cast<char>(index.first.type),

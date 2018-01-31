@@ -139,6 +139,7 @@ struct update_for_parent_inclusion
     CTxMemPool::txiter iter;
 };
 
+using SetRefEntries = referral::ReferralTxMemPool::setEntries;
 /** Generate a new block, without valid proof-of-work */
 class BlockAssembler
 {
@@ -162,7 +163,7 @@ private:
     uint64_t nBlockSigOpsCost;
     CAmount nFees;
     CTxMemPool::setEntries txsInBlock;
-    referral::ReferralTxMemPool::setEntries refsInBlock;
+    SetRefEntries refsInBlock;
 
     // Chain context for the block
     int nHeight;
@@ -210,14 +211,14 @@ private:
      * in a chain or in candidateReferrals.
      * If it's not, skip current package
      */
-    bool CheckReferrals(CTxMemPool::setEntries& testSet, referral::ReferralTxMemPool::setEntries& candidateReferrals);
+    bool CheckReferrals(CTxMemPool::setEntries& testSet, referral::ReferralRefs& candidate_referrals);
     /** Test if a new package would "fit" in the block */
     bool TestPackage(uint64_t packageSize, int64_t packageSigOpsCost) const;
     /** Perform checks on each transaction in a package:
       * locktime, premature-witness, serialized size (if necessary)
       * These checks should always succeed, and they're here
       * only as an extra check in case of suboptimal node configuration */
-    bool TestPackageContent(const CTxMemPool::setEntries& transactions, const referral::ReferralTxMemPool::setEntries& referrals);
+    bool TestPackageContent(const CTxMemPool::setEntries& transactions, const referral::ReferralRefs& referrals);
     /** Return true if given transaction from mapTx has already been evaluated,
       * or if the transaction's cached data in mapTx is incorrect. */
     bool SkipMapTxEntry(CTxMemPool::txiter it, indexed_modified_transaction_set &mapModifiedTx, CTxMemPool::setEntries &failedTx);
@@ -227,6 +228,8 @@ private:
       * state updated assuming given transactions are txsInBlock. Returns number
       * of updated descendants. */
     int UpdatePackagesForAdded(const CTxMemPool::setEntries& alreadyAdded, indexed_modified_transaction_set &mapModifiedTx);
+    /** Get vector of sorted current package referrals */
+    bool GetCandidatePacakageReferrals(const SetRefEntries& package_referrals, referral::ReferralRefs& sorted_referrals);
 };
 
 /** Modify the extranonce in a block */
