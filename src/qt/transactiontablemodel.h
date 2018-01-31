@@ -58,6 +58,8 @@ public:
         LabelRole,
         /** Net amount of transaction */
         AmountRole,
+        /** Number of invites */
+        InviteRole,
         /** Unique identifier */
         TxIDRole,
         /** Transaction hash */
