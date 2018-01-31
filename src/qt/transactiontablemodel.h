@@ -34,7 +34,8 @@ public:
         Date = 2,
         Type = 3,
         ToAddress = 4,
-        Amount = 5
+        Amount = 5,
+        Invite = 6,
     };
 
     /** Roles to get specific information from a transaction row.
@@ -99,8 +100,9 @@ private:
     QString formatTxDate(const TransactionRecord *wtx) const;
     QString formatTxType(const TransactionRecord *wtx) const;
     QString formatTxToAddress(const TransactionRecord *wtx, bool tooltip) const;
-    QString formatTxAmount(const TransactionRecord *wtx, bool showUnconfirmed=true, MeritUnits::SeparatorStyle separators=MeritUnits::separatorStandard) const;
+    QString formatTxAmount(const TransactionRecord *wtx, bool showUnconfirmed = true, MeritUnits::SeparatorStyle separators=MeritUnits::separatorStandard) const;
     QString formatTooltip(const TransactionRecord *rec) const;
+    QString formatInvite(const TransactionRecord *rec, bool showUnconfirmed = true) const;
     QVariant txStatusDecoration(const TransactionRecord *wtx) const;
     QVariant txWatchonlyDecoration(const TransactionRecord *wtx) const;
     QVariant txAddressDecoration(const TransactionRecord *wtx) const;
