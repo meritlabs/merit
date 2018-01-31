@@ -17,10 +17,10 @@ void ReferralRecord::UpdateStatus(const referral::ReferralRef& ref)
     AssertLockHeld(cs_main);
 
     // Determine referral status
-    if(status.status != ReferralStatus::Pending)
+    if(status != Status::Pending)
       return;
     if(CheckAddressConfirmed(ref->GetAddress(), ref->addressType, true)) {
-      status.status = ReferralStatus::Confirmed;
+      status = Status::Confirmed;
     }
 }
 
@@ -35,13 +35,13 @@ QString ReferralRecord::DisplayString() const
 // temporary
 QString ReferralRecord::StatusString() const
 {
-    switch(status.status)
+    switch(status)
     {
-    case ReferralStatus::Pending:
+    case Status::Pending:
         return QString::fromStdString("Pending");
-    case ReferralStatus::Confirmed:
+    case Status::Confirmed:
         return QString::fromStdString("Confirmed");
-    case ReferralStatus::Declined:
+    case Status::Declined:
         return QString::fromStdString("Declined");
     }
     return "";

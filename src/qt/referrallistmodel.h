@@ -27,7 +27,7 @@ public:
 
     /* Query entire wallet anew from core.
      */
-    void RefreshWallet();
+    void Refresh();
     int Size() const;
 
     ReferralRecord *Index(int idx);
@@ -68,6 +68,8 @@ private:
     std::unique_ptr<ReferralListPriv> priv;
 
 public Q_SLOTS:
+
+    void Refresh();
     /* New referral, or referral changed status */
     // void updateReferral(const QString &hash, int status, bool showReferral);
 

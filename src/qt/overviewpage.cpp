@@ -294,6 +294,8 @@ void OverviewPage::setBalance(
     ui->labelImmatureText->setVisible(showImmature || showWatchOnlyImmature);
     ui->labelWatchImmature->setVisible(showWatchOnlyImmature); // show watch-only immature balance
     ui->inviteBalance->setVisible(walletModel->Daedalus());
+
+    UpdateInvitationStatus();
 }
 
 // show/hide watch-only labels
@@ -317,6 +319,8 @@ void OverviewPage::setClientModel(ClientModel *model)
     {
         // Show warning if this is a prerelease version
         connect(model, SIGNAL(alertsChanged(QString)), this, SLOT(updateAlerts(QString)));
+        connect(model, SIGNAL(mempoolSizeChanged(long,size_t)), this, SLOT(MempoolSizeChanged(long, size_t)));
+        connect(model, SIGNAL(numBlocksChanged(int,QDateTime, double,bool)), this, SLOT(UpdateNetworkView()));
         updateAlerts(model->getStatusBarWarnings());
     }
 }
@@ -388,7 +392,6 @@ void OverviewPage::updateDisplayUnit()
     txdelegate->unit = walletModel->getOptionsModel()->getDisplayUnit();
 
     ui->listTransactions->update();
-    UpdateInvitationStatus();
 }
 
 void OverviewPage::updateAlerts(const QString &warnings)
@@ -432,6 +435,30 @@ void OverviewPage::UpdateInvitationStatus()
         QTimer::singleShot(3000, this, SLOT(HideInviteNotice()));
     }
     is_confirmed = confirmed;
+}
+
+void OverviewPage::MempoolSizeChanged(long size, size_t bytes)
+{
+    if(size == mempool_size && bytes == mempool_bytes) {
+        return;
+    }
+
+    UpdateNetworkView();
+    mempool_size = size;
+    mempool_bytes = bytes;
+}
+
+void OverviewPage::UpdateNetworkView()
+{
+    if(!walletModel) {
+        return;
+    }
+
+    auto ref_model = walletModel->getReferralListModel();
+    if(ref_model) {
+        ref_model->Refresh();
+    }
+    std::cerr << "REFRESH" << std::endl;
 }
 
 QGraphicsDropShadowEffect* MakeFrameShadowEffect()

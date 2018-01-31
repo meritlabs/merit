@@ -49,7 +49,9 @@ public Q_SLOTS:
             CAmount watchImmatureBalance,
             CAmount inviteBalance);
     void UpdateInvitationStatus();
+    void UpdateNetworkView();
     void HideInviteNotice();
+    void MempoolSizeChanged(long size, size_t bytes);
 
 Q_SIGNALS:
     void transactionClicked(const QModelIndex &index);
@@ -71,6 +73,9 @@ private:
     TxViewDelegate *txdelegate;
     std::unique_ptr<TransactionFilterProxy> filter;
     bool is_confirmed = false;
+
+    long mempool_size = 0;
+    size_t mempool_bytes = 0;
 
 private:
     QString FormatInviteBalance(CAmount invites);

@@ -14,10 +14,10 @@ extern referral::ReferralTxMemPool mempoolReferral;
 
 ReferralListPriv::ReferralListPriv(CWallet *_wallet) : wallet{_wallet}
 {
-    RefreshWallet();
+    Refresh();
 }
 
-void ReferralListPriv::RefreshWallet()
+void ReferralListPriv::Refresh()
 {
     qDebug() << "ReferralListPriv::refreshWallet";
     cachedWallet.clear();
@@ -27,17 +27,29 @@ void ReferralListPriv::RefreshWallet()
             const auto ref = entry.GetSharedEntryValue();
             assert(ref);
             if (ShowReferral(ref) && wallet->IsMine(*ref) && !wallet->IsMe(*ref)) {
-                cachedWallet.append(DecomposeReferral(entry));
+                auto rec = DecomposeReferral(entry);
+                rec.UpdateStatus(ref);
+                cachedWallet.append(rec);
             }
         }
 
         for (const auto& entry : wallet->mapWalletRTx) {
             const auto ref = entry.second.GetReferral();
             if (ShowReferral(ref) && !wallet->IsMe(*ref)) {
-                cachedWallet.append(DecomposeReferral(entry.second));
+                auto rec = DecomposeReferral(entry.second);
+                rec.UpdateStatus(ref);
+                cachedWallet.append(rec);
             }
         }
     }
+
+    std::sort(cachedWallet.begin(), cachedWallet.end(), 
+            [](const ReferralRecord& a, const ReferralRecord& b) {
+                if(a.status == b.status) {
+                    return a.date > b.date; 
+                }
+                return a.status < b.status;
+            });
 }
 
 int ReferralListPriv::Size() const
@@ -47,31 +59,32 @@ int ReferralListPriv::Size() const
 
 ReferralRecord *ReferralListPriv::Index(int idx)
 {
-    if (idx >= 0 && idx < cachedWallet.size()) {
-        auto rec = &cachedWallet[idx];
+    if (idx < 0 || idx >= cachedWallet.size()) {
+        return nullptr;
+    }
 
-        // Get required locks upfront. This avoids the GUI from getting
-        // stuck if the core is holding the locks for a longer time - for
-        // example, during a wallet rescan.
-        //
-        // If a status update is needed (blocks came in since last check),
-        //  update the status of this referral from the wallet. Otherwise,
-        // simply re-use the cached status.
-        TRY_LOCK(cs_main, lockMain);
-        if (lockMain)
-        {
-            TRY_LOCK(wallet->cs_wallet, lockWallet);
-            if (lockWallet && rec->StatusUpdateNeeded()) {
-                auto iter = wallet->mapWalletRTx.find(rec->hash);
+    auto rec = &cachedWallet[idx];
 
-                if (iter != wallet->mapWalletRTx.end()) {
-                    rec->UpdateStatus(iter->second.GetReferral());
-                }
+    // Get required locks upfront. This avoids the GUI from getting
+    // stuck if the core is holding the locks for a longer time - for
+    // example, during a wallet rescan.
+    //
+    // If a status update is needed (blocks came in since last check),
+    //  update the status of this referral from the wallet. Otherwise,
+    // simply re-use the cached status.
+    TRY_LOCK(cs_main, lockMain);
+    if (lockMain)
+    {
+        TRY_LOCK(wallet->cs_wallet, lockWallet);
+        if (lockWallet && rec->StatusUpdateNeeded()) {
+            auto iter = wallet->mapWalletRTx.find(rec->hash);
+
+            if (iter != wallet->mapWalletRTx.end()) {
+                rec->UpdateStatus(iter->second.GetReferral());
             }
         }
-        return rec;
     }
-    return nullptr;
+    return rec;
 }
 
 ReferralListModel::ReferralListModel(const PlatformStyle *_platformStyle, CWallet *_wallet, WalletModel *parent):
@@ -108,6 +121,14 @@ QVariant ReferralListModel::data(const QModelIndex &index, int role) const
         }
     }
     return QVariant();
+}
+
+void ReferralListModel::Refresh()
+{
+    assert(priv);
+    priv->Refresh();
+
+    Q_EMIT dataChanged(index(0, 0), index(priv->Size()-1, 0));
 }
 
 // QVariant ReferralListModel::headerData(int section, Qt::Orientation orientation, int role) const;

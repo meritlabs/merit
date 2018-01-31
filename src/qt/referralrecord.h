@@ -15,35 +15,22 @@
 class CWallet;
 class ReferralTx;
 
-/** UI model for referral status. The referral status is the part of a referral that will change over time.
+/** UI model for a referral.
  */
-class ReferralStatus
+class ReferralRecord
 {
 public:
-    ReferralStatus():
-        status(Pending)
-    {
-    }
-
     enum Status {
         Pending,    // referral which needs an inviteTx to confirm
         Confirmed,  // referral which has been confirmed
         Declined,   // user refused to confirm this referral
     };
 
-    Status status;
-};
-
-/** UI model for a referral.
- */
-class ReferralRecord
-{
-public:
     ReferralRecord():
-        hash{}, date{0}, address{}, alias{} {}
+        hash{}, date{0}, address{}, alias{},status{Pending} {}
 
     ReferralRecord(uint256 _hash, qint64 _date, std::string _address, std::string _alias = ""):
-        hash{_hash}, date{_date}, address{_address}, alias{_alias} {}
+        hash{_hash}, date{_date}, address{_address}, alias{_alias},status{Pending} {}
 
     /** @name Immutable referral attributes
       @{*/
@@ -55,7 +42,7 @@ public:
     /**@}*/
 
     /** Status: can change with block chain update */
-    ReferralStatus status;
+    Status status;
 
     /** Whether the referral parentAddress is a watch-only address */
     bool involvesWatchAddress;
