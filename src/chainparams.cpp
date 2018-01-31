@@ -155,8 +155,8 @@ public:
         consensus.daedalus_max_outstanding_invites_per_address = 500;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 41000; // About January 27, 2018
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 291520;   // About July 19, 2008
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 48500; // About Feb 2, 2018
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 312020;   // About Aug 2, 2018
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000002");
