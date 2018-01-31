@@ -93,13 +93,17 @@ void EnterUnlockCode::setModel(WalletModel *model)
 }
 
 extern CTxDestination LookupDestination(const std::string& address);
+
 void EnterUnlockCode::unlockCodeChanged(const QString &newText)
 {
     auto parent = newText.toStdString();
 
     auto dest = LookupDestination(parent);
 
-    parentAddress.Set(dest);
+    CMeritAddress merit_address;
+    merit_address.Set(dest);
+
+    parentAddress = merit_address;
 
     addressValid = parentAddress.IsValid() 
         && walletModel->AddressBeaconed(parentAddress)
