@@ -26,7 +26,7 @@ public:
     ~ModalOverlay();
 
 public Q_SLOTS:
-    void tipUpdate(int count, const QDateTime& blockDate, double nVerificationProgress);
+    void tipUpdate(int count, const QDateTime& blockDate);
     void setKnownBestHeight(int count, const QDateTime& blockDate);
 
     void toggleVisibility();
