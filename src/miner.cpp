@@ -365,32 +365,23 @@ void BuildConfirmationSet(const CTxMemPool::setEntries& testSet, ConfirmationSet
 
 bool BlockAssembler::CheckReferrals(
         CTxMemPool::setEntries& testSet,
-        referral::ReferralTxMemPool::setEntries& candidateReferrals)
+        referral::ReferralRefs& candidate_referrals)
 {
-    std::vector<referral::ReferralRef> vRefs(candidateReferrals.size());
-
-    std::transform(candidateReferrals.begin(), candidateReferrals.end(), vRefs.begin(),
-        [](const referral::ReferralTxMemPool::RefIter& entryit) {
-            return entryit->GetSharedEntryValue();
-        });
-
     ConfirmationSet confirmations;
     BuildConfirmationSet(txsInBlock, confirmations);
     BuildConfirmationSet(testSet, confirmations);
 
     // test all referrals are signed
-    for (const auto& entryit: candidateReferrals) {
-        const auto referral = entryit->GetEntryValue();
-
-        if (!CheckReferralSignature(referral)) {
+    for (const auto& referral: candidate_referrals) {
+        if (!CheckReferralSignature(*referral)) {
             return false;
         }
 
         if (pblock->IsDaedalus()) {
             // Check package for confirmation for give referral
-            if (confirmations.count(referral.GetAddress()) == 0) {
+            if (confirmations.count(referral->GetAddress()) == 0) {
                 debug("WARNING: Referral confirmation not found: %s",
-                        CMeritAddress{referral.addressType, referral.GetAddress()}.ToString());
+                        CMeritAddress{referral->addressType, referral->GetAddress()}.ToString());
                 return false;
             }
         }
@@ -401,7 +392,7 @@ bool BlockAssembler::CheckReferrals(
         const auto tx = it->GetEntryValue();
 
         CValidationState dummy;
-        if (!Consensus::CheckTxOutputs(tx, dummy, *prefviewcache, vRefs)) {
+        if (!Consensus::CheckTxOutputs(tx, dummy, *prefviewcache, candidate_referrals)) {
             return false;
         }
     }
@@ -426,7 +417,7 @@ bool BlockAssembler::TestPackage(uint64_t packageSize, int64_t packageSigOpsCost
 // - serialized size (in case -blockmaxsize is in use)
 bool BlockAssembler::TestPackageContent(
         const CTxMemPool::setEntries& transactions,
-        const referral::ReferralTxMemPool::setEntries& referrals)
+        const referral::ReferralRefs& referrals)
 {
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
     for (const CTxMemPool::txiter it : transactions) {
@@ -451,12 +442,8 @@ bool BlockAssembler::TestPackageContent(
     }
 
     if (fNeedSizeAccounting) {
-        for (const auto& it : referrals) {
-
-            uint64_t nRefSize =
-                ::GetSerializeSize(
-                    it->GetEntryValue(),
-                    SER_NETWORK, PROTOCOL_VERSION);
+        for (const auto& it: referrals) {
+            uint64_t nRefSize = ::GetSerializeSize(*it, SER_NETWORK, PROTOCOL_VERSION);
 
             // share block size by transactions and referrals
             if (nPotentialBlockSize + nRefSize >= nBlockMaxSize) {
@@ -583,7 +570,7 @@ void BlockAssembler::SortForBlock(
     // transactions for block inclusion.
     sortedEntries.clear();
     sortedEntries.insert(sortedEntries.begin(), package.begin(), package.end());
-    std::sort(sortedEntries.begin(), sortedEntries.end(), CompareTxIterByAncestorCount());
+    std::sort(sortedEntries.begin(), sortedEntries.end(), CompareIteratorByEntryTime<CTxMemPool::txiter>());
 }
 
 void BlockAssembler::AddReferrals()
@@ -641,6 +628,53 @@ void BlockAssembler::AddReferrals()
 
         ++nBlockRef;
     }
+}
+
+bool BlockAssembler::GetCandidatePacakageReferrals(
+    const SetRefEntries& package_referrals,
+    referral::ReferralRefs& candidate_referrals)
+{
+    std::set<referral::ReferralRef> candidate_in_block_referrals;
+
+    // get referrals in already added to block and referrals from current package
+    // to one set to skip duplicates
+    std::transform(refsInBlock.begin(), refsInBlock.end(),
+        std::inserter(candidate_in_block_referrals, candidate_in_block_referrals.end()),
+        [](const referral::ReferralTxMemPool::RefIter& entryit) {
+            return entryit->GetSharedEntryValue();
+        });
+
+    std::transform(package_referrals.begin(), package_referrals.end(),
+        std::inserter(candidate_in_block_referrals, candidate_in_block_referrals.end()),
+        [](const referral::ReferralTxMemPool::RefIter& entryit) {
+            return entryit->GetSharedEntryValue();
+        });
+
+    // move referrals from set to vector and build referral tree
+    // of the current candidate block
+    referral::ReferralRefs sorted_referrals;
+    sorted_referrals.insert(
+        sorted_referrals.begin(),
+        candidate_in_block_referrals.begin(),
+        candidate_in_block_referrals.end());
+
+    // if we couldn't build a tree this txs/refs package assumed invalid
+    if (!prefviewdb->OrderReferrals(sorted_referrals)) {
+        return false;
+    }
+
+    for (const auto& referral: sorted_referrals) {
+        auto ref_iter = mempoolReferral.mapRTx.find(referral->GetHash());
+        assert(ref_iter != mempoolReferral.mapRTx.end());
+
+        // add to resulting vector if referral found both in candidate block
+        // and current referrals package
+        if (package_referrals.count(ref_iter) > 0) {
+            candidate_referrals.push_back(referral);
+        }
+    }
+
+    return true;
 }
 
 // This transaction selection algorithm orders the mempool based
@@ -776,15 +810,19 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
             onlyUnconfirmed(ancestors);
         }
 
-        // Test if all tx's have required referrals and all tx's are Final
-        if (!CheckReferrals(ancestors, referrals) || !TestPackageContent(ancestors, referrals)) {
+        referral::ReferralRefs cadidate_referrals;
+
+        // Test if referrals tree is valid, all tx's have required referrals
+        // and all tx's are Final
+        if (!GetCandidatePacakageReferrals(referrals, cadidate_referrals) ||
+            !CheckReferrals(ancestors, cadidate_referrals) ||
+            !TestPackageContent(ancestors, cadidate_referrals)) {
             if (fUsingModified) {
                 mapModifiedTx.get<ancestor_score>().erase(modit);
                 failedTx.insert(iter);
             }
             continue;
         }
-
         // This transaction will make it in; reset the failed counter.
         nConsecutiveFailed = 0;
 
@@ -798,7 +836,14 @@ void BlockAssembler::addPackageTxs(int& nPackagesSelected, int& nDescendantsUpda
             mapModifiedTx.erase(it);
         }
 
-        for (const auto& it : referrals) {
+        std::vector<referral::ReferralTxMemPool::RefIter> sorted_referral_entries;
+
+        std::transform(cadidate_referrals.begin(), cadidate_referrals.end(), std::back_inserter(sorted_referral_entries),
+            [](const referral::ReferralRef& referral) {
+                return mempoolReferral.mapRTx.find(referral->GetHash());
+            });
+
+        for (const auto& it: sorted_referral_entries) {
             AddReferralToBlock(it);
         }
 

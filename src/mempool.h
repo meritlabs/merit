@@ -102,6 +102,13 @@ struct CompareIteratorByHash {
         return a->GetSharedEntryValue()->GetHash() < b->GetSharedEntryValue()->GetHash();
     }
 };
+template <typename iter>
+struct CompareIteratorByEntryTime {
+    bool operator()(const iter& a, const iter& b) const
+    {
+        return a->GetTime() < b->GetTime();
+    }
+};
 
 template <typename T>
 class CompareMemPoolEntryByEntryTime

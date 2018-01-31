@@ -194,19 +194,14 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
 
     // check parent address and alias not to generate keys
     // TODO: remove generated key from map if referral transaction failed and remove this checks
-    const bool isBeaconed = CheckAddressBeaconed(parentAddress, true);
-
-    if (!isBeaconed) {
+    if (!CheckAddressBeaconed(parentAddress, true)) {
         throw std::runtime_error(std::string(__func__) + ": provided address is not beaconed");
     }
 
-    bool isConfirmed = true;
-    if(Daedalus()) {
-        isConfirmed = CheckAddressConfirmed(parentAddress, true);
-    }
-
-    if (!isConfirmed) {
-        throw std::runtime_error(std::string(__func__) + ": provided address is not confirmed");
+    if (Daedalus()) {
+        if (!CheckAddressConfirmed(parentAddress, true)) {
+            throw std::runtime_error(std::string(__func__) + ": provided address is not confirmed");
+        }
     }
 
     // check if provided referral's alias is valid and not yet occupied
