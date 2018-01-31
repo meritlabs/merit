@@ -213,19 +213,19 @@ inline void UnserializeReferral(RefType& ref, Stream& s)
     s >> ref.pubkey;
     s >> ref.signature;
     if (ref.version >= Referral::INVITE_VERSION) {
-        s >> ref.alias;
-        if(ref.alias.size() > MAX_ALIAS_LENGTH) {
-            throw std::runtime_error{"invalid referral alias size"};
-        }
+        s >> LIMITED_STRING(ref.alias, MAX_ALIAS_LENGTH);
     }
 
-    assert(ref.pubkey.IsValid());
+    if(!ref.pubkey.IsValid()) {
+        throw std::runtime_error{"invalid referral pubkey"};
+    }
 }
 
 template <typename Stream, typename RefType>
 inline void SerializeReferral(const RefType& ref, Stream& s)
 {
     assert(ref.pubkey.IsValid());
+    assert(ref.alias.size() <= MAX_ALIAS_LENGTH);
 
     s << ref.version;
     s << ref.parentAddress;
@@ -234,7 +234,7 @@ inline void SerializeReferral(const RefType& ref, Stream& s)
     s << ref.pubkey;
     s << ref.signature;
     if (ref.version >= Referral::INVITE_VERSION) {
-        s << ref.alias;
+        s << LIMITED_STRING(ref.alias, MAX_ALIAS_LENGTH);
     }
 }
 
