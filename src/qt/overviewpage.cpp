@@ -428,7 +428,7 @@ void OverviewPage::UpdateInvitationStatus()
         ui->inviteNotice->show();
     } else {
         ui->inviteNotice->setStyleSheet("QLabel {background-color: rgb(128, 255, 128)}");
-        ui->inviteNotice->setText("<html><head/><body><p align=\"center\"><span style=\" font-size:12pt; font-weight:600;\">You have been confirmed!</span></p></body></html>");
+        ui->inviteNotice->setText("<html><head/><body><p align=\"center\"><span style=\" font-size:12pt; font-weight:600;\">Your invitation request is accepted!</span></p></body></html>");
         QTimer::singleShot(3000, this, SLOT(HideInviteNotice()));
     }
     is_confirmed = confirmed;

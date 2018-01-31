@@ -1504,7 +1504,6 @@ isminetype CWallet::IsMine(const referral::Referral& ref) const
 {
     LOCK(cs_wallet);
     const auto root = GetRootReferral();
-    std::cerr << "REF PARENT: " << (root ? root->GetAddress().GetHex() : "" ) << "   ref: " << CMeritAddress{ref.addressType, ref.GetAddress()}.ToString() << " parent: " << ref.parentAddress.GetHex() << std::endl;
     return 
         mapWalletRTx.count(ref.GetHash()) || 
         (root && ref.parentAddress == root->GetAddress()) ? ISMINE_ALL : ISMINE_NO;
