@@ -56,7 +56,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 if (ExtractDestination(txout.scriptPubKey, address) && IsMine(*wallet, address))
                 {
                     // Received by Merit Address
-                    sub.type = is_invite ? 
+                    sub.type = is_invite ?
                         TransactionRecord::RecvInvite:
                         TransactionRecord::RecvWithAddress;
                     sub.address = EncodeDestination(address);
@@ -64,7 +64,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 else
                 {
                     // Received by IP connection (deprecated features), or a multisignature or other non-simple transaction
-                    sub.type = is_invite ? 
+                    sub.type = is_invite ?
                         TransactionRecord::RecvInvite:
                         TransactionRecord::RecvFromOther;
                     sub.address = mapValue["from"];
@@ -72,7 +72,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 if (wtx.IsCoinBase())
                 {
                     // Generated
-                    sub.type = is_invite ? 
+                    sub.type = is_invite ?
                         TransactionRecord::GeneratedInvite :
                         TransactionRecord::Generated;
                 }
@@ -270,4 +270,9 @@ QString TransactionRecord::getTxID() const
 int TransactionRecord::getOutputIndex() const
 {
     return idx;
+}
+
+bool TransactionRecord::IsInvite() const
+{
+    return type == Type::GeneratedInvite || type == Type::SendInvite || type == Type::RecvInvite;
 }

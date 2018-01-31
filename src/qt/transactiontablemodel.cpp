@@ -34,7 +34,8 @@ static int column_alignments[] = {
         Qt::AlignLeft|Qt::AlignVCenter, /* date */
         Qt::AlignLeft|Qt::AlignVCenter, /* type */
         Qt::AlignLeft|Qt::AlignVCenter, /* address */
-        Qt::AlignRight|Qt::AlignVCenter /* amount */
+        Qt::AlignRight|Qt::AlignVCenter, /* amount */
+        Qt::AlignRight|Qt::AlignVCenter, /* invites */
     };
 
 // Comparison operator for sort/binary search of model tx list
@@ -246,7 +247,7 @@ TransactionTableModel::TransactionTableModel(const PlatformStyle *_platformStyle
         fProcessingQueuedTransactions(false),
         platformStyle(_platformStyle)
 {
-    columns << QString() << QString() << tr("Date") << tr("Type") << tr("Label") << MeritUnits::getAmountColumnTitle(walletModel->getOptionsModel()->getDisplayUnit());
+    columns << QString() << QString() << tr("Date") << tr("Type") << tr("Label") << MeritUnits::getAmountColumnTitle(walletModel->getOptionsModel()->getDisplayUnit()) << tr("Invites");
     priv->refreshWallet();
 
     connect(walletModel->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
@@ -449,6 +450,9 @@ QVariant TransactionTableModel::addressColor(const TransactionRecord *wtx) const
     case TransactionRecord::RecvWithAddress:
     case TransactionRecord::SendToAddress:
     case TransactionRecord::Generated:
+    case TransactionRecord::GeneratedInvite:
+    case TransactionRecord::SendInvite:
+    case TransactionRecord::RecvInvite:
         {
         QString label = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(wtx->address));
         if(label.isEmpty())
@@ -473,6 +477,25 @@ QString TransactionTableModel::formatTxAmount(const TransactionRecord *wtx, bool
         }
     }
     return QString(str);
+}
+
+QString TransactionTableModel::formatInvite(const TransactionRecord *rec, bool showUnconfirmed) const
+{
+    if (rec->IsInvite()) {
+        QString str = QString("1"); // dirty hack until we get transactions with multiple invites
+
+        if(showUnconfirmed)
+        {
+            if(!rec->status.countsForBalance)
+            {
+                str = QString("[") + str + QString("]");
+            }
+        }
+
+        return QString(str);
+    }
+
+    return QString("0");
 }
 
 QVariant TransactionTableModel::txStatusDecoration(const TransactionRecord *wtx) const
@@ -568,6 +591,8 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
             return formatTxToAddress(rec, false);
         case Amount:
             return formatTxAmount(rec, true, MeritUnits::separatorAlways);
+        case Invite:
+            return formatInvite(rec, true);
         }
         break;
     case Qt::EditRole:
@@ -586,6 +611,8 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
             return formatTxToAddress(rec, true);
         case Amount:
             return qint64(rec->credit + rec->debit);
+        case Invite:
+            return rec->IsInvite() ? qint64(1) : qint64(0); // dirty hack until we get transactions with multiple invites
         }
         break;
     case Qt::ToolTipRole:
@@ -628,6 +655,10 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
         return walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(rec->address));
     case AmountRole:
         return qint64(rec->credit + rec->debit);
+    case IsInviteRole:
+        return rec->IsInvite();
+    case InviteRole:
+        return rec->IsInvite() ? qint64(1) : qint64(0); // dirty hack until we get transactions with multiple invites
     case TxIDRole:
         return rec->getTxID();
     case TxHashRole:
@@ -684,7 +715,8 @@ QVariant TransactionTableModel::headerData(int section, Qt::Orientation orientat
         else if (role == Qt::TextAlignmentRole)
         {
             return column_alignments[section];
-        } else if (role == Qt::ToolTipRole)
+        }
+        else if (role == Qt::ToolTipRole)
         {
             switch(section)
             {
@@ -700,6 +732,8 @@ QVariant TransactionTableModel::headerData(int section, Qt::Orientation orientat
                 return tr("User-defined intent/purpose of the transaction.");
             case Amount:
                 return tr("Amount removed from or added to balance.");
+            case Invite:
+                return tr("Number of invites removed from or added to balance.");
             }
         }
     }

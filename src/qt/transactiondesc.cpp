@@ -233,6 +233,11 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx, TransactionReco
 
     strHTML += "<b>" + tr("Net amount") + ":</b> " + MeritUnits::formatHtmlWithUnit(unit, nNet, true) + "<br>";
 
+    // Invites
+    if (wtx.IsInvite()) {
+        strHTML += "<b>" + tr("Number of invites") + ":</b> " + "1" + "<br>";  // dirty hack until we get transactions with multiple invites
+    }
+
     //
     // Message
     //
