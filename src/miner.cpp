@@ -284,8 +284,8 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
                 state,
                 invites);
 
-        if(invites.empty()) {
-            //remove empty coinbase
+        if (invites.empty()) {
+            // remove empty coinbase
             pblock->invites.erase(pblock->invites.begin());
         } else {
             DistributeInvites(invites, coinbaseInvites);
@@ -295,7 +295,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     pblocktemplate->vchCoinbaseCommitment =
         GenerateCoinbaseCommitment(*pblock, pindexPrev, chain_params);
-
     pblocktemplate->vTxFees[0] = -nFees;
 
 
@@ -376,6 +375,7 @@ bool BlockAssembler::CheckReferrals(
         });
 
     ConfirmationSet confirmations;
+    BuildConfirmationSet(txsInBlock, confirmations);
     BuildConfirmationSet(testSet, confirmations);
 
     // test all referrals are signed
@@ -389,7 +389,7 @@ bool BlockAssembler::CheckReferrals(
         if (pblock->IsDaedalus()) {
             // Check package for confirmation for give referral
             if (confirmations.count(referral.GetAddress()) == 0) {
-                debug("ERROR: Referral confirmation not found: %s", 
+                debug("WARNING: Referral confirmation not found: %s",
                         CMeritAddress{referral.addressType, referral.GetAddress()}.ToString());
                 return false;
             }
@@ -512,7 +512,7 @@ void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::RefIter ite
     if (!mempoolReferral.Exists(ref->parentAddress)
             && !prefviewdb->GetReferral(ref->parentAddress)) {
         return;
-    } 
+    }
 
     pblock->m_vRef.push_back(ref);
 
@@ -597,7 +597,7 @@ void BlockAssembler::AddReferrals()
         const auto ref = it->GetSharedEntryValue();
 
         if (refsInBlock.count(it)) {
-            debug("\t%s: Referral %s is already in block", __func__, ref->GetHash().GetHex());
+            debug("\t%s: referral for %s is already in block", __func__, CMeritAddress{ref->addressType, ref->GetAddress()}.ToString());
             continue;
         }
 
@@ -609,6 +609,7 @@ void BlockAssembler::AddReferrals()
         if (pblock->IsDaedalus()) {
             // Check package for confirmation for give referral
             if (confirmations.count(ref->GetAddress()) == 0) {
+                debug("\t%s: confirmation for %s not found. Skipping", __func__, CMeritAddress{ref->addressType, ref->GetAddress()}.ToString());
                 continue;
             }
         }
@@ -623,13 +624,13 @@ void BlockAssembler::AddReferrals()
             nPotentialBlockSize += nRefSize;
         }
 
-        //Check mempoolForParent
-        //If we don't find the parent in the mempool (it's also not in block at this point)
-        //Look in the blockchain.
+        // Check mempoolForParent
+        // If we don't find the parent in the mempool (it's also not in block at this point)
+        // Look in the blockchain.
         if (!mempoolReferral.Exists(ref->parentAddress)
                 && !prefviewdb->GetReferral(ref->parentAddress)) {
             continue;
-        } 
+        }
 
         pblock->m_vRef.push_back(ref);
         if (fNeedSizeAccounting) {

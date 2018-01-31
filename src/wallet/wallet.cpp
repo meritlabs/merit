@@ -4361,8 +4361,7 @@ std::set<CTxDestination> CWallet::GetAccountAddresses(const std::string& strAcco
 
 bool CReserveKey::GetReservedKey(CPubKey& pubkey)
 {
-    if (nIndex == -1)
-    {
+    if (nIndex == -1) {
         CKeyPool keypool;
         pwallet->ReserveKeyFromKeyPool(nIndex, keypool);
         if (nIndex != -1)
@@ -4378,8 +4377,9 @@ bool CReserveKey::GetReservedKey(CPubKey& pubkey)
 
 void CReserveKey::KeepKey()
 {
-    if (nIndex != -1)
+    if (nIndex != -1) {
         pwallet->KeepKey(nIndex);
+    }
     nIndex = -1;
     vchPubKey = CPubKey();
 }
