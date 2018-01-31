@@ -1078,7 +1078,7 @@ bool CWallet::AddToWallet(const referral::ReferralTx& rtxIn, bool fFlushOnClose)
     uint256 hash = rtxIn.GetHash();
 
     // Inserts only if not already there, returns tx inserted or tx found
-    std::pair<std::map<uint256, referral::ReferralTx>::iterator, bool> ret = mapWalletRTx.insert(std::make_pair(hash, rtxIn));
+    auto ret = mapWalletRTx.insert(std::make_pair(hash, rtxIn));
     referral::ReferralTx& rtx = (*ret.first).second;
     rtx.BindWallet(this);
     bool fInsertedNew = ret.second;
@@ -1503,7 +1503,11 @@ isminetype CWallet::IsMine(const CTxIn &txin) const
 isminetype CWallet::IsMine(const referral::Referral& ref) const
 {
     LOCK(cs_wallet);
-    return mapWalletRTx.count(ref.GetHash()) ? ISMINE_ALL : ISMINE_NO;
+    const auto root = GetRootReferral();
+    std::cerr << "REF PARENT: " << (root ? root->GetAddress().GetHex() : "" ) << "   ref: " << CMeritAddress{ref.addressType, ref.GetAddress()}.ToString() << " parent: " << ref.parentAddress.GetHex() << std::endl;
+    return 
+        mapWalletRTx.count(ref.GetHash()) || 
+        (root && ref.parentAddress == root->GetAddress()) ? ISMINE_ALL : ISMINE_NO;
 }
 
 // Note that this function doesn't distinguish between a 0-valued input,
