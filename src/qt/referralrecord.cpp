@@ -58,7 +58,7 @@ ReferralRecord DecomposeReferral(const referral::ReferralRef ref, uint64_t time_
     assert(ref);
 
     const CMeritAddress meritAddress{ref->addressType, ref->GetAddress()};
-    return ReferralRecord{ref->GetHash(), time_received, meritAddress.ToString(), ref->alias};
+    return ReferralRecord{ref->GetHash(), static_cast<qint64>(time_received), meritAddress.ToString(), ref->alias};
 }
 
 /*
