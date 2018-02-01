@@ -10,6 +10,8 @@
 #include "validation.h"
 #include "wallet/wallet.h"
 
+#undef debug
+
 #include <QAbstractListModel>
 #include <QList>
 
