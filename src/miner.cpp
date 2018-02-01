@@ -913,15 +913,6 @@ void MinerWorker(int thread_id, MinerContext& ctx)
     unsigned int nExtraNonce = 0;
 
     try {
-        // Throw an error if no script was provided.  This can happen
-        // due to some internal error but also if the keypool is empty.
-        // In the latter case, already the pointer is NULL.
-        if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
-            throw std::runtime_error(
-                    "No coinbase script available "
-                    "(mining requires confirmed wallet)");
-        }
-
         while (true) {
             if (ctx.chainparams.MiningRequiresPeers()) {
                 // Busy-wait for the network to come online so we don't waste
