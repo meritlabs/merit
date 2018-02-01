@@ -36,8 +36,6 @@ QT_BEGIN_NAMESPACE
 class QTimer;
 QT_END_NAMESPACE
 
-const bool DEFAULT_MINING = false;
-
 class SendCoinsRecipient
 {
 public:

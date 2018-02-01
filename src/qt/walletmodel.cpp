@@ -9,6 +9,7 @@
 #include "consensus/validation.h"
 #include "guiconstants.h"
 #include "guiutil.h"
+#include "miner.h"
 #include "optionsmodel.h"
 #include "paymentserver.h"
 #include "recentrequeststablemodel.h"

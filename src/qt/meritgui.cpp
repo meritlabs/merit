@@ -14,6 +14,7 @@
 #include "guiconstants.h"
 #include "guiutil.h"
 #include "enterunlockcode.h"
+#include "miner.h"
 #include "modaloverlay.h"
 #include "networkstyle.h"
 #include "notificator.h"
@@ -411,10 +412,9 @@ void MeritGUI::createActions()
         connect(usedSendingAddressesAction, SIGNAL(triggered()), walletFrame, SLOT(usedSendingAddresses()));
         connect(usedReceivingAddressesAction, SIGNAL(triggered()), walletFrame, SLOT(usedReceivingAddresses()));
         connect(openAction, SIGNAL(triggered()), this, SLOT(openClicked()));
+        connect(startMiningAction, SIGNAL(triggered()), walletFrame, SLOT(startMiningClicked()));
+        connect(stopMiningAction, SIGNAL(triggered()), walletFrame, SLOT(stopMiningClicked()));
     }
-
-    connect(startMiningAction, SIGNAL(triggered()), this, SLOT(startMiningClicked()));
-    connect(stopMiningAction, SIGNAL(triggered()), this, SLOT(stopMiningClicked()));
 #endif // ENABLE_WALLET
 
     new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_C), this, SLOT(showDebugWindowActivateConsole()));
@@ -1128,19 +1128,24 @@ void MeritGUI::setEncryptionStatus(int status)
 
 void MeritGUI::setMiningStatus(int isMining)
 {
+    miningStatusIcon->show();
+
     if (isMining) {
-        miningStatusIcon->show();
         miningStatusIcon->setPixmap(platformStyle->SingleColorIcon(":/icons/tx_mined").pixmap(STATUSBAR_ICONSIZE,STATUSBAR_ICONSIZE));
         miningStatusIcon->setToolTip(tr("Mining is <b>enabled</b>"));
-        startMiningAction->setEnabled(false);
-        stopMiningAction->setEnabled(true);
     } else {
-        miningStatusIcon->show();
         miningStatusIcon->setPixmap(platformStyle->SingleColorIcon(":/icons/transaction_conflicted").pixmap(STATUSBAR_ICONSIZE,STATUSBAR_ICONSIZE));
         miningStatusIcon->setToolTip(tr("Mining is <b>not enabled</b>"));
-        startMiningAction->setEnabled(true);
-        stopMiningAction->setEnabled(false);
     }
+
+    startMiningAction->setEnabled(!isMining);
+    stopMiningAction->setEnabled(isMining);
+
+    auto nThreads = DEFAULT_MINING_THREADS;
+    gArgs.ForceSetArg("-mine", (isMining ? "1" : "0"));
+    gArgs.ForceSetArg("-mineproclimit", std::to_string(nThreads));
+
+    GenerateMerit(isMining, nThreads, Params());
 }
 #endif // ENABLE_WALLET
 
