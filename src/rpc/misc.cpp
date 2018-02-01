@@ -1288,11 +1288,11 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
 
 }
 
-UniValue getaddressrefids(const JSONRPCRequest& request)
+UniValue getaddressreferrals(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1) {
         throw std::runtime_error(
-            "getaddressrefids\n"
+            "getaddressreferrals\n"
             "\nReturns the ids of referrals for an address(es) (requires referralindex to be enabled).\n"
             "\nArguments:\n"
             "{\n"
@@ -1304,12 +1304,14 @@ UniValue getaddressrefids(const JSONRPCRequest& request)
             "}\n"
             "\nResult:\n"
             "[\n"
-            "  \"referralid\"  (string) Referral id\n"
-            "  ,...\n"
+            "  {\n"
+            "    \"refid\"          (string) The related txid\n"
+            "    \"raw\"            (string) Raw encoded referral object\n"
+            "  }\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("getaddressrefids", "'{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}'")
-            + HelpExampleRpc("getaddressrefids", "{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}")
+            + HelpExampleCli("getaddressreferrals", "'{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}'")
+            + HelpExampleRpc("getaddressreferrals", "{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}")
         );
     }
 
@@ -1333,13 +1335,19 @@ UniValue getaddressrefids(const JSONRPCRequest& request)
             // throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
         }
 
-        result.push_back(referral->GetHash().GetHex());
+        UniValue item(UniValue::VOBJ);
+        item.push_back(Pair("refid", referral->GetHash().GetHex()));
+        item.push_back(Pair("raw", EncodeHexRef(*referral)));
+        result.push_back(item);
 
         for (const auto& child_address: children) {
             const auto child_referral = prefviewcache->GetReferral(child_address);
 
             if (child_referral) {
-                result.push_back(child_referral->GetHash().GetHex());
+                UniValue item(UniValue::VOBJ);
+                item.push_back(Pair("refid", child_referral->GetHash().GetHex()));
+                item.push_back(Pair("raw", EncodeHexRef(*child_referral)));
+                result.push_back(item);
             }
         }
     }
@@ -1634,7 +1642,7 @@ static const CRPCCommand commands[] =
     { "addressindex",       "getaddressutxos",              &getaddressutxos,            {} },
     { "addressindex",       "getaddressdeltas",             &getaddressdeltas,           {} },
     { "addressindex",       "getaddresstxids",              &getaddresstxids,            {} },
-    { "addressindex",       "getaddressrefids",             &getaddressrefids,           {} },
+    { "addressindex",       "getaddressreferrals",          &getaddressreferrals,        {} },
     { "addressindex",       "getaddressbalance",            &getaddressbalance,          {} },
     { "addressindex",       "getaddressrewards",            &getaddressrewards,          {} },
     { "addressindex",       "getaddressanv",                &getaddressanv,              {} },
