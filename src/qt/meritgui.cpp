@@ -794,7 +794,7 @@ void MeritGUI::setNumBlocks(int count, const QDateTime& blockDate, double nVerif
         if (header)
             modalOverlay->setKnownBestHeight(count, blockDate);
         else
-            modalOverlay->tipUpdate(count, blockDate, nVerificationProgress);
+            modalOverlay->tipUpdate(count, blockDate);
     }
     if (!clientModel)
         return;

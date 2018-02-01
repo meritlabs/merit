@@ -145,6 +145,8 @@ public:
     /** Return whether a status update is needed.
      */
     bool statusUpdateNeeded() const;
+
+    bool IsInvite() const;
 };
 
 #endif // MERIT_QT_TRANSACTIONRECORD_H

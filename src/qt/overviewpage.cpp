@@ -23,7 +23,7 @@
 #include <QPainter>
 #include <QTimer>
 
-namespace  
+namespace
 {
     const int DECORATION_SIZE = 54;
     const int NUM_ITEMS = 10;
@@ -56,6 +56,7 @@ public:
         QDateTime date = index.data(TransactionTableModel::DateRole).toDateTime();
         qint64 amount = index.data(TransactionTableModel::AmountRole).toLongLong();
         bool confirmed = index.data(TransactionTableModel::ConfirmedRole).toBool();
+        qint64 invitesNumber = index.data(TransactionTableModel::InviteRole).toLongLong();
         QVariant value = index.data(Qt::ForegroundRole);
         QColor foreground = option.palette.color(QPalette::Text);
         if(value.canConvert<QBrush>())
@@ -89,9 +90,16 @@ public:
         {
             foreground = COLOR_LIGHTBLUE;
         }
-        QString amountText = MeritUnits::formatWithUnit(unit, amount, true, MeritUnits::separatorAlways);
+
         painter->setPen(foreground);
-        painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, amountText);
+        if (index.data(TransactionTableModel::IsInviteRole).toBool()) {
+            QString inviteText = QString("Invites: ") + QString::number(invitesNumber);
+            painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, inviteText);
+        } else {
+            QString amountText = MeritUnits::formatWithUnit(unit, amount, true, MeritUnits::separatorAlways);
+            painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, amountText);
+        }
+
         if(!confirmed)
         {
             painter->setPen(COLOR_UNCONFIRMED);
@@ -151,7 +159,7 @@ public:
         QDateTime date = index.data(ReferralListModel::DateRole).toDateTime();
         QString addressString = index.data(ReferralListModel::AddressRole).toString();
         QString aliasString = index.data(ReferralListModel::AliasRole).toString();
-        QString displayString = aliasString.isEmpty() ? addressString : 
+        QString displayString = aliasString.isEmpty() ? addressString :
             aliasString + " (" + addressString + ")";
 
         painter->setPen(COLOR_BAREADDRESS);
@@ -271,7 +279,7 @@ void OverviewPage::handleReferralClicked(const QModelIndex &index)
     if(currentInviteBalance == 0) {
         QMessageBox::warning(this, tr("No Invites Available"), tr("You do not have any invites left"));
         return;
-    } 
+    }
 
     QString statusString = index.data(ReferralListModel::StatusRole).toString();
     if(statusString != "Pending") {
@@ -281,11 +289,11 @@ void OverviewPage::handleReferralClicked(const QModelIndex &index)
     QString addressString = index.data(ReferralListModel::AddressRole).toString();
     QString aliasString = index.data(ReferralListModel::AliasRole).toString();
 
-    QString title = aliasString.isEmpty() ? 
+    QString title = aliasString.isEmpty() ?
         tr("Invite") + " " + addressString :
         tr("Invite") + " " + aliasString;
 
-    QString text = aliasString.isEmpty() ? 
+    QString text = aliasString.isEmpty() ?
         tr("Do you want to invite") + " " + addressString:
         tr("Do you want to invite") + " " + aliasString + " " + tr("with the address") + " " + addressString;
 
@@ -296,14 +304,14 @@ void OverviewPage::handleReferralClicked(const QModelIndex &index)
 
     auto success = walletModel->SendInviteTo(addressString.toStdString());
     if(!success) {
-        QString title = aliasString.isEmpty() ? 
+        QString title = aliasString.isEmpty() ?
             tr("Error Inviting") + " " + addressString :
             tr("Error Inviting") + " " + aliasString;
 
-        QString text = aliasString.isEmpty() ? 
+        QString text = aliasString.isEmpty() ?
             tr("There was an error inviting") + " " + addressString:
             tr("There was an error inviting") + " " + aliasString + " " + tr("with the address") + " " + addressString;
-        
+
         QMessageBox::critical(this, title, text);
     }
 }
@@ -323,13 +331,13 @@ QString OverviewPage::FormatInviteBalance(CAmount invites)
     QString color = invites == 0 ? "#aa0000" : "#00aa00";
     QString inviteOrInvites = invites == 1 ? tr("Invite") : tr("Invites");
 
-    return QString("<html><head/><body><p><span style=\" font-size:12pt; font-weight:600; color:") 
-        + color 
-        + QString(";\">") 
-        + QString::number(invites) 
-        + "</span><span style=\" font-size: 12pt; font-weight:600;\"> " 
-        + tr("Avaliable") 
-        + " " 
+    return QString("<html><head/><body><p><span style=\" font-size:12pt; font-weight:600; color:")
+        + color
+        + QString(";\">")
+        + QString::number(invites)
+        + "</span><span style=\" font-size: 12pt; font-weight:600;\"> "
+        + tr("Avaliable")
+        + " "
         + inviteOrInvites
         + "</span></p></body></html>";
 }
@@ -436,7 +444,7 @@ void OverviewPage::setWalletModel(WalletModel *model)
                 model->getBalance(nullptr, true));
 
         connect(
-                model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)), 
+                model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)),
                 this, SLOT(setBalance(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)));
 
         connect(model->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
@@ -498,7 +506,7 @@ void OverviewPage::HideInviteNotice()
 
 void OverviewPage::UpdateInvitationStatus()
 {
-    assert(ui); 
+    assert(ui);
     if(!walletModel) return;
 
     currentIsDaedalus = walletModel->Daedalus();
@@ -552,7 +560,7 @@ QGraphicsDropShadowEffect* MakeFrameShadowEffect()
     return effect;
 }
 
-void OverviewPage::SetShadows() 
+void OverviewPage::SetShadows()
 {
     ui->balanceFrame->setGraphicsEffect(MakeFrameShadowEffect());
     ui->transactionsFrame->setGraphicsEffect(MakeFrameShadowEffect());
