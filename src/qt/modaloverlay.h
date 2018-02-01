@@ -11,6 +11,9 @@
 
 //! The required delta of headers to the estimated number of available headers until we show the IBD progress
 static constexpr int HEADER_HEIGHT_DELTA_SYNC = 240;
+//! number of block processing times to average to estimate sync time remaining
+static constexpr int AVG_WINDOW_LENGTH = 100;
+
 
 namespace Ui {
     class ModalOverlay;
@@ -26,7 +29,7 @@ public:
     ~ModalOverlay();
 
 public Q_SLOTS:
-    void tipUpdate(int count, const QDateTime& blockDate, double nVerificationProgress);
+    void tipUpdate(int count, const QDateTime& blockDate);
     void setKnownBestHeight(int count, const QDateTime& blockDate);
 
     void toggleVisibility();
