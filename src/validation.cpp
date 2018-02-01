@@ -54,6 +54,7 @@
 #include <algorithm>
 #include <atomic>
 #include <sstream>
+#include <numeric>
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -2075,11 +2076,26 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
 }
 
 bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, const CTransaction& coinbase) {
-    assert(coinbase.IsCoinBase());
-    assert(coinbase.IsInvite());
+    if(!coinbase.IsCoinBase()) {
+        return false;
+    }
+
+    if(!coinbase.IsInvite()) {
+        return false;
+    }
 
     //quick test before doing more expensive validation
     if (coinbase.vout.size() != expected_invites.size()) {
+        return false;
+    }
+
+    const auto expected_invite_reward = std::accumulate(
+            expected_invites.begin(), expected_invites.end(), CAmount{0},
+            [](CAmount accum, const pog::InviteReward& inv) {
+                return accum + inv.invites;
+            });
+
+    if(coinbase.GetValueOut() != expected_invite_reward) {
         return false;
     }
 
