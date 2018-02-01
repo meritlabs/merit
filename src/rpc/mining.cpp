@@ -557,11 +557,15 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     static CBlockIndex* pindexPrev = chainActive.Tip();
     static int64_t nStart;
     static std::unique_ptr<CBlockTemplate> pblocktemplate;
-    if ((mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 5))
+    if (pindexPrev != chainActive.Tip() || (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 5))
     {
+        // Clear pindexPrev so future calls make a new block, despite any failures from here on  
+        pindexPrev = nullptr;
+
         // Store the pindexBest used before CreateNewBlock, to avoid races
         nTransactionsUpdatedLast = mempool.GetTransactionsUpdated();
         nStart = GetTime();
+        CBlockIndex* pindexPrevNew = chainActive.Tip();
 
         // Create new block
 
@@ -583,6 +587,8 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
 #endif
         if (!pblocktemplate)
             throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
+
+         pindexPrev = pindexPrevNew;
     }
     CBlock* pblock = &pblocktemplate->block; // pointer for convenience
     const Consensus::Params& consensusParams = Params().GetConsensus();
@@ -600,20 +606,20 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
         uint256 txHash = tx.GetHash();
         setTxIndex[txHash] = i++;
 
-        if (tx.IsCoinBase())
-            continue;
-
         UniValue entry(UniValue::VOBJ);
 
         entry.push_back(Pair("data", EncodeHexTx(tx)));
+        entry.push_back(Pair("coinbase", tx.IsCoinBase()));
         entry.push_back(Pair("txid", txHash.GetHex()));
         entry.push_back(Pair("hash", tx.GetWitnessHash().GetHex()));
 
         UniValue deps(UniValue::VARR);
-        for (const CTxIn &in : tx.vin)
-        {
-            if (setTxIndex.count(in.prevout.hash))
-                deps.push_back(setTxIndex[in.prevout.hash]);
+        if(!tx.IsCoinBase()) {
+            for (const CTxIn &in : tx.vin)
+            {
+                if (setTxIndex.count(in.prevout.hash))
+                    deps.push_back(setTxIndex[in.prevout.hash]);
+            }
         }
         entry.push_back(Pair("depends", deps));
 
