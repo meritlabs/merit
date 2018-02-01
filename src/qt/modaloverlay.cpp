@@ -80,7 +80,8 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     QDateTime currentDate = QDateTime::currentDateTime();
 
     // keep a vector of samples of verification progress at height
-    double verificationProgress = static_cast<double>(count) / static_cast<double>(bestHeaderHeight);
+    double verificationProgress = bestHeaderHeight == 0 ? 0 : 
+        static_cast<double>(count) / static_cast<double>(bestHeaderHeight);
     qint64 currentMillis = currentDate.toMSecsSinceEpoch();
     blockProcessTime.push_front(qMakePair(currentMillis, verificationProgress));
 
