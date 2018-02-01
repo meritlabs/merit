@@ -110,7 +110,12 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     ui->newestBlockDate->setText(blockDate.toString());
 
     // show the percentage done according to verificationProgress
-    ui->percentageProgress->setText(QString::number(verificationProgress*100, 'f', 2)+"%");
+    if(bestHeaderHeight == 0) {
+        ui->percentageProgress->setText(tr("Connecting..."));
+    } else {
+        ui->percentageProgress->setText(QString::number(verificationProgress*100, 'f', 2)+"%");
+    }
+
     ui->progressBar->setValue(verificationProgress*100);
 
     if (!bestHeaderDate.isValid())
