@@ -110,7 +110,8 @@ CScript COINBASE_FLAGS;
 const std::string strMessageMagic = "Merit Signed Message:\n";
 
 // Internal stuff
-namespace {
+namespace
+{
 
     struct CBlockIndexWorkComparator
     {
@@ -284,6 +285,7 @@ namespace {
         return state.Error(strMessage);
     }
 
+    const char PARAM_SCRIPT_ADDRESS = 3;
 } // namespace
 
 AddressPair ExtractAddress(const CTxOut& tout)
@@ -1786,9 +1788,10 @@ void TreeToForest(
     }
 
     entrants.erase(
-            std::remove_if (entrants.begin(), entrants.end(),
+            std::remove_if(entrants.begin(), entrants.end(),
                 [&params](const referral::AddressANV& e) {
-                    return e.address == params.genesis_address || e.address_type;
+                    return e.address == params.genesis_address || 
+                           e.address_type == PARAM_SCRIPT_ADDRESS;
                 }), entrants.end());
 }
 
