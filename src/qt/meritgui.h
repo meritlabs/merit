@@ -161,6 +161,9 @@ Q_SIGNALS:
     /** Signal raised when a URI was entered or dragged to the GUI */
     void receivedURI(const QString &uri);
 
+    /** Mining */
+    void miningStatusChanged(bool isMining);
+
 public Q_SLOTS:
     /** Set number of connections shown in the UI */
     void setNumConnections(int count);
@@ -191,7 +194,7 @@ public Q_SLOTS:
      */
     void setHDStatus(int hdEnabled);
 
-    void setMiningStatus(int isMining);
+    void setMiningStatus(bool isMining);
 
     bool handlePaymentRequest(const SendCoinsRecipient& recipient);
 
@@ -220,6 +223,10 @@ private Q_SLOTS:
 
     /** Enable actions when wallet gets referred */
     void walletReferred();
+
+    /** Mining */
+    void startMiningClicked();
+    void stopMiningClicked();
 #endif // ENABLE_WALLET
     /** Show configuration dialog */
     void optionsClicked();

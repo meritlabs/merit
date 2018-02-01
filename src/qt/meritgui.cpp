@@ -163,6 +163,9 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
         /** Create wallet frame and make it the central widget */
         walletFrame = new WalletFrame(_platformStyle, this);
         setCentralWidget(walletFrame);
+
+        connect(this, SIGNAL(miningStatusChanged(bool)), this, SLOT(setMiningStatus(bool)));
+
     } else
 #endif // ENABLE_WALLET
     {
@@ -262,6 +265,8 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
         connect(progressBar, SIGNAL(clicked(QPoint)), this, SLOT(showModalOverlay()));
         connect(enterUnlockCode, SIGNAL(WalletReferred()), this, SLOT(walletReferred()));
     }
+
+    setMiningStatus(gArgs.GetBoolArg("-mine", false));
 #endif
 }
 
@@ -412,8 +417,8 @@ void MeritGUI::createActions()
         connect(usedSendingAddressesAction, SIGNAL(triggered()), walletFrame, SLOT(usedSendingAddresses()));
         connect(usedReceivingAddressesAction, SIGNAL(triggered()), walletFrame, SLOT(usedReceivingAddresses()));
         connect(openAction, SIGNAL(triggered()), this, SLOT(openClicked()));
-        connect(startMiningAction, SIGNAL(triggered()), walletFrame, SLOT(startMiningClicked()));
-        connect(stopMiningAction, SIGNAL(triggered()), walletFrame, SLOT(stopMiningClicked()));
+        connect(startMiningAction, SIGNAL(triggered()), this, SLOT(startMiningClicked()));
+        connect(stopMiningAction, SIGNAL(triggered()), this, SLOT(stopMiningClicked()));
     }
 #endif // ENABLE_WALLET
 
@@ -1126,7 +1131,7 @@ void MeritGUI::setEncryptionStatus(int status)
     }
 }
 
-void MeritGUI::setMiningStatus(int isMining)
+void MeritGUI::setMiningStatus(bool isMining)
 {
     miningStatusIcon->show();
 
@@ -1336,4 +1341,16 @@ void UnitDisplayStatusBarControl::onMenuSelection(QAction* action)
     {
         optionsModel->setDisplayUnit(action->data());
     }
+}
+
+void MeritGUI::startMiningClicked()
+{
+    LogPrintf("Start mining");
+    Q_EMIT miningStatusChanged(true);
+}
+
+void MeritGUI::stopMiningClicked()
+{
+    LogPrintf("Stop mining");
+    Q_EMIT miningStatusChanged(false);
 }
