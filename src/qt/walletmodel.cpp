@@ -9,7 +9,6 @@
 #include "consensus/validation.h"
 #include "guiconstants.h"
 #include "guiutil.h"
-#include "miner.h"
 #include "optionsmodel.h"
 #include "paymentserver.h"
 #include "recentrequeststablemodel.h"
@@ -843,9 +842,4 @@ int WalletModel::getDefaultConfirmTarget() const
 bool WalletModel::getDefaultWalletRbf() const
 {
     return fWalletRbf;
-}
-
-bool WalletModel::miningEnabled() const
-{
-    return gArgs.GetBoolArg("-mine", DEFAULT_MINING);
 }

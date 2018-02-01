@@ -266,7 +266,8 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
         connect(enterUnlockCode, SIGNAL(WalletReferred()), this, SLOT(walletReferred()));
     }
 
-    setMiningStatus(gArgs.GetBoolArg("-mine", false));
+    auto isMiningEnabled = gArgs.GetBoolArg("-mine", DEFAULT_MINING);
+    setMiningStatus(isMiningEnabled);
 #endif
 }
 

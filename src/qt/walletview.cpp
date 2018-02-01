@@ -19,7 +19,6 @@
 #include "transactiontablemodel.h"
 #include "transactionview.h"
 #include "walletmodel.h"
-#include "util.h"
 
 #include "ui_interface.h"
 
@@ -139,10 +138,6 @@ void WalletView::setWalletModel(WalletModel *_walletModel)
 
         // update HD status
         Q_EMIT hdEnabledStatusChanged(_walletModel->hdEnabled());
-
-        // update Mining info
-        // connect(_walletModel, SIGNAL(miningStatusChanged(int)), this, SIGNAL(miningStatusChanged(int)));
-
 
         // Balloon pop-up for new transaction
         connect(_walletModel->getTransactionTableModel(), SIGNAL(rowsInserted(QModelIndex,int,int)),
