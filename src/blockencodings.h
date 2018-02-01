@@ -47,12 +47,7 @@ public:
 };
 
 template <typename Stream, typename Operation>
-void ReadCompressedIndices(
-        Stream& s,
-        Operation ser_action,
-        uint64_t size,
-        std::vector<uint16_t>& decompressed,
-        bool& has_invites)
+void ReadCompressedIndices(Stream& s, Operation ser_action, uint64_t size, std::vector<uint16_t>& decompressed)
 {
     decompressed.resize(size);
 
@@ -65,12 +60,6 @@ void ReadCompressedIndices(
         index = index64;
     }
 
-    //If there are invite the last one is a dummy to signal invites.
-    if(!decompressed.empty() && decompressed.back() == std::numeric_limits<uint16_t>::max()) {
-        has_invites = true;
-        decompressed.resize(decompressed.size() - 1);
-    } 
-
     //de-delta
     uint16_t offset = 0;
     for (auto& index : decompressed) {
@@ -82,27 +71,17 @@ void ReadCompressedIndices(
 }
 
 template <typename Stream, typename Operation>
-void WriteCompressedIndices(
-        Stream& s,
-        Operation ser_action,
-        const std::vector<uint16_t>& indices,
-        bool has_invites)
+void WriteCompressedIndices(Stream& s, Operation ser_action, const std::vector<uint16_t>& indices)
 {
-    if(!indices.empty()) {
-        READWRITE(COMPACTSIZE(static_cast<uint64_t>(indices[0])));
+    if(indices.empty()) return;
 
-        uint16_t expected = 1;
-        for (size_t i = 1; i < indices.size(); i++) {
-            uint64_t index = indices[i] - expected;
-            READWRITE(COMPACTSIZE(index));
-            expected = indices[i] + 1;
-        }
-    }
+    READWRITE(COMPACTSIZE(static_cast<uint64_t>(indices[0])));
 
-    //for backwards compatibility before daedalus, mark this block with a dummy index
-    //if we have invites.
-    if(has_invites) {
-        READWRITE(COMPACTSIZE(static_cast<uint64_t>(std::numeric_limits<uint16_t>::max())));
+    uint16_t expected = 1;
+    for (size_t i = 1; i < indices.size(); i++) {
+        uint64_t index = indices[i] - expected;
+        READWRITE(COMPACTSIZE(index));
+        expected = indices[i] + 1;
     }
 }
 
@@ -113,6 +92,7 @@ public:
     std::vector<uint16_t> m_transaction_indices;
     std::vector<uint16_t> m_referral_indices;
     std::vector<uint16_t> m_invite_indices;
+    bool expect_invites;
 
     ADD_SERIALIZE_METHODS;
 
@@ -120,35 +100,28 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(blockhash);
 
-        uint64_t transaction_indices_size = static_cast<uint64_t>(m_transaction_indices.size());
-        READWRITE(COMPACTSIZE(transaction_indices_size));
+        uint64_t m_transaction_indices_size = static_cast<uint64_t>(m_transaction_indices.size());
+        READWRITE(COMPACTSIZE(m_transaction_indices_size));
 
-        uint64_t referral_indices_size = static_cast<uint64_t>(m_referral_indices.size());
-
-        bool has_invites = referral_indices_size > 0;
-
-        if(has_invites) {
-            referral_indices_size++;
-        }
-
-        READWRITE(COMPACTSIZE(referral_indices_size));
+        uint64_t m_referral_indices_size = static_cast<uint64_t>(m_referral_indices.size());
+        READWRITE(COMPACTSIZE(m_referral_indices_size));
 
         if (ser_action.ForRead()) {
-            ReadCompressedIndices(s, ser_action, transaction_indices_size, m_transaction_indices, has_invites);
-            ReadCompressedIndices(s, ser_action, referral_indices_size, m_referral_indices, has_invites);
+            ReadCompressedIndices(s, ser_action, m_transaction_indices_size, m_transaction_indices);
+            ReadCompressedIndices(s, ser_action, m_referral_indices_size, m_referral_indices);
         } else {
-            WriteCompressedIndices(s, ser_action, m_transaction_indices, false);
-            WriteCompressedIndices(s, ser_action, m_referral_indices, has_invites);
+            WriteCompressedIndices(s, ser_action, m_transaction_indices);
+            WriteCompressedIndices(s, ser_action, m_referral_indices);
         }
 
-        if(has_invites) {
-            uint64_t invite_indices_size = static_cast<uint64_t>(m_invite_indices.size());
-            READWRITE(COMPACTSIZE(invite_indices_size));
+        if(expect_invites) {
+            uint64_t m_invite_indices_size = static_cast<uint64_t>(m_invite_indices.size());
+            READWRITE(COMPACTSIZE(m_invite_indices_size));
 
             if (ser_action.ForRead()) {
-                ReadCompressedIndices(s, ser_action, invite_indices_size, m_invite_indices, has_invites);
+                ReadCompressedIndices(s, ser_action, m_invite_indices_size, m_invite_indices);
             } else {
-                WriteCompressedIndices(s, ser_action, m_invite_indices, false);
+                WriteCompressedIndices(s, ser_action, m_invite_indices);
             }
         }
     }
@@ -176,16 +149,10 @@ public:
     {
         READWRITE(blockhash);
 
-        uint64_t txn_size = txn.size();
+        uint64_t txn_size = txn.size() + invites.size();
         uint64_t ref_size = refs.size();
-        bool has_invites = !invites.empty();;
-
-        if(has_invites) { 
-            ref_size++;
-        }
         READWRITE(COMPACTSIZE(txn_size));
         READWRITE(COMPACTSIZE(ref_size));
-
 
         if (ser_action.ForRead()) {
             txn.resize(txn_size);
@@ -193,18 +160,22 @@ public:
                 READWRITE(REF(TransactionCompressor(tx)));
             }
 
+            // Transactions and invites are mixed up, seperate them and then
+            // move the invites to the invites vector.
+            auto invite_itr = std::partition(txn.begin(), txn.end(),
+                    [](const CTransactionRef& tx) {
+                        return tx->IsInvite() == false;
+                    });
+
+            const auto real_txn_size = std::distance(txn.begin(), invite_itr);
+
+            invites.resize(std::distance(invite_itr, txn.end()));
+            std::copy(invite_itr, txn.end(), invites.begin());
+            txn.resize(real_txn_size);
+
             refs.resize(ref_size);
             for(auto& ref : refs) {
                 READWRITE(REF(ReferralCompressor(ref)));
-            }
-
-            //The last referral is a dummy to signal daedalus.
-            if(!refs.empty()) {
-                const auto last = refs.back();
-                if(last->version == referral::Referral::INVITE_VERSION) {
-                    has_invites = true;
-                    refs.resize(refs.size() - 1);
-                }
             }
 
         } else {
@@ -212,31 +183,12 @@ public:
                 READWRITE(REF(TransactionCompressor(tx)));
             }
 
+            for(auto& inv : invites) {
+                READWRITE(REF(TransactionCompressor(inv)));
+            }
+
             for(auto& ref : refs) {
                 READWRITE(REF(ReferralCompressor(ref)));
-            }
-
-            if(has_invites) {
-                referral::MutableReferral dummy_mut;
-                dummy_mut.version = referral::Referral::INVITE_VERSION;
-                auto dummy_ref = referral::MakeReferralRef(dummy_mut);
-                READWRITE(REF(ReferralCompressor(dummy_ref)));
-            }
-        }
-
-        if(has_invites) {
-            uint64_t inv_size = invites.size();
-            READWRITE(COMPACTSIZE(inv_size));
-
-            if (ser_action.ForRead()) {
-                invites.resize(inv_size);
-                for(auto& inv : invites) {
-                    READWRITE(REF(TransactionCompressor(inv)));
-                }
-            } else {
-                for(auto& inv : invites) {
-                    READWRITE(REF(TransactionCompressor(inv)));
-                }
             }
         }
     }

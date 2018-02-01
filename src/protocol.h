@@ -232,9 +232,13 @@ extern const char *CMPCTBLOCK;
 /**
  * Contains a BlockTransactionsRequest
  * Peer should respond with "blocktxn" message.
- * @since protocol version 70014 as described by BIP 152
  */
 extern const char *GETBLOCKTXN;
+/**
+ * Contains a BlockTransactionsRequest that may have invites
+ * Peer should respond with "blocktxn" message.
+ */
+extern const char *GETBLOCKTXND;
 /**
  * Contains a BlockTransactions.
  * Sent in response to a "getblocktxn" message.
