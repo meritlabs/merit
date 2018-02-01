@@ -849,6 +849,86 @@ UniValue getaddressmempool(const JSONRPCRequest& request)
     return result;
 }
 
+UniValue processMempoolReferral(const referral::ReferralTxMemPool::RefIter entryit, const AddressPair& address)
+{
+    const auto referral = entryit->GetSharedEntryValue();
+
+    UniValue delta(UniValue::VOBJ);
+
+    delta.push_back(Pair("refid", referral->GetHash().GetHex()));
+    delta.push_back(Pair("address", CMeritAddress{referral->addressType, referral->GetAddress()}.ToString()));
+
+    const auto cached_parent_referral = prefviewdb->GetReferral(referral->parentAddress);
+    if (cached_parent_referral) {
+        delta.push_back(Pair("parentrefid", cached_parent_referral->GetHash().GetHex()));
+    } else {
+        const auto parent_referral_entry_it = mempoolReferral.Get(referral->parentAddress);
+        if (parent_referral_entry_it) {
+            delta.push_back(Pair("parentrefid", parent_referral_entry_it->GetHash().GetHex()));
+        }
+    }
+    delta.push_back(Pair("timestamp", entryit->GetTime()));
+    delta.push_back(Pair("raw", EncodeHexRef(*referral)));
+
+    return delta;
+}
+
+UniValue getaddressmempoolreferrals(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 1)
+        throw std::runtime_error(
+            "getaddressmempoolreferrals\n"
+            "\nReturns all mempool referrals for an address.\n"
+            "\nArguments:\n"
+            "{\n"
+            "  \"addresses\"\n"
+            "    [\n"
+            "      \"address\"  (string) The base58check encoded address\n"
+            "      ,...\n"
+            "    ]\n"
+            "}\n"
+            "\nResult:\n"
+            "[\n"
+            "  {\n"
+            "    \"address\"        (string) The base58check encoded address\n"
+            "    \"refid\"          (string) The related txid\n"
+            "    \"parentrefid\"    (string) Parent referral id\n"
+            "    \"timestamp\"      (number) The time the referral entered the mempool (seconds)\n"
+            "    \"raw\"            (string) Raw encoded referral object\n"
+            "  }\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getaddressmempoolreferrals", "'{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}'")
+            + HelpExampleRpc("getaddressmempoolreferrals", "{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}")
+        );
+
+    std::vector<AddressPair> addresses;
+
+    if (!getAddressesFromParams(request.params, addresses)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+    }
+
+    UniValue result(UniValue::VARR);
+
+    std::set<referral::ReferralRef> referrals;
+    for (const auto& address: addresses) {
+        const auto entryit = mempoolReferral.mapRTx.get<referral::referral_address>().find(address.first);
+
+        if (entryit != mempoolReferral.mapRTx.get<referral::referral_address>().end()) {
+            auto entryit_ = mempoolReferral.mapRTx.project<0>(entryit);
+            result.push_back(processMempoolReferral(entryit_, address));
+
+            const auto children = mempoolReferral.GetMemPoolChildren(entryit_);
+
+            for (const auto& child_entryit: children) {
+                result.push_back(processMempoolReferral(mempoolReferral.mapRTx.project<0>(child_entryit), address));
+            }
+        }
+    }
+
+    return result;
+}
+
 UniValue getaddressutxos(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1)
@@ -1549,14 +1629,15 @@ static const CRPCCommand commands[] =
     { "util",               "signmessagewithprivkey", &signmessagewithprivkey, {"privkey","message"} },
 
     /* Address index */
-    { "addressindex",       "getaddressmempool",      &getaddressmempool,      {} },
-    { "addressindex",       "getaddressutxos",        &getaddressutxos,        {} },
-    { "addressindex",       "getaddressdeltas",       &getaddressdeltas,       {} },
-    { "addressindex",       "getaddresstxids",        &getaddresstxids,        {} },
-    { "addressindex",       "getaddressrefids",       &getaddressrefids,       {} },
-    { "addressindex",       "getaddressbalance",      &getaddressbalance,      {} },
-    { "addressindex",       "getaddressrewards",      &getaddressrewards,      {} },
-    { "addressindex",       "getaddressanv",          &getaddressanv,          {} },
+    { "addressindex",       "getaddressmempool",            &getaddressmempool,          {} },
+    { "addressindex",       "getaddressmempoolreferrals",   &getaddressmempoolreferrals, {} },
+    { "addressindex",       "getaddressutxos",              &getaddressutxos,            {} },
+    { "addressindex",       "getaddressdeltas",             &getaddressdeltas,           {} },
+    { "addressindex",       "getaddresstxids",              &getaddresstxids,            {} },
+    { "addressindex",       "getaddressrefids",             &getaddressrefids,           {} },
+    { "addressindex",       "getaddressbalance",            &getaddressbalance,          {} },
+    { "addressindex",       "getaddressrewards",            &getaddressrewards,          {} },
+    { "addressindex",       "getaddressanv",                &getaddressanv,              {} },
 
     /* Blockchain */
     { "blockchain",         "getspentinfo",           &getspentinfo,           {} },
