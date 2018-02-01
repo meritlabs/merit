@@ -80,42 +80,37 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     QDateTime currentDate = QDateTime::currentDateTime();
 
     // keep a vector of samples of verification progress at height
-        double nVerificationProgress = static_cast<double>(count) / static_cast<double>(bestHeaderHeight);
-    blockProcessTime.push_front(qMakePair(currentDate.toMSecsSinceEpoch(), nVerificationProgress));
+    double verificationProgress = static_cast<double>(count) / static_cast<double>(bestHeaderHeight);
+    qint64 currentMillis = currentDate.toMSecsSinceEpoch();
+    blockProcessTime.push_front(qMakePair(currentMillis, verificationProgress));
 
     // show progress speed if we have more then one sample
-    if (blockProcessTime.size() >= 2)
+    if (blockProcessTime.size() == AVG_WINDOW_LENGTH)
     {
-        double progressStart = blockProcessTime[0].second;
         double progressDelta = 0;
         double progressPerHour = 0;
         qint64 timeDelta = 0;
         qint64 remainingMSecs = 0;
-        double remainingProgress = 1.0 - nVerificationProgress;
 
-        QPair<qint64, double> sample = blockProcessTime[blockProcessTime.size() - 1];
-        progressDelta = progressStart-sample.second;
-        timeDelta = blockProcessTime[0].first - sample.first;
-        progressPerHour = progressDelta/(double)timeDelta*1000*3600;
-        remainingMSecs = remainingProgress / progressDelta * timeDelta;
+        QPair<qint64, double> sample = blockProcessTime.takeLast();
+        timeDelta = currentMillis - sample.first;
+        progressDelta = verificationProgress - sample.second;
+        progressPerHour = progressDelta/static_cast<double>(timeDelta)*1000*3600;
+        remainingMSecs = (bestHeaderHeight - count) * timeDelta / AVG_WINDOW_LENGTH;
 
         // show progress increase per hour
         ui->progressIncreasePerH->setText(QString::number(progressPerHour*100, 'f', 2)+"%");
 
         // show expected remaining time
-        ui->expectedTimeLeft->setText(GUIUtil::formatNiceTimeOffset(remainingMSecs/1000.0));
-
-        static const int MAX_SAMPLES = 5000;
-        if (blockProcessTime.count() > MAX_SAMPLES)
-            blockProcessTime.remove(MAX_SAMPLES, blockProcessTime.count()-MAX_SAMPLES);
+        ui->expectedTimeLeft->setText(GUIUtil::formatNiceTimeOffset(remainingMSecs/1000));
     }
 
     // show the last block date
     ui->newestBlockDate->setText(blockDate.toString());
 
-    // show the percentage done according to nVerificationProgress
-    ui->percentageProgress->setText(QString::number(nVerificationProgress*100, 'f', 2)+"%");
-    ui->progressBar->setValue(nVerificationProgress*100);
+    // show the percentage done according to verificationProgress
+    ui->percentageProgress->setText(QString::number(verificationProgress*100, 'f', 2)+"%");
+    ui->progressBar->setValue(verificationProgress*100);
 
     if (!bestHeaderDate.isValid())
         // not syncing
@@ -127,7 +122,7 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     bool hasBestHeader = bestHeaderHeight >= count;
 
     // show remaining number of blocks
-    if (estimateNumHeadersLeft < HEADER_HEIGHT_DELTA_SYNC && hasBestHeader) {
+    if (hasBestHeader) {
         ui->numberOfBlocksLeft->setText(QString::number(bestHeaderHeight - count));
     } else {
         ui->numberOfBlocksLeft->setText(tr("Unknown. Syncing Headers (%1)...").arg(bestHeaderHeight));
