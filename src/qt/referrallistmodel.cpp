@@ -43,10 +43,10 @@ void ReferralListPriv::Refresh()
         }
     }
 
-    std::sort(cachedWallet.begin(), cachedWallet.end(), 
+    std::sort(cachedWallet.begin(), cachedWallet.end(),
             [](const ReferralRecord& a, const ReferralRecord& b) {
                 if(a.status == b.status) {
-                    return a.date > b.date; 
+                    return a.date > b.date;
                 }
                 return a.status < b.status;
             });
@@ -119,7 +119,7 @@ QVariant ReferralListModel::data(const QModelIndex &index, int role) const
         case StatusRole:
             return record->StatusString();
         case DateRole:
-            return QDateTime::fromSecsSinceEpoch(record->date);
+            return QDateTime::fromTime_t(static_cast<uint>(record->date));
         }
     }
     return QVariant();
