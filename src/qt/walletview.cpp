@@ -144,6 +144,7 @@ void WalletView::setWalletModel(WalletModel *_walletModel)
         Q_EMIT hdEnabledStatusChanged(_walletModel->hdEnabled());
 
         // update Mining info
+        connect(_walletModel, SIGNAL(miningStatusChanged(int)), this, SIGNAL(miningStatusChanged(int)));
         Q_EMIT miningStatusChanged(_walletModel->miningEnabled());
 
         // Balloon pop-up for new transaction
@@ -340,12 +341,12 @@ void WalletView::requestedSyncWarningInfo()
 
 void WalletView::startMiningClicked()
 {
-    debug("Start mining");
+    LogPrintf("Start mining");
     Q_EMIT miningStatusChanged(true);
 }
 
-void WalletView::stoptMiningClicked()
+void WalletView::stopMiningClicked()
 {
-    debug("Stop mining");
+    LogPrintf("Stop mining");
     Q_EMIT miningStatusChanged(false);
 }

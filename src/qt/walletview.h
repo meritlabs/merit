@@ -116,7 +116,7 @@ public Q_SLOTS:
 
     /** Mining */
     void startMiningClicked();
-    void stoptMiningClicked();
+    void stopMiningClicked();
 
 Q_SIGNALS:
     /** Signal that we want to show the main window */

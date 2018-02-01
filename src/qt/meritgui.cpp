@@ -386,7 +386,9 @@ void MeritGUI::createActions()
 
     // Mining
     startMiningAction = new QAction(platformStyle->TextColorIcon(":/icons/tx_mined"), tr("&Start mining"), this);
+    startMiningAction->setStatusTip(tr("Start Merit miner"));
     stopMiningAction = new QAction(platformStyle->TextColorIcon(":/icons/quit"), tr("&Stop mining"), this);
+    stopMiningAction->setStatusTip(tr("Stop Merit miner"));
 
     connect(quitAction, SIGNAL(triggered()), qApp, SLOT(quit()));
     connect(aboutAction, SIGNAL(triggered()), this, SLOT(aboutClicked()));
@@ -412,7 +414,7 @@ void MeritGUI::createActions()
     }
 
     connect(startMiningAction, SIGNAL(triggered()), this, SLOT(startMiningClicked()));
-    connect(stopMiningAction, SIGNAL(triggered()), this, SLOT(stoptMiningClicked()));
+    connect(stopMiningAction, SIGNAL(triggered()), this, SLOT(stopMiningClicked()));
 #endif // ENABLE_WALLET
 
     new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_C), this, SLOT(showDebugWindowActivateConsole()));
