@@ -846,5 +846,5 @@ bool WalletModel::getDefaultWalletRbf() const
 
 bool WalletModel::miningEnabled() const
 {
-    return false;
+    return gArgs.GetBoolArg("-mine", DEFAULT_MINING);
 }
