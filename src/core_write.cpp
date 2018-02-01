@@ -146,7 +146,12 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry,
 
         UniValue out(UniValue::VOBJ);
 
-        out.pushKV("value", ValueFromAmount(txout.nValue));
+        if(tx.IsInvite()) {
+            out.pushKV("value", txout.nValue);
+        } else {
+            out.pushKV("value", ValueFromAmount(txout.nValue));
+        }
+
         out.pushKV("n", (int64_t)i);
 
         UniValue o(UniValue::VOBJ);
@@ -169,6 +174,7 @@ void RefToUniv(const referral::Referral& ref, const uint256& hashBlock, UniValue
     entry.pushKV("refid", ref.GetHash().GetHex());
     entry.pushKV("version", ref.version);
     entry.pushKV("address", CMeritAddress{ref.addressType, ref.GetAddress()}.ToString());
+    entry.pushKV("alias", ref.alias);
 
     if(ref.addressType > 1) {
         auto signedAddress = ref.pubkey.GetID();

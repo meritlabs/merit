@@ -45,14 +45,14 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
     setContentsMargins(0,0,0,0);
 
     QHBoxLayout *hlayout = new QHBoxLayout();
-    hlayout->setContentsMargins(0,0,0,0);
+    hlayout->setContentsMargins(0,20,0,20);
 
     if (platformStyle->getUseExtraSpacing()) {
-        hlayout->setSpacing(5);
-        hlayout->addSpacing(26);
+        hlayout->setSpacing(10);
+        hlayout->addSpacing(0);
     } else {
-        hlayout->setSpacing(0);
-        hlayout->addSpacing(23);
+        hlayout->setSpacing(5);
+        hlayout->addSpacing(0);
     }
 
     watchOnlyWidget = new QComboBox(this);
@@ -91,6 +91,12 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
                                   TransactionFilterProxy::TYPE(TransactionRecord::SendToOther));
     typeWidget->addItem(tr("To yourself"), TransactionFilterProxy::TYPE(TransactionRecord::SendToSelf));
     typeWidget->addItem(tr("Mined"), TransactionFilterProxy::TYPE(TransactionRecord::Generated));
+    // Invites
+    typeWidget->addItem(tr("Mined invite"), TransactionFilterProxy::TYPE(TransactionRecord::GeneratedInvite));
+    typeWidget->addItem(tr("Received invite to"), TransactionFilterProxy::TYPE(TransactionRecord::RecvInvite));
+    typeWidget->addItem(tr("Sent invite to"), TransactionFilterProxy::TYPE(TransactionRecord::SendInvite));
+
+    // Other
     typeWidget->addItem(tr("Other"), TransactionFilterProxy::TYPE(TransactionRecord::Other));
 
     hlayout->addWidget(typeWidget);
@@ -117,11 +123,33 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
     vlayout->setContentsMargins(0,0,0,0);
     vlayout->setSpacing(0);
 
-    QTableView *view = new QTableView(this);
-    vlayout->addLayout(hlayout);
-    vlayout->addWidget(createDateRangeWidget());
-    vlayout->addWidget(view);
+    QFrame *frame = new QFrame(this);
+    frame->setStyleSheet("QFrame { border: 1px solid #E2E2E2; border-radius: 3px; }");
+
+    vlayout->addWidget(frame);
+
+    QVBoxLayout *vframelayout = new QVBoxLayout(frame);
+    vlayout->setContentsMargins(0,0,0,0);
     vlayout->setSpacing(0);
+
+    QLabel *title = new QLabel(this);
+    QFont f("SF", 16, QFont::Bold);
+    title->setFont(f);
+    title->setText("Transactions");
+    title->setStyleSheet("QLabel { border: none; }");
+    vframelayout->addWidget(title);
+
+    QTableView *view = new QTableView(this);
+    view->setStyleSheet(
+          QString("QTableView { border: 1px solid #E2E2E2; } ") +
+          QString("QHeaderView::section { font-size: 13pt; background-color: #F5F6F7; border-style: none; padding-left: 5px; padding-right: 5px; } ") +
+          QString("QHeaderView::down-arrow { width: 13px; height: 8px; subcontrol-position: center right; } ") +
+          QString("QHeaderView::up-arrow { width: 13px; height: 8px; subcontrol-position: center right; } "));
+    view->setShowGrid(false);
+    vframelayout->addLayout(hlayout);
+    vframelayout->addWidget(createDateRangeWidget());
+    vframelayout->addWidget(view);
+    vframelayout->setSpacing(0);
     int width = view->verticalScrollBar()->sizeHint().width();
     // Cover scroll bar width with spacing
     if (platformStyle->getUseExtraSpacing()) {
@@ -487,7 +515,7 @@ void TransactionView::editLabel()
             EditAddressDialog dlg(
                 type == AddressTableModel::Receive
                 ? EditAddressDialog::EditReceivingAddress
-                : EditAddressDialog::EditSendingAddress, this);
+                : EditAddressDialog::EditSendingAddress, this, model);
             dlg.setModel(addressBook);
             dlg.loadRow(idx);
             dlg.exec();
@@ -495,8 +523,7 @@ void TransactionView::editLabel()
         else
         {
             // Add sending address
-            EditAddressDialog dlg(EditAddressDialog::NewSendingAddress,
-                this);
+            EditAddressDialog dlg(EditAddressDialog::NewSendingAddress, this, model);
             dlg.setModel(addressBook);
             dlg.setAddress(address);
             dlg.exec();

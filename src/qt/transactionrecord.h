@@ -80,7 +80,10 @@ public:
         SendToOther,
         RecvWithAddress,
         RecvFromOther,
-        SendToSelf
+        SendToSelf,
+        GeneratedInvite,
+        RecvInvite,
+        SendInvite
     };
 
     /** Number of confirmation recommended for accepting a transaction */
@@ -142,6 +145,8 @@ public:
     /** Return whether a status update is needed.
      */
     bool statusUpdateNeeded() const;
+
+    bool IsInvite() const;
 };
 
 #endif // MERIT_QT_TRANSACTIONRECORD_H

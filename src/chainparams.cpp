@@ -13,6 +13,7 @@
 #include "tinyformat.h"
 #include "util.h"
 #include "utilstrencodings.h"
+#include "versionbits.h"
 
 #include <assert.h>
 
@@ -68,17 +69,18 @@ static CBlock CreateGenesisBlock(
     referral::Referral ref{mutRef};
 
     const CMeritAddress address{2, ref.GetAddress()};
+
     const auto genesisOutputScript = GetScriptForDestination(address.Get());
 
     CMutableTransaction txNew;
     txNew.nVersion = 1;
     txNew.vin.resize(1);
     txNew.vout.resize(1);
-    txNew.vin[0].scriptSig = 
+    txNew.vin[0].scriptSig =
         CScript() << 486604799
                   << CScriptNum(4)
                   << std::vector<unsigned char>(
-                          (const unsigned char*)pszTimestamp, 
+                          (const unsigned char*)pszTimestamp,
                           (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
 
     txNew.vout[0].nValue = genesisReward;
@@ -145,6 +147,16 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
+
+        consensus.daedalus_max_invites_per_block = 10; //20 merit over 2
+        consensus.daedalus_block_window = 60 * 24 * 3; //Window used to compute invites.
+                                                       //Looks at blocks over a 3 day period.
+        consensus.daedalus_min_one_invite_for_every_x_blocks = 10; //Minimum of 1 invite every 10 minutes, or 144 per day.
+        consensus.daedalus_max_outstanding_invites_per_address = 500;
+
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 49000; // About Feb 2, 2018
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 312020;   // About Aug 2, 2018
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000002");
@@ -254,6 +266,15 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 1199145601; // January 1, 2008
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
 
+        consensus.daedalus_max_invites_per_block = 10;
+        consensus.daedalus_block_window = 4;
+        consensus.daedalus_min_one_invite_for_every_x_blocks = 1;
+        consensus.daedalus_max_outstanding_invites_per_address = 3;
+
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 500;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 5000;
+
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
 
@@ -278,10 +299,6 @@ public:
 
         vFixedSeeds.clear();
         vSeeds.clear();
-        // nodes with support for servicebits filtering should be at the top
-        vSeeds.emplace_back("13.90.145.4,", false);
-        vSeeds.emplace_back("13.90.146.143", false);
-        vSeeds.emplace_back("13.90.147.18", false);
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_test, pnSeed6_test + ARRAYLEN(pnSeed6_test));
 
@@ -302,7 +319,7 @@ public:
             0};
     }
 
-    void Init() override 
+    void Init() override
     {
         CAmount genesisReward = 20000000_merit;
 
@@ -316,21 +333,26 @@ public:
                 CPubKey(ParseHex("024F1BC2E023ED1BACDC8171798113F1F7280C881919A11B592A25A976ABFB8798")),
         };
 
-        const std::string referralSig = 
+        const std::string referralSig =
             "304502210090792fc651c1d88caf78a071b9a33699e9f2324af3096d45e6c7a3"
             "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
             "f967f5b6895626";
 
-        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  381, 0x207fffff, 24, 1, genesisReward, consensus);
+        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800, 381, 0x207fffff, 24, 1, genesisReward, consensus);
 
         genesis.sCycle = {
-            0x13529, 0xb3ef1, 0xf3211, 0x166f1d, 0x1fe182, 0x229740, 0x2704c2, 0x2a3b1b, 0x32053c, 0x39fee1, 0x3ed8ff, 0x3f079d, 0x408b98, 0x40b31d, 0x434ea2, 0x463eaa, 0x482bb4, 0x49eae3, 0x4bb609, 0x545752, 0x5a2d5b, 0x5e3999, 0x6ca1d2, 0x76c4f7, 0x826245, 0x82d44d, 0xad2cd4, 0xafd7be, 0xb5792b, 0xb593a2, 0xb7f4fb, 0xc2a540, 0xcec41e, 0xd33967, 0xdbb0b8, 0xdc9ce4, 0xdf509e, 0xe04520, 0xe187ef, 0xe30157, 0xed068f, 0xfd58fe,
+            0x13529, 0xb3ef1, 0xf3211, 0x166f1d, 0x1fe182, 0x229740, 0x2704c2, 0x2a3b1b,
+            0x32053c, 0x39fee1, 0x3ed8ff, 0x3f079d, 0x408b98, 0x40b31d, 0x434ea2, 0x463eaa,
+            0x482bb4, 0x49eae3, 0x4bb609, 0x545752, 0x5a2d5b, 0x5e3999, 0x6ca1d2, 0x76c4f7,
+            0x826245, 0x82d44d, 0xad2cd4, 0xafd7be, 0xb5792b, 0xb593a2, 0xb7f4fb, 0xc2a540,
+            0xcec41e, 0xd33967, 0xdbb0b8, 0xdc9ce4, 0xdf509e, 0xe04520, 0xe187ef, 0xe30157,
+            0xed068f, 0xfd58fe
         };
 
         consensus.hashGenesisBlock = genesis.GetHash();
+
         assert(consensus.hashGenesisBlock == uint256S("448f31e47f5daabfd1984f03a64723c7f50b2306961e6f0e7f482e0b49f2dbea"));
         assert(genesis.hashMerkleRoot == uint256S("8be99a68b2514e86f17368e9cce63d302aa0f29ed91654b7c90dc9f7201fb69f"));
-
     }
 };
 
@@ -362,9 +384,19 @@ public:
         consensus.max_lottery_reservoir_size = 100;
         consensus.nCuckooProofSize = 42;
 
+
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nStartTime = 0;
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 999999999999ULL;
+
+        consensus.daedalus_max_invites_per_block = 10;
+        consensus.daedalus_block_window = 4;
+        consensus.daedalus_min_one_invite_for_every_x_blocks = 1;
+        consensus.daedalus_max_outstanding_invites_per_address = 3;
+
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 500;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 5000;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
@@ -415,7 +447,7 @@ public:
             CPubKey{ParseHex("024F1BC2E023ED1BACDC8171798113F1F7280C881919A11B592A25A976ABFB8798")},
         };
 
-        const std::string referralSig = 
+        const std::string referralSig =
             "304502210090792fc651c1d88caf78a071b9a33699e9f2324af3096d45e6c7a3"
             "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
             "f967f5b6895626";

@@ -20,6 +20,7 @@ class AddressTableModel;
 class OptionsModel;
 class PlatformStyle;
 class RecentRequestsTableModel;
+class ReferralListModel;
 class TransactionTableModel;
 class WalletModelTransaction;
 
@@ -130,17 +131,25 @@ public:
     AddressTableModel *getAddressTableModel();
     TransactionTableModel *getTransactionTableModel();
     RecentRequestsTableModel *getRecentRequestsTableModel();
+    ReferralListModel *getReferralListModel();
 
-    CAmount getBalance(const CCoinControl *coinControl = nullptr) const;
-    CAmount getUnconfirmedBalance() const;
-    CAmount getImmatureBalance() const;
+    CAmount getBalance(const CCoinControl *coinControl = nullptr, bool invite = false) const;
+    CAmount getUnconfirmedBalance(bool invite = false) const;
+    CAmount getImmatureBalance(bool invite = false) const;
     bool haveWatchOnly() const;
-    CAmount getWatchBalance() const;
-    CAmount getWatchUnconfirmedBalance() const;
-    CAmount getWatchImmatureBalance() const;
+    CAmount getWatchBalance(bool invite = false) const;
+    CAmount getWatchUnconfirmedBalance(bool invite = false) const;
+    CAmount getWatchImmatureBalance(bool invite = false) const;
     EncryptionStatus getEncryptionStatus() const;
     bool IsReferred() const;
-    referral::ReferralRef Unlock(const referral::Address& parentAddress);
+    bool IsConfirmed() const;
+    referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string alias = "");
+
+    bool AliasExists(const std::string& alias) const;
+    bool AddressBeaconed(const CMeritAddress& address) const;
+    bool AddressConfirmed(const CMeritAddress& address) const;
+    bool Daedalus() const;
+    bool SendInviteTo(const std::string& address);
 
     // Check address for validity
     bool validateAddress(const QString &address);
@@ -234,6 +243,7 @@ private:
     AddressTableModel *addressTableModel;
     TransactionTableModel *transactionTableModel;
     RecentRequestsTableModel *recentRequestsTableModel;
+    ReferralListModel *referralListModel;
 
     // Cache some values to be able to detect changes
     CAmount cachedBalance;
@@ -242,6 +252,7 @@ private:
     CAmount cachedWatchOnlyBalance;
     CAmount cachedWatchUnconfBalance;
     CAmount cachedWatchImmatureBalance;
+    CAmount cachedInviteBalance;
     EncryptionStatus cachedEncryptionStatus;
     int cachedNumBlocks;
 
@@ -253,8 +264,14 @@ private:
 
 Q_SIGNALS:
     // Signal that balance in wallet changed
-    void balanceChanged(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance,
-                        const CAmount& watchOnlyBalance, const CAmount& watchUnconfBalance, const CAmount& watchImmatureBalance);
+    void balanceChanged(
+            CAmount balance,
+            CAmount unconfirmedBalance,
+            CAmount immatureBalance,
+            CAmount watchOnlyBalance,
+            CAmount watchUnconfBalance,
+            CAmount watchImmatureBalance,
+            CAmount inviteBalance);
 
     // Encryption status of wallet changed
     void encryptionStatusChanged(int status);
@@ -275,6 +292,9 @@ Q_SIGNALS:
 
     // Watch-only address added
     void notifyWatchonlyChanged(bool fHaveWatchonly);
+
+    // Fired when a transaction is updated.
+    void transactionUpdated();
 
 public Q_SLOTS:
     /* Wallet status might have changed */

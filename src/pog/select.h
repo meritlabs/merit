@@ -42,6 +42,17 @@ namespace pog
             AnvDistribution m_distribution;
     };
 
+    referral::ConfirmedAddresses SelectConfirmedAddresses(
+            const referral::ReferralsViewDB& db,
+            uint256 hash,
+            const uint160& genesis_address,
+            size_t n,
+            int max_outstanding_invites);
+
+    /**
+     * Returns true if the address type is valid for ambassador lottery.
+     */
+    bool IsValidAmbassadorDestination(char type);
 } // namespace pog
 
 #endif //MERIT_POG_SELECT_H

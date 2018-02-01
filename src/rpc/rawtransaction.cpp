@@ -46,6 +46,9 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
     entry.push_back(Pair("size", (int)::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION)));
     entry.push_back(Pair("vsize", (int)::GetVirtualTransactionSize(tx)));
     entry.push_back(Pair("version", tx.nVersion));
+    if (tx.IsInvite()) {
+        entry.push_back(Pair("invite", true));
+    }
     entry.push_back(Pair("locktime", (int64_t)tx.nLockTime));
     UniValue vin(UniValue::VARR);
     for (unsigned int i = 0; i < tx.vin.size(); i++) {
@@ -65,8 +68,13 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
             CSpentIndexValue spentInfo;
             CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
             if (GetSpentIndex(spentKey, spentInfo)) {
-                in.push_back(Pair("value", ValueFromAmount(spentInfo.satoshis)));
-                in.push_back(Pair("valueSat", spentInfo.satoshis));
+                if (tx.IsInvite()) {
+                    //invites are not demoninated in sotoshi.
+                    in.push_back(Pair("value", spentInfo.satoshis));
+                } else {
+                    in.push_back(Pair("value", ValueFromAmount(spentInfo.satoshis)));
+                    in.push_back(Pair("valueSat", spentInfo.satoshis));
+                }
                 if (spentInfo.addressType == 1) {
                     in.push_back(Pair("address", CMeritAddress(CKeyID(spentInfo.addressHash)).ToString()));
                 } else if (spentInfo.addressType == 2)  {
@@ -96,8 +104,12 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
     for (unsigned int i = 0; i < tx.vout.size(); i++) {
         const CTxOut& txout = tx.vout[i];
         UniValue out(UniValue::VOBJ);
-        out.push_back(Pair("value", ValueFromAmount(txout.nValue)));
-        out.push_back(Pair("valueSat", txout.nValue));
+        if (tx.IsInvite()) {
+            out.push_back(Pair("value", txout.nValue));
+        } else {
+            out.push_back(Pair("value", ValueFromAmount(txout.nValue)));
+            out.push_back(Pair("valueSat", txout.nValue));
+        }
         out.push_back(Pair("n", (int64_t)i));
         UniValue o(UniValue::VOBJ);
         ScriptPubKeyToUniv(txout.scriptPubKey, o, true);
@@ -512,7 +524,7 @@ UniValue createrawtransaction(const JSONRPCRequest& request)
             CTxOut out(0, CScript() << OP_RETURN << data);
             rawTx.vout.push_back(out);
         } else {
-            CTxDestination destination = DecodeDestination(name_);
+            CTxDestination destination = LookupDestination(name_);
             if (!IsValidDestination(destination)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Merit address: ") + name_);
             }
@@ -731,7 +743,7 @@ UniValue combinerawtransaction(const JSONRPCRequest& request)
         }
 
         // switch back to avoid locking mempool for too long
-        view.SetBackend(viewDummy); 
+        view.SetBackend(viewDummy);
     }
 
     // Use CTransaction for the constant parts of the
@@ -884,7 +896,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
             CMeritSecret vchSecret;
             bool fGood = vchSecret.SetString(k.get_str());
 
-            if (!fGood) { 
+            if (!fGood) {
                 throw JSONRPCError(
                         RPC_INVALID_ADDRESS_OR_KEY,
                         "Invalid private key");
@@ -892,7 +904,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
 
             CKey key = vchSecret.GetKey();
 
-            if (!key.IsValid()) { 
+            if (!key.IsValid()) {
                 throw JSONRPCError(
                         RPC_INVALID_ADDRESS_OR_KEY,
                         "Private key outside allowed range");
@@ -980,7 +992,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
                     });
                 UniValue v = find_value(prevOut, "redeemScript");
                 if (!v.isNull()) {
-                    auto beaconDest = DecodeDestination(find_value(prevOut, "beaconKey").get_str());
+                    auto beaconDest = LookupDestination(find_value(prevOut, "beaconKey").get_str());
                     CKeyID beaconId;
                     GetUint160(beaconDest, beaconId);
 
@@ -993,7 +1005,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
 
                     CTxDestination dest;
                     if(ExtractDestination(scriptPubKey, dest)) {
-                        uint160 address; 
+                        uint160 address;
                         if(GetUint160(dest, address)) {
                             tempKeystore.AddReferralAddressPubKey(address, beaconId);
                         }

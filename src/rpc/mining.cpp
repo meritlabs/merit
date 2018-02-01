@@ -27,6 +27,7 @@
 #include "utilstrencodings.h"
 #include "validation.h"
 #include "validationinterface.h"
+#include "wallet/wallet.h"
 #include "warnings.h"
 
 #include <numeric>
@@ -131,13 +132,12 @@ UniValue generateBlocks(
     UniValue blockHashes(UniValue::VARR);
     auto consensusParams = Params().GetConsensus();
 
-    std::unique_ptr<CBlockTemplate> pblocktemplate{
-            BlockAssembler{Params()}.CreateNewBlock(coinbaseScript->reserveScript)};
-
     ctpl::thread_pool pool{nThreads};
 
-    while (nHeight < nHeightEnd)
-    {
+    do {
+        const auto pblocktemplate =
+            BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript);
+
         if (!pblocktemplate.get())
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't create new block");
         CBlock *pblock = &pblocktemplate->block;
@@ -186,10 +186,7 @@ UniValue generateBlocks(
         if (keepScript) {
             coinbaseScript->KeepScript();
         }
-
-        pblocktemplate =
-            BlockAssembler(Params()).CreateNewBlock(coinbaseScript->reserveScript);
-    }
+    } while (nHeight < nHeightEnd);
     return blockHashes;
 }
 
@@ -224,7 +221,7 @@ UniValue generatetoaddress(const JSONRPCRequest& request)
         nThreads = request.params[3].get_int();
     }
 
-    CTxDestination destination = DecodeDestination(request.params[1].get_str());
+    CTxDestination destination = LookupDestination(request.params[1].get_str());
     if (!IsValidDestination(destination)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Error: Invalid address");
     }
@@ -359,6 +356,8 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             "getblocktemplate ( TemplateRequest )\n"
             "\nIf the request parameters include a 'mode' key, that is used to explicitly select between the default 'template' request or a 'proposal'.\n"
             "It returns data needed to construct a block to work on.\n"
+            "Wallet is required to generate valid coinbase that can take part in lottery.\n"
+            "Otherwise assebmled block won't pass validation.\n"
             "For full specification, see BIPs 22, 23, 9, and 145:\n"
             "    https://github.com/bitcoin/bips/blob/master/bip-0022.mediawiki\n"
             "    https://github.com/bitcoin/bips/blob/master/bip-0023.mediawiki\n"
@@ -557,30 +556,41 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     }
 
     // Update block
-    static CBlockIndex* pindexPrev;
+    static CBlockIndex* pindexPrev = chainActive.Tip();
     static int64_t nStart;
     static std::unique_ptr<CBlockTemplate> pblocktemplate;
-    // Cache whether the last invocation was with segwit support, to avoid returning
-    // a segwit-block to a non-segwit caller.
-    if (pindexPrev != chainActive.Tip() ||
-        (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 5))
+    if (pindexPrev != chainActive.Tip() || (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 5))
     {
-        // Clear pindexPrev so future calls make a new block, despite any failures from here on
+        // Clear pindexPrev so future calls make a new block, despite any failures from here on  
         pindexPrev = nullptr;
 
         // Store the pindexBest used before CreateNewBlock, to avoid races
         nTransactionsUpdatedLast = mempool.GetTransactionsUpdated();
-        CBlockIndex* pindexPrevNew = chainActive.Tip();
         nStart = GetTime();
+        CBlockIndex* pindexPrevNew = chainActive.Tip();
 
         // Create new block
-        CScript scriptDummy = CScript() << OP_TRUE;
-        pblocktemplate = BlockAssembler(Params()).CreateNewBlock(scriptDummy);
+
+#ifdef ENABLE_WALLET
+        const auto pwallet = GetWalletForJSONRPCRequest(request);
+        // check that wallet is alredy referred or has unlock transaction
+        if (!pwallet->IsReferred() && pwallet->mapWalletRTx.empty()) {
+            CScript script_dummy = CScript() << OP_TRUE;
+            pblocktemplate = BlockAssembler(Params()).CreateNewBlock(script_dummy);
+        } else {
+            std::shared_ptr<CReserveScript> coinbase_script;
+            pwallet->GetScriptForMining(coinbase_script);
+            pblocktemplate = BlockAssembler(Params()).CreateNewBlock(coinbase_script->reserveScript);
+            std::dynamic_pointer_cast<CReserveKey>(coinbase_script)->ReturnKey();
+        }
+#else
+        CScript script_dummy = CScript() << OP_TRUE;
+        pblocktemplate = BlockAssembler(Params()).CreateNewBlock(script_dummy);
+#endif
         if (!pblocktemplate)
             throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
 
-        // Need to update only after we know CreateNewBlock succeeded
-        pindexPrev = pindexPrevNew;
+         pindexPrev = pindexPrevNew;
     }
     CBlock* pblock = &pblocktemplate->block; // pointer for convenience
     const Consensus::Params& consensusParams = Params().GetConsensus();
@@ -588,13 +598,46 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     // Update nTime
     UpdateTime(pblock, consensusParams, pindexPrev);
     pblock->nNonce = 0;
-
     UniValue aCaps(UniValue::VARR); aCaps.push_back("proposal");
 
     UniValue transactions(UniValue::VARR);
     std::map<uint256, int64_t> setTxIndex;
     int i = 0;
     for (const auto& it : pblock->vtx) {
+        const CTransaction& tx = *it;
+        uint256 txHash = tx.GetHash();
+        setTxIndex[txHash] = i++;
+
+        UniValue entry(UniValue::VOBJ);
+
+        entry.push_back(Pair("data", EncodeHexTx(tx)));
+        entry.push_back(Pair("coinbase", tx.IsCoinBase()));
+        entry.push_back(Pair("txid", txHash.GetHex()));
+        entry.push_back(Pair("hash", tx.GetWitnessHash().GetHex()));
+
+        UniValue deps(UniValue::VARR);
+        if(!tx.IsCoinBase()) {
+            for (const CTxIn &in : tx.vin)
+            {
+                if (setTxIndex.count(in.prevout.hash))
+                    deps.push_back(setTxIndex[in.prevout.hash]);
+            }
+        }
+        entry.push_back(Pair("depends", deps));
+
+        int index_in_template = i - 1;
+        entry.push_back(Pair("fee", pblocktemplate->vTxFees[index_in_template]));
+        int64_t nTxSigOps = pblocktemplate->vTxSigOpsCost[index_in_template];
+
+        entry.push_back(Pair("sigops", nTxSigOps));
+        entry.push_back(Pair("weight", GetTransactionWeight(tx)));
+
+        transactions.push_back(entry);
+    }
+
+    i = 0;
+    UniValue invites(UniValue::VARR);
+    for (const auto& it : pblock->invites) {
         const CTransaction& tx = *it;
         uint256 txHash = tx.GetHash();
         setTxIndex[txHash] = i++;
@@ -617,13 +660,38 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
         entry.push_back(Pair("depends", deps));
 
         int index_in_template = i - 1;
-        entry.push_back(Pair("fee", pblocktemplate->vTxFees[index_in_template]));
         int64_t nTxSigOps = pblocktemplate->vTxSigOpsCost[index_in_template];
 
         entry.push_back(Pair("sigops", nTxSigOps));
         entry.push_back(Pair("weight", GetTransactionWeight(tx)));
 
-        transactions.push_back(entry);
+        invites.push_back(entry);
+    }
+
+    i = 0;
+    UniValue referrals(UniValue::VARR);
+    std::map<referral::Address, uint256> ref_parents;
+
+    for (const auto& it : pblock->m_vRef) {
+        const referral::Referral& referral = *it;
+        ref_parents[referral.GetAddress()] = referral.GetHash();
+
+        debug("%s::%s", HexStr(referral.GetAddress()), HexStr(referral.parentAddress));
+
+        UniValue entry(UniValue::VOBJ);
+
+        entry.push_back(Pair("data", EncodeHexRef(referral)));
+        entry.push_back(Pair("refid", referral.GetHash().GetHex()));
+        entry.push_back(Pair("hash", referral.GetHash().GetHex()));
+
+        UniValue deps(UniValue::VARR);
+        if (ref_parents.count(referral.parentAddress)) {
+            deps.push_back(ref_parents[referral.parentAddress].GetHex());
+        }
+        entry.push_back(Pair("depends", deps));
+        entry.push_back(Pair("weight", GetReferralWeight(referral)));
+
+        referrals.push_back(entry);
     }
 
     UniValue aux(UniValue::VOBJ);
@@ -634,68 +702,17 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     UniValue aMutable(UniValue::VARR);
     aMutable.push_back("time");
     aMutable.push_back("transactions");
+    aMutable.push_back("invites");
+    aMutable.push_back("referrals");
     aMutable.push_back("prevblock");
 
     UniValue result(UniValue::VOBJ);
     result.push_back(Pair("capabilities", aCaps));
-
-    UniValue aRules(UniValue::VARR);
-    UniValue vbavailable(UniValue::VOBJ);
-    for (int j = 0; j < (int)Consensus::MAX_VERSION_BITS_DEPLOYMENTS; ++j) {
-        Consensus::DeploymentPos pos = Consensus::DeploymentPos(j);
-        ThresholdState state = VersionBitsState(pindexPrev, consensusParams, pos, versionbitscache);
-        switch (state) {
-            case THRESHOLD_DEFINED:
-            case THRESHOLD_FAILED:
-                // Not exposed to GBT at all
-                break;
-            case THRESHOLD_LOCKED_IN:
-                // Ensure bit is set in block version
-                pblock->nVersion |= VersionBitsMask(consensusParams, pos);
-                // FALL THROUGH to get vbavailable set...
-            case THRESHOLD_STARTED:
-            {
-                const struct VBDeploymentInfo& vbinfo = VersionBitsDeploymentInfo[pos];
-                vbavailable.push_back(Pair(gbt_vb_name(pos), consensusParams.vDeployments[pos].bit));
-                if (setClientRules.find(vbinfo.name) == setClientRules.end()) {
-                    if (!vbinfo.gbt_force) {
-                        // If the client doesn't support this, don't indicate it in the [default] version
-                        pblock->nVersion &= ~VersionBitsMask(consensusParams, pos);
-                    }
-                }
-                break;
-            }
-            case THRESHOLD_ACTIVE:
-            {
-                // Add to rules only
-                const struct VBDeploymentInfo& vbinfo = VersionBitsDeploymentInfo[pos];
-                aRules.push_back(gbt_vb_name(pos));
-                if (setClientRules.find(vbinfo.name) == setClientRules.end()) {
-                    // Not supported by the client; make sure it's safe to proceed
-                    if (!vbinfo.gbt_force) {
-                        // If we do anything other than throw an exception here, be sure version/force isn't sent to old clients
-                        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Support for '%s' rule requires explicit client support", vbinfo.name));
-                    }
-                }
-                break;
-            }
-        }
-    }
     result.push_back(Pair("version", pblock->nVersion));
-    result.push_back(Pair("rules", aRules));
-    result.push_back(Pair("vbavailable", vbavailable));
-    result.push_back(Pair("vbrequired", int(0)));
-
-    if (nMaxVersionPreVB >= 2) {
-        // If VB is supported by the client, nMaxVersionPreVB is -1, so we won't get here
-        // Because BIP 34 changed how the generation transaction is serialized, we can only use version/force back to v2 blocks
-        // This is safe to do [otherwise-]unconditionally only because we are throwing an exception above if a non-force deployment gets activated
-        // Note that this can probably also be removed entirely after the first BIP9 non-force deployment (ie, probably segwit) gets activated
-        aMutable.push_back("version/force");
-    }
-
     result.push_back(Pair("previousblockhash", pblock->hashPrevBlock.GetHex()));
     result.push_back(Pair("transactions", transactions));
+    result.push_back(Pair("invites", invites));
+    result.push_back(Pair("referrals", referrals));
     result.push_back(Pair("coinbaseaux", aux));
     result.push_back(Pair("coinbasevalue", static_cast<int64_t>(pblock->vtx[0]->vout[0].nValue)));
     result.push_back(Pair("longpollid", chainActive.Tip()->GetBlockHash().GetHex() + i64tostr(nTransactionsUpdatedLast)));

@@ -14,6 +14,7 @@
 #include "recentrequeststablemodel.h"
 #include "sendcoinsdialog.h"
 #include "transactiontablemodel.h"
+#include "referrallistmodel.h"
 
 #include "base58.h"
 #include "chain.h"
@@ -51,6 +52,7 @@ WalletModel::WalletModel(const PlatformStyle *platformStyle, CWallet *_wallet, O
 
     addressTableModel = new AddressTableModel(wallet, this);
     transactionTableModel = new TransactionTableModel(platformStyle, wallet, this);
+    referralListModel = new ReferralListModel(platformStyle, wallet, this);
     recentRequestsTableModel = new RecentRequestsTableModel(wallet, this);
 
     // This timer will be fired repeatedly to update the balance
@@ -66,24 +68,24 @@ WalletModel::~WalletModel()
     unsubscribeFromCoreSignals();
 }
 
-CAmount WalletModel::getBalance(const CCoinControl *coinControl) const
+CAmount WalletModel::getBalance(const CCoinControl *coinControl, bool invite) const
 {
     if (coinControl)
     {
-        return wallet->GetAvailableBalance(coinControl);
+        return wallet->GetAvailableBalance(coinControl, invite);
     }
 
-    return wallet->GetBalance();
+    return wallet->GetBalance(invite);
 }
 
-CAmount WalletModel::getUnconfirmedBalance() const
+CAmount WalletModel::getUnconfirmedBalance(bool invite) const
 {
-    return wallet->GetUnconfirmedBalance();
+    return wallet->GetUnconfirmedBalance(invite);
 }
 
-CAmount WalletModel::getImmatureBalance() const
+CAmount WalletModel::getImmatureBalance(bool invite) const
 {
-    return wallet->GetImmatureBalance();
+    return wallet->GetImmatureBalance(invite);
 }
 
 bool WalletModel::haveWatchOnly() const
@@ -91,19 +93,19 @@ bool WalletModel::haveWatchOnly() const
     return fHaveWatchOnly;
 }
 
-CAmount WalletModel::getWatchBalance() const
+CAmount WalletModel::getWatchBalance(bool invite) const
 {
-    return wallet->GetWatchOnlyBalance();
+    return wallet->GetWatchOnlyBalance(invite);
 }
 
-CAmount WalletModel::getWatchUnconfirmedBalance() const
+CAmount WalletModel::getWatchUnconfirmedBalance(bool invite) const
 {
-    return wallet->GetUnconfirmedWatchOnlyBalance();
+    return wallet->GetUnconfirmedWatchOnlyBalance(invite);
 }
 
-CAmount WalletModel::getWatchImmatureBalance() const
+CAmount WalletModel::getWatchImmatureBalance(bool invite) const
 {
-    return wallet->GetImmatureWatchOnlyBalance();
+    return wallet->GetImmatureWatchOnlyBalance(invite);
 }
 
 void WalletModel::updateStatus()
@@ -144,6 +146,8 @@ void WalletModel::checkBalanceChanged()
     CAmount newBalance = getBalance();
     CAmount newUnconfirmedBalance = getUnconfirmedBalance();
     CAmount newImmatureBalance = getImmatureBalance();
+    CAmount newInviteBalance = getBalance(nullptr, true);
+
     CAmount newWatchOnlyBalance = 0;
     CAmount newWatchUnconfBalance = 0;
     CAmount newWatchImmatureBalance = 0;
@@ -154,8 +158,14 @@ void WalletModel::checkBalanceChanged()
         newWatchImmatureBalance = getWatchImmatureBalance();
     }
 
-    if(cachedBalance != newBalance || cachedUnconfirmedBalance != newUnconfirmedBalance || cachedImmatureBalance != newImmatureBalance ||
-        cachedWatchOnlyBalance != newWatchOnlyBalance || cachedWatchUnconfBalance != newWatchUnconfBalance || cachedWatchImmatureBalance != newWatchImmatureBalance)
+    if(
+            cachedBalance != newBalance
+            || cachedUnconfirmedBalance != newUnconfirmedBalance
+            || cachedImmatureBalance != newImmatureBalance
+            || cachedWatchOnlyBalance != newWatchOnlyBalance
+            || cachedWatchUnconfBalance != newWatchUnconfBalance
+            || cachedWatchImmatureBalance != newWatchImmatureBalance
+            || cachedInviteBalance != newInviteBalance)
     {
         cachedBalance = newBalance;
         cachedUnconfirmedBalance = newUnconfirmedBalance;
@@ -163,8 +173,15 @@ void WalletModel::checkBalanceChanged()
         cachedWatchOnlyBalance = newWatchOnlyBalance;
         cachedWatchUnconfBalance = newWatchUnconfBalance;
         cachedWatchImmatureBalance = newWatchImmatureBalance;
-        Q_EMIT balanceChanged(newBalance, newUnconfirmedBalance, newImmatureBalance,
-                            newWatchOnlyBalance, newWatchUnconfBalance, newWatchImmatureBalance);
+        cachedInviteBalance = newInviteBalance;
+        Q_EMIT balanceChanged(
+                newBalance,
+                newUnconfirmedBalance,
+                newImmatureBalance,
+                newWatchOnlyBalance,
+                newWatchUnconfBalance,
+                newWatchImmatureBalance,
+                newInviteBalance);
     }
 }
 
@@ -172,6 +189,7 @@ void WalletModel::updateTransaction()
 {
     // Balance and number of transactions might have changed
     fForceCheckBalanceChanged = true;
+    Q_EMIT transactionUpdated();
 }
 
 void WalletModel::updateAddressBook(const QString &address, const QString &label,
@@ -189,7 +207,8 @@ void WalletModel::updateWatchOnlyFlag(bool fHaveWatchonly)
 
 bool WalletModel::validateAddress(const QString &address)
 {
-    return IsValidDestinationString(address.toStdString());
+    const auto dest = LookupDestination(address.toStdString());
+    return CMeritAddress{dest}.IsValid();
 }
 
 WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransaction &transaction, const CCoinControl& coinControl)
@@ -247,7 +266,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
             setAddress.insert(rcp.address);
             ++nAddresses;
 
-            CScript scriptPubKey = GetScriptForDestination(DecodeDestination(rcp.address.toStdString()));
+            CScript scriptPubKey = GetScriptForDestination(LookupDestination(rcp.address.toStdString()));
             CRecipient recipient = {scriptPubKey, rcp.amount, rcp.fSubtractFeeFromAmount};
             vecSend.push_back(recipient);
 
@@ -348,7 +367,7 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction &tran
         if (!rcp.paymentRequest.IsInitialized())
         {
             std::string strAddress = rcp.address.toStdString();
-            CTxDestination dest = DecodeDestination(strAddress);
+            CTxDestination dest = LookupDestination(strAddress);
             std::string strLabel = rcp.label.toStdString();
             {
                 LOCK(wallet->cs_wallet);
@@ -393,6 +412,11 @@ RecentRequestsTableModel *WalletModel::getRecentRequestsTableModel()
     return recentRequestsTableModel;
 }
 
+ReferralListModel *WalletModel::getReferralListModel()
+{
+    return referralListModel;
+}
+
 WalletModel::EncryptionStatus WalletModel::getEncryptionStatus() const
 {
     if(!wallet->IsCrypted())
@@ -403,7 +427,7 @@ WalletModel::EncryptionStatus WalletModel::getEncryptionStatus() const
     {
         return Locked;
     }
-    else if(!wallet->IsReferred()) 
+    else if(!wallet->IsReferred())
     {
         return NotReferred;
     }
@@ -415,13 +439,60 @@ WalletModel::EncryptionStatus WalletModel::getEncryptionStatus() const
 
 bool WalletModel::IsReferred() const
 {
+    assert(wallet);
     return wallet->IsReferred();
 }
 
-referral::ReferralRef WalletModel::Unlock(const referral::Address& parentAddress)
+bool WalletModel::IsConfirmed() const
 {
     assert(wallet);
-    return wallet->Unlock(parentAddress);
+    return wallet->IsConfirmed();
+}
+
+referral::ReferralRef WalletModel::Unlock(const referral::Address& parentAddress, const std::string alias)
+{
+    assert(wallet);
+    LOCK2(cs_main, wallet->cs_wallet);
+    return wallet->Unlock(parentAddress, alias);
+}
+
+bool WalletModel::AliasExists(const std::string& alias) const
+{
+    assert(wallet);
+    return wallet->AliasExists(alias);
+}
+
+bool WalletModel::AddressBeaconed(const CMeritAddress& address) const
+{
+    assert(wallet);
+    return wallet->AddressBeaconed(address);
+}
+
+bool WalletModel::AddressConfirmed(const CMeritAddress& address) const
+{
+    assert(wallet);
+    return wallet->AddressConfirmed(address);
+}
+
+bool WalletModel::Daedalus() const
+{
+    assert(wallet);
+    return wallet->Daedalus();
+}
+
+bool WalletModel::SendInviteTo(const std::string& address)
+{
+    assert(wallet);
+    CTxDestination dest = LookupDestination(address);
+    if (!IsValidDestination(dest)) {
+        return false;
+    }
+
+    CTransactionRef tx;
+    try {
+        tx = wallet->SendInviteTo(GetScriptForDestination(dest));
+    } catch (...) { }
+    return tx != nullptr;
 }
 
 bool WalletModel::setWalletEncrypted(bool encrypted, const SecureString &passphrase)
@@ -649,7 +720,7 @@ void WalletModel::loadReceiveRequests(std::vector<std::string>& vReceiveRequests
 
 bool WalletModel::saveReceiveRequest(const std::string &sAddress, const int64_t nId, const std::string &sRequest)
 {
-    CTxDestination dest = DecodeDestination(sAddress);
+    CTxDestination dest = LookupDestination(sAddress);
 
     std::stringstream ss;
     ss << nId;

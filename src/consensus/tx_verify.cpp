@@ -5,6 +5,7 @@
 
 #include "tx_verify.h"
 
+#include "base58.h"
 #include "chainparams.h"
 #include "consensus.h"
 #include "primitives/transaction.h"
@@ -17,6 +18,10 @@
 #include "coins.h"
 #include "referrals.h"
 #include "utilmoneystr.h"
+
+extern CChain chainActive;
+bool ExpectDaedalus(const CBlockIndex* pindexPrev, const Consensus::Params& params);
+bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool = true);
 
 bool IsFinalTx(const CTransaction &tx, int nBlockHeight, int64_t nBlockTime)
 {
@@ -201,7 +206,8 @@ bool Consensus::CheckTxOutputs(
         const CTransaction& tx,
         CValidationState& state,
         const referral::ReferralsViewCache& referralsCache,
-        const std::vector<referral::ReferralRef>& vExtraReferrals)
+        const std::vector<referral::ReferralRef>& vExtraReferrals,
+        const ConfirmationSet* block_invites)
 {
     // check addresses used for vouts are beaconed
     for (const auto& txout: tx.vout) {
@@ -238,6 +244,18 @@ bool Consensus::CheckTxOutputs(
 
         if (!addressBeaconed) {
             return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-beaconed");
+        }
+
+        if (!tx.IsInvite() && ExpectDaedalus(chainActive.Tip(), ::Params().GetConsensus())) {
+            if (!CheckAddressConfirmed(CMeritAddress{dest}, false)) {
+                if (block_invites != nullptr) {
+                    if (block_invites->count(addr) == 0) {
+                        return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-confirmed");
+                    }
+                } else {
+                    return state.DoS(10, false, REJECT_INVALID, "bad-txns-vout-not-confirmed");
+                }
+            }
         }
     }
 

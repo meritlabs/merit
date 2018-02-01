@@ -2,8 +2,6 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "base58.h"
-
 #include "enterunlockcode.h"
 #include "ui_enterunlockcode.h"
 
@@ -13,6 +11,8 @@
 #include <QPropertyAnimation>
 #include <QMessageBox>
 
+const int ADDRESS_LENGTH = 34;
+
 EnterUnlockCode::EnterUnlockCode(QWidget *parent) :
 QWidget(parent),
 ui(new Ui::EnterUnlockCode),
@@ -20,7 +20,11 @@ layerIsVisible(false),
 userClosed(false)
 {
     ui->setupUi(this);
-    connect(ui->submitButton, SIGNAL(clicked()), this, SLOT(submitButtonClicked()));
+    ui->aliasTextInput->setMaxLength(referral::MAX_ALIAS_LENGTH);
+    connect(ui->unlockCodeTextInput, SIGNAL(textChanged(QString)), this, SLOT(unlockCodeChanged(QString)));
+    connect(ui->aliasTextInput, SIGNAL(textChanged(QString)), this, SLOT(aliasChanged(QString)));
+    connect(this, SIGNAL(CanSubmitChanged(bool)), ui->submitButton, SLOT(setEnabled(bool)));
+    connect(ui->submitButton, SIGNAL(clicked()), this, SLOT(submit()));
     if (parent) {
         parent->installEventFilter(this);
         raise();
@@ -88,33 +92,75 @@ void EnterUnlockCode::setModel(WalletModel *model)
     this->walletModel = model;
 }
 
-void EnterUnlockCode::submitButtonClicked()
-{
-    CMeritAddress parentAddress
-    {
-        ui->unlockCodeTextInput->toPlainText().toStdString()
-    };
+extern CTxDestination LookupDestination(const std::string& address);
 
-    if (!parentAddress.IsValid()) {
-        InvalidAddressMessageBox();
-        return;
+void EnterUnlockCode::unlockCodeChanged(const QString &newText)
+{
+    auto parent = newText.toStdString();
+
+    auto dest = LookupDestination(parent);
+
+    CMeritAddress merit_address;
+    merit_address.Set(dest);
+
+    parentAddress = merit_address;
+
+    addressValid = parentAddress.IsValid() 
+        && walletModel->AddressBeaconed(parentAddress)
+        && walletModel->AddressConfirmed(parentAddress);
+
+    if (addressValid) {
+        ui->unlockCodeTextInput->setStyleSheet("QLineEdit { background-color: rgb(128, 255, 128) }");
+    } else {
+        ui->unlockCodeTextInput->setStyleSheet("QLineEdit { background-color: rgb(255, 128, 128) }");
     }
+
+    UpdateCanSubmit();
+}
+
+void EnterUnlockCode::aliasChanged(const QString &newText)
+{
+    auto alias = newText.toStdString();
+
+    bool valid = alias.empty() || referral::CheckReferralAlias(alias);
+    bool taken = !alias.empty() && walletModel->AliasExists(alias);
+
+    aliasValid = valid && !taken;
+
+    if(aliasValid) {
+        ui->aliasTextInput->setStyleSheet("QLineEdit { background-color: rgb(128, 255, 128) }");
+    } else {
+        ui->aliasTextInput->setStyleSheet("QLineEdit { background-color: rgb(255, 128, 128) }");
+    }
+
+    UpdateCanSubmit();
+}
+
+void EnterUnlockCode::UpdateCanSubmit()
+{
+    canSubmit = addressValid && aliasValid;
+    Q_EMIT CanSubmitChanged(canSubmit);
+}
+
+void EnterUnlockCode::submit()
+{
+    if(!canSubmit)
+        return;
 
     auto parentAddressUint160 = parentAddress.GetUint160();
     if(parentAddressUint160) {
-        referral::ReferralRef referral = walletModel->Unlock(*parentAddressUint160);
-        if(referral) {
-            Q_EMIT walletReferred();
-        } else {
-          InvalidAddressMessageBox();
+        try {
+            auto alias = ui->aliasTextInput->text().toStdString();
+
+            referral::ReferralRef referral =
+                walletModel->Unlock(*parentAddressUint160, alias);
+
+            Q_EMIT WalletReferred();
+        } catch (const std::runtime_error &err) {
+            QMessageBox::warning(
+                this, 
+                tr("Sorry, there was a problem."), 
+                tr(err.what()));
         }
     }
-}
-
-void EnterUnlockCode::InvalidAddressMessageBox()
-{
-    QMessageBox msgBox;
-    msgBox.setText(tr("Sorry, that address is invalid."));
-    msgBox.setIcon(QMessageBox::Warning);
-    msgBox.exec();
 }

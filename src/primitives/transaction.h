@@ -267,12 +267,13 @@ class CTransaction
 public:
     // Default transaction version.
     static const int32_t CURRENT_VERSION=2;
+    static const int32_t INVITE_VERSION=3; // Belt-and-suspenders check for invite-limit
 
     // Changing the default transaction version requires a two step process: first
     // adapting relay policy by bumping MAX_STANDARD_VERSION, and then later date
     // bumping the default CURRENT_VERSION at which point both CURRENT_VERSION and
     // MAX_STANDARD_VERSION will be equal.
-    static const int32_t MAX_STANDARD_VERSION=2;
+    static const int32_t MAX_STANDARD_VERSION=3;
 
     // The local variables are made const to prevent unintended modification
     // without updating the cached hash value. However, CTransaction is not
@@ -348,6 +349,11 @@ public:
 
     std::string ToString() const;
 
+    bool IsInvite() const 
+    {
+        return nVersion == INVITE_VERSION;
+    }
+
     bool HasWitness() const
     {
         for (size_t i = 0; i < vin.size(); i++) {
@@ -394,6 +400,11 @@ struct CMutableTransaction
     friend bool operator==(const CMutableTransaction& a, const CMutableTransaction& b)
     {
         return a.GetHash() == b.GetHash();
+    }
+
+    bool IsInvite() const 
+    {
+        return nVersion == CTransaction::INVITE_VERSION;
     }
 
     bool HasWitness() const

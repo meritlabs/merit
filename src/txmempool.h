@@ -26,6 +26,7 @@
 #include "refmempool.h"
 #include "spentindex.h"
 #include "sync.h"
+#include "validation.h"
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
@@ -226,10 +227,31 @@ class CompareTxMemPoolEntryByScore
 public:
     bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b) const
     {
+        const auto& atx = a.GetEntryValue();
+        const auto& btx = b.GetEntryValue();
+
+        // We prioritize invites over other transactions.
+        const bool ai = atx.IsInvite();
+        const bool bi = btx.IsInvite();
+
+        if(ai) {
+            if(bi) {
+                return btx.GetHash() < atx.GetHash();
+            } else {
+                return true;
+            }
+        } else {
+            if(bi) {
+                return false;
+            }
+        }
+
+        assert(!ai && !bi);
+
         double f1 = (double)a.GetModifiedFee() * b.GetSize();
         double f2 = (double)b.GetModifiedFee() * a.GetSize();
         if (f1 == f2) {
-            return b.GetEntryValue().GetHash() < a.GetEntryValue().GetHash();
+            return btx.GetHash() < atx.GetHash();
         }
         return f1 > f2;
     }
@@ -471,7 +493,7 @@ public:
     bool addUnchecked(const uint256& hash, const CTxMemPoolEntry &entry, setEntries &setAncestors, bool validFeeEstimate = true);
 
     void addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewCache &view);
-    bool getAddressIndex(std::vector<std::pair<uint160, int> > &addresses,
+    bool getAddressIndex(std::vector<AddressPair> &addresses,
                          std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results);
     bool removeAddressIndex(const uint256 txhash);
 
@@ -535,7 +557,16 @@ public:
      */
     bool CalculateMemPoolAncestors(const CTxMemPoolEntry &entry, setEntries &setAncestors, uint64_t limitAncestorCount, uint64_t limitAncestorSize, uint64_t limitDescendantCount, uint64_t limitDescendantSize, std::string &errString, bool fSearchForParents = true) const;
 
+    /**
+     * Populate ancestorsReferrals with referrals that are beaconing outputs
+     * of txs from setAncestors
+     */
     void CalculateMemPoolAncestorsReferrals(const setEntries& setAncestors, referral::ReferralTxMemPool::setEntries& ancestorsReferrals) const;
+
+    /**
+     * Populate confirmations with invite txs that are confirmations for provided referrals
+     */
+    void CalculateReferralsConfirmations(const referral::ReferralTxMemPool::setEntries& referrals, setEntries& confirmations) const;
 
     /** Populate setDescendants with all in-mempool descendants of hash.
      *  Assumes that setDescendants includes all in-mempool descendants of anything

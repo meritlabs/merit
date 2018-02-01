@@ -9,6 +9,7 @@
 #include <QDialog>
 
 class AddressTableModel;
+class WalletModel;
 
 namespace Ui {
     class EditAddressDialog;
@@ -32,7 +33,7 @@ public:
         EditSendingAddress
     };
 
-    explicit EditAddressDialog(Mode mode, QWidget *parent);
+    explicit EditAddressDialog(Mode mode, QWidget *parent, WalletModel*);
     ~EditAddressDialog();
 
     void setModel(AddressTableModel *model);

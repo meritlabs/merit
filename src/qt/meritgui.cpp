@@ -14,6 +14,7 @@
 #include "guiconstants.h"
 #include "guiutil.h"
 #include "enterunlockcode.h"
+#include "miner.h"
 #include "modaloverlay.h"
 #include "networkstyle.h"
 #include "notificator.h"
@@ -91,6 +92,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
     connectionsControl(nullptr),
     labelBlocksIcon(nullptr),
     progressBarLabel(nullptr),
+    miningStatusIcon(nullptr),
     progressBar(nullptr),
     progressDialog(nullptr),
     appMenuBar(nullptr),
@@ -161,6 +163,9 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
         /** Create wallet frame and make it the central widget */
         walletFrame = new WalletFrame(_platformStyle, this);
         setCentralWidget(walletFrame);
+
+        connect(this, SIGNAL(miningStatusChanged(bool)), this, SLOT(setMiningStatus(bool)));
+
     } else
 #endif // ENABLE_WALLET
     {
@@ -201,6 +206,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
     frameBlocksLayout->setSpacing(3);
     unitDisplayControl = new UnitDisplayStatusBarControl(platformStyle);
     labelWalletEncryptionIcon = new QLabel();
+    miningStatusIcon = new QLabel();
     labelWalletHDStatusIcon = new QLabel();
     connectionsControl = new GUIUtil::ClickableLabel();
     labelBlocksIcon = new GUIUtil::ClickableLabel();
@@ -211,6 +217,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
         frameBlocksLayout->addStretch();
         frameBlocksLayout->addWidget(labelWalletEncryptionIcon);
         frameBlocksLayout->addWidget(labelWalletHDStatusIcon);
+        frameBlocksLayout->addWidget(miningStatusIcon);
     }
     frameBlocksLayout->addStretch();
     frameBlocksLayout->addWidget(connectionsControl);
@@ -256,8 +263,11 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
         connect(walletFrame, SIGNAL(requestedSyncWarningInfo()), this, SLOT(showModalOverlay()));
         connect(labelBlocksIcon, SIGNAL(clicked(QPoint)), this, SLOT(showModalOverlay()));
         connect(progressBar, SIGNAL(clicked(QPoint)), this, SLOT(showModalOverlay()));
-        connect(enterUnlockCode, SIGNAL(walletReferred()), this, SLOT(walletReferred()));
+        connect(enterUnlockCode, SIGNAL(WalletReferred()), this, SLOT(walletReferred()));
     }
+
+    auto isMiningEnabled = gArgs.GetBoolArg("-mine", DEFAULT_MINING);
+    setMiningStatus(isMiningEnabled);
 #endif
 }
 
@@ -381,6 +391,12 @@ void MeritGUI::createActions()
     showHelpMessageAction->setMenuRole(QAction::NoRole);
     showHelpMessageAction->setStatusTip(tr("Show the %1 help message to get a list with possible Merit command-line options").arg(tr(PACKAGE_NAME)));
 
+    // Mining
+    startMiningAction = new QAction(platformStyle->TextColorIcon(":/icons/tx_mined"), tr("&Start mining"), this);
+    startMiningAction->setStatusTip(tr("Start Merit miner"));
+    stopMiningAction = new QAction(platformStyle->TextColorIcon(":/icons/quit"), tr("&Stop mining"), this);
+    stopMiningAction->setStatusTip(tr("Stop Merit miner"));
+
     connect(quitAction, SIGNAL(triggered()), qApp, SLOT(quit()));
     connect(aboutAction, SIGNAL(triggered()), this, SLOT(aboutClicked()));
     connect(aboutQtAction, SIGNAL(triggered()), qApp, SLOT(aboutQt()));
@@ -402,6 +418,8 @@ void MeritGUI::createActions()
         connect(usedSendingAddressesAction, SIGNAL(triggered()), walletFrame, SLOT(usedSendingAddresses()));
         connect(usedReceivingAddressesAction, SIGNAL(triggered()), walletFrame, SLOT(usedReceivingAddresses()));
         connect(openAction, SIGNAL(triggered()), this, SLOT(openClicked()));
+        connect(startMiningAction, SIGNAL(triggered()), this, SLOT(startMiningClicked()));
+        connect(stopMiningAction, SIGNAL(triggered()), this, SLOT(stopMiningClicked()));
     }
 #endif // ENABLE_WALLET
 
@@ -443,6 +461,10 @@ void MeritGUI::createMenuBar()
     }
     settings->addAction(optionsAction);
 
+    QMenu *mining = appMenuBar->addMenu(tr("&Mining"));
+    mining->addAction(startMiningAction);
+    mining->addAction(stopMiningAction);
+
     QMenu *help = appMenuBar->addMenu(tr("&Help"));
     if(walletFrame)
     {
@@ -462,10 +484,15 @@ void MeritGUI::createToolBars()
         toolbar->setContextMenuPolicy(Qt::PreventContextMenu);
         toolbar->setMovable(false);
         toolbar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        toolbar->setStyleSheet(
+              QString("QToolBar { spacing: 0px; }") +
+              QString("QToolButton { padding: 0 10px; height: 40px; font-weight: bold; font-size: 13px; }") +
+              QString("QToolButton:checked { background-color: #CACACA; border-radius: 0; border: none; opacity: 1}"));
         toolbar->addAction(overviewAction);
         toolbar->addAction(sendCoinsAction);
         toolbar->addAction(receiveCoinsAction);
         toolbar->addAction(historyAction);
+        toolbar->setIconSize(QSize(16,16));
         overviewAction->setChecked(true);
     }
 }
@@ -502,13 +529,13 @@ void MeritGUI::setClientModel(ClientModel *_clientModel)
         }
 #endif // ENABLE_WALLET
         unitDisplayControl->setOptionsModel(_clientModel->getOptionsModel());
-        
+
         OptionsModel* optionsModel = _clientModel->getOptionsModel();
         if(optionsModel)
         {
             // be aware of the tray icon disable state change reported by the OptionsModel object.
             connect(optionsModel,SIGNAL(hideTrayIconChanged(bool)),this,SLOT(setTrayIconVisible(bool)));
-        
+
             // initialize the disable state of the tray icon with the current value in the model.
             setTrayIconVisible(optionsModel->getHideTrayIcon());
         }
@@ -789,7 +816,7 @@ void MeritGUI::setNumBlocks(int count, const QDateTime& blockDate, double nVerif
         if (header)
             modalOverlay->setKnownBestHeight(count, blockDate);
         else
-            modalOverlay->tipUpdate(count, blockDate, nVerificationProgress);
+            modalOverlay->tipUpdate(count, blockDate);
     }
     if (!clientModel)
         return;
@@ -1006,14 +1033,20 @@ void MeritGUI::incomingTransaction(const QString& date, int unit, const CAmount&
 {
     // On new transaction, make an info balloon
     QString msg = tr("Date: %1\n").arg(date) +
-                  tr("Amount: %1\n").arg(MeritUnits::formatWithUnit(unit, amount, true)) +
-                  tr("Type: %1\n").arg(type);
+                tr("Amount: %1\n").arg(MeritUnits::formatWithUnit(unit, amount, true)) +
+                tr("Type: %1\n").arg(type);
     if (!label.isEmpty())
         msg += tr("Label: %1\n").arg(label);
     else if (!address.isEmpty())
         msg += tr("Address: %1\n").arg(address);
-    message((amount)<0 ? tr("Sent transaction") : tr("Incoming transaction"),
-             msg, CClientUIInterface::MSG_INFORMATION);
+
+    QString title;
+    if (type.contains("invite")) {
+        title = (amount) < 0 ? tr("Sent invite") : tr("Incoming invite");
+    } else {
+        title = (amount) < 0 ? tr("Sent transaction") : tr("Incoming transaction");
+    }
+    message(title, msg, CClientUIInterface::MSG_INFORMATION);
 }
 #endif // ENABLE_WALLET
 
@@ -1066,7 +1099,7 @@ void MeritGUI::setHDStatus(int hdEnabled)
     labelWalletHDStatusIcon->setPixmap(platformStyle->SingleColorIcon(hdEnabled ? ":/icons/hd_enabled" : ":/icons/hd_disabled").pixmap(STATUSBAR_ICONSIZE,STATUSBAR_ICONSIZE));
     labelWalletHDStatusIcon->setToolTip(hdEnabled ? tr("HD key generation is <b>enabled</b>") : tr("HD key generation is <b>disabled</b>"));
 
-    // eventually disable the QLabel to set its opacity to 50% 
+    // eventually disable the QLabel to set its opacity to 50%
     labelWalletHDStatusIcon->setEnabled(hdEnabled);
 }
 
@@ -1097,6 +1130,28 @@ void MeritGUI::setEncryptionStatus(int status)
         encryptWalletAction->setEnabled(false); // TODO: decrypt currently not supported
         break;
     }
+}
+
+void MeritGUI::setMiningStatus(bool isMining)
+{
+    miningStatusIcon->show();
+
+    if (isMining) {
+        miningStatusIcon->setPixmap(platformStyle->SingleColorIcon(":/icons/tx_mined").pixmap(STATUSBAR_ICONSIZE,STATUSBAR_ICONSIZE));
+        miningStatusIcon->setToolTip(tr("Mining is <b>enabled</b>"));
+    } else {
+        miningStatusIcon->setPixmap(platformStyle->SingleColorIcon(":/icons/transaction_conflicted").pixmap(STATUSBAR_ICONSIZE,STATUSBAR_ICONSIZE));
+        miningStatusIcon->setToolTip(tr("Mining is <b>not enabled</b>"));
+    }
+
+    startMiningAction->setEnabled(!isMining);
+    stopMiningAction->setEnabled(isMining);
+
+    auto nThreads = DEFAULT_MINING_THREADS;
+    gArgs.ForceSetArg("-mine", (isMining ? "1" : "0"));
+    gArgs.ForceSetArg("-mineproclimit", std::to_string(nThreads));
+
+    GenerateMerit(isMining, nThreads, Params());
 }
 #endif // ENABLE_WALLET
 
@@ -1287,4 +1342,16 @@ void UnitDisplayStatusBarControl::onMenuSelection(QAction* action)
     {
         optionsModel->setDisplayUnit(action->data());
     }
+}
+
+void MeritGUI::startMiningClicked()
+{
+    LogPrintf("Start mining");
+    Q_EMIT miningStatusChanged(true);
+}
+
+void MeritGUI::stopMiningClicked()
+{
+    LogPrintf("Stop mining");
+    Q_EMIT miningStatusChanged(false);
 }

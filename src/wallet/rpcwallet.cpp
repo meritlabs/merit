@@ -69,6 +69,8 @@ std::string HelpRequiringPassphrase(CWallet * const pwallet)
         : "";
 }
 
+
+
 bool EnsureWalletIsAvailable(CWallet * const pwallet, bool avoidException)
 {
     if (pwallet) return true;
@@ -261,7 +263,7 @@ UniValue getrawchangeaddress(const JSONRPCRequest& request)
 
     CReserveKey reservekey(pwallet);
     CPubKey vchPubKey;
-    if (!reservekey.GetReservedKey(vchPubKey, true))
+    if (!reservekey.GetReservedKey(vchPubKey))
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
     reservekey.KeepKey();
@@ -293,7 +295,7 @@ UniValue setaccount(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(request.params[0].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Merit address");
     }
@@ -342,7 +344,7 @@ UniValue getaccount(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(request.params[0].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Merit address");
     }
@@ -455,6 +457,7 @@ static void SendMoneyToDest(
             coin_control);
 }
 
+
 static UniValue EasySend(
         CWallet&  pwallet,
         CAmount value,
@@ -492,7 +495,7 @@ static UniValue EasySend(
     CReserveKey reserve_key(&pwallet);
 
     CPubKey sender_pub;
-    if (!reserve_key.GetReservedKey(sender_pub, true)) {
+    if (!reserve_key.GetReservedKey(sender_pub)) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Keypool ran out, please call keypoolrefill first");
@@ -519,16 +522,6 @@ static UniValue EasySend(
 
     CScriptID script_id = easy_send_script;
 
-    if(!pwallet.GenerateNewReferral(
-                receiver_pub,
-                pwallet.ReferralAddress(),
-                receiver_key)) {
-
-        throw JSONRPCError(
-                RPC_WALLET_ERROR,
-                "Unable to generate referral for receiver key");
-    }
-
     referral::ReferralRef script_referral=
         pwallet.GenerateNewReferral(
                     script_id,
@@ -544,6 +537,17 @@ static UniValue EasySend(
 
     CScriptID easy_send_address{script_referral->GetAddress()};
     CScript script_pub_key = GetScriptForDestination(easy_send_address);
+
+    if(pwallet.Daedalus()) {
+        auto invite_transaction =
+            pwallet.SendInviteTo(script_pub_key);
+
+        if(!invite_transaction) {
+            throw JSONRPCError(
+                    RPC_WALLET_ERROR,
+                    "Unable to confirm the vault. Vaults require invites");
+        }
+    }
 
     std::string error;
     std::vector<CRecipient> recipients = {
@@ -612,7 +616,7 @@ void FindEasySendCoins(const CScriptID& easy_send_address, EasySendCoins& coins)
 
     using MempoolOutputs = std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>>;
     MempoolOutputs mempool_outputs;
-    std::vector<std::pair<uint160, int> > addresses = {{easy_send_address, SCRIPT_TYPE}};
+    std::vector<AddressPair> addresses = {{easy_send_address, SCRIPT_TYPE}};
     mempool.getAddressIndex(addresses, mempool_outputs);
 
     for(const auto& m : mempool_outputs) {
@@ -624,7 +628,7 @@ void FindEasySendCoins(const CScriptID& easy_send_address, EasySendCoins& coins)
     }
 
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > chain_outputs;
-    if(!GetAddressUnspent(easy_send_address, SCRIPT_TYPE, chain_outputs)) {
+    if(!GetAddressUnspent(easy_send_address, SCRIPT_TYPE, false, chain_outputs)) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Cannot find coin with address: " + EncodeDestination(easy_send_address));
@@ -753,7 +757,7 @@ static UniValue EasyReceive(
     CReserveKey reserve_key(&pwallet);
 
     CPubKey receiver_pub;
-    if (!reserve_key.GetReservedKey(receiver_pub, true)) {
+    if (!reserve_key.GetReservedKey(receiver_pub)) {
         throw JSONRPCError(
                 RPC_WALLET_ERROR,
                 "Keypool ran out, please call keypoolrefill first");
@@ -800,6 +804,8 @@ static UniValue EasyReceive(
 
 UniValue sendtoaddress(const JSONRPCRequest& request)
 {
+    assert(prefviewdb);
+
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
@@ -838,7 +844,7 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(request.params[0].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
@@ -881,6 +887,53 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
     SendMoneyToDest(pwallet, dest, nAmount, fSubtractFeeFromAmount, wtx, coin_control);
 
     return wtx.GetHash().GetHex();
+}
+
+UniValue inviteaddress(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 1)
+        throw std::runtime_error(
+            "inviteaddress \"address\""
+            "\nConfirm given address's referral.\n"
+            + HelpRequiringPassphrase(pwallet) +
+            "\nArguments:\n"
+            "1. \"address\"  (string, required) The merit address to confirm.\n"
+            "\nResult:\n"
+            "\"txid\"        (string) The invite transaction id.\n"
+            "\nExamples:\n"
+            + HelpExampleCli("inviteaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+        );
+
+    if(!pwallet->Daedalus()) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Address confirmation is currently not required.");
+    }
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    CTxDestination dest = LookupDestination(request.params[0].get_str());
+    if (!IsValidDestination(dest)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+    }
+
+    EnsureWalletIsUnlocked(pwallet);
+
+    if (pwallet->GetBroadcastTransactions() && !g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
+
+    auto tx = pwallet->SendInviteTo(GetScriptForDestination(dest));
+    if(!tx) {
+       throw JSONRPCError(RPC_WALLET_ERROR, "Unable to confirm the address");
+    }
+
+    // Wallet comments
+    return tx->GetHash().GetHex();
 }
 
 UniValue easysend(const JSONRPCRequest& request)
@@ -1031,7 +1084,7 @@ void ExtractWhitelist(const UniValue& options, vault::Whitelist& whitelist)
 
     for(size_t i = 0; i < list.size(); i++) {
         auto address_str = list[i].get_str();
-        auto dest =  DecodeDestination(address_str);
+        auto dest =  LookupDestination(address_str);
         uint160 address;
         if(!GetUint160(dest, address)) {
             std::stringstream e;
@@ -1153,7 +1206,7 @@ UniValue createvault(const JSONRPCRequest& request)
         if(options.exists("spend_key")) {
             spend_pub_key = CPubKey{ParseHex(options["spend_key"].get_str())};
         } else {
-            if (!reserve_key.GetReservedKey(spend_pub_key, true)) {
+            if (!reserve_key.GetReservedKey(spend_pub_key)) {
                 throw JSONRPCError(
                         RPC_WALLET_ERROR,
                         "Keypool ran out, please call keypoolrefill first");
@@ -1184,7 +1237,7 @@ UniValue createvault(const JSONRPCRequest& request)
 
         CParamScriptID script_id = vault_script;
 
-        referral::ReferralRef script_referral =
+        auto script_referral =
             pwallet->GenerateNewReferral(
                         script_id,
                         pwallet->ReferralAddress(),
@@ -1208,6 +1261,18 @@ UniValue createvault(const JSONRPCRequest& request)
                     whitelist.size(),
                     ToByteVector(vault_tag),
                     0 /* simple is type 0 */);
+
+        if(pwallet->Daedalus()) {
+            auto invite_transaction =
+                pwallet->SendInviteTo(script_pub_key);
+
+            if(!invite_transaction) {
+                throw JSONRPCError(
+                        RPC_WALLET_ERROR,
+                        "Unable to confirm the vault. Vaults require invites");
+            }
+        }
+
 
 
         CWalletTx wtx;
@@ -1358,8 +1423,9 @@ UniValue renewvault(const JSONRPCRequest& request)
                 "2. \"options\"            (json object) Options about which parts of the vault to change.\n"
                 "       {\n"
                 "           \"whitelist\": [\"addr1\", ...],\n"
-                "           \"master_sk\": \"master secret key in wif\",\n"
-                "           \"new_master_sk\": \"master secret key in hex\",\n"
+                "           \"spendlimit\": merit,\n"
+                "           \"orig_master_sk\": \"required master secret key in wif\",\n"
+                "           \"new_master_sk\": \"master secret key in wif\",\n"
                 "           \"new_master_pk\": \"master public key in hex\",\n"
                 "           \"new_spend_pk\": \"master public key in hex\"\n"
                 "       }\n"
@@ -1377,7 +1443,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     std::string address = request.params[0].get_str();
 
-    CTxDestination dest = DecodeDestination(address);
+    CTxDestination dest = LookupDestination(address);
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
     }
@@ -1389,7 +1455,7 @@ UniValue renewvault(const JSONRPCRequest& request)
 
     UniValue options;
     if(!request.params[1].isNull()) {
-        RPCTypeCheck(request.params, {UniValue::VSTR, UniValue::VSTR, UniValue::VOBJ});
+        RPCTypeCheck(request.params, {UniValue::VSTR, UniValue::VOBJ});
         options = request.params[1].get_obj();
     }
 
@@ -1716,8 +1782,9 @@ UniValue spendvault(const JSONRPCRequest& request)
     std::string vault_address = request.params[0].get_str();
 
     CAmount amount = AmountFromValue(request.params[1]);
-    if (amount <= 0)
+    if (amount <= 0) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for send");
+    }
 
     std::string dest_address = request.params[2].get_str();
 
@@ -1728,12 +1795,12 @@ UniValue spendvault(const JSONRPCRequest& request)
 
     bool send = request.params[4].isNull() ?  true : request.params[4].get_bool();
 
-    CTxDestination vault_dest = DecodeDestination(vault_address);
+    CTxDestination vault_dest = LookupDestination(vault_address);
     if (boost::get<CParamScriptID>(&vault_dest) == nullptr) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid vault address");
     }
 
-    CTxDestination dest = DecodeDestination(dest_address);
+    CTxDestination dest = LookupDestination(dest_address);
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid destination address");
     }
@@ -1948,7 +2015,7 @@ UniValue getvaultinfo(const JSONRPCRequest& request)
 
     std::string address = request.params[0].get_str();
 
-    CTxDestination dest = DecodeDestination(address);
+    CTxDestination dest = LookupDestination(address);
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
     }
@@ -2099,7 +2166,7 @@ UniValue signmessage(const JSONRPCRequest& request)
     std::string strAddress = request.params[0].get_str();
     std::string strMessage = request.params[1].get_str();
 
-    CTxDestination dest = DecodeDestination(strAddress);
+    CTxDestination dest = LookupDestination(strAddress);
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
     }
@@ -2156,7 +2223,7 @@ UniValue getreceivedbyaddress(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
 
     // Merit address
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(request.params[0].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Merit address");
     }
@@ -2430,7 +2497,7 @@ UniValue sendfrom(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
 
     std::string strAccount = AccountFromValue(request.params[0]);
-    CTxDestination dest = DecodeDestination(request.params[1].get_str());
+    CTxDestination dest = LookupDestination(request.params[1].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Merit address");
     }
@@ -2554,7 +2621,7 @@ UniValue sendmany(const JSONRPCRequest& request)
     CAmount totalAmount = 0;
     std::vector<std::string> keys = sendTo.getKeys();
     for (const std::string& name_ : keys) {
-        CTxDestination dest = DecodeDestination(name_);
+        CTxDestination dest = LookupDestination(name_);
         if (!IsValidDestination(dest)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Merit address: ") + name_);
         }
@@ -2647,7 +2714,7 @@ UniValue addmultisigaddress(const JSONRPCRequest& request)
     LOCK2(cs_main, pwallet->cs_wallet);
 
     uint160 scriptAddress;
-    auto scriptDest = DecodeDestination(request.params[2].get_str());
+    auto scriptDest = LookupDestination(request.params[2].get_str());
     GetUint160(scriptDest, scriptAddress);
 
     std::string strAccount;
@@ -2767,7 +2834,7 @@ UniValue addwitnessaddress(const JSONRPCRequest& request)
         throw std::runtime_error(msg);
     }
 
-    CTxDestination dest = DecodeDestination(request.params[0].get_str());
+    CTxDestination dest = LookupDestination(request.params[0].get_str());
     if (!IsValidDestination(dest)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Merit address");
     }
@@ -4075,18 +4142,21 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
             "{\n"
             "  \"walletname\": xxxxx,             (string) the wallet name\n"
             "  \"walletversion\": xxxxx,          (numeric) the wallet version\n"
+            "  \"alias\": xxxxx,                  (string, optional) address alias that can be used as destination\n"
             "  \"balance\": xxxxxxx,              (numeric) the total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"unconfirmed_balance\": xxx,      (numeric) the total unconfirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"immature_balance\": xxxxxx,      (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"txcount\": xxxxxxx,              (numeric) the total number of transactions in the wallet\n"
             "  \"keypoololdest\": xxxxxx,         (numeric) the timestamp (seconds since Unix epoch) of the oldest pre-generated key in the key pool\n"
-            "  \"keypoolsize\": xxxx,             (numeric) how many new keys are pre-generated (only counts external keys)\n"
-            "  \"keypoolsize_hd_internal\": xxxx, (numeric) how many new keys are pre-generated for internal use (used for change outputs, only appears if the wallet is using this feature, otherwise external keys are used)\n"
+            "  \"keypoolsize\": xxxx,             (numeric) how many new keys are pre-generated\n"
             "  \"unlocked_until\": ttt,           (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
             "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
             "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
             "  \"referred\": true|false           (boolean) if wallet is referred\n"
+            "  \"confirmed\": true|false          (boolean) if wallet is confirmed\n"
             "  \"referraladdress\": xxxxxx        (string) referral address to use to share with other users\n"
+            "  \"invites\": xxxxxx                (numeric) number of available invites\n"
+            "  \"immature_invites\": xxxxxx       (numeric) number of immature invites\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getwalletinfo", "")
@@ -4098,25 +4168,24 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
 
     UniValue obj(UniValue::VOBJ);
 
-    size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
+    obj.push_back(Pair("alias", pwallet->GetAlias()));
     obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
     obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
     obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
     obj.push_back(Pair("txcount",       (int)pwallet->mapWallet.size()));
     obj.push_back(Pair("keypoololdest", pwallet->GetOldestKeyPoolTime()));
-    obj.push_back(Pair("keypoolsize", (int64_t)kpExternalSize));
-    CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
-    if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT)) {
-        obj.push_back(Pair("keypoolsize_hd_internal",   (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
-    }
+    obj.push_back(Pair("keypoolsize", (int64_t)pwallet->GetKeyPoolSize()));
     if (pwallet->IsCrypted()) {
         obj.push_back(Pair("unlocked_until", pwallet->nRelockTime));
     }
     obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
-    if (!masterKeyID.IsNull())
+
+    CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
+    if (!masterKeyID.IsNull()) {
          obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
+    }
 
     if (!pwallet->IsReferred()) {
         obj.push_back(Pair("referred", false));
@@ -4125,8 +4194,14 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
         auto referral = pwallet->GetRootReferral();
         assert(!referral->GetHash().IsNull());
 
-        obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{referral->GetAddress()})));
+        auto address = referral->GetAddress();
+
+        obj.push_back(Pair("confirmed", pwallet->IsConfirmed()));
+        obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{address})));
     }
+
+    obj.push_back(Pair("invites", pwallet->GetBalance(true)));
+    obj.push_back(Pair("immature_invites", pwallet->GetImmatureBalance(true)));
 
     return obj;
 }
@@ -4277,7 +4352,7 @@ UniValue listunspent(const JSONRPCRequest& request)
         UniValue inputs = request.params[2].get_array();
         for (unsigned int idx = 0; idx < inputs.size(); idx++) {
             const UniValue& input = inputs[idx];
-            CTxDestination dest = DecodeDestination(input.get_str());
+            CTxDestination dest = LookupDestination(input.get_str());
             if (!IsValidDestination(dest)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Merit address: ") + input.get_str());
             }
@@ -4370,6 +4445,134 @@ UniValue listunspent(const JSONRPCRequest& request)
         entry.push_back(Pair("spendable", out.fSpendable));
         entry.push_back(Pair("solvable", out.fSolvable));
         entry.push_back(Pair("safe", out.fSafe));
+        results.push_back(entry);
+    }
+
+    return results;
+}
+
+UniValue listinvites(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() > 5)
+        throw std::runtime_error(
+            "listinvites ( [\"addresses\",...] )\n"
+            "\nReturns array of unspent invite outputs\n"
+            "Optionally filter specified addresses.\n"
+            "\nArguments:\n"
+            "1. \"addresses\"      (string) A json array of merit addresses to filter\n"
+            "    [\n"
+            "      \"address\"     (string) merit address\n"
+            "      ,...\n"
+            "    ]\n"
+            "\nResult\n"
+            "[                   (array of json object)\n"
+            "  {\n"
+            "    \"id\" : \"id\",          (string) the invite id \n"
+            "    \"vout\" : n,               (numeric) the vout value\n"
+            "    \"address\" : \"address\",    (string) the merit address\n"
+            "    \"account\" : \"account\",    (string) DEPRECATED. The associated account, or \"\" for the default account\n"
+            "    \"scriptPubKey\" : \"key\",   (string) the script key\n"
+            "    \"amount\" : x.xxx,         (numeric) amount of invites\n"
+            "    \"confirmations\" : n,      (numeric) The number of confirmations\n"
+            "    \"redeemScript\" : n        (string) The redeemScript if scriptPubKey is P2SH\n"
+            "    \"spendable\" : xxx,        (bool) Whether we have the private keys to spend this output\n"
+            "    \"solvable\" : xxx,         (bool) Whether we know how to spend this output, ignoring the lack of keys\n"
+            "  }\n"
+            "  ,...\n"
+            "]\n"
+
+            "\nExamples\n"
+            + HelpExampleCli("listinvites", "")
+            + HelpExampleCli("listinvites", "\"[\\\"1PGFqEzfmQch1gKD3ra4k18PNj3tTUUSqg\\\",\\\"1LtvqCaApEdUGFkpKMM4MstjcaL4dKg8SP\\\"]\"")
+        );
+
+    ObserveSafeMode();
+
+    std::set<CTxDestination> destinations;
+    if (!request.params[0].isNull()) {
+        RPCTypeCheckArgument(request.params[0], UniValue::VARR);
+        UniValue inputs = request.params[0].get_array();
+        for (unsigned int idx = 0; idx < inputs.size(); idx++) {
+            const UniValue& input = inputs[idx];
+            CTxDestination dest = LookupDestination(input.get_str());
+            if (!IsValidDestination(dest)) {
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Merit address: ") + input.get_str());
+            }
+            if (!destinations.insert(dest).second) {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ") + input.get_str());
+            }
+        }
+    }
+
+    const int min_depth = 1;
+    const int max_depth = 9999999;
+    const bool include_unsafe = true;
+    const CAmount minimum_amount = 0;
+    const CAmount maximum_amount = MAX_MONEY;
+    const CAmount minimum_sum_amount = MAX_MONEY;
+    uint64_t maximum_count = 0;
+
+    UniValue results(UniValue::VARR);
+    std::vector<COutput> outputs;
+    assert(pwallet != nullptr);
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    pwallet->AvailableCoins(
+            outputs,
+            !include_unsafe,
+            nullptr,
+            minimum_amount,
+            maximum_amount,
+            minimum_sum_amount,
+            maximum_count,
+            min_depth,
+            max_depth,
+            true);
+
+    for (const COutput& out : outputs) {
+        CTxDestination address;
+        const CScript& scriptPubKey = out.tx->tx->vout[out.i].scriptPubKey;
+        bool fValidAddress = ExtractDestination(scriptPubKey, address);
+
+        if (destinations.size() && (!fValidAddress || !destinations.count(address)))
+            continue;
+
+        UniValue entry(UniValue::VOBJ);
+        entry.push_back(Pair("id", out.tx->GetHash().GetHex()));
+        entry.push_back(Pair("vout", out.i));
+
+        if (fValidAddress) {
+            entry.push_back(Pair("address", EncodeDestination(address)));
+
+            if (pwallet->mapAddressBook.count(address)) {
+                entry.push_back(
+                        Pair("account", pwallet->mapAddressBook[address].name));
+            }
+
+            CScript redeemScript;
+            if (scriptPubKey.IsPayToScriptHash()) {
+                const CScriptID& hash = boost::get<CScriptID>(address);
+                pwallet->GetCScript(hash, redeemScript);
+            } else if (scriptPubKey.IsParameterizedPayToScriptHash()) {
+                const CParamScriptID& hash = boost::get<CParamScriptID>(address);
+                pwallet->GetParamScript(hash, redeemScript);
+            }
+
+            if (!redeemScript.empty()) {
+                entry.push_back(Pair("redeemScript", HexStr(redeemScript.begin(), redeemScript.end())));
+            }
+        }
+
+        entry.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
+        entry.push_back(Pair("amount", out.tx->tx->vout[out.i].nValue));
+        entry.push_back(Pair("confirmations", out.nDepth));
+        entry.push_back(Pair("spendable", out.fSpendable));
+        entry.push_back(Pair("solvable", out.fSolvable));
         results.push_back(entry);
     }
 
@@ -4472,7 +4675,7 @@ UniValue fundrawtransaction(const JSONRPCRequest& request)
             true, true);
 
         if (options.exists("changeAddress")) {
-            CTxDestination dest = DecodeDestination(options["changeAddress"].get_str());
+            CTxDestination dest = LookupDestination(options["changeAddress"].get_str());
 
             if (!IsValidDestination(dest)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "changeAddress must be a valid merit address");
@@ -4747,7 +4950,7 @@ UniValue generate(const JSONRPCRequest& request)
 
     // If the keypool is exhausted, no script is returned at all.  Catch this.
     if (!coinbase_script) {
-        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, or wallet is not confirmed yet.");
     }
 
     //throw an error if no script was provided
@@ -4765,18 +4968,20 @@ UniValue unlockwallet(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() != 1 || request.params[0].get_str().empty()) {
+    if (request.fHelp || request.params.size() < 1 || request.params[0].get_str().empty() || request.params.size() > 2) {
         throw std::runtime_error(
-            "unlockwallet \"parentaddress\"\n"
+            "unlockwallet \"parentaddress\" (\"alias\") \n"
             "Updates the wallet with referral code and beacons first key with associated referral.\n"
             "Returns an object containing various wallet state info.\n"
             "\nArguments:\n"
             "1. parentaddress   (string, required) Parent address needed to unlock the wallet.\n"
+            "2. alias           (stirng, optional) wallet alias"
             "\nResult:\n"
             "{\n"
-            "  \"address\": xxxxx,                (string) the wallet's root address\n"
-            "  \"walletname\": xxxxx,             (string) the wallet name\n"
+            "  \"address\": xxxxx,                (string) the wallet's root address. it's a referral address to use to share with other users\n"
+            "  \"walletname\": xxxxx,             (string) the wallet db file name\n"
             "  \"walletversion\": xxxxx,          (numeric) the wallet version\n"
+            "  \"alias\": xxxxx,                  (string, optional) address alias that can be used as destination\n"
             "  \"balance\": xxxxxxx,              (numeric) the total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"unconfirmed_balance\": xxx,      (numeric) the total unconfirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"immature_balance\": xxxxxx,      (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
@@ -4787,10 +4992,16 @@ UniValue unlockwallet(const JSONRPCRequest& request)
             "  \"unlocked_until\": ttt,           (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
             "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
             "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
+            "  \"referred\": true|false           (boolean) if wallet is referred\n"
+            "  \"referraladdress\": xxxxxx        (string) referral address to use to share with other users\n"
+            "  \"invites\": xxxxxx                (numeric) number of available invites\n"
+            "  \"immature_invites\": xxxxxx       (numeric) number of immature invites\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("unlockwallet", "\"parentaddress\"")
+            + HelpExampleCli("unlockwallet", "\"parentaddress\" \"alias\"")
             + HelpExampleRpc("unlockwallet", "\"parentaddress\"")
+            + HelpExampleRpc("unlockwallet", "\"parentaddress\", \"alias\"")
         );
     }
 
@@ -4805,25 +5016,23 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     auto parentAddressUint160 = parentAddress.GetUint160();
     assert(parentAddressUint160);
 
-    referral::ReferralRef referral = pwallet->Unlock(*parentAddressUint160);
+    auto alias = request.params[1].isNull() ? "" : request.params[1].get_str();
+
+    referral::ReferralRef referral = pwallet->Unlock(*parentAddressUint160, alias);
 
     // TODO: Make this check more robust.
     UniValue obj(UniValue::VOBJ);
 
-    size_t kpExternalSize = pwallet->KeypoolCountExternalKeys();
-    obj.push_back(Pair("address", EncodeDestination(CKeyID{referral->GetAddress()})));
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
+    obj.push_back(Pair("alias", pwallet->GetAlias()));
     obj.push_back(Pair("balance", ValueFromAmount(pwallet->GetBalance())));
     obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
     obj.push_back(Pair("immature_balance", ValueFromAmount(pwallet->GetImmatureBalance())));
     obj.push_back(Pair("txcount", (int)pwallet->mapWallet.size()));
     obj.push_back(Pair("keypoololdest", pwallet->GetOldestKeyPoolTime()));
-    obj.push_back(Pair("keypoolsize", (int64_t)kpExternalSize));
+    obj.push_back(Pair("keypoolsize", (int64_t)pwallet->GetKeyPoolSize()));
     CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
-
-    if (!masterKeyID.IsNull() && pwallet->CanSupportFeature(FEATURE_HD_SPLIT))
-        obj.push_back(Pair("keypoolsize_hd_internal", (int64_t)(pwallet->GetKeyPoolSize() - kpExternalSize)));
 
     if (pwallet->IsCrypted())
         obj.push_back(Pair("unlocked_until", pwallet->nRelockTime));
@@ -4833,104 +5042,11 @@ UniValue unlockwallet(const JSONRPCRequest& request)
     if (!masterKeyID.IsNull())
         obj.push_back(Pair("hdmasterkeyid", masterKeyID.GetHex()));
 
-    return obj;
-}
-
-UniValue beaconaddress(const JSONRPCRequest& request)
-{
-    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
-    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
-        return NullUniValue;
-    }
-
-    if (request.fHelp || (request.params.size() != 3 && request.params.size() != 4)) {
-        throw std::runtime_error(
-            "beaconaddress \"address\" \"signingkey\" \"parentaddress\"\n"
-            "signs and beacons an address with the signing key specified\n"
-            "\nArguments:\n"
-            "1. address   (string, required) Parent address needed to unlock the wallet.\n"
-            "2. signingkey   (string, required) key used to sign the referral in WIF format.\n"
-            "3. parentaddress   (string, required) Parent address needed to unlock the wallet.\n"
-            "\nResult:\n"
-            "{\n"
-            "  \"beaconid\": xxxxx,               (string) id of the beacon\n"
-            "  \"address\": xxxxx,                (string) address beaconed\n"
-            "}\n"
-            "\nExamples:\n"
-            + HelpExampleCli("beaconaddress", "\"address\" \"key\" \"parentaddress\"")
-            + HelpExampleRpc("beaconaddress", "\"address\" \"key\" \"parentaddress\"")
-        );
-    }
-
-    LOCK2(cs_main, pwallet->cs_wallet);
-
-    UniValue obj(UniValue::VOBJ);
-    if(request.params.size() == 3) {
-
-        CMeritAddress address(request.params[0].get_str());
-
-        CMeritSecret signing_key_secret;
-        signing_key_secret.SetString(request.params[1].get_str());
-
-        CMeritAddress parent_address(request.params[2].get_str());
-
-        if (!address.IsValid()) {
-            std::stringstream e;
-            e << "Address " << address.ToString() << " is not valid or in wrong format.";
-            throw std::runtime_error(e.str());
-        }
-
-        if(signing_key_secret.GetSize() < 32) {
-            std::stringstream e;
-            e << "The signing key needs to be greater or equal to 32 bytes in size. Got " << signing_key_secret.GetSize() << " instead.";
-            throw std::runtime_error(e.str());
-        }
-
-        auto key = signing_key_secret.GetKey();
-        if (!key.IsValid()) {
-            throw std::runtime_error("The signing key needs to be in the Wallet Import Format");
-        }
-
-        if (!parent_address.IsValid()) {
-            throw std::runtime_error(strprintf("Parent address \"%s\" is not valid or in wrong format.", parent_address.ToString().c_str()));
-        }
-
-        auto referral = pwallet->GenerateNewReferral(
-                address.GetType(),
-                *address.GetUint160(),
-                key.GetPubKey(),
-                *parent_address.GetUint160(),
-                key);
-
-        if(!referral) {
-            throw JSONRPCError(
-                    RPC_WALLET_ERROR,
-                    "Unable to generate referral for receiver key");
-        }
-
-        // TODO: Make this check more robust.
-        UniValue obj(UniValue::VOBJ);
-
-        obj.push_back(Pair("beaconid", referral->GetHash().GetHex()));
-        obj.push_back(Pair("address", CMeritAddress{referral->addressType, referral->GetAddress()}.ToString()));
-    } else {
-
-        CMeritAddress address(request.params[0].get_str());
-        CPubKey pub_key{ParseHex(request.params[1].get_str())};
-        CMeritAddress parent_address(request.params[2].get_str());
-
-        auto parent_addr_uint160 = parent_address.GetUint160() ?
-            * parent_address.GetUint160() : referral::Address{};
-
-        referral::Referral ref{
-            referral::MutableReferral(
-                address.GetType(), *address.GetUint160(), pub_key, parent_addr_uint160)
-        };
-
-        auto hash = (CHashWriter(SER_GETHASH, 0) << parent_addr_uint160 << ref.GetAddress()).GetHash();
-
-        obj.push_back(Pair("referral_data_to_sign", hash.GetHex()));
-    }
+    obj.push_back(Pair("referred", true));
+    obj.push_back(Pair("confirmed", false));
+    obj.push_back(Pair("referraladdress", EncodeDestination(CKeyID{referral->GetAddress()})));
+    obj.push_back(Pair("invites", pwallet->GetAvailableBalance(nullptr, true)));
+    obj.push_back(Pair("immature_invites", pwallet->GetImmatureBalance(true)));
 
     return obj;
 }
@@ -4999,6 +5115,7 @@ UniValue getrewards(const JSONRPCRequest& request)
             "{\n"
             "   \"mining\": x.xxxx,     (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for mining.\n"
             "   \"ambassador\": x.xxxx, (numeric) The total amount in " + CURRENCY_UNIT + " received for this account for being ambassador.\n"
+            "   \"invites\": xxxxxx     (numeric) The total number of available invites.\n"
             "}\n"
             "\nExamples:\n" + HelpExampleCli("getbalance", "")
         );
@@ -5010,8 +5127,11 @@ UniValue getrewards(const JSONRPCRequest& request)
 
     pog::RewardsAmount rewards = pwallet->GetRewards();
 
+    auto invites = pwallet->GetImmatureBalance(true) + pwallet->GetBalance(true);
+
     ret.push_back(Pair("mining", ValueFromAmount(rewards.mining)));
     ret.push_back(Pair("ambassador", ValueFromAmount(rewards.ambassador)));
+    ret.push_back(Pair("invites", invites));
 
     return ret;
 }
@@ -5092,9 +5212,10 @@ static const CRPCCommand commands[] =
     { "generating",         "generate",                 &generate,                 {"nblocks","maxtries"} },
 
     // merit specific commands
-    { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress"} },
-    { "referral",           "beaconaddress",            &beaconaddress,            {"address", "key", "parentaddress"} },
+    { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress", "alias"} },
     { "referral",           "getanv",                   &getanv,                   {} },
+    { "wallet",             "inviteaddress",            &inviteaddress,            {"address"} },
+    { "wallet",             "listinvites",              &listinvites,              {"addresses"} },
 
     { "wallet",             "getrewards",               &getrewards,               {} },
 };

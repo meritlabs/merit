@@ -7,7 +7,7 @@
 #ifndef MERIT_UNDO_H
 #define MERIT_UNDO_H
 
-#include "compressor.h" 
+#include "compressor.h"
 #include "consensus/consensus.h"
 #include "primitives/transaction.h"
 #include "serialize.h"
@@ -102,13 +102,37 @@ struct CBlockUndo
 {
     std::vector<CTxUndo> vtxundo; // for all but the coinbase
     referral::LotteryUndos lottery;
+    std::vector<CTxUndo> invites_undo;
 
-    ADD_SERIALIZE_METHODS;
+    template <typename Stream>
+    void Serialize(Stream& s) const {
+        s << vtxundo;
 
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(vtxundo);
-        READWRITE(lottery);
+        //If we are daedalus, we will signal it by including 
+        //a lottery element with an address of type 100
+        auto lottery_copy = lottery;
+        if(!invites_undo.empty()) {
+            lottery_copy.push_back(referral::LotteryUndo{
+                    0,
+                    100,
+                    referral::Address(),
+                    referral::Address()});
+        }
+        s << lottery_copy;
+
+        if(!invites_undo.empty()) {
+            s << invites_undo;
+        }
+    }
+
+    template <typename Stream>
+    void Unserialize(Stream& s) {
+        s >> vtxundo;
+        s >> lottery;
+        if(!lottery.empty() && lottery.back().replaced_address_type == 100) {
+            lottery.resize(lottery.size()-1);
+            s >> invites_undo;
+        }
     }
 };
 

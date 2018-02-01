@@ -93,7 +93,7 @@ public:
  *  * CParamScriptID: TX_PARAMETERIZED_SCRIPTHASH destination
  *  A CTxDestination is the internal data type encoded in a merit address
  */
-typedef boost::variant<CNoDestination, CKeyID, CScriptID, CParamScriptID> CTxDestination;
+using CTxDestination = boost::variant<CNoDestination, CKeyID, CScriptID, CParamScriptID>;
 
 /** returns a numberical type based on destination */
 char AddressTypeFromDestination(const CTxDestination&);
@@ -163,13 +163,13 @@ CScript GetScriptForEasySend(
 
 /**
  * Constructs a vault script which limits spending. Allows resetting and
- * changing rules. Returns a parameterized-pay-to-script-hash. 
+ * changing rules. Returns a parameterized-pay-to-script-hash.
  */
 CScript GetScriptForSimpleVault(const uint160& tag);
 
 /**
- * Constructs a vault script which limits spending and requires multiple signatures. 
- * Allows resetting and changing rules. 
+ * Constructs a vault script which limits spending and requires multiple signatures.
+ * Allows resetting and changing rules.
  * Returns a parameterized-pay-to-script-hash.
  */
 CScript GetScriptForMultisigVault(const uint160& tag);

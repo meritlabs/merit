@@ -47,13 +47,12 @@ Start Mining
 ---------------
 
 Before you can use Merit and mine you must unlock your wallet by giving it a parent key. 
-If you don't know anyone using Merit, you can use the Meritlab's address 
+Merit is currently invite-only and typically the parent key is owned by someone
+who is willing to invite you to merit. Once you unlock the wallet you will have
+to wait for the other person to confirm the wallet before you can mine.
 
-    ST2HYE5KMszAdBcGo3kw7Qsb9u1nRQhac4
-
-Note, whoever you choose as your referrer, they will get a boost in their
-Aggregate Network Value (ANV) via your mining efforts and therefore your mining
-efforts help them earn mining rewards.
+Note, whoever invites will get a boost in their Aggregate Network Value (ANV)
+via your mining efforts and therefore your mining efforts help them earn mining rewards.
 
 Before you can unlock your wallet you must start the **meritd** daemon.
 
@@ -64,7 +63,7 @@ syncing the blockchain.
 
 You can then unlock your wallet by running the **unlockwallet** command.
 
-    merit-cli unlockwallet ST2HYE5KMszAdBcGo3kw7Qsb9u1nRQhac4
+    merit-cli unlockwallet <address or alias of person inviting you> <optional global alias>
 
 This will setup your wallet and notify the network. It will return your
 wallet information including your primary address. Share this address with

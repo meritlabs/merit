@@ -35,6 +35,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
     CAmount nNet = nCredit - nDebit;
     uint256 hash = wtx.GetHash();
     std::map<std::string, std::string> mapValue = wtx.mapValue;
+    const bool is_invite = wtx.tx->IsInvite();
 
     if (nNet > 0 || wtx.IsCoinBase())
     {
@@ -55,19 +56,25 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 if (ExtractDestination(txout.scriptPubKey, address) && IsMine(*wallet, address))
                 {
                     // Received by Merit Address
-                    sub.type = TransactionRecord::RecvWithAddress;
+                    sub.type = is_invite ?
+                        TransactionRecord::RecvInvite:
+                        TransactionRecord::RecvWithAddress;
                     sub.address = EncodeDestination(address);
                 }
                 else
                 {
                     // Received by IP connection (deprecated features), or a multisignature or other non-simple transaction
-                    sub.type = TransactionRecord::RecvFromOther;
+                    sub.type = is_invite ?
+                        TransactionRecord::RecvInvite:
+                        TransactionRecord::RecvFromOther;
                     sub.address = mapValue["from"];
                 }
                 if (wtx.IsCoinBase())
                 {
                     // Generated
-                    sub.type = TransactionRecord::Generated;
+                    sub.type = is_invite ?
+                        TransactionRecord::GeneratedInvite :
+                        TransactionRecord::Generated;
                 }
 
                 parts.append(sub);
@@ -263,4 +270,9 @@ QString TransactionRecord::getTxID() const
 int TransactionRecord::getOutputIndex() const
 {
     return idx;
+}
+
+bool TransactionRecord::IsInvite() const
+{
+    return type == Type::GeneratedInvite || type == Type::SendInvite || type == Type::RecvInvite;
 }

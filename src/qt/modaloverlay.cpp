@@ -14,12 +14,12 @@
 #include <QPropertyAnimation>
 
 ModalOverlay::ModalOverlay(QWidget *parent) :
-QWidget(parent),
-ui(new Ui::ModalOverlay),
-bestHeaderHeight(0),
-bestHeaderDate(QDateTime()),
-layerIsVisible(false),
-userClosed(false)
+    QWidget(parent),
+    ui(new Ui::ModalOverlay),
+    bestHeaderHeight(0),
+    bestHeaderDate(QDateTime()),
+    layerIsVisible(false),
+    userClosed(false)
 {
     ui->setupUi(this);
     connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(closeClicked()));
@@ -75,52 +75,48 @@ void ModalOverlay::setKnownBestHeight(int count, const QDateTime& blockDate)
     }
 }
 
-void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate, double nVerificationProgress)
+void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
 {
     QDateTime currentDate = QDateTime::currentDateTime();
 
     // keep a vector of samples of verification progress at height
-    blockProcessTime.push_front(qMakePair(currentDate.toMSecsSinceEpoch(), nVerificationProgress));
+    double verificationProgress = bestHeaderHeight == 0 ? 0 : 
+        static_cast<double>(count) / static_cast<double>(bestHeaderHeight);
+    qint64 currentMillis = currentDate.toMSecsSinceEpoch();
+    blockProcessTime.push_front(qMakePair(currentMillis, verificationProgress));
 
     // show progress speed if we have more then one sample
-    if (blockProcessTime.size() >= 2)
+    if (blockProcessTime.size() == AVG_WINDOW_LENGTH)
     {
-        double progressStart = blockProcessTime[0].second;
         double progressDelta = 0;
         double progressPerHour = 0;
         qint64 timeDelta = 0;
         qint64 remainingMSecs = 0;
-        double remainingProgress = 1.0 - nVerificationProgress;
-        for (int i = 1; i < blockProcessTime.size(); i++)
-        {
-            QPair<qint64, double> sample = blockProcessTime[i];
 
-            // take first sample after 500 seconds or last available one
-            if (sample.first < (currentDate.toMSecsSinceEpoch() - 500 * 1000) || i == blockProcessTime.size() - 1) {
-                progressDelta = progressStart-sample.second;
-                timeDelta = blockProcessTime[0].first - sample.first;
-                progressPerHour = progressDelta/(double)timeDelta*1000*3600;
-                remainingMSecs = remainingProgress / progressDelta * timeDelta;
-                break;
-            }
-        }
+        QPair<qint64, double> sample = blockProcessTime.takeLast();
+        timeDelta = currentMillis - sample.first;
+        progressDelta = verificationProgress - sample.second;
+        progressPerHour = progressDelta/static_cast<double>(timeDelta)*1000*3600;
+        remainingMSecs = (bestHeaderHeight - count) * timeDelta / AVG_WINDOW_LENGTH;
+
         // show progress increase per hour
         ui->progressIncreasePerH->setText(QString::number(progressPerHour*100, 'f', 2)+"%");
 
         // show expected remaining time
-        ui->expectedTimeLeft->setText(GUIUtil::formatNiceTimeOffset(remainingMSecs/1000.0));
-
-        static const int MAX_SAMPLES = 5000;
-        if (blockProcessTime.count() > MAX_SAMPLES)
-            blockProcessTime.remove(MAX_SAMPLES, blockProcessTime.count()-MAX_SAMPLES);
+        ui->expectedTimeLeft->setText(GUIUtil::formatNiceTimeOffset(remainingMSecs/1000));
     }
 
     // show the last block date
     ui->newestBlockDate->setText(blockDate.toString());
 
-    // show the percentage done according to nVerificationProgress
-    ui->percentageProgress->setText(QString::number(nVerificationProgress*100, 'f', 2)+"%");
-    ui->progressBar->setValue(nVerificationProgress*100);
+    // show the percentage done according to verificationProgress
+    if(bestHeaderHeight == 0) {
+        ui->percentageProgress->setText(tr("Connecting..."));
+    } else {
+        ui->percentageProgress->setText(QString::number(verificationProgress*100, 'f', 2)+"%");
+    }
+
+    ui->progressBar->setValue(verificationProgress*100);
 
     if (!bestHeaderDate.isValid())
         // not syncing

@@ -93,8 +93,8 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx, TransactionReco
         if (nNet > 0)
         {
             // Credit
-            if (IsValidDestinationString(rec->address)) {
-                CTxDestination address = DecodeDestination(rec->address);
+            CTxDestination address = LookupDestination(rec->address);
+            if (IsValidDestination(address)) {
                 if (wallet->mapAddressBook.count(address))
                 {
                     strHTML += "<b>" + tr("From") + ":</b> " + tr("unknown") + "<br>";
@@ -232,6 +232,11 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx, TransactionReco
     }
 
     strHTML += "<b>" + tr("Net amount") + ":</b> " + MeritUnits::formatHtmlWithUnit(unit, nNet, true) + "<br>";
+
+    // Invites
+    if (wtx.IsInvite()) {
+        strHTML += "<b>" + tr("Number of invites") + ":</b> " + "1" + "<br>";  // dirty hack until we get transactions with multiple invites
+    }
 
     //
     // Message

@@ -47,15 +47,22 @@ struct by_address {
 };
 struct by_hash {
 };
+struct by_alias {
+};
 
 
 using ReferralIndex = multi_index_container<
     Referral,
     indexed_by<
-        // sorted by beaconed address
+        // stored by beaconed address
         hashed_unique<tag<by_address>, const_mem_fun<Referral, const Address&, &Referral::GetAddress>, SaltedHasher<160>>,
-        // sorted by hash
-        hashed_unique<tag<by_hash>, const_mem_fun<Referral, const uint256&, &Referral::GetHash>, SaltedHasher<256>>>>;
+        // stored by hash
+        // use non-unique here to support empty tags.
+        // otherwise it won't add such referrals to index
+        // uniqueness is provided by validation
+        hashed_non_unique<tag<by_hash>, const_mem_fun<Referral, const uint256&, &Referral::GetHash>, SaltedHasher<256>>,
+        // stored by tag
+        hashed_unique<tag<by_alias>, member<Referral, const std::string, &Referral::alias>>>>;
 
 class ReferralsViewCache
 {
@@ -78,11 +85,17 @@ public:
     /** Check if referral exists by hash */
     bool Exists(const uint256&) const;
 
+    /** Check if referral alias occupied */
+    bool Exists(const std::string&) const;
+
     /** Remove referral from cache */
     void RemoveReferral(const Referral&) const;
 
     /** Flush referrals to disk and clear cache */
     void Flush();
+
+    /** Check if an address is confirmed */
+    bool IsConfirmed(const Address&) const;
 };
 
 } // namespace referral

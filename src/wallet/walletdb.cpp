@@ -22,10 +22,6 @@
 
 #include <boost/thread.hpp>
 
-class ReferralsViewCache;
-
-extern ReferralsViewCache *prefviewcache;
-
 //
 // CWalletDB
 //

@@ -39,6 +39,7 @@ const char *FEEFILTER="feefilter";
 const char *SENDCMPCT="sendcmpct";
 const char *CMPCTBLOCK="cmpctblock";
 const char *GETBLOCKTXN="getblocktxn";
+const char *GETBLOCKTXND="getblocktxnd";
 const char *BLOCKTXN="blocktxn";
 // Merit messages go below
 const char *REF="referral";

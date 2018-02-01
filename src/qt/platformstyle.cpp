@@ -67,7 +67,8 @@ QImage ColorizeImage(const QString& filename, const QColor& colorbase)
 
 QIcon ColorizeIcon(const QString& filename, const QColor& colorbase)
 {
-    return QIcon(QPixmap::fromImage(ColorizeImage(filename, colorbase)));
+    auto icon = QIcon(QPixmap::fromImage(ColorizeImage(filename, colorbase)));
+    return icon;
 }
 
 }

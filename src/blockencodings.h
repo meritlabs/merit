@@ -91,6 +91,8 @@ public:
     uint256 blockhash;
     std::vector<uint16_t> m_transaction_indices;
     std::vector<uint16_t> m_referral_indices;
+    std::vector<uint16_t> m_invite_indices;
+    bool expect_invites;
 
     ADD_SERIALIZE_METHODS;
 
@@ -111,6 +113,17 @@ public:
             WriteCompressedIndices(s, ser_action, m_transaction_indices);
             WriteCompressedIndices(s, ser_action, m_referral_indices);
         }
+
+        if(expect_invites) {
+            uint64_t m_invite_indices_size = static_cast<uint64_t>(m_invite_indices.size());
+            READWRITE(COMPACTSIZE(m_invite_indices_size));
+
+            if (ser_action.ForRead()) {
+                ReadCompressedIndices(s, ser_action, m_invite_indices_size, m_invite_indices);
+            } else {
+                WriteCompressedIndices(s, ser_action, m_invite_indices);
+            }
+        }
     }
 };
 
@@ -119,12 +132,14 @@ public:
     // A BlockTransactions message
     uint256 blockhash;
     std::vector<CTransactionRef> txn;
+    std::vector<CTransactionRef> invites;
     std::vector<referral::ReferralRef> refs;
 
     BlockTransactions() {}
     explicit BlockTransactions(const BlockTransactionsRequest& req) :
         blockhash{req.blockhash},
         txn(req.m_transaction_indices.size()),
+        invites(req.m_invite_indices.size()),
         refs(req.m_referral_indices.size()) {}
 
     ADD_SERIALIZE_METHODS;
@@ -134,9 +149,8 @@ public:
     {
         READWRITE(blockhash);
 
-        uint64_t txn_size = txn.size();
+        uint64_t txn_size = txn.size() + invites.size();
         uint64_t ref_size = refs.size();
-
         READWRITE(COMPACTSIZE(txn_size));
         READWRITE(COMPACTSIZE(ref_size));
 
@@ -146,12 +160,31 @@ public:
                 READWRITE(REF(TransactionCompressor(tx)));
             }
 
+            // Transactions and invites are mixed up, seperate them and then
+            // move the invites to the invites vector.
+            auto invite_itr = std::partition(txn.begin(), txn.end(),
+                    [](const CTransactionRef& tx) {
+                        return tx->IsInvite() == false;
+                    });
+
+            const auto real_txn_size = std::distance(txn.begin(), invite_itr);
+
+            invites.resize(std::distance(invite_itr, txn.end()));
+            std::copy(invite_itr, txn.end(), invites.begin());
+            txn.resize(real_txn_size);
+
+            refs.resize(ref_size);
             for(auto& ref : refs) {
                 READWRITE(REF(ReferralCompressor(ref)));
             }
+
         } else {
             for(auto& tx : txn) {
                 READWRITE(REF(TransactionCompressor(tx)));
+            }
+
+            for(auto& inv : invites) {
+                READWRITE(REF(TransactionCompressor(inv)));
             }
 
             for(auto& ref : refs) {
@@ -185,14 +218,14 @@ struct Prefilled {
 using PrefilledTransaction = Prefilled<CTransactionRef, TransactionCompressor>;
 using PrefilledReferral = Prefilled<referral::ReferralRef, ReferralCompressor>;
 
-typedef enum ReadStatus_t
+enum ReadStatus
 {
     READ_STATUS_OK,
     READ_STATUS_INVALID, // Invalid object, peer is sending bogus crap
     READ_STATUS_FAILED, // Failed to process object
     READ_STATUS_CHECKBLOCK_FAILED, // Used only by FillBlock to indicate a
                                    // failure in CheckBlock.
-} ReadStatus;
+};
 
 using ShortIds = std::vector<uint64_t>;
 const int SHORT_ID_LENGTH = 6;
@@ -231,8 +264,10 @@ private:
 
 protected:
     ShortIds m_short_tx_ids;
+    ShortIds m_short_inv_ids;
     ShortIds m_short_ref_ids;
     std::vector<PrefilledTransaction> m_prefilled_txn;
+    std::vector<PrefilledTransaction> m_prefilled_inv;
 
 public:
     CBlockHeader header;
@@ -243,6 +278,7 @@ public:
     BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTXID);
 
     size_t BlockTxCount() const { return m_short_tx_ids.size() + m_prefilled_txn.size(); }
+    size_t BlockInvCount() const { return m_short_inv_ids.size() + m_prefilled_inv.size(); }
     size_t BlockRefCount() const { return m_short_ref_ids.size(); }
 
     uint64_t GetShortID(const uint256& hash) const;
@@ -260,15 +296,31 @@ public:
         uint64_t short_ref_ids_size = m_short_ref_ids.size();
         READWRITE(COMPACTSIZE(short_ref_ids_size));
 
+        uint64_t short_inv_ids_size = 0;
+        if(header.IsDaedalus()) {
+            short_inv_ids_size = m_short_inv_ids.size();
+            READWRITE(COMPACTSIZE(short_inv_ids_size));
+        }
+
         if (ser_action.ForRead()) {
             ReadShortIds(s, ser_action, short_tx_ids_size, m_short_tx_ids);
             ReadShortIds(s, ser_action, short_ref_ids_size, m_short_ref_ids);
+            if(header.IsDaedalus()) {
+                ReadShortIds(s, ser_action, short_inv_ids_size, m_short_inv_ids);
+            }
         } else {
             WriteShortIds(s, ser_action, m_short_tx_ids);
             WriteShortIds(s, ser_action, m_short_ref_ids);
+            if(header.IsDaedalus()) {
+                WriteShortIds(s, ser_action, m_short_inv_ids);
+            }
         }
 
         READWRITE(m_prefilled_txn);
+
+        if(header.IsDaedalus()) {
+            READWRITE(m_prefilled_inv);
+        }
 
         if (ser_action.ForRead())
             FillShortIDSelector();
@@ -277,16 +329,19 @@ public:
 
 using MissingTransactions = std::vector<CTransactionRef>;
 using MissingReferrals = std::vector<referral::ReferralRef>;
-using ExtraTransactions = std::vector<std::pair<uint256, CTransactionRef>>;
+using ExtraTransaction = std::pair<uint256, CTransactionRef>;
+using ExtraTransactions = std::vector<ExtraTransaction>;
 using ExtraReferrals = std::vector<std::pair<uint256, referral::ReferralRef>>;
 
 class PartiallyDownloadedBlock {
 protected:
     std::vector<CTransactionRef> m_txn_available;
     std::vector<referral::ReferralRef> m_refs_available;
+    std::vector<CTransactionRef> m_inv_available;
 
     size_t m_prefilled_txn_count = 0, m_mempool_txn_count = 0, m_extra_txn_count = 0;
     size_t m_mempool_ref_count = 0, m_extra_ref_count = 0;
+    size_t m_prefilled_inv_count, m_mempool_inv_count = 0, m_extra_inv_count = 0;
 
     CTxMemPool* m_txn_pool;
     referral::ReferralTxMemPool* m_ref_pool;
@@ -302,13 +357,15 @@ public:
 
     // extra_txn is a list of extra transactions to look at, in <witness hash, reference> form
     ReadStatus InitData(const BlockHeaderAndShortIDs& cmpctblock,
-            const ExtraTransactions& extra_txn,
+            const ExtraTransactions& extra_txn_and_anv,
             const ExtraReferrals& extra_ref);
 
     bool IsTxAvailable(size_t index) const;
     bool IsRefAvailable(size_t index) const;
+    bool IsInviteAvailable(size_t index) const;
     ReadStatus FillBlock(CBlock& block,
             const MissingTransactions& vtx_missing,
+            const MissingTransactions& inv_missing,
             const MissingReferrals& ref_missing);
 };
 

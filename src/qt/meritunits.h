@@ -59,7 +59,8 @@ public:
     {
         MRT,
         mMRT,
-        uMRT
+        uMRT,
+        INV,
     };
 
     enum SeparatorStyle

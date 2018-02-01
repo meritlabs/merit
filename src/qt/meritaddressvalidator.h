@@ -8,6 +8,8 @@
 
 #include <QValidator>
 
+class WalletModel;
+
 /** Base58 entry widget validator, checks for valid characters and
  * removes some whitespace.
  */
@@ -15,8 +17,9 @@ class MeritAddressEntryValidator : public QValidator
 {
     Q_OBJECT
 
+    WalletModel* model = nullptr;
 public:
-    explicit MeritAddressEntryValidator(QObject *parent);
+    explicit MeritAddressEntryValidator(QObject *parent, WalletModel* model);
 
     State validate(QString &input, int &pos) const;
 };
@@ -27,10 +30,12 @@ class MeritAddressCheckValidator : public QValidator
 {
     Q_OBJECT
 
+    WalletModel* model = nullptr;
 public:
-    explicit MeritAddressCheckValidator(QObject *parent);
+    explicit MeritAddressCheckValidator(QObject *parent, WalletModel* model);
 
     State validate(QString &input, int &pos) const;
+
 };
 
 #endif // MERIT_QT_MERITADDRESSVALIDATOR_H
