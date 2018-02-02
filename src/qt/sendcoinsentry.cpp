@@ -285,10 +285,14 @@ void SendCoinsEntry::sendTypeChanged(int newIndex)
     switch(newIndex)
     {
         case SEND_MRT_INDEX:
-            std::cerr << "Send Merit selected" << std::endl;
+            ui->checkboxSubtractFeeFromAmount->setEnabled(true);
+            ui->checkboxSubtractFeeFromAmount->setHidden(false);
+            ui->payAmount->setMeritMode();
             break;
         case SEND_INV_INDEX:
-            std::cerr << "Send Invite selected" << std::endl;
+            ui->checkboxSubtractFeeFromAmount->setEnabled(false);
+            ui->checkboxSubtractFeeFromAmount->setHidden(true);
+            ui->payAmount->setInviteMode();
             break;
     }
 }

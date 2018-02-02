@@ -24,6 +24,23 @@ QList<MeritUnits::Unit> MeritUnits::availableUnits()
     return unitlist;
 }
 
+QList<MeritUnits::Unit> MeritUnits::inviteUnits()
+{
+    QList<MeritUnits::Unit> unitlist;
+    unitlist.append(INV);
+    return unitlist;
+}
+
+void MeritUnits::setToMeritUnits()
+{
+    unitlist = availableUnits();
+}
+
+void MeritUnits::setToInviteUnits()
+{
+    unitlist = inviteUnits();
+}
+
 bool MeritUnits::valid(int unit)
 {
     switch(unit)

@@ -76,6 +76,7 @@ public:
 
     //! Get list of units, for drop-down box
     static QList<Unit> availableUnits();
+    static QList<Unit> inviteUnits();
     //! Is unit ID valid?
     static bool valid(int unit);
     //! Short name
@@ -121,6 +122,9 @@ public:
 
     //! Return maximum number of base units (Satoshis)
     static CAmount maxMoney();
+
+    void setToMeritUnits();
+    void setToInviteUnits();
 
 private:
     QList<MeritUnits::Unit> unitlist;
