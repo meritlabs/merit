@@ -144,6 +144,8 @@ CDBWrapper::CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory, bo
 
 CDBWrapper::~CDBWrapper()
 {
+    Sync();
+
     delete pdb;
     pdb = nullptr;
     delete options.filter_policy;
