@@ -61,6 +61,7 @@ private Q_SLOTS:
     void on_addressBookButton_clicked();
     void on_pasteButton_clicked();
     void updateDisplayUnit();
+    void sendTypeChanged(int index);
 
 private:
     SendCoinsRecipient recipient;
@@ -68,6 +69,7 @@ private:
     WalletModel *model;
     const PlatformStyle *platformStyle;
 
+    void setupComboBox();
     bool updateLabel(const QString &address);
 };
 

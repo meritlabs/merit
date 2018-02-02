@@ -16,6 +16,9 @@
 #include <QApplication>
 #include <QClipboard>
 
+static constexpr int SEND_MRT_INDEX = 0;
+static constexpr int SEND_INV_INDEX = 1;
+
 SendCoinsEntry::SendCoinsEntry(const PlatformStyle *_platformStyle, QWidget *parent) :
     QStackedWidget(parent),
     ui(new Ui::SendCoinsEntry),
@@ -47,6 +50,8 @@ SendCoinsEntry::SendCoinsEntry(const PlatformStyle *_platformStyle, QWidget *par
     connect(ui->deleteButton, SIGNAL(clicked()), this, SLOT(deleteClicked()));
     connect(ui->deleteButton_is, SIGNAL(clicked()), this, SLOT(deleteClicked()));
     connect(ui->deleteButton_s, SIGNAL(clicked()), this, SLOT(deleteClicked()));
+
+    setupComboBox();
 }
 
 SendCoinsEntry::~SendCoinsEntry()
@@ -266,4 +271,24 @@ bool SendCoinsEntry::updateLabel(const QString &address)
     }
 
     return false;
+}
+
+void SendCoinsEntry::setupComboBox()
+{
+    ui->sendTypeComboBox->insertItem(SEND_MRT_INDEX, QStringLiteral("Send Merit"));
+    ui->sendTypeComboBox->insertItem(SEND_INV_INDEX, QStringLiteral("Send Invites"));
+    connect(ui->sendTypeComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(sendTypeChanged(int)));
+}
+
+void SendCoinsEntry::sendTypeChanged(int newIndex)
+{
+    switch(newIndex)
+    {
+        case SEND_MRT_INDEX:
+            std::cerr << "Send Merit selected" << std::endl;
+            break;
+        case SEND_INV_INDEX:
+            std::cerr << "Send Invite selected" << std::endl;
+            break;
+    }
 }

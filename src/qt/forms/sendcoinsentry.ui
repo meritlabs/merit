@@ -216,7 +216,13 @@
      </widget>
     </item>
     <item row="0" column="0" colspan="2">
-     <widget class="QLabel" name="label">
+     <widget class="QComboBox" name="sendTypeComboBox">
+      <property name="maximumSize">
+       <size>
+        <width>128</width>
+        <height>16777215</height>
+       </size>
+      </property>
       <property name="font">
        <font>
         <pointsize>16</pointsize>
@@ -224,8 +230,21 @@
         <bold>true</bold>
        </font>
       </property>
-      <property name="text">
-       <string>Send Merit</string>
+      <property name="styleSheet">
+       <string notr="true">border:none;
+background-color: rgb(236, 236, 236);</string>
+      </property>
+      <property name="minimumContentsLength">
+       <number>5</number>
+      </property>
+      <property name="iconSize">
+       <size>
+        <width>0</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="duplicatesEnabled">
+       <bool>true</bool>
       </property>
      </widget>
     </item>
