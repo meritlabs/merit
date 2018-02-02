@@ -80,7 +80,8 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     QDateTime currentDate = QDateTime::currentDateTime();
 
     // keep a vector of samples of verification progress at height
-    double verificationProgress = static_cast<double>(count) / static_cast<double>(bestHeaderHeight);
+    double verificationProgress = bestHeaderHeight == 0 ? 0 : 
+        static_cast<double>(count) / static_cast<double>(bestHeaderHeight);
     qint64 currentMillis = currentDate.toMSecsSinceEpoch();
     blockProcessTime.push_front(qMakePair(currentMillis, verificationProgress));
 
@@ -109,7 +110,12 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     ui->newestBlockDate->setText(blockDate.toString());
 
     // show the percentage done according to verificationProgress
-    ui->percentageProgress->setText(QString::number(verificationProgress*100, 'f', 2)+"%");
+    if(bestHeaderHeight == 0) {
+        ui->percentageProgress->setText(tr("Connecting..."));
+    } else {
+        ui->percentageProgress->setText(QString::number(verificationProgress*100, 'f', 2)+"%");
+    }
+
     ui->progressBar->setValue(verificationProgress*100);
 
     if (!bestHeaderDate.isValid())

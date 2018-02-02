@@ -159,11 +159,11 @@ void WalletModel::checkBalanceChanged()
     }
 
     if(
-            cachedBalance != newBalance 
-            || cachedUnconfirmedBalance != newUnconfirmedBalance 
-            || cachedImmatureBalance != newImmatureBalance 
-            || cachedWatchOnlyBalance != newWatchOnlyBalance 
-            || cachedWatchUnconfBalance != newWatchUnconfBalance 
+            cachedBalance != newBalance
+            || cachedUnconfirmedBalance != newUnconfirmedBalance
+            || cachedImmatureBalance != newImmatureBalance
+            || cachedWatchOnlyBalance != newWatchOnlyBalance
+            || cachedWatchUnconfBalance != newWatchUnconfBalance
             || cachedWatchImmatureBalance != newWatchImmatureBalance
             || cachedInviteBalance != newInviteBalance)
     {

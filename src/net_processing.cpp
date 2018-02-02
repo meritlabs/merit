@@ -1827,9 +1827,11 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
     }
 
 
-    else if (strCommand == NetMsgType::GETBLOCKTXN)
+    else if (strCommand == NetMsgType::GETBLOCKTXN || strCommand == NetMsgType::GETBLOCKTXND)
     {
         BlockTransactionsRequest req;
+        req.expect_invites = strCommand == NetMsgType::GETBLOCKTXND;
+
         vRecv >> req;
 
         std::shared_ptr<const CBlock> recent_block;
@@ -2354,6 +2356,8 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 }
 
                 BlockTransactionsRequest req;
+                req.expect_invites = cmpctblock.header.IsDaedalus();
+
                 for (size_t i = 0; i < cmpctblock.BlockTxCount(); i++) {
                     if (!partialBlock.IsTxAvailable(i))
                         req.m_transaction_indices.push_back(i);
@@ -2372,7 +2376,11 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                     fProcessBLOCKTXN = true;
                 } else {
                     req.blockhash = pindex->GetBlockHash();
-                    connman.PushMessage(pfrom, msgMaker.Make(NetMsgType::GETBLOCKTXN, req));
+
+                    const auto command = cmpctblock.header.IsDaedalus() ?
+                        NetMsgType::GETBLOCKTXND : NetMsgType::GETBLOCKTXN;
+
+                    connman.PushMessage(pfrom, msgMaker.Make(command, req));
                 }
             } else {
                 // This block is either already in flight from a different

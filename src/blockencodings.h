@@ -92,6 +92,7 @@ public:
     std::vector<uint16_t> m_transaction_indices;
     std::vector<uint16_t> m_referral_indices;
     std::vector<uint16_t> m_invite_indices;
+    bool expect_invites;
 
     ADD_SERIALIZE_METHODS;
 
@@ -113,13 +114,15 @@ public:
             WriteCompressedIndices(s, ser_action, m_referral_indices);
         }
 
-        uint64_t m_invite_indices_size = static_cast<uint64_t>(m_invite_indices.size());
-        READWRITE(COMPACTSIZE(m_invite_indices_size));
+        if(expect_invites) {
+            uint64_t m_invite_indices_size = static_cast<uint64_t>(m_invite_indices.size());
+            READWRITE(COMPACTSIZE(m_invite_indices_size));
 
-        if (ser_action.ForRead()) {
-            ReadCompressedIndices(s, ser_action, m_invite_indices_size, m_invite_indices);
-        } else {
-            WriteCompressedIndices(s, ser_action, m_invite_indices);
+            if (ser_action.ForRead()) {
+                ReadCompressedIndices(s, ser_action, m_invite_indices_size, m_invite_indices);
+            } else {
+                WriteCompressedIndices(s, ser_action, m_invite_indices);
+            }
         }
     }
 };
@@ -146,7 +149,7 @@ public:
     {
         READWRITE(blockhash);
 
-        uint64_t txn_size = txn.size();
+        uint64_t txn_size = txn.size() + invites.size();
         uint64_t ref_size = refs.size();
         READWRITE(COMPACTSIZE(txn_size));
         READWRITE(COMPACTSIZE(ref_size));
@@ -156,6 +159,19 @@ public:
             for(auto& tx : txn) {
                 READWRITE(REF(TransactionCompressor(tx)));
             }
+
+            // Transactions and invites are mixed up, seperate them and then
+            // move the invites to the invites vector.
+            auto invite_itr = std::partition(txn.begin(), txn.end(),
+                    [](const CTransactionRef& tx) {
+                        return tx->IsInvite() == false;
+                    });
+
+            const auto real_txn_size = std::distance(txn.begin(), invite_itr);
+
+            invites.resize(std::distance(invite_itr, txn.end()));
+            std::copy(invite_itr, txn.end(), invites.begin());
+            txn.resize(real_txn_size);
 
             refs.resize(ref_size);
             for(auto& ref : refs) {
@@ -167,22 +183,12 @@ public:
                 READWRITE(REF(TransactionCompressor(tx)));
             }
 
+            for(auto& inv : invites) {
+                READWRITE(REF(TransactionCompressor(inv)));
+            }
+
             for(auto& ref : refs) {
                 READWRITE(REF(ReferralCompressor(ref)));
-            }
-        }
-
-        uint64_t inv_size = invites.size();
-        READWRITE(COMPACTSIZE(inv_size));
-
-        if (ser_action.ForRead()) {
-            invites.resize(inv_size);
-            for(auto& inv : invites) {
-                READWRITE(REF(TransactionCompressor(inv)));
-            }
-        } else {
-            for(auto& inv : invites) {
-                READWRITE(REF(TransactionCompressor(inv)));
             }
         }
     }

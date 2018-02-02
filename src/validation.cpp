@@ -54,6 +54,7 @@
 #include <algorithm>
 #include <atomic>
 #include <sstream>
+#include <numeric>
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -110,7 +111,8 @@ CScript COINBASE_FLAGS;
 const std::string strMessageMagic = "Merit Signed Message:\n";
 
 // Internal stuff
-namespace {
+namespace
+{
 
     struct CBlockIndexWorkComparator
     {
@@ -284,6 +286,7 @@ namespace {
         return state.Error(strMessage);
     }
 
+    const char PARAM_SCRIPT_ADDRESS = 3;
 } // namespace
 
 AddressPair ExtractAddress(const CTxOut& tout)
@@ -1786,9 +1789,10 @@ void TreeToForest(
     }
 
     entrants.erase(
-            std::remove_if (entrants.begin(), entrants.end(),
+            std::remove_if(entrants.begin(), entrants.end(),
                 [&params](const referral::AddressANV& e) {
-                    return e.address == params.genesis_address || e.address_type;
+                    return e.address == params.genesis_address || 
+                           e.address_type == PARAM_SCRIPT_ADDRESS;
                 }), entrants.end());
 }
 
@@ -2072,11 +2076,26 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
 }
 
 bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, const CTransaction& coinbase) {
-    assert(coinbase.IsCoinBase());
-    assert(coinbase.IsInvite());
+    if(!coinbase.IsCoinBase()) {
+        return false;
+    }
+
+    if(!coinbase.IsInvite()) {
+        return false;
+    }
 
     //quick test before doing more expensive validation
     if (coinbase.vout.size() != expected_invites.size()) {
+        return false;
+    }
+
+    const auto expected_invite_reward = std::accumulate(
+            expected_invites.begin(), expected_invites.end(), CAmount{0},
+            [](CAmount accum, const pog::InviteReward& inv) {
+                return accum + inv.invites;
+            });
+
+    if(coinbase.GetValueOut() != expected_invite_reward) {
         return false;
     }
 

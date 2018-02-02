@@ -9,6 +9,8 @@
 #include "uint256.h"
 #include "wallet/wallet.h"
 
+#undef debug
+
 #include <QList>
 #include <QString>
 

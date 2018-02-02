@@ -88,6 +88,7 @@ private:
     QLabel *connectionsControl;
     QLabel *labelBlocksIcon;
     QLabel *progressBarLabel;
+    QLabel *miningStatusIcon;
     QProgressBar *progressBar;
     QProgressDialog *progressDialog;
 
@@ -113,6 +114,9 @@ private:
     QAction *openRPCConsoleAction;
     QAction *openAction;
     QAction *showHelpMessageAction;
+
+    QAction *startMiningAction;
+    QAction *stopMiningAction;
 
     QSystemTrayIcon *trayIcon;
     QMenu *trayIconMenu;
@@ -157,6 +161,9 @@ Q_SIGNALS:
     /** Signal raised when a URI was entered or dragged to the GUI */
     void receivedURI(const QString &uri);
 
+    /** Mining */
+    void miningStatusChanged(bool isMining);
+
 public Q_SLOTS:
     /** Set number of connections shown in the UI */
     void setNumConnections(int count);
@@ -187,6 +194,8 @@ public Q_SLOTS:
      */
     void setHDStatus(int hdEnabled);
 
+    void setMiningStatus(bool isMining);
+
     bool handlePaymentRequest(const SendCoinsRecipient& recipient);
 
     /** Show incoming transaction notification for new transactions. */
@@ -214,6 +223,10 @@ private Q_SLOTS:
 
     /** Enable actions when wallet gets referred */
     void walletReferred();
+
+    /** Mining */
+    void startMiningClicked();
+    void stopMiningClicked();
 #endif // ENABLE_WALLET
     /** Show configuration dialog */
     void optionsClicked();
@@ -240,7 +253,7 @@ private Q_SLOTS:
 
     /** Show progress dialog e.g. for verifychain */
     void showProgress(const QString &title, int nProgress);
-    
+
     /** When hideTrayIcon setting is changed in OptionsModel hide or show the icon accordingly. */
     void setTrayIconVisible(bool);
 
