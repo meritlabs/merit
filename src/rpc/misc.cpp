@@ -974,7 +974,7 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
         UniValue invites = find_value(request.params[0].get_obj(), "invites");
         if (invites.isBool()) {
             request_invites = invites.get_bool();
-    }
+        }
     }
 
     std::vector<AddressPair> addresses;
@@ -1207,12 +1207,28 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
 }
 
 namespace {
-    using AddressTx = std::pair<int, std::string>;
+    // (height, invite, id)
+    using AddressTx = std::tuple<int, bool, std::string>;
 }
 
 struct TxHeightCmp {
     bool operator() (const AddressTx& lhs, const AddressTx& rhs) const {
-        return lhs.first <= rhs.first;
+        // elements are equal
+        if (lhs == rhs) {
+            return false;
+        }
+
+        // if height is the same check if invite or not - invites go first
+        if (get<0>(lhs) == get<0>(rhs)) {
+            if (get<1>(lhs) && !get<1>(rhs)) {
+                return true;
+            } else {
+                return get<2>(lhs) <= get<2>(rhs);
+            }
+        }
+
+        // tx with less height goes first
+        return get<0>(lhs) < get<0>(rhs);
     }
 };
 
@@ -1241,7 +1257,7 @@ void getAddressTxIds(
         int height = it->first.blockHeight;
         std::string txid = it->first.txhash.GetHex();
 
-        txids.insert(std::make_pair(height, txid));
+        txids.insert(std::make_tuple(height, is_invite, txid));
     }
 }
 
@@ -1288,15 +1304,29 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
         }
     }
 
+    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
+
+    for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
+        if (start > 0 && end > 0) {
+            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex, start, end)) {
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+            }
+        } else {
+            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex)) {
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+            }
+        }
+    }
+
     std::set<AddressTx, TxHeightCmp> txids;
 
-    getAddressTxIds(addresses, start, end, false, txids);
     getAddressTxIds(addresses, start, end, true, txids);
+    getAddressTxIds(addresses, start, end, false, txids);
 
     UniValue result(UniValue::VARR);
 
     for (const auto& it: txids) {
-        result.push_back(it.second);
+        result.push_back(get<2>(it));
     }
 
     return result;
