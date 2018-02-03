@@ -1791,7 +1791,7 @@ void TreeToForest(
     entrants.erase(
             std::remove_if(entrants.begin(), entrants.end(),
                 [&params](const referral::AddressANV& e) {
-                    return e.address == params.genesis_address || 
+                    return e.address == params.genesis_address ||
                            e.address_type == PARAM_SCRIPT_ADDRESS;
                 }), entrants.end());
 }
@@ -3366,113 +3366,110 @@ bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_
     return pblocktree->WriteReferralIndex(positions);
 }
 
-void IndexTransactions(
+void IndexTransaction(
         const CBlockIndex *pindex,
         CCoinsViewCache& view,
-        const std::vector<CTransactionRef>& vtx,
+        const CTransaction &tx,
+        int blockindex,
         KeyActivity& addressIndex,
         AddressUnspentIndex& addressUnspentIndex,
         SpentIndex& spentIndex)
 {
-    for (int i = 0; i < static_cast<int>(vtx.size()); i++)
+    const auto& txhash = tx.GetHash();
+
+    if (!tx.IsCoinBase())
     {
-        const CTransaction &tx = *(vtx[i]);
-        const uint256 txhash = tx.GetHash();
+        for (unsigned int j = 0; j < static_cast<unsigned int>(tx.vin.size()); j++) {
 
-        if (!tx.IsCoinBase())
-        {
-            for (unsigned int j = 0; j < static_cast<unsigned int>(tx.vin.size()); j++) {
+            const CTxIn input = tx.vin[j];
+            const CTxOut &prevout = view.AccessCoin(input.prevout).out;
 
-                const CTxIn input = tx.vin[j];
-                const CTxOut &prevout = view.AccessCoin(input.prevout).out;
-
-                const auto address = ExtractAddress(prevout);
-                const auto& hashBytes = address.first;
-                const unsigned int addressType = address.second;
-
-                if (addressType > 0) {
-                    // record spending activity
-                    addressIndex.push_back(
-                            std::make_pair(
-                                CAddressIndexKey{
-                                    addressType,
-                                    hashBytes,
-                                    pindex->nHeight,
-                                    i,
-                                    txhash,
-                                    j,
-                                    true,
-                                    tx.IsInvite()},
-                                prevout.nValue * -1));
-
-                    // remove address from unspent index
-                    addressUnspentIndex.push_back(
-                            std::make_pair(
-                                CAddressUnspentKey{
-                                    addressType,
-                                    hashBytes,
-                                    input.prevout.hash,
-                                    input.prevout.n,
-                                    tx.IsCoinBase(),
-                                    tx.IsInvite()},
-                                CAddressUnspentValue{}));
-                }
-
-                spentIndex.push_back(
-                        std::make_pair(
-                            CSpentIndexKey{input.prevout.hash, input.prevout.n},
-                            CSpentIndexValue{
-                                txhash,
-                                j,
-                                pindex->nHeight,
-                                prevout.nValue,
-                                static_cast<int>(addressType),
-                                hashBytes}));
-            }
-
-        }
-
-        for (unsigned int k = 0; k < tx.vout.size(); k++) {
-            const CTxOut &out = tx.vout[k];
-            const auto address = ExtractAddress(out);
-            if (address.second == 0) {
-                continue;
-            }
-
+            const auto address = ExtractAddress(prevout);
             const auto& hashBytes = address.first;
             const unsigned int addressType = address.second;
 
-            // record receiving activity
-            addressIndex.push_back(
-                    std::make_pair(
-                        CAddressIndexKey{
-                        addressType,
-                        hashBytes,
-                        pindex->nHeight,
-                        i,
-                        txhash,
-                        k,
-                        false,
-                        tx.IsInvite()},
-                        out.nValue));
+            if (addressType > 0) {
+                // record spending activity
+                addressIndex.push_back(
+                        std::make_pair(
+                            CAddressIndexKey{
+                                addressType,
+                                hashBytes,
+                                pindex->nHeight,
+                                blockindex,
+                                txhash,
+                                j,
+                                true,
+                                tx.IsInvite()},
+                            prevout.nValue * -1));
 
-            // record unspent output
-            addressUnspentIndex.push_back(
-                    std::make_pair(
-                        CAddressUnspentKey{
-                        addressType,
-                        hashBytes,
-                        txhash,
-                        k,
-                        tx.IsCoinBase(),
-                        tx.IsInvite()
-                        },
-                        CAddressUnspentValue{
-                        out.nValue,
-                        out.scriptPubKey,
-                        pindex->nHeight}));
+                // remove address from unspent index
+                addressUnspentIndex.push_back(
+                        std::make_pair(
+                            CAddressUnspentKey{
+                                addressType,
+                                hashBytes,
+                                input.prevout.hash,
+                                input.prevout.n,
+                                tx.IsCoinBase(),
+                                tx.IsInvite()},
+                            CAddressUnspentValue{}));
+            }
 
+            spentIndex.push_back(
+                    std::make_pair(
+                        CSpentIndexKey{input.prevout.hash, input.prevout.n},
+                        CSpentIndexValue{
+                            txhash,
+                            j,
+                            pindex->nHeight,
+                            prevout.nValue,
+                            static_cast<int>(addressType),
+                            hashBytes}));
         }
+
+    }
+
+    for (unsigned int k = 0; k < tx.vout.size(); k++) {
+        const CTxOut &out = tx.vout[k];
+        const auto address = ExtractAddress(out);
+        if (address.second == 0) {
+            continue;
+        }
+
+        const auto& hashBytes = address.first;
+        const unsigned int addressType = address.second;
+
+        // record receiving activity
+        addressIndex.push_back(
+                std::make_pair(
+                    CAddressIndexKey{
+                    addressType,
+                    hashBytes,
+                    pindex->nHeight,
+                    blockindex,
+                    txhash,
+                    k,
+                    false,
+                    tx.IsInvite()},
+                    out.nValue));
+
+        // record unspent output
+        addressUnspentIndex.push_back(
+                std::make_pair(
+                    CAddressUnspentKey{
+                    addressType,
+                    hashBytes,
+                    txhash,
+                    k,
+                    tx.IsCoinBase(),
+                    tx.IsInvite()
+                    },
+                    CAddressUnspentValue{
+                    out.nValue,
+                    out.scriptPubKey,
+                    pindex->nHeight}));
+
     }
 }
 
@@ -3657,8 +3654,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 tx.GetHash().ToString(), FormatStateMessage(state));
         }
 
-        if (!tx.IsCoinBase())
-        {
+        if (!tx.IsCoinBase()) {
             nFees += view.GetValueIn(tx)-tx.GetValueOut();
 
             std::vector<CScriptCheck> vChecks;
@@ -3682,10 +3678,14 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             control.Add(vChecks);
         }
 
-        CTxUndo undoDummy;
-        if (i > 0) {
-            blockundo.vtxundo.push_back(CTxUndo());
-        }
+        IndexTransaction(
+            pindex,
+            view,
+            tx,
+            i,
+            addressIndex,
+            addressUnspentIndex,
+            spentIndex);
 
         if (!GetDebitsAndCredits(debits_and_credits, tx, view)) {
             return state.DoS(100,
@@ -3693,19 +3693,16 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                     REJECT_INVALID, "bad-cb-bad-outputs");
         }
 
+        CTxUndo undoDummy;
+        if (i > 0) {
+            blockundo.vtxundo.push_back(CTxUndo());
+        }
+
         UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
 
         vPos.push_back(std::make_pair(tx.GetHash(), pos));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
-
-    IndexTransactions(
-            pindex,
-            view,
-            block.vtx,
-            addressIndex,
-            addressUnspentIndex,
-            spentIndex);
 
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n",
@@ -3750,6 +3747,15 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
             control.Add(vChecks);
 
+            IndexTransaction(
+                pindex,
+                view,
+                inv,
+                i,
+                addressIndex,
+                addressUnspentIndex,
+                spentIndex);
+
             if (!GetDebitsAndCredits(invite_debits_and_credits, inv, view)) {
                 return state.DoS(100,
                         error("ConnectBlock(): merit was sent to addresses that are non standard"),
@@ -3763,14 +3769,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             vPos.push_back(std::make_pair(inv.GetHash(), pos));
             pos.nTxOffset += ::GetSerializeSize(inv, SER_DISK, CLIENT_VERSION);
         }
-
-        IndexTransactions(
-                pindex,
-                view,
-                block.invites,
-                addressIndex,
-                addressUnspentIndex,
-                spentIndex);
 
         nTime4 = GetTimeMicros(); nTimeConnect += nTime4 - nTime3;
         LogPrint(BCLog::BENCH, "      - Connect %u invites: %.2fms (%.3fms/inv) [%.2fs (%.2fms/blk)]\n",
