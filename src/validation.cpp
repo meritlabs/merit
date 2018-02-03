@@ -3375,7 +3375,7 @@ void IndexTransaction(
         AddressUnspentIndex& addressUnspentIndex,
         SpentIndex& spentIndex)
 {
-    const uint256 txhash = tx.GetHash();
+    const auto& txhash = tx.GetHash();
 
     if (!tx.IsCoinBase())
     {
