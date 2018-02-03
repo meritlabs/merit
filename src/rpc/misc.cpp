@@ -942,6 +942,7 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
             "      \"address\"  (string) The base58check encoded address\n"
             "      ,...\n"
             "    ],\n"
+            "  \"invites\"    (boolean) Weather to send invites utxos instead general txs\n"
             "  \"chainInfo\"  (boolean) Include chain info with results\n"
             "}\n"
             "\nResult\n"
@@ -953,6 +954,8 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
             "    \"outputIndex\"  (number) The output index\n"
             "    \"script\"  (strin) The script hex encoded\n"
             "    \"satoshis\"  (number) The number of satoshis of the output\n"
+            "    \"isCoinbase\"  (boolean) If transaction is a coinbase\n"
+            "    \"isInvite\"  (boolean) If transaction is an invite\n"
             "  }\n"
             "]\n"
             "\nExamples:\n"
@@ -961,11 +964,17 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
             );
 
     bool includeChainInfo = false;
+    bool request_invites = false;
     if (request.params[0].isObject()) {
         UniValue chainInfo = find_value(request.params[0].get_obj(), "chainInfo");
         if (chainInfo.isBool()) {
             includeChainInfo = chainInfo.get_bool();
         }
+
+        UniValue invites = find_value(request.params[0].get_obj(), "invites");
+        if (invites.isBool()) {
+            request_invites = invites.get_bool();
+    }
     }
 
     std::vector<AddressPair> addresses;
@@ -977,7 +986,7 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
 
     for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
-        if (!GetAddressUnspent((*it).first, (*it).second, false, unspentOutputs)) {
+        if (!GetAddressUnspent((*it).first, (*it).second, request_invites, unspentOutputs)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
         }
     }
@@ -1000,6 +1009,7 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
         output.push_back(Pair("satoshis", it->second.satoshis));
         output.push_back(Pair("height", it->second.blockHeight));
         output.push_back(Pair("isCoinbase", it->first.isCoinbase));
+        output.push_back(Pair("isInvite", it->first.isInvite));
         utxos.push_back(output);
     }
 
