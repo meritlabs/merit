@@ -26,13 +26,14 @@ bool DisplayReferral(
 {
     assert(wallet);
     assert(ref);
+
     const auto& addr = ref->GetAddress();
 
     return ShowReferral(ref) 
         && addresses.count(addr) == 0
         && wallet->IsMine(*ref) 
         && !wallet->IsMe(*ref) 
-        && CheckAddressBeaconed(ref->GetAddress());
+        && CheckAddressBeaconed(addr);
 } 
 
 void ReferralListPriv::Refresh()
