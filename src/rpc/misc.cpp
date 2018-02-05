@@ -857,7 +857,6 @@ UniValue processMempoolReferral(const referral::ReferralTxMemPool::RefIter entry
 
     delta.push_back(Pair("refid", referral->GetHash().GetHex()));
     delta.push_back(Pair("address", CMeritAddress{referral->addressType, referral->GetAddress()}.ToString()));
-    delta.push_back(Pair("alias", referral->alias));
 
     const auto cached_parent_referral = prefviewdb->GetReferral(referral->parentAddress);
     if (cached_parent_referral) {
@@ -892,7 +891,6 @@ UniValue getaddressmempoolreferrals(const JSONRPCRequest& request)
             "[\n"
             "  {\n"
             "    \"address\"        (string) The base58check encoded address\n"
-            "    \"alias\"          (string) Alias of a referral\n"
             "    \"refid\"          (string) The related txid\n"
             "    \"parentrefid\"    (string) Parent referral id\n"
             "    \"timestamp\"      (number) The time the referral entered the mempool (seconds)\n"
@@ -1342,7 +1340,7 @@ UniValue getaddressreferrals(const JSONRPCRequest& request)
     if (request.fHelp || request.params.size() != 1) {
         throw std::runtime_error(
             "getaddressreferrals\n"
-            "\nReturns the ids of referrals for an address(es) (requires referralindex to be enabled).\n"
+            "\nReturns referrals for an address(es) (requires referralindex to be enabled).\n"
             "\nArguments:\n"
             "{\n"
             "  \"addresses\"\n"
