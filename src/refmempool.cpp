@@ -30,6 +30,11 @@ std::string GetAlias(const RefMemPoolEntry& entry)
     return entry.GetSharedEntryValue()->alias;
 }
 
+Address GetParentAddress(const RefMemPoolEntry& entry)
+{
+    return entry.GetSharedEntryValue()->parentAddress;
+}
+
 RefMemPoolEntry::RefMemPoolEntry(const Referral& _entry, int64_t _nTime, unsigned int _entryHeight) : MemPoolEntry(_entry, _nTime, _entryHeight)
 {
     nWeight = GetReferralWeight(_entry);
@@ -242,6 +247,11 @@ ReferralRef ReferralTxMemPool::Get(const ReferralId& referral_id) const
 std::pair<ReferralTxMemPool::RefAliasIter, ReferralTxMemPool::RefAliasIter> ReferralTxMemPool::Find(const std::string& alias) const
 {
     return mapRTx.get<referral_alias>().equal_range(alias);
+}
+
+std::pair<ReferralTxMemPool::RefParentIter, ReferralTxMemPool::RefParentIter> ReferralTxMemPool::Find(const Address& parentAddress) const
+{
+    return mapRTx.get<referral_parent>().equal_range(parentAddress);
 }
 
 bool ReferralTxMemPool::Exists(const uint256& hash) const

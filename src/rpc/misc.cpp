@@ -857,6 +857,7 @@ UniValue processMempoolReferral(const referral::ReferralTxMemPool::RefIter entry
 
     delta.push_back(Pair("refid", referral->GetHash().GetHex()));
     delta.push_back(Pair("address", CMeritAddress{referral->addressType, referral->GetAddress()}.ToString()));
+    delta.push_back(Pair("alias", referral->alias));
 
     const auto cached_parent_referral = prefviewdb->GetReferral(referral->parentAddress);
     if (cached_parent_referral) {
@@ -891,6 +892,7 @@ UniValue getaddressmempoolreferrals(const JSONRPCRequest& request)
             "[\n"
             "  {\n"
             "    \"address\"        (string) The base58check encoded address\n"
+            "    \"alias\"          (string) Alias of a referral\n"
             "    \"refid\"          (string) The related txid\n"
             "    \"parentrefid\"    (string) Parent referral id\n"
             "    \"timestamp\"      (number) The time the referral entered the mempool (seconds)\n"
@@ -917,12 +919,14 @@ UniValue getaddressmempoolreferrals(const JSONRPCRequest& request)
         if (entryit != mempoolReferral.mapRTx.get<referral::referral_address>().end()) {
             auto entryit_ = mempoolReferral.mapRTx.project<0>(entryit);
             result.push_back(processMempoolReferral(entryit_, address));
+        }
 
-            const auto children = mempoolReferral.GetMemPoolChildren(entryit_);
+        // look for referrals that have provided address as a parentAddress
+        auto it = mempoolReferral.Find(address.first);
+        while (it.first != it.second) {
+            result.push_back(processMempoolReferral(mempoolReferral.mapRTx.project<0>(it.first), address));
 
-            for (const auto& child_entryit: children) {
-                result.push_back(processMempoolReferral(mempoolReferral.mapRTx.project<0>(child_entryit), address));
-            }
+            it.first++;
         }
     }
 
