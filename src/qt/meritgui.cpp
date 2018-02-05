@@ -392,9 +392,9 @@ void MeritGUI::createActions()
     showHelpMessageAction->setStatusTip(tr("Show the %1 help message to get a list with possible Merit command-line options").arg(tr(PACKAGE_NAME)));
 
     // Mining
-    startMiningAction = new QAction(platformStyle->TextColorIcon(":/icons/tx_mined"), tr("&Start mining"), this);
+    startMiningAction = new QAction(platformStyle->TextColorIcon(":/icons/tx_mined"), tr("&Start Mining"), this);
     startMiningAction->setStatusTip(tr("Start Merit miner"));
-    stopMiningAction = new QAction(platformStyle->TextColorIcon(":/icons/quit"), tr("&Stop mining"), this);
+    stopMiningAction = new QAction(platformStyle->TextColorIcon(":/icons/quit"), tr("&Stop Mining"), this);
     stopMiningAction->setStatusTip(tr("Stop Merit miner"));
 
     connect(quitAction, SIGNAL(triggered()), qApp, SLOT(quit()));

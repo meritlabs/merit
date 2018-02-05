@@ -1762,7 +1762,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
         return false;
     }
 
-    if (gArgs.IsArgSet("-mine")) {
+    if(gArgs.GetBoolArg("-mine", DEFAULT_MINING)) {
         // Generate coins in the background
         GenerateMerit(true, gArgs.GetArg("-mineproclimit", DEFAULT_MINING_THREADS), chainparams);
     }
