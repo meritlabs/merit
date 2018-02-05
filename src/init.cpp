@@ -1764,7 +1764,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
         return false;
     }
 
-    if (gArgs.IsArgSet("-mine")) {
+    if(gArgs.GetBoolArg("-mine", DEFAULT_MINING)) {
         // Generate coins in the background
         auto pow_threads = gArgs.GetArg("-minepowthreads", DEFAULT_MINING_POW_THREADS);
         auto bucket_size = gArgs.GetArg("-minebucketsize", DEFAULT_MINING_BUCKET_SIZE);

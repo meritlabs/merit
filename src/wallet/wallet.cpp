@@ -4110,17 +4110,28 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool)
 
         CWalletDB walletdb(*dbw);
 
+        
         auto it = setKeyPool.begin();
-        nIndex = *it;
-        if (!walletdb.ReadPool(nIndex, keypool)) {
-            throw std::runtime_error(std::string(__func__) + ": read failed");
-        }
-        if (!HaveKey(keypool.vchPubKey.GetID())) {
-            throw std::runtime_error(std::string(__func__) + ": unknown key in key pool");
-        }
+        while(it != setKeyPool.end()) {
+            nIndex = *it;
+            if (!walletdb.ReadPool(nIndex, keypool)) {
+                throw std::runtime_error(std::string(__func__) + ": read failed");
+            }
+            if (!HaveKey(keypool.vchPubKey.GetID())) {
+                throw std::runtime_error(std::string(__func__) + ": unknown key in key pool");
+            }
 
-        assert(keypool.vchPubKey.IsValid());
-        assert(CheckAddressBeaconed(keypool.vchPubKey.GetID(), true));
+            assert(keypool.vchPubKey.IsValid());
+            if(CheckAddressBeaconed(keypool.vchPubKey.GetID(), true)) {
+                if(Daedalus() && CheckAddressConfirmed(keypool.vchPubKey.GetID(), true)) {
+                    break;
+                } else if (!Daedalus()) {
+                    break;
+                }
+            }
+
+            it++;
+        }
 
         // do not remove key from pool
         if (Daedalus()) {
