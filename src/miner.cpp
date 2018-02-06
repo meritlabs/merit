@@ -906,7 +906,6 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
     unsigned int nExtraNonce = 0;
 
     std::shared_ptr<CReserveScript> coinbaseScript;
-    GetMainSignals().ScriptForMining(coinbaseScript);
 
     ctpl::thread_pool pool{nThreads};
 
@@ -938,6 +937,10 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
                         break;
                     MilliSleep(1000);
                 } while (true);
+            }
+
+            if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
+                GetMainSignals().ScriptForMining(coinbaseScript);
             }
 
             //
