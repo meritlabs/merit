@@ -4133,9 +4133,9 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool)
             it++;
         }
 
-        if (it == setKeyPool.end()) {
-            throw std::runtime_error(std::string(__func__) + ": beconed key was not found");
-        }
+        // if (it == setKeyPool.end()) {
+        //     throw std::runtime_error(std::string(__func__) + ": beconed key was not found");
+        // }
 
         // do not remove key from pool
         if (Daedalus()) {
