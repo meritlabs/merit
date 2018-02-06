@@ -1,5 +1,7 @@
-Merit Core
+Merit Core   
 =====================================
+![Slack Badge](https://slackin.merit.me/badge.svg)
+
 ### Merit aims to be the world's most adopted digital currency. 
 You can learn more about the Merit Vision at: www.merit.me
 
@@ -23,6 +25,7 @@ information or see https://opensource.org/licenses/MIT.
 Community Resources
 ------------------
 
+* Join the Merit Community on [Slack](https://slackin.merit.me) 
 * Join the Merit [Mailing List](https://groups.google.com/forum/#!forum/meritlabs)
 * Discuss Merit on IRC channel #merit on Freenode. [webchat here](http://webchat.freenode.net/?channels=merit).
 
