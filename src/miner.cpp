@@ -915,7 +915,7 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
         // In the latter case, already the pointer is NULL.
         if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
             LogPrintf("No coinbase script available (mining requires confirmed wallet)."
-                " Blockchain might be not fully synced\n");
+                " Blockchain might be not fully synced.\n");
         }
 
         while (true) {
@@ -939,6 +939,7 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
             }
 
             while (IsInitialBlockDownload()) {
+                LogPrintf("Initial blockchain download is active.\n");
                 MilliSleep(1000);
             }
 
