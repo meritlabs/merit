@@ -1,15 +1,18 @@
 Merit Core
 =====================================
-
-www.merit.me
+### Merit aims to be the world's most adopted digital currency. 
+You can learn more about the Merit Vision at: www.merit.me
 
 What is Merit?
 ----------------
 
-Merit is a digital currency that focuses on community, easy of use, safety and
-scalability. Merit Core is a distributed peer-to-peer server that maintains a
-ledger using a global blockchain. You can also use Merit Core to mine on your
-machine.
+Merit is a digital currency that focuses on community, simplicity, and safety. It introduces significant innovation to previous digital currencies.  Namely, it is: 
+* Merit is **invite-only**. 
+* Merit introduces the notion of **ambassador mining** in addition to classic _security mining._
+* Merit features **decentralized vaults** on the blockchain to protect and provide peace-of-mind. 
+* Merit can be sent to **anyone** whether they have a Merit Wallet yet or not.
+
+Merit Core is a distributed peer-to-peer server that maintains a ledger using a global blockchain. For the convenience of all users, especially non-technical ones, you can also use Merit Core to mine on your machine with a couple of clicks.
 
 License
 -------
