@@ -17,36 +17,57 @@ ReferralListPriv::ReferralListPriv(CWallet *_wallet) : wallet{_wallet}
     Refresh();
 }
 
+using AddressSet = std::set<uint160>;
+
+bool DisplayReferral(
+        const AddressSet& addresses,
+        const CWallet* wallet,
+        const referral::ReferralRef ref)
+{
+    assert(wallet);
+    assert(ref);
+
+    const auto& addr = ref->GetAddress();
+
+    return ShowReferral(ref) 
+        && addresses.count(addr) == 0
+        && wallet->IsMine(*ref) 
+        && !wallet->IsMe(*ref) 
+        && CheckAddressBeaconed(addr);
+} 
+
 void ReferralListPriv::Refresh()
 {
     qDebug() << "ReferralListPriv::refreshWallet";
     cachedWallet.clear();
+    std::set<uint160> addresses;
     {
         LOCK2(cs_main, wallet->cs_wallet);
         for (const auto& entry : mempoolReferral.mapRTx) {
             const auto ref = entry.GetSharedEntryValue();
-            assert(ref);
-            if (ShowReferral(ref) && wallet->IsMine(*ref) && !wallet->IsMe(*ref)) {
+            if(DisplayReferral(addresses, wallet, ref)) {
                 auto rec = DecomposeReferral(entry);
                 rec.UpdateStatus(ref);
                 cachedWallet.append(rec);
+                addresses.insert(ref->GetAddress());
             }
         }
 
         for (const auto& entry : wallet->mapWalletRTx) {
             const auto ref = entry.second.GetReferral();
-            if (ShowReferral(ref) && !wallet->IsMe(*ref)) {
+            if(DisplayReferral(addresses, wallet, ref)) {
                 auto rec = DecomposeReferral(entry.second);
                 rec.UpdateStatus(ref);
                 cachedWallet.append(rec);
+                addresses.insert(ref->GetAddress());
             }
         }
     }
 
-    std::sort(cachedWallet.begin(), cachedWallet.end(), 
+    std::sort(cachedWallet.begin(), cachedWallet.end(),
             [](const ReferralRecord& a, const ReferralRecord& b) {
                 if(a.status == b.status) {
-                    return a.date > b.date; 
+                    return a.date > b.date;
                 }
                 return a.status < b.status;
             });
@@ -119,7 +140,7 @@ QVariant ReferralListModel::data(const QModelIndex &index, int role) const
         case StatusRole:
             return record->StatusString();
         case DateRole:
-            return QDateTime::fromSecsSinceEpoch(record->date);
+            return QDateTime::fromTime_t(static_cast<uint>(record->date));
         }
     }
     return QVariant();
