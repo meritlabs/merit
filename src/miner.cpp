@@ -914,9 +914,8 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
         // due to some internal error but also if the keypool is empty.
         // In the latter case, already the pointer is NULL.
         if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
-            throw std::runtime_error(
-                    "No coinbase script available "
-                    "(mining requires confirmed wallet)");
+            LogPrintf("No coinbase script available (mining requires confirmed wallet)."
+                " Blockchain might be not fully synced");
         }
 
         while (true) {
@@ -940,7 +939,16 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
             }
 
             if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
+                LogPrintf("No coinbase script found, generating new.");
                 GetMainSignals().ScriptForMining(coinbaseScript);
+            }
+
+
+            if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
+                throw std::runtime_error(
+                        "No coinbase script available"
+                        " (mining requires confirmed wallet)."
+                        " Miner will be stopped");
             }
 
             //
