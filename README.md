@@ -16,18 +16,18 @@ Merit is a digital currency that focuses on community, simplicity, and safety. I
 
 Merit Core is a distributed peer-to-peer server that maintains a ledger using a global blockchain. For the convenience of all users, especially non-technical ones, you can also use Merit Core to mine on your machine with a couple of clicks.
 
-License
--------
-
-Merit Core is released under the terms of the MIT license. See [COPYING](COPYING) for more
-information or see https://opensource.org/licenses/MIT.
 
 Community Resources
 ------------------
 
-* Join the Merit Community on [Slack](https://slackin.merit.me) 
-* Join the Merit [Mailing List](https://groups.google.com/forum/#!forum/meritlabs)
-* Discuss Merit on IRC channel #merit on Freenode. [webchat here](http://webchat.freenode.net/?channels=merit).
+Merit aims to be present wherever users of the community are.  To that end, you can find members of the core team on:
+
+* [Slack](https://slackin.merit.me) 
+* [Telegram](https://t.me/meritworld)
+* [Discord](https://discord.gg/X3v3n3b)
+* [Merit Forum](https://forum.merit.me/) @ www.merit.me
+* Merit [Mailing List](https://groups.google.com/forum/#!forum/meritlabs)
+* IRC: Channel #merit on Freenode. [Webchat Here](http://webchat.freenode.net/?channels=merit).
 
 Getting Started
 -------------------
@@ -86,4 +86,11 @@ If you want to stop mining, you run...
 Developer Resources
 -------------------
 Take a look at our [docs](doc/README.md)
+
+License
+-------
+
+Merit Core is released under the terms of the MIT license. See [COPYING](COPYING) for more
+information or see https://opensource.org/licenses/MIT.
+
 
