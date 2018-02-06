@@ -1055,9 +1055,11 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
         }
     } catch (const boost::thread_interrupted&) {
         LogPrintf("MeritMiner terminated\n");
+        gArgs.ForceSetArg("-mine", 0);
         throw;
     } catch (const std::runtime_error& e) {
         LogPrintf("MeritMiner runtime error: %s\n", e.what());
+        gArgs.ForceSetArg("-mine", 0);
         return;
     }
 }
