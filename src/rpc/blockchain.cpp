@@ -1283,7 +1283,7 @@ UniValue gettxout(const JSONRPCRequest& request)
     }
     ret.push_back(Pair("value", ValueFromAmount(coin.out.nValue)));
     UniValue o(UniValue::VOBJ);
-    ScriptPubKeyToUniv(coin.out.scriptPubKey, o, true);
+    ScriptPubKeyToUniv(coin.out.scriptPubKey, o);
     ret.push_back(Pair("scriptPubKey", o));
     ret.push_back(Pair("coinbase", (bool)coin.fCoinBase));
 

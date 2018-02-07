@@ -3377,8 +3377,7 @@ void IndexTransaction(
 {
     const auto& txhash = tx.GetHash();
 
-    if (!tx.IsCoinBase())
-    {
+    if (!tx.IsCoinBase()) {
         for (unsigned int j = 0; j < static_cast<unsigned int>(tx.vin.size()); j++) {
 
             const CTxIn input = tx.vin[j];
@@ -3427,7 +3426,6 @@ void IndexTransaction(
                             static_cast<int>(addressType),
                             hashBytes}));
         }
-
     }
 
     for (unsigned int k = 0; k < tx.vout.size(); k++) {

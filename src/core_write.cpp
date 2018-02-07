@@ -80,7 +80,8 @@ std::string EncodeHexRef(const referral::Referral& ref) {
 }
 
 void ScriptPubKeyToUniv(const CScript& scriptPubKey,
-                        UniValue& out, bool fIncludeHex)
+                        UniValue& out,
+                        bool fIncludeHex)
 {
     txnouttype type;
     std::vector<CTxDestination> addresses;
@@ -105,7 +106,11 @@ void ScriptPubKeyToUniv(const CScript& scriptPubKey,
     out.pushKV("addresses", a);
 }
 
-void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry, bool include_hex, int serialize_flags)
+void TxToUniv(const CTransaction& tx,
+    const uint256& hashBlock,
+     UniValue& entry,
+     bool include_hex,
+     int serialize_flags)
 {
     entry.pushKV("txid", tx.GetHash().GetHex());
     entry.pushKV("hash", tx.GetWitnessHash().GetHex());
@@ -155,7 +160,7 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry,
         out.pushKV("n", (int64_t)i);
 
         UniValue o(UniValue::VOBJ);
-        ScriptPubKeyToUniv(txout.scriptPubKey, o, true);
+        ScriptPubKeyToUniv(txout.scriptPubKey, o);
         out.pushKV("scriptPubKey", o);
         vout.push_back(out);
     }

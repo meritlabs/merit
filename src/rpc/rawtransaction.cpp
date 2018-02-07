@@ -51,6 +51,7 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
     }
     entry.push_back(Pair("locktime", (int64_t)tx.nLockTime));
     UniValue vin(UniValue::VARR);
+
     for (unsigned int i = 0; i < tx.vin.size(); i++) {
         const CTxIn& txin = tx.vin[i];
         UniValue in(UniValue::VOBJ);
@@ -82,6 +83,12 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
                 } else if (spentInfo.addressType == 3)  {
                     in.push_back(Pair("address", CMeritAddress(CParamScriptID(spentInfo.addressHash)).ToString()));
                 }
+                const auto maybe_referral = prefviewcache->GetReferral(spentInfo.addressHash);
+                if (maybe_referral) {
+                    in.pushKV("alias", maybe_referral->alias);
+                }
+            } else {
+                debug("could not fetch spent info");
             }
 
         }
@@ -112,7 +119,27 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
         }
         out.push_back(Pair("n", (int64_t)i));
         UniValue o(UniValue::VOBJ);
-        ScriptPubKeyToUniv(txout.scriptPubKey, o, true);
+        ScriptPubKeyToUniv(txout.scriptPubKey, o);
+
+        txnouttype type;
+        std::vector<CTxDestination> addresses;
+        int required;
+
+        UniValue a(UniValue::VARR);
+        if (ExtractDestinations(txout.scriptPubKey, type, addresses, required)) {
+            for (const auto& dest : addresses) {
+                uint160 address;
+                if (GetUint160(dest, address)) {
+                    const auto maybe_referral = prefviewcache->GetReferral(address);
+                    if (maybe_referral) {
+                        a.push_back(maybe_referral->alias);
+                    }
+                }
+            }
+        }
+
+        o.pushKV("aliases", a);
+
         out.push_back(Pair("scriptPubKey", o));
 
         // Add spent information if spentindex is enabled
@@ -646,7 +673,7 @@ UniValue decodescript(const JSONRPCRequest& request)
 
     UniValue r(UniValue::VOBJ);
     CScript script;
-    if (request.params[0].get_str().size() > 0){
+    if (request.params[0].get_str().size() > 0) {
         std::vector<unsigned char> scriptData(ParseHexV(request.params[0], "argument"));
         script = CScript(scriptData.begin(), scriptData.end());
     } else {
