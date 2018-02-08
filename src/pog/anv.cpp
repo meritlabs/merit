@@ -23,9 +23,13 @@ namespace pog
         return db.GetAllANVs();
     }
 
-    referral::AddressANVs GetAllRewardableANVs(const referral::ReferralsViewDB& db)
+    void GetAllRewardableANVs(
+            const referral::ReferralsViewDB& db,
+            const Consensus::Params& params,
+            int height,
+            referral::AddressANVs& entrants)
     {
-        return db.GetAllRewardableANVs();
+        db.GetAllRewardableANVs(params, height, entrants);
     }
 
     referral::AddressANVs GetANVs(

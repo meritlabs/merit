@@ -10,6 +10,7 @@
 #include "serialize.h"
 #include "primitives/referral.h"
 #include "primitives/transaction.h"
+#include "consensus/params.h"
 #include "pog/wrs.h"
 
 #include <boost/optional.hpp>
@@ -99,7 +100,10 @@ public:
     bool InsertReferral(const Referral&, bool allow_no_parent = false);
     bool RemoveReferral(const Referral&);
 
-    AddressANVs GetAllRewardableANVs() const;
+    void GetAllRewardableANVs(
+            const Consensus::Params& params,
+            int height,
+            AddressANVs&) const;
 
     bool AddAddressToLottery(
             int height,

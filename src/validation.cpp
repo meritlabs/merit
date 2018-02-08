@@ -1718,8 +1718,7 @@ bool ReadBlockFromDisk(
     }
 
     // Check the header
-    if (validate && 
-            !cuckoo::VerifyProofOfWork(block.GetHash(), block.nBits, block.nEdgeBits, block.sCycle, consensusParams))
+    if (validate && !cuckoo::VerifyProofOfWork(block.GetHash(), block.nBits, block.nEdgeBits, block.sCycle, consensusParams))
         return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
 
     return true;
@@ -1731,11 +1730,18 @@ bool ReadBlockFromDisk(
         const Consensus::Params& consensusParams,
         bool validate)
 {
-    if (!ReadBlockFromDisk(block, pindex->GetBlockPos(), consensusParams, validate))
+    if (!ReadBlockFromDisk(
+                block, pindex->GetBlockPos(),
+                consensusParams,
+                validate)) {
         return false;
-    if (block.GetHash() != pindex->GetBlockHash())
+    }
+
+    if (block.GetHash() != pindex->GetBlockHash()) {
         return error("ReadBlockFromDisk(CBlock&, CBlockIndex*): GetHash() doesn't match index for %s at %s",
                 pindex->ToString(), pindex->GetBlockPos().ToString());
+    }
+
     return true;
 }
 
@@ -1785,26 +1791,7 @@ bool IsValidAmbassadorDestination(const CTxDestination& dest)
     return pog::IsValidAmbassadorDestination(which);
 }
 
-/**
- * After block 13499 the genesis address does not participate in the lottery.
- * TreeToForest removes the root address from the entrants.
- */
-void TreeToForest(
-        int height,
-        referral::AddressANVs& entrants,
-        const Consensus::Params& params)
-{
-    if (height < 13500) {
-        return;
-    }
-
-    entrants.erase(
-            std::remove_if(entrants.begin(), entrants.end(),
-                [&params](const referral::AddressANV& e) {
-                    return e.address == params.genesis_address ||
-                           e.address_type == PARAM_SCRIPT_ADDRESS;
-                }), entrants.end());
-}
+int max_embassador_lottery = 0;
 
 pog::AmbassadorLottery RewardAmbassadors(
         int height,
@@ -1815,11 +1802,16 @@ pog::AmbassadorLottery RewardAmbassadors(
     assert(height >= 0);
     assert(prefviewdb != nullptr);
 
-    auto entrants = pog::GetAllRewardableANVs(*prefviewdb);
+    static size_t max_embassador_lottery = 0;
+    referral::AddressANVs entrants;
 
-    // Make sure the root of the tree is removed as it doesn't
-    // participate in lottery.
-    TreeToForest(height, entrants, params);
+    // unlikely that the candidates grew over 50% since last time.
+    auto reserve_size = max_embassador_lottery * 1.5;
+    entrants.reserve(reserve_size);
+
+    pog::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
+
+    max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
 
     // Wallet selector will create a distribution from all the keys
     pog::WalletSelector selector{height, entrants};
@@ -4300,7 +4292,7 @@ bool static DisconnectTip(CValidationState& state,
     // Read block from disk.
     std::shared_ptr<CBlock> pblock = std::make_shared<CBlock>();
     CBlock& block = *pblock;
-    if (!ReadBlockFromDisk(block, pindexDelete, chainparams.GetConsensus()))
+    if (!ReadBlockFromDisk(block, pindexDelete, chainparams.GetConsensus(), false))
         return AbortNode(state, "Failed to read block");
     // Apply the block atomically to the chain state.
     int64_t nStart = GetTimeMicros();
@@ -4448,7 +4440,7 @@ bool static ConnectTip(CValidationState& state,
     std::shared_ptr<const CBlock> pthisBlock;
     if (!pblock) {
         std::shared_ptr<CBlock> pblockNew = std::make_shared<CBlock>();
-        if (!ReadBlockFromDisk(*pblockNew, pindexNew, chainparams.GetConsensus(), validate))
+        if (!ReadBlockFromDisk(*pblockNew, pindexNew, chainparams.GetConsensus(), false))
             return AbortNode(state, "Failed to read block");
         pthisBlock = pblockNew;
     } else {

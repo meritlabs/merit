@@ -544,8 +544,17 @@ void InitScriptExecutionCache();
 
 
 /** Functions for disk access for blocks */
-bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus::Params& consensusParams, bool validate = true);
-bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams, bool validate = true);
+bool ReadBlockFromDisk(
+        CBlock& block,
+        const CDiskBlockPos& pos,
+        const Consensus::Params& consensusParams,
+        bool validate = true);
+
+bool ReadBlockFromDisk(
+        CBlock& block,
+        const CBlockIndex* pindex,
+        const Consensus::Params& consensusParams,
+        bool validate = true);
 
 /** Functions for validating blocks and updating the block tree */
 
