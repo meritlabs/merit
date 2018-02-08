@@ -1902,7 +1902,7 @@ bool ComputeInviteLotteryParams(
     while (total_blocks-- && pindexPrev) {
 
         CBlock block;
-        if (!ReadBlockFromDisk(block, pindexPrev, params)) {
+        if (!ReadBlockFromDisk(block, pindexPrev, params, false)) {
             return AbortNode(state, "Failed to read block");
         }
 
