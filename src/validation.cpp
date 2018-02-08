@@ -1702,7 +1702,6 @@ bool ReadBlockFromDisk(
         const Consensus::Params& consensusParams,
         bool validate)
 {
-    LogPrintf("%s: VALIDATING %s\n", __func__, validate ? "yes": "no");
     block.SetNull();
 
     // Open history file to read
