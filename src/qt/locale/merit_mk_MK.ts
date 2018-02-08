@@ -139,7 +139,7 @@
     </message>
     <message>
         <source>Send coins to a Merit address</source>
-        <translation>Испрати биткоини на Биткоин адреса</translation>
+        <translation>Испрати Merit на Merit адреса</translation>
     </message>
     <message>
         <source>&amp;Verify message...</source>
@@ -147,7 +147,7 @@
     </message>
     <message>
         <source>Merit</source>
-        <translation>Биткоин</translation>
+        <translation>Merit</translation>
     </message>
     <message>
         <source>Wallet</source>
@@ -579,7 +579,7 @@
     </message>
     <message>
         <source>Merit Core</source>
-        <translation>Биткоин Core</translation>
+        <translation>Merit Core</translation>
     </message>
     <message>
         <source>Warning</source>
