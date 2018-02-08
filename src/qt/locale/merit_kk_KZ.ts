@@ -71,7 +71,7 @@
     </message>
     <message>
         <source>Merit</source>
-        <translation>Биткоин</translation>
+        <translation>Merit</translation>
     </message>
     <message>
         <source>Wallet</source>
