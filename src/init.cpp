@@ -697,7 +697,7 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
 
     // scan for better chains in the block chain database, that are not yet connected in the active best chain
     CValidationState state;
-    if (!ActivateBestChain(state, chainparams)) {
+    if (!ActivateBestChain(state, chainparams, nullptr, true)) {
         LogPrintf("Failed to connect best block\n");
         StartShutdown();
     }
@@ -1537,7 +1537,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                 bool is_coinsview_empty = fReset || fReindexChainState || pcoinsTip->GetBestBlock().IsNull();
                 if (!is_coinsview_empty) {
                     // LoadChainTip sets chainActive based on pcoinsTip's best block
-                    if (!LoadChainTip(chainparams)) {
+                    if (!LoadChainTip(chainparams, true)) {
                         strLoadError = _("Error initializing block database");
                         break;
                     }
