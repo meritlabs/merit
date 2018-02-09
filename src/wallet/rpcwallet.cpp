@@ -4939,10 +4939,10 @@ UniValue generate(const JSONRPCRequest& request)
         max_tries = request.params[1].get_int();
     }
 
-    int nThreads = DEFAULT_MINING_THREADS;
+    int pow_threads = DEFAULT_MINING_POW_THREADS;
 
     if (!request.params[2].isNull()) {
-        nThreads = request.params[2].get_int();
+        pow_threads = request.params[2].get_int();
     }
 
     std::shared_ptr<CReserveScript> coinbase_script;
@@ -4958,7 +4958,7 @@ UniValue generate(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INTERNAL_ERROR, "No coinbase script available");
     }
 
-    return generateBlocks(coinbase_script, num_generate, max_tries, true, nThreads);
+    return generateBlocks(coinbase_script, num_generate, max_tries, true, pow_threads);
 }
 
 UniValue unlockwallet(const JSONRPCRequest& request)
