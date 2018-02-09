@@ -1022,11 +1022,11 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_REFERRAL:
         return recentRejects->contains(inv.hash) ||
             mempoolReferral.Exists(inv.hash) ||
-            mapOrphanReferrals.count(inv.hash);
+            mapOrphanReferrals.count(inv.hash) ||
             prefviewcache->Exists(inv.hash);
+    default:
+        return true;
     }
-    // Don't know what it is, just say we already got one
-    return true;
 }
 
 void RelayInventory(const CInv& inv, CConnman& connman)
