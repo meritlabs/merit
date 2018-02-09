@@ -149,7 +149,7 @@ public:
     bool AddressBeaconed(const CMeritAddress& address) const;
     bool AddressConfirmed(const CMeritAddress& address) const;
     bool Daedalus() const;
-    bool SendInviteTo(const std::string& address);
+    bool SendInviteTo(const std::string& address, int amount = 1);
 
     // Check address for validity
     bool validateAddress(const QString &address);

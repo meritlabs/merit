@@ -1268,7 +1268,7 @@ public:
             const std::string alias = "",
             CKey key = CKey{});
 
-    CTransactionRef SendInviteTo(const CScript& scriptPubKey);
+    CTransactionRef SendInviteTo(const CScript& scriptPubKey, int amount = 1);
 
     bool IsReferred() const;
     bool IsConfirmed() const;
