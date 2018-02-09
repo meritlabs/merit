@@ -606,10 +606,12 @@ void UnregisterNodeSignals(CNodeSignals& nodeSignals)
 void AddToCompactExtraTransactions(const CTransactionRef& tx)
 {
     size_t max_extra_txn = gArgs.GetArg("-blockreconstructionextratxn", DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_TXN);
-    if (max_extra_txn <= 0)
+    if (max_extra_txn == 0)
         return;
+
     if (!vExtraTxnForCompact.size())
         vExtraTxnForCompact.resize(max_extra_txn);
+
     vExtraTxnForCompact[vExtraTxnForCompactIt] = std::make_pair(tx->GetWitnessHash(), tx);
     vExtraTxnForCompactIt = (vExtraTxnForCompactIt + 1) % max_extra_txn;
 }
