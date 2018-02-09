@@ -2677,15 +2677,6 @@ bool RemoveReferrals(const CBlock& block)
 
 using ReferralSet = std::set<uint160>;
 
-void BuildReferralSet(const CBlock& block, ReferralSet& referrals_in_block)
-{
-    std::transform(block.m_vRef.begin(), block.m_vRef.end(),
-            std::inserter(referrals_in_block, referrals_in_block.end()),
-            [](const referral::ReferralRef& ref) {
-                return ref->GetAddress();
-            });
-}
-
 bool UpdateConfirmations(const CBlock& block, const DebitsAndCredits debits_and_credits)
 {
     for (const auto& entry : debits_and_credits) {
@@ -3151,32 +3142,6 @@ void BuildConfirmationSet(
         assert(invite->nVersion == CTransaction::INVITE_VERSION);
         BuildConfirmationSet(invite, confirmations_in_block);
     }
-}
-
-bool ValidateTxOutsAreConfirmed(const CBlock& block)
-{
-    ConfirmationSet confirmations_in_block;
-    BuildConfirmationSet(block, confirmations_in_block);
-
-    for (const auto& tx : block.vtx) {
-        assert(tx);
-
-        for (const auto& out : tx->vout) {
-            const auto address = ExtractAddress(out);
-            if (address.second == 0) {
-                if (out.nValue == 0) continue;
-                else return false;
-            }
-
-            // Check block or blockchain if the address is confirmed.
-            if (confirmations_in_block.count(address.first) == 0 &&
-                    !prefviewdb->IsConfirmed(address.first)) {
-                return false;
-            }
-        }
-    }
-
-    return true;
 }
 
 bool ValidateReferralsAreConfirmed(const CBlock& block)
@@ -6622,24 +6587,6 @@ std::string CBlockFileInfo::ToString() const
 CBlockFileInfo* GetBlockFileInfo(size_t n)
 {
     return &vinfoBlockFile.at(n);
-}
-
-ThresholdState VersionBitsTipState(const Consensus::Params& params, Consensus::DeploymentPos pos)
-{
-    LOCK(cs_main);
-    return VersionBitsState(chainActive.Tip(), params, pos, versionbitscache);
-}
-
-BIP9Stats VersionBitsTipStatistics(const Consensus::Params& params, Consensus::DeploymentPos pos)
-{
-    LOCK(cs_main);
-    return VersionBitsStatistics(chainActive.Tip(), params, pos);
-}
-
-int VersionBitsTipStateSinceHeight(const Consensus::Params& params, Consensus::DeploymentPos pos)
-{
-    LOCK(cs_main);
-    return VersionBitsStateSinceHeight(chainActive.Tip(), params, pos, versionbitscache);
 }
 
 static const uint64_t MEMPOOL_DUMP_VERSION = 1;

@@ -653,7 +653,6 @@ public:
      */
     unsigned int GetSigOpCount(const CScript& scriptSig) const;
 
-    bool IsPayToPublicKey() const;
     bool IsPayToPublicKeyHash() const;
 
     bool IsPayToScriptHash() const;
@@ -665,7 +664,7 @@ public:
     /**
      * Returns tre if the script pays to one of the standard pay to hash types
      * listed here.
-     * 
+     *
      * - Pay To Public Key Hash
      * - Pay To Script Hash
      * - Parameterized Pay To Script Hash

@@ -357,22 +357,6 @@ bool CMeritAddress::GetIndexKey(uint160& hashBytes, int& type) const
     return true;
 }
 
-bool CMeritAddress::GetKeyID(CKeyID& keyID) const
-{
-    if (!IsValid() || vchVersion != Params().Base58Prefix(CChainParams::PUBKEY_ADDRESS))
-        return false;
-
-    uint160 id;
-    memcpy(&id, vchData.data(), 20);
-    keyID = CKeyID(id);
-    return true;
-}
-
-bool CMeritAddress::IsScript() const
-{
-    return IsValid() && vchVersion == Params().Base58Prefix(CChainParams::SCRIPT_ADDRESS);
-}
-
 void CMeritSecret::SetKey(const CKey& vchSecret)
 {
     assert(vchSecret.IsValid());
