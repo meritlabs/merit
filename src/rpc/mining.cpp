@@ -559,7 +559,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     static std::unique_ptr<CBlockTemplate> pblocktemplate;
     if (pindexPrev != chainActive.Tip() || (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 5))
     {
-        // Clear pindexPrev so future calls make a new block, despite any failures from here on  
+        // Clear pindexPrev so future calls make a new block, despite any failures from here on
         pindexPrev = nullptr;
 
         // Store the pindexBest used before CreateNewBlock, to avoid races
@@ -1030,7 +1030,7 @@ UniValue setmining(const JSONRPCRequest& request)
 
     GenerateMerit(mine, nThreads, Params());
 
-    return NullUniValue;
+    return gArgs.GetBoolArg("-mine", DEFAULT_MINING);
 }
 
 UniValue getmining(const JSONRPCRequest& request)
