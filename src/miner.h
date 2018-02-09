@@ -25,11 +25,13 @@ namespace Consensus { struct Params; };
 
 const bool DEFAULT_PRINTPRIORITY = false;
 const bool DEFAULT_MINING = false;
-const int DEFAULT_MINING_THREADS = std::thread::hardware_concurrency();
+const int DEFAULT_MINING_BUCKET_SIZE = 10;
+const int DEFAULT_MINING_BUCKET_THREADS = 1;
+const int DEFAULT_MINING_POW_THREADS = std::thread::hardware_concurrency();
 
 
 /** Run the miner threads */
-void GenerateMerit(bool fGenerate, int nThreads, const CChainParams& chainparams);
+void GenerateMerit(bool mine, int pow_threads, int bucket_size, int bucket_threads, const CChainParams& chainparams);
 
 struct CBlockTemplate
 {
