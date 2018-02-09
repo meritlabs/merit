@@ -113,7 +113,6 @@ const std::string strMessageMagic = "Merit Signed Message:\n";
 // Internal stuff
 namespace
 {
-
     struct CBlockIndexWorkComparator
     {
         bool operator()(const CBlockIndex *pa, const CBlockIndex *pb) const {
@@ -287,7 +286,17 @@ namespace
     }
 
     const char PARAM_SCRIPT_ADDRESS = 3;
+
+    const int DEFAULT_VALIDATE_SAMPLE_COUNT = 10;
+
+    bool ShouldValidate(bool sample)
+    {
+        const int sample_count = gArgs.GetArg("-validationsamplecount", DEFAULT_VALIDATE_SAMPLE_COUNT);
+        return !sample || sample_count <= 0 || (rand() % sample_count) == 0;
+    }
+
 } // namespace
+
 
 AddressPair ExtractAddress(const CTxOut& tout)
 {
@@ -2756,6 +2765,7 @@ void UnIndexTransactions(
         KeyActivity& addressIndex,
         AddressUnspentIndex& addressUnspentIndex)
 {
+    return;
     for (int i = vtx.size() - 1; i >= 0; i--) {
         auto tx = vtx[i];
         auto hash = tx->GetHash();
@@ -3376,6 +3386,7 @@ void IndexTransaction(
         AddressUnspentIndex& addressUnspentIndex,
         SpentIndex& spentIndex)
 {
+    return;
     const auto& txhash = tx.GetHash();
 
     if (!tx.IsCoinBase())
@@ -3477,8 +3488,14 @@ void IndexTransaction(
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins.
  *  Validity checks that depend on the UTXO set are also done; ConnectBlock()
  *  can fail if those validity checks fail (among other reasons). */
-static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex,
-                  CCoinsViewCache& view, const CChainParams& chainparams, bool fJustCheck = false)
+static bool ConnectBlock(
+        const CBlock& block,
+        CValidationState& state,
+        CBlockIndex* pindex,
+        CCoinsViewCache& view,
+        const CChainParams& chainparams,
+        bool fJustCheck = false,
+        bool validate = true)
 {
     debug("ConnectBlock%s: %s", fJustCheck ? " (check)" : "", block.GetHash().GetHex());
 
@@ -3490,8 +3507,14 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int64_t nTimeStart = GetTimeMicros();
 
     // Check it again in case a previous version let a bad block in
-    if (!CheckBlock(block, state, chainparams.GetConsensus(), !fJustCheck, !fJustCheck))
+    if (!CheckBlock(
+                block,
+                state,
+                chainparams.GetConsensus(), 
+                !fJustCheck,
+                !fJustCheck)) {
         return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
+    }
 
     // verify that the view's current state corresponds to the previous block
     uint256 hashPrevBlock = pindex->pprev == nullptr ? uint256() : pindex->pprev->GetBlockHash();
@@ -3552,30 +3575,32 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int64_t nTime1 = GetTimeMicros(); nTimeCheck += nTime1 - nTimeStart;
     LogPrint(BCLog::BENCH, "    - Sanity checks: %.2fms [%.2fs (%.2fms/blk)]\n", MILLI * (nTime1 - nTimeStart), nTimeCheck * MICRO, nTimeCheck * MILLI / nBlocksTotal);
 
-    // Do not allow blocks that contain transactions which 'overwrite' older transactions,
-    // unless those are already completely spent.
-    // If such overwrites are allowed, coinbases and transactions depending upon those
-    // can be duplicated to remove the ability to spend the first instance -- even after
-    // being sent to another address.
-    // See BIP30 and http://r6.ca/blog/20120206T005236Z.html for more information.
-    // This logic is not necessary for memory pool transactions, as AcceptToMemoryPool
-    // already refuses previously-known transaction ids entirely.
-    // This rule was originally applied to all blocks with a timestamp after March 15, 2012, 0:00 UTC.
-    // Now that the whole chain is irreversibly beyond that time it is applied to all blocks except the
-    // two in the chain that violate it. This prevents exploiting the issue against nodes during their
-    // initial block download.
-    // Once BIP34 activated it was not possible to create new duplicate coinbases and thus other than starting
-    // with the 2 existing duplicate coinbase pairs, not possible to create overwriting txs.  But by the
-    // time BIP34 activated, in each of the existing pairs the duplicate coinbase had overwritten the first
-    // before the first had been spent.  Since those coinbases are sufficiently buried its no longer possible to create further
-    // duplicate transactions descending from the known pairs either.
-    // If we're on the known chain at height greater than where BIP34 activated, we can save the db accesses needed for the BIP30 check.
-    // Only continue to enforce if we're below BIP34 activation height or the block hash at that height doesn't correspond.
-    for (const auto& tx : block.vtx) {
-        for (size_t o = 0; o < tx->vout.size(); o++) {
-            if (view.HaveCoin(COutPoint(tx->GetHash(), o))) {
-                return state.DoS(100, error("ConnectBlock(): tried to overwrite transaction"),
-                                    REJECT_INVALID, "bad-txns-BIP30");
+    if (validate) {
+        // Do not allow blocks that contain transactions which 'overwrite' older transactions,
+        // unless those are already completely spent.
+        // If such overwrites are allowed, coinbases and transactions depending upon those
+        // can be duplicated to remove the ability to spend the first instance -- even after
+        // being sent to another address.
+        // See BIP30 and http://r6.ca/blog/20120206T005236Z.html for more information.
+        // This logic is not necessary for memory pool transactions, as AcceptToMemoryPool
+        // already refuses previously-known transaction ids entirely.
+        // This rule was originally applied to all blocks with a timestamp after March 15, 2012, 0:00 UTC.
+        // Now that the whole chain is irreversibly beyond that time it is applied to all blocks except the
+        // two in the chain that violate it. This prevents exploiting the issue against nodes during their
+        // initial block download.
+        // Once BIP34 activated it was not possible to create new duplicate coinbases and thus other than starting
+        // with the 2 existing duplicate coinbase pairs, not possible to create overwriting txs.  But by the
+        // time BIP34 activated, in each of the existing pairs the duplicate coinbase had overwritten the first
+        // before the first had been spent.  Since those coinbases are sufficiently buried its no longer possible to create further
+        // duplicate transactions descending from the known pairs either.
+        // If we're on the known chain at height greater than where BIP34 activated, we can save the db accesses needed for the BIP30 check.
+        // Only continue to enforce if we're below BIP34 activation height or the block hash at that height doesn't correspond.
+        for (const auto& tx : block.vtx) {
+            for (size_t o = 0; o < tx->vout.size(); o++) {
+                if (view.HaveCoin(COutPoint(tx->GetHash(), o))) {
+                    return state.DoS(100, error("ConnectBlock(): tried to overwrite transaction"),
+                            REJECT_INVALID, "bad-txns-BIP30");
+                }
             }
         }
     }
@@ -3611,7 +3636,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     DebitsAndCredits debits_and_credits;
 
     ConfirmationSet confirmations_in_block;
-    BuildConfirmationSet(block, confirmations_in_block);
+    if (validate) {
+        BuildConfirmationSet(block, confirmations_in_block);
+    }
 
     for (int i = 0; i < static_cast<int>(block.vtx.size()); i++)
     {
@@ -3619,64 +3646,65 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
         nInputs += tx.vin.size();
 
-        if (!tx.IsCoinBase())
-        {
-            if (!view.HaveInputs(tx))
-                return state.DoS(100, error("ConnectBlock(): inputs missing/spent"),
-                                 REJECT_INVALID, "bad-txns-inputs-missingorspent");
+        if (validate) {
+            if (!tx.IsCoinBase()) {
+                if (!view.HaveInputs(tx))
+                    return state.DoS(100, error("ConnectBlock(): inputs missing/spent"),
+                            REJECT_INVALID, "bad-txns-inputs-missingorspent");
 
-            // Check that transaction is BIP68 final
-            // BIP68 lock checks (as opposed to nLockTime checks) must
-            // be in ConnectBlock because they require the UTXO set
-            prevheights.resize(tx.vin.size());
-            for (size_t j = 0; j < tx.vin.size(); j++) {
-                prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
+                // Check that transaction is BIP68 final
+                // BIP68 lock checks (as opposed to nLockTime checks) must
+                // be in ConnectBlock because they require the UTXO set
+                prevheights.resize(tx.vin.size());
+                for (size_t j = 0; j < tx.vin.size(); j++) {
+                    prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
+                }
+
+                if (!SequenceLocks(tx, &prevheights, *pindex)) {
+                    return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
+                            REJECT_INVALID, "bad-txns-nonfinal");
+                }
             }
 
-            if (!SequenceLocks(tx, &prevheights, *pindex)) {
-                return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
-                                 REJECT_INVALID, "bad-txns-nonfinal");
-            }
-        }
+            // GetTransactionSigOpCost counts 3 types of sigops:
+            // * legacy (always)
+            // * p2sh (when P2SH enabled in flags and excludes coinbase)
+            // * witness (when witness enabled in flags and excludes coinbase)
+            nSigOpsCost += GetTransactionSigOpCost(tx, view, flags);
+            if (nSigOpsCost > MAX_BLOCK_SIGOPS_COST)
+                return state.DoS(100, error("ConnectBlock(): too many sigops"),
+                        REJECT_INVALID, "bad-blk-sigops");
 
-        // GetTransactionSigOpCost counts 3 types of sigops:
-        // * legacy (always)
-        // * p2sh (when P2SH enabled in flags and excludes coinbase)
-        // * witness (when witness enabled in flags and excludes coinbase)
-        nSigOpsCost += GetTransactionSigOpCost(tx, view, flags);
-        if (nSigOpsCost > MAX_BLOCK_SIGOPS_COST)
-            return state.DoS(100, error("ConnectBlock(): too many sigops"),
-                             REJECT_INVALID, "bad-blk-sigops");
+            txdata.emplace_back(tx);
 
-        txdata.emplace_back(tx);
-
-        if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache, block.m_vRef, &confirmations_in_block)) {
-            return error("ConnectBlock(): CheckTxOutputs on %s failed with %s",
-                tx.GetHash().ToString(), FormatStateMessage(state));
-        }
-
-        if (!tx.IsCoinBase()) {
-            nFees += view.GetValueIn(tx)-tx.GetValueOut();
-
-            std::vector<CScriptCheck> vChecks;
-            bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
-            if (!CheckInputs(
-                        tx,
-                        state,
-                        view,
-                        pindex->nHeight + 1,
-                        fScriptChecks,
-                        flags,
-                        fCacheResults,
-                        fCacheResults,
-                        txdata[i],
-                        nScriptCheckThreads ? &vChecks : nullptr)) {
-
-                return error("ConnectBlock(): CheckInputs on %s failed with %s",
-                    tx.GetHash().ToString(), FormatStateMessage(state));
+            if (!Consensus::CheckTxOutputs(tx, state, *prefviewcache, block.m_vRef, &confirmations_in_block)) {
+                return error("ConnectBlock(): CheckTxOutputs on %s failed with %s",
+                        tx.GetHash().ToString(), FormatStateMessage(state));
             }
 
-            control.Add(vChecks);
+            if (!tx.IsCoinBase()) {
+                nFees += view.GetValueIn(tx)-tx.GetValueOut();
+
+                std::vector<CScriptCheck> vChecks;
+                bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
+                if (!CheckInputs(
+                            tx,
+                            state,
+                            view,
+                            pindex->nHeight + 1,
+                            fScriptChecks,
+                            flags,
+                            fCacheResults,
+                            fCacheResults,
+                            txdata[i],
+                            nScriptCheckThreads ? &vChecks : nullptr)) {
+
+                    return error("ConnectBlock(): CheckInputs on %s failed with %s",
+                            tx.GetHash().ToString(), FormatStateMessage(state));
+                }
+
+                control.Add(vChecks);
+            }
         }
 
         IndexTransaction(
@@ -3723,30 +3751,32 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         for (int i = 0; i < static_cast<int>(block.invites.size()); i++) {
             const CTransaction &inv = *(block.invites[i]);
 
-            if (!Consensus::CheckTxOutputs(inv, state, *prefviewcache, block.m_vRef)) {
-                return error("ConnectBlock(): CheckTxOutputs on invite %s failed with %s",
-                inv.GetHash().ToString(), FormatStateMessage(state));
+            if(validate) {
+                if (!Consensus::CheckTxOutputs(inv, state, *prefviewcache, block.m_vRef)) {
+                    return error("ConnectBlock(): CheckTxOutputs on invite %s failed with %s",
+                            inv.GetHash().ToString(), FormatStateMessage(state));
+                }
+
+                std::vector<CScriptCheck> vChecks;
+                bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
+                if (!CheckInputs(
+                            inv,
+                            state,
+                            view,
+                            pindex->nHeight + 1,
+                            fScriptChecks,
+                            flags,
+                            fCacheResults,
+                            fCacheResults,
+                            txdata[i],
+                            nScriptCheckThreads ? &vChecks : nullptr)) {
+
+                    return error("ConnectBlock(): CheckInputs on invite %s failed with %s",
+                            inv.GetHash().ToString(), FormatStateMessage(state));
+                }
+
+                control.Add(vChecks);
             }
-
-            std::vector<CScriptCheck> vChecks;
-            bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
-            if (!CheckInputs(
-                        inv,
-                        state,
-                        view,
-                        pindex->nHeight + 1,
-                        fScriptChecks,
-                        flags,
-                        fCacheResults,
-                        fCacheResults,
-                        txdata[i],
-                        nScriptCheckThreads ? &vChecks : nullptr)) {
-
-                return error("ConnectBlock(): CheckInputs on invite %s failed with %s",
-                    inv.GetHash().ToString(), FormatStateMessage(state));
-            }
-
-            control.Add(vChecks);
 
             IndexTransaction(
                 pindex,
@@ -3780,146 +3810,146 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 nTimeConnect * MILLI / nBlocksTotal);
     }
 
-    for (const auto& ref: block.m_vRef) {
-        if (CheckAddressBeaconed(ref->GetAddress(), false)) {
-            return state.DoS(100,
-                    error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex()),
-                    REJECT_INVALID, "bad-cb-ref-already-beaconed");
-        }
-
-        if (!CheckReferralSignature(*ref)) {
-            return state.DoS(100,
-                    error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex()),
-                    REJECT_INVALID, "bad-cb-ref-sig-failed");
-        }
-
-        // is referral alias already occupied?
-        if (!CheckReferralAliasUnique(ref, &block)) {
-            return error("ConnectBlock(): Referral %s alias \"%s\" is already occupied", ref->GetHash().GetHex(), ref->alias);
-        }
-    }
-
-    if (block.IsDaedalus() && !ValidateReferralsAreConfirmed(block)) {
-        return state.DoS(
-            100,
-            error("ConnectBlock(): referral is not confirmed"),
-            REJECT_INVALID, "bad-cb-ref-not-confirmed");
-    }
-
-    std::set<uint256> referral_hashes{};
-
-    for (const auto& ref: block.m_vRef) {
-        referral_hashes.insert(ref->GetHash());
-    }
-
-    if (referral_hashes.size() != block.m_vRef.size()) {
-        return error("ConnectBlock(): Referrals are not unique");
-    }
-
-    int64_t nTime5 = GetTimeMicros(); nTimeConnect += nTime5 - nTime4;
-    LogPrint(BCLog::BENCH, "      - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n",
-            block.m_vRef.size(),
-            MILLI * (nTime5 - nTime4),
-            MILLI * (nTime5 - nTime4) / block.m_vRef.size(),
-            nTimeConnect * MICRO,
-            nTimeConnect * MILLI / nBlocksTotal);
-
-    //Figure out split subsidy and make sure the coinbase pays the expceted amount.
-    const auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
-    assert(subsidy.miner > 0);
-    assert(subsidy.ambassador > 0);
-
-    const CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
-
-    assert(!block.vtx.empty());
-    const CTransaction& coinbase_tx = *block.vtx[0];
-
-    if (coinbase_tx.GetValueOut() > block_reward)
-        return state.DoS(100,
-                         error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
-                               coinbase_tx.GetValueOut(), block_reward),
-                               REJECT_INVALID, "bad-cb-amount");
-
-    int64_t nTime6 = GetTimeMicros();
-    nTimeVerify += nTime6 - nTime5;
-    LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n",
-        nInputs - 1,
-        MILLI * (nTime6 - nTime5),
-        nInputs <= 1 ? 0 : MILLI * (nTime6 - nTime5) / (nInputs - 1),
-        nTimeVerify * MICRO,
-        nTimeVerify * MILLI / nBlocksTotal);
-
-    // Figure out which ambassadors should be rewarded and check to make sure
-    // they are paid the expected amount.
-    const auto lottery = RewardAmbassadors(
-            pindex->nHeight,
-            hashPrevBlock,
-            subsidy.ambassador,
-            chainparams.GetConsensus());
-    assert(lottery.remainder >= 0);
-
-    if (!AreExpectedLotteryWinnersPaid(lottery, coinbase_tx)) {
-        return state.DoS(100,
-                error("ConnectBlock(): coinbase did not pay the expected ambassadors."),
-                REJECT_INVALID, "bad-cb-bad-ambassadors");
-    }
-
-    if (!control.Wait()) {
-        return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
-    }
-
     int64_t nTime7 = GetTimeMicros();
-    nTimeVerify += nTime7 - nTime6;
-    LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n",
-        MILLI * (nTime7 - nTime5),
-        nTimeVerify * MICRO,
-        nTimeVerify * MILLI / nBlocksTotal);
+    if(validate) {
+        for (const auto& ref: block.m_vRef) {
+            if (CheckAddressBeaconed(ref->GetAddress(), false)) {
+                return state.DoS(100,
+                        error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex()),
+                        REJECT_INVALID, "bad-cb-ref-already-beaconed");
+            }
 
-    if (block.IsDaedalus()) {
-        pog::InviteRewards invite_rewards;
-        if (!RewardInvites(
-                pindex->nHeight,
-                pindex->pprev,
-                hashPrevBlock,
-                view,
-                chainparams.GetConsensus(),
-                state,
-                invite_rewards)) {
+            if (!CheckReferralSignature(*ref)) {
+                return state.DoS(100,
+                        error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex()),
+                        REJECT_INVALID, "bad-cb-ref-sig-failed");
+            }
 
-            return error("ConnectBlock(): Error computing invite rewards");
+            // is referral alias already occupied?
+            if (!CheckReferralAliasUnique(ref, &block)) {
+                return error("ConnectBlock(): Referral %s alias \"%s\" is already occupied", ref->GetHash().GetHex(), ref->alias);
+            }
         }
 
-        if (!invite_rewards.empty() && block.invites.empty()) {
+        if (block.IsDaedalus() && !ValidateReferralsAreConfirmed(block)) {
+            return state.DoS(
+                    100,
+                    error("ConnectBlock(): referral is not confirmed"),
+                    REJECT_INVALID, "bad-cb-ref-not-confirmed");
+        }
+
+        std::set<uint256> referral_hashes{};
+
+        for (const auto& ref: block.m_vRef) {
+            referral_hashes.insert(ref->GetHash());
+        }
+
+        if (referral_hashes.size() != block.m_vRef.size()) {
+            return error("ConnectBlock(): Referrals are not unique");
+        }
+
+        int64_t nTime5 = GetTimeMicros(); nTimeConnect += nTime5 - nTime4;
+        LogPrint(BCLog::BENCH, "      - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n",
+                block.m_vRef.size(),
+                MILLI * (nTime5 - nTime4),
+                MILLI * (nTime5 - nTime4) / block.m_vRef.size(),
+                nTimeConnect * MICRO,
+                nTimeConnect * MILLI / nBlocksTotal);
+
+        //Figure out split subsidy and make sure the coinbase pays the expceted amount.
+        const auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
+        assert(subsidy.miner > 0);
+        assert(subsidy.ambassador > 0);
+
+        const CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
+
+        assert(!block.vtx.empty());
+        const CTransaction& coinbase_tx = *block.vtx[0];
+
+        if (coinbase_tx.GetValueOut() > block_reward)
             return state.DoS(100,
-                    error("ConnectBlock(): Expected Invites but got none."),
-                    REJECT_INVALID, "bad-cb-no-invites");
+                    error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
+                        coinbase_tx.GetValueOut(), block_reward),
+                    REJECT_INVALID, "bad-cb-amount");
+
+        int64_t nTime6 = GetTimeMicros();
+        nTimeVerify += nTime6 - nTime5;
+        LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n",
+                nInputs - 1,
+                MILLI * (nTime6 - nTime5),
+                nInputs <= 1 ? 0 : MILLI * (nTime6 - nTime5) / (nInputs - 1),
+                nTimeVerify * MICRO,
+                nTimeVerify * MILLI / nBlocksTotal);
+
+        // Figure out which ambassadors should be rewarded and check to make sure
+        // they are paid the expected amount.
+        const auto lottery = RewardAmbassadors(
+                pindex->nHeight,
+                hashPrevBlock,
+                subsidy.ambassador,
+                chainparams.GetConsensus());
+        assert(lottery.remainder >= 0);
+
+        if (!AreExpectedLotteryWinnersPaid(lottery, coinbase_tx)) {
+            return state.DoS(100,
+                    error("ConnectBlock(): coinbase did not pay the expected ambassadors."),
+                    REJECT_INVALID, "bad-cb-bad-ambassadors");
         }
 
-        size_t coinbase_end = 0;
-        if (!invite_rewards.empty()) {
-            const CTransaction& coinbase_invites = *block.invites[0];
-            coinbase_end = 1;
+        nTime7 = GetTimeMicros();
+        nTimeVerify += nTime7 - nTime6;
+        LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n",
+                MILLI * (nTime7 - nTime5),
+                nTimeVerify * MICRO,
+                nTimeVerify * MILLI / nBlocksTotal);
 
-            if (!coinbase_invites.IsCoinBase()) {
-                return state.DoS(100,
-                        error("ConnectBlock(): expected first invite to be a coinbase"),
-                        REJECT_INVALID, "bad-cb-invite-expected-coinbase");
+        if (block.IsDaedalus()) {
+            pog::InviteRewards invite_rewards;
+            if (!RewardInvites(
+                        pindex->nHeight,
+                        pindex->pprev,
+                        hashPrevBlock,
+                        view,
+                        chainparams.GetConsensus(),
+                        state,
+                        invite_rewards)) {
+
+                return error("ConnectBlock(): Error computing invite rewards");
             }
 
-            if (!AreExpectedInvitesRewarded(invite_rewards, coinbase_invites)) {
+            if (!invite_rewards.empty() && block.invites.empty()) {
                 return state.DoS(100,
-                        error("ConnectBlock(): coinbase did not reward expected invites."),
-                        REJECT_INVALID, "bad-cb-bad-invites");
+                        error("ConnectBlock(): Expected Invites but got none."),
+                        REJECT_INVALID, "bad-cb-no-invites");
             }
-        }
 
-        //Make sure we don't have a coinbase after the expected coinbase
-        for(size_t i = coinbase_end; i < block.invites.size(); i++) {
-            if (block.invites[i]->IsCoinBase()) {
-                return state.DoS(100,
-                        error("ConnectBlock(): coinbase invite is unexpected"),
-                        REJECT_INVALID, "bad-cb-invite-unexpected-coinbase");
+            size_t coinbase_end = 0;
+            if (!invite_rewards.empty()) {
+                const CTransaction& coinbase_invites = *block.invites[0];
+                coinbase_end = 1;
+
+                if (!coinbase_invites.IsCoinBase()) {
+                    return state.DoS(100,
+                            error("ConnectBlock(): expected first invite to be a coinbase"),
+                            REJECT_INVALID, "bad-cb-invite-expected-coinbase");
+                }
+
+                if (!AreExpectedInvitesRewarded(invite_rewards, coinbase_invites)) {
+                    return state.DoS(100,
+                            error("ConnectBlock(): coinbase did not reward expected invites."),
+                            REJECT_INVALID, "bad-cb-bad-invites");
+                }
             }
+
+            //Make sure we don't have a coinbase after the expected coinbase
+            for(size_t i = coinbase_end; i < block.invites.size(); i++) {
+                if (block.invites[i]->IsCoinBase()) {
+                    return state.DoS(100,
+                            error("ConnectBlock(): coinbase invite is unexpected"),
+                            REJECT_INVALID, "bad-cb-invite-unexpected-coinbase");
+                }
+            }
+
         }
 
     }
@@ -3930,6 +3960,11 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         return state.DoS(100,
                 error("ConnectBlock(): There are orphan referrals in the block"),
                 REJECT_INVALID, "bad-cb-orphan-referrals");
+    }
+
+
+    if (!control.Wait()) {
+        return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
     }
 
     if (fJustCheck) {
@@ -4404,7 +4439,8 @@ bool static ConnectTip(CValidationState& state,
     const std::shared_ptr<const CBlock>& pblock,
     ConnectTrace& connectTrace,
     DisconnectedBlockEntries<CTransaction>& disconnectTransactions,
-    DisconnectedBlockEntries<referral::Referral>& disconnectReferrals)
+    DisconnectedBlockEntries<referral::Referral>& disconnectReferrals,
+    bool validate)
 {
     assert(pindexNew->pprev == chainActive.Tip());
     // Read block from disk.
@@ -4427,7 +4463,15 @@ bool static ConnectTip(CValidationState& state,
     {
         CCoinsViewCache view(pcoinsTip);
         debug("ConnectTip block: %s", blockConnecting.GetHash().GetHex());
-        bool rv = ConnectBlock(blockConnecting, state, pindexNew, view, chainparams);
+
+        bool rv = ConnectBlock(
+                blockConnecting, state,
+                pindexNew,
+                view,
+                chainparams,
+                false,
+                validate);
+
         GetMainSignals().BlockChecked(blockConnecting, state);
         if (!rv) {
             if (state.IsInvalid()) {
@@ -4460,6 +4504,7 @@ bool static ConnectTip(CValidationState& state,
 
     // Update chainActive & related variables.
     UpdateTip(pindexNew, chainparams);
+    LogPrintf("%s: block %d validated %s\n", __func__, pindexNew->nHeight, validate ? "yes" : "no");
 
     int64_t nTime6 = GetTimeMicros(); nTimePostConnect += nTime6 - nTime5; nTimeTotal += nTime6 - nTime1;
     LogPrint(BCLog::BENCH, "  - Connect postprocess: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime6 - nTime5) * MILLI, nTimePostConnect * MICRO, nTimePostConnect * MILLI / nBlocksTotal);
@@ -4543,7 +4588,14 @@ static void PruneBlockIndexCandidates() {
  * Try to make some progress towards making pindexMostWork the active block.
  * pblock is either nullptr or a pointer to a CBlock corresponding to pindexMostWork.
  */
-static bool ActivateBestChainStep(CValidationState& state, const CChainParams& chainparams, CBlockIndex* pindexMostWork, const std::shared_ptr<const CBlock>& pblock, bool& fInvalidFound, ConnectTrace& connectTrace)
+static bool ActivateBestChainStep(
+        CValidationState& state,
+        const CChainParams& chainparams,
+        CBlockIndex* pindexMostWork,
+        const std::shared_ptr<const CBlock>& pblock,
+        bool& fInvalidFound,
+        ConnectTrace& connectTrace,
+        bool validate)
 {
     if (pblock) {
         debug("ActivateBestChainStep: %s", pblock->GetHash().GetHex());
@@ -4591,7 +4643,14 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
                 debug("TestValidity: %s", pblock->GetHash().GetHex());
             }
 
-            if (!ConnectTip(state, chainparams, pindexConnect, pindexConnect == pindexMostWork ? pblock : std::shared_ptr<const CBlock>(), connectTrace, disconnectTransactions, disconnectReferrals)) {
+            if (!ConnectTip(
+                        state, chainparams,
+                        pindexConnect,
+                        pindexConnect == pindexMostWork ? pblock : std::shared_ptr<const CBlock>(),
+                        connectTrace,
+                        disconnectTransactions,
+                        disconnectReferrals,
+                        validate)) {
                 if (state.IsInvalid()) {
                     // The block violates a consensus rule.
                     if (!state.CorruptionPossible())
@@ -4660,7 +4719,12 @@ static void NotifyHeaderTip() {
  * or an activated best chain. pblock is either nullptr or a pointer to a block
  * that is already loaded (to avoid loading it again from disk).
  */
-bool ActivateBestChain(CValidationState &state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock) {
+bool ActivateBestChain(
+        CValidationState &state,
+        const CChainParams& chainparams,
+        std::shared_ptr<const CBlock> pblock,
+        bool sample) {
+
     // Note that while we're often called here from ProcessNewBlock, this is
     // far from a guarantee. Things in the P2P/RPC will often end up calling
     // us in the middle of ProcessNewBlock - do not assume pblock is set
@@ -4672,6 +4736,7 @@ bool ActivateBestChain(CValidationState &state, const CChainParams& chainparams,
     CBlockIndex *pindexMostWork = nullptr;
     CBlockIndex *pindexNewTip = nullptr;
     int nStopAtHeight = gArgs.GetArg("-stopatheight", DEFAULT_STOPATHEIGHT);
+
     do {
         boost::this_thread::interruption_point();
         if (ShutdownRequested())
@@ -4692,9 +4757,17 @@ bool ActivateBestChain(CValidationState &state, const CChainParams& chainparams,
             if (pindexMostWork == nullptr || pindexMostWork == chainActive.Tip())
                 return true;
 
+            const bool validate = ShouldValidate(sample);
+
             bool fInvalidFound = false;
             std::shared_ptr<const CBlock> nullBlockPtr;
-            if (!ActivateBestChainStep(state, chainparams, pindexMostWork, pblock && pblock->GetHash() == pindexMostWork->GetBlockHash() ? pblock : nullBlockPtr, fInvalidFound, connectTrace))
+            if (!ActivateBestChainStep(
+                        state, chainparams,
+                        pindexMostWork,
+                        pblock && pblock->GetHash() == pindexMostWork->GetBlockHash() ? pblock : nullBlockPtr,
+                        fInvalidFound,
+                        connectTrace,
+                        validate))
                 return false;
 
             if (fInvalidFound) {
@@ -4761,7 +4834,7 @@ bool PreciousBlock(CValidationState& state, const CChainParams& params, CBlockIn
         }
     }
 
-    return ActivateBestChain(state, params);
+    return ActivateBestChain(state, params, nullptr, false);
 }
 
 bool InvalidateBlock(CValidationState& state, const CChainParams& chainparams, CBlockIndex *pindex)
@@ -5025,7 +5098,12 @@ static bool CheckBlockHeader(
     return true;
 }
 
-bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW, bool fCheckMerkleRoot)
+bool CheckBlock(
+        const CBlock& block,
+        CValidationState& state,
+        const Consensus::Params& consensusParams,
+        bool fCheckPOW,
+        bool fCheckMerkleRoot)
 {
     // These are checks that are independent of context.
     if (block.fChecked)
@@ -5298,8 +5376,12 @@ static bool ContextualCheckBlock(
         CValidationState& state,
         const Consensus::Params& consensusParams,
         CCoinsViewCache& view,
-        const CBlockIndex* pindexPrev)
+        const CBlockIndex* pindexPrev,
+        bool validate)
 {
+    if(!validate) {
+        return true;
+    }
     if (!ValidateContextualDaedalusBlock(block, state, consensusParams, view, pindexPrev)) {
         return false; // state is expected to be set by ValidateDaedalus();
     }
@@ -5393,7 +5475,12 @@ static bool ContextualCheckBlock(
     return true;
 }
 
-static bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state, const CChainParams& chainparams, CBlockIndex** ppindex)
+static bool AcceptBlockHeader(
+        const CBlockHeader& block,
+        CValidationState& state,
+        const CChainParams& chainparams,
+        CBlockIndex** ppindex,
+        bool check_pow = true)
 {
     AssertLockHeld(cs_main);
     // Check for duplicate
@@ -5412,7 +5499,7 @@ static bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state
             return true;
         }
 
-        if (!CheckBlockHeader(block, state, chainparams.GetConsensus()))
+        if (!CheckBlockHeader(block, state, chainparams.GetConsensus(), check_pow))
             return error("%s: Consensus::CheckBlockHeader: %s, %s", __func__, hash.ToString(), FormatStateMessage(state));
 
         // Get prev block index
@@ -5464,7 +5551,8 @@ static bool AcceptBlock(
         CBlockIndex** ppindex,
         bool fRequested,
         const CDiskBlockPos* dbp,
-        bool* fNewBlock)
+        bool* fNewBlock,
+        bool validate = true)
 {
     assert(pcoinsTip);
 
@@ -5479,7 +5567,7 @@ static bool AcceptBlock(
 
     CCoinsViewCache view(pcoinsTip);
 
-    if (!AcceptBlockHeader(block, state, chainparams, &pindex))
+    if (!AcceptBlockHeader(block, state, chainparams, &pindex, validate))
         return false;
 
     // Try to process all requested blocks that we don't have, but only
@@ -5509,8 +5597,8 @@ static bool AcceptBlock(
     }
     if (fNewBlock) *fNewBlock = true;
 
-    if (!CheckBlock(block, state, chainparams.GetConsensus()) ||
-        !ContextualCheckBlock(block, state, chainparams.GetConsensus(), view, pindex->pprev)) {
+    if (!CheckBlock(block, state, chainparams.GetConsensus(), validate, validate) ||
+        !ContextualCheckBlock(block, state, chainparams.GetConsensus(), view, pindex->pprev, validate)) {
         if (state.IsInvalid() && !state.CorruptionPossible()) {
             pindex->nStatus |= BLOCK_FAILED_VALID;
             setDirtyBlockIndex.insert(pindex);
@@ -5548,21 +5636,42 @@ static bool AcceptBlock(
     return true;
 }
 
-bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<const CBlock> pblock, bool fForceProcessing, bool *fNewBlock)
+bool ProcessNewBlock(
+        const CChainParams& chainparams,
+        const std::shared_ptr<const CBlock> pblock,
+        bool fForceProcessing,
+        bool *fNewBlock,
+        bool sample)
 {
     {
         CBlockIndex *pindex = nullptr;
         if (fNewBlock) *fNewBlock = false;
         CValidationState state;
+
+        const bool validate = ShouldValidate(sample);
+
         // Ensure that CheckBlock() passes before calling AcceptBlock, as
         // belt-and-suspenders.
-        bool ret = CheckBlock(*pblock, state, chainparams.GetConsensus());
+        bool ret = CheckBlock(
+                *pblock,
+                state,
+                chainparams.GetConsensus(),
+                validate,
+                validate);
 
         LOCK(cs_main);
 
         if (ret) {
             // Store to disk
-            ret = AcceptBlock(pblock, state, chainparams, &pindex, fForceProcessing, nullptr, fNewBlock);
+            ret = AcceptBlock(
+                    pblock,
+                    state,
+                    chainparams,
+                    &pindex,
+                    fForceProcessing,
+                    nullptr,
+                    fNewBlock,
+                    validate);
         }
         CheckBlockIndex(chainparams.GetConsensus());
         if (!ret) {
@@ -5574,7 +5683,7 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
     NotifyHeaderTip();
 
     CValidationState state; // Only used to report errors, not invalidity - ignore it
-    if (!ActivateBestChain(state, chainparams, pblock))
+    if (!ActivateBestChain(state, chainparams, pblock, sample))
         return error("%s: ActivateBestChain failed: %s", __func__, FormatStateMessage(state));
 
     return true;
@@ -5595,10 +5704,10 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
         return error("%s: Consensus::ContextualCheckBlockHeader: %s", __func__, FormatStateMessage(state));
     if (!CheckBlock(block, state, chainparams.GetConsensus(), fCheckPOW, fCheckMerkleRoot))
         return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
-    if (!ContextualCheckBlock(block, state, chainparams.GetConsensus(), viewNew, pindexPrev))
+    if (!ContextualCheckBlock(block, state, chainparams.GetConsensus(), viewNew, pindexPrev, true))
         return error("%s: Consensus::ContextualCheckBlock: %s", __func__, FormatStateMessage(state));
 
-    if (!ConnectBlock(block, state, &indexDummy, viewNew, chainparams, true))
+    if (!ConnectBlock(block, state, &indexDummy, viewNew, chainparams, true, true))
         return error("%s: ConnectBlock: %s", __func__, FormatStateMessage(state));
     assert(state.IsValid());
 
@@ -5796,7 +5905,7 @@ CBlockIndex * InsertBlockIndex(uint256 hash)
 
 bool static LoadBlockIndexDB(const CChainParams& chainparams)
 {
-    if (!pblocktree->LoadBlockIndexGuts(chainparams.GetConsensus(), InsertBlockIndex))
+    if (!pblocktree->LoadBlockIndexGuts(chainparams.GetConsensus(), InsertBlockIndex, true))
         return false;
 
     boost::this_thread::interruption_point();
@@ -5887,7 +5996,7 @@ bool static LoadBlockIndexDB(const CChainParams& chainparams)
     return true;
 }
 
-bool LoadChainTip(const CChainParams& chainparams)
+bool LoadChainTip(const CChainParams& chainparams, bool sample)
 {
     if (chainActive.Tip() && chainActive.Tip()->GetBlockHash() == pcoinsTip->GetBestBlock()) return true;
 
@@ -5896,7 +6005,7 @@ bool LoadChainTip(const CChainParams& chainparams)
         // that we always have a chainActive.Tip() when we return.
         LogPrintf("%s: Connecting genesis block...\n", __func__);
         CValidationState state;
-        if (!ActivateBestChain(state, chainparams)) {
+        if (!ActivateBestChain(state, chainparams, nullptr, sample)) {
             return false;
         }
     }
@@ -6374,7 +6483,7 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
                 if (mapBlockIndex.count(hash) == 0 || (mapBlockIndex[hash]->nStatus & BLOCK_HAVE_DATA) == 0) {
                     LOCK(cs_main);
                     CValidationState state;
-                    if (AcceptBlock(pblock, state, chainparams, nullptr, true, dbp, nullptr))
+                    if (AcceptBlock(pblock, state, chainparams, nullptr, true, dbp, nullptr, true))
                         nLoaded++;
                     if (state.IsError())
                         break;
@@ -6385,7 +6494,7 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
                 // Activate the genesis block so normal node progress can continue
                 if (hash == chainparams.GetConsensus().hashGenesisBlock) {
                     CValidationState state;
-                    if (!ActivateBestChain(state, chainparams)) {
+                    if (!ActivateBestChain(state, chainparams, nullptr, false)) {
                         break;
                     }
                 }
@@ -6402,13 +6511,13 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
                     while (range.first != range.second) {
                         std::multimap<uint256, CDiskBlockPos>::iterator it = range.first;
                         std::shared_ptr<CBlock> pblockrecursive = std::make_shared<CBlock>();
-                        if (ReadBlockFromDisk(*pblockrecursive, it->second, chainparams.GetConsensus()))
+                        if (ReadBlockFromDisk(*pblockrecursive, it->second, chainparams.GetConsensus(), true))
                         {
                             LogPrint(BCLog::REINDEX, "%s: Processing out of order child %s of %s\n", __func__, pblockrecursive->GetHash().ToString(),
                                     head.ToString());
                             LOCK(cs_main);
                             CValidationState dummy;
-                            if (AcceptBlock(pblockrecursive, dummy, chainparams, nullptr, true, &it->second, nullptr))
+                            if (AcceptBlock(pblockrecursive, dummy, chainparams, nullptr, true, &it->second, nullptr, true))
                             {
                                 nLoaded++;
                                 queue.push_back(pblockrecursive->GetHash());

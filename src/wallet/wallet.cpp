@@ -1771,8 +1771,10 @@ referral::ReferralRef CWallet::GenerateNewReferral(
     return GenerateNewReferral(1, key_id, pubkey, parentAddress, alias, key);
 }
 
-CTransactionRef CWallet::SendInviteTo(const CScript& scriptPubKey)
+CTransactionRef CWallet::SendInviteTo(const CScript& scriptPubKey, int amount)
 {
+    assert(amount >= 1);
+
     CWalletTx wtx(true);
 
     CCoinControl coin_control;
@@ -1780,11 +1782,11 @@ CTransactionRef CWallet::SendInviteTo(const CScript& scriptPubKey)
     const int available_invites = GetBalance(true);
 
     // Check amount
-    if (available_invites <= 0) {
+    if (available_invites < amount) {
         std::stringstream e;
         const auto immature_invites = GetImmatureBalance(true);
         if(immature_invites > 0) {
-            e << "No mature invites available. There are immature "
+            e << "Not enough invites available. There are immature "
               << immature_invites
               << " invites awating confirmations" << std::endl;
             throw std::runtime_error{e.str()};
@@ -1798,7 +1800,7 @@ CTransactionRef CWallet::SendInviteTo(const CScript& scriptPubKey)
     std::string strError;
     std::vector<CRecipient> vecSend;
     int nChangePosRet = -1;
-    CRecipient recipient = {scriptPubKey, 1, false};
+    CRecipient recipient = {scriptPubKey, amount, false};
     vecSend.push_back(recipient);
 
     if (!CreateInviteTransaction(

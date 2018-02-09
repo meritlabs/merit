@@ -13,6 +13,9 @@
 #include <QResizeEvent>
 #include <QPropertyAnimation>
 
+//Defined in validation
+extern std::atomic_bool fImporting;
+
 ModalOverlay::ModalOverlay(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::ModalOverlay),
@@ -79,6 +82,19 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
 {
     QDateTime currentDate = QDateTime::currentDateTime();
 
+    //We want to change progress text if importing so the
+    //user knows we are in reindexing stage. 
+    static bool prev_importing = false; 
+    if(prev_importing != fImporting) {
+        if(fImporting) {
+            ui->labelSyncDone->setText(tr("Reindexing Progress"));
+        } else {
+            ui->labelSyncDone->setText(tr("Download Progress"));
+        }
+        prev_importing = fImporting;
+    }
+
+
     // keep a vector of samples of verification progress at height
     double verificationProgress = bestHeaderHeight == 0 ? 0 : 
         static_cast<double>(count) / static_cast<double>(bestHeaderHeight);
@@ -128,12 +144,16 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     bool hasBestHeader = bestHeaderHeight >= count;
 
     // show remaining number of blocks
-    if (estimateNumHeadersLeft < HEADER_HEIGHT_DELTA_SYNC && hasBestHeader) {
-        ui->numberOfBlocksLeft->setText(QString::number(bestHeaderHeight - count));
-    } else {
-        ui->numberOfBlocksLeft->setText(tr("Unknown. Syncing Headers (%1)...").arg(bestHeaderHeight));
-        ui->expectedTimeLeft->setText(tr("Unknown..."));
-    }
+   const auto blocks_left = bestHeaderHeight - count;
+   if (estimateNumHeadersLeft < HEADER_HEIGHT_DELTA_SYNC && hasBestHeader) {
+       ui->numberOfBlocksLeft->setText(tr("%1 out of %2 left...").arg(blocks_left).arg(bestHeaderHeight));
+   } else {
+       if(fImporting) {
+           ui->numberOfBlocksLeft->setText(tr("%1 out of %2 left...").arg(blocks_left).arg(bestHeaderHeight));
+       } else {
+           ui->numberOfBlocksLeft->setText(tr("Unknown. Syncing Headers (%1)...").arg(bestHeaderHeight));
+       }
+   }
 }
 
 void ModalOverlay::toggleVisibility()

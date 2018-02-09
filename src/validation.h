@@ -139,8 +139,8 @@ static const int64_t BLOCK_DOWNLOAD_TIMEOUT_BASE = 1000000;
 /** Additional block download timeout per parallel downloading peer (i.e. 5 min) */
 static const int64_t BLOCK_DOWNLOAD_TIMEOUT_PER_PEER = 500000;
 
-/** A day used to determine if we are in initial block download.*/
-static const int64_t DEFAULT_MAX_TIP_AGE = 24 * 60 * 60;
+/** 5 hours used to determine if we are in initial block download.*/
+static const int64_t DEFAULT_MAX_TIP_AGE = 5 * 60 * 60;
 
 /** Maximum age of our tip in seconds for us to be considered current for fee estimation */
 static const int64_t MAX_FEE_ESTIMATION_TIP_AGE = 3 * 60 * 60;
@@ -266,7 +266,12 @@ using AddressPair = std::pair<uint160, char>;
  * @param[out]  fNewBlock A boolean which is set to indicate if the block was first received via this call
  * @return True if state.IsValid()
  */
-bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<const CBlock> pblock, bool fForceProcessing, bool* fNewBlock);
+bool ProcessNewBlock(
+        const CChainParams& chainparams,
+        const std::shared_ptr<const CBlock> pblock,
+        bool fForceProcessing,
+        bool* fNewBlock,
+        bool validate);
 
 /**
  * Process incoming block headers.
@@ -278,7 +283,11 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
  * @param[in]  chainparams The params for the chain we want to connect to
  * @param[out] ppindex If set, the pointer will be set to point to the last new block index object for the given headers
  */
-bool ProcessNewBlockHeaders(const std::vector<CBlockHeader>& block, CValidationState& state, const CChainParams& chainparams, const CBlockIndex** ppindex=nullptr);
+bool ProcessNewBlockHeaders(
+        const std::vector<CBlockHeader>& block,
+        CValidationState& state,
+        const CChainParams& chainparams,
+        const CBlockIndex** ppindex=nullptr);
 
 /** Check whether enough disk space is available for an incoming block */
 bool CheckDiskSpace(uint64_t nAdditionalBytes = 0);
@@ -294,7 +303,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams);
  * initializing state if we're running with -reindex. */
 bool LoadBlockIndex(const CChainParams& chainparams);
 /** Update the chain tip based on database information. */
-bool LoadChainTip(const CChainParams& chainparams);
+bool LoadChainTip(const CChainParams& chainparams, bool sample);
 /** Unload database information */
 void UnloadBlockIndex();
 /** Run an instance of the script checking thread */
@@ -306,7 +315,11 @@ bool GetTransaction(const uint256 &hash, CTransactionRef &tx, const Consensus::P
 /** Retrieve a referral (from memory pool, or from disk, if possible) */
 bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock);
 /** Find the best known block, and make it the tip of the block chain */
-bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
+bool ActivateBestChain(
+        CValidationState& state,
+        const CChainParams& chainparams,
+        std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>(),
+        bool sample = false);
 /** Check whether referral signature is valid */
 bool CheckReferralSignature(const referral::Referral& ref);
 /** Build a set of confirmed address in block */
@@ -546,10 +559,21 @@ bool ReadBlockFromDisk(
 /** Functions for validating blocks and updating the block tree */
 
 /** Context-independent validity checks */
-bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
+bool CheckBlock(
+        const CBlock& block,
+        CValidationState& state,
+        const Consensus::Params& consensusParams,
+        bool fCheckPOW = true,
+        bool fCheckMerkleRoot = true);
 
 /** Check a block is completely valid from start to finish (only works on top of our current best block, with cs_main held) */
-bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
+bool TestBlockValidity(
+        CValidationState& state,
+        const CChainParams& chainparams,
+        const CBlock& block,
+        CBlockIndex* pindexPrev,
+        bool fCheckPOW = true,
+        bool fCheckMerkleRoot = true);
 
 /** Check that an address is valid and ready to use */
 bool CheckAddressBeaconed(const uint160&, bool checkMempool = true);
