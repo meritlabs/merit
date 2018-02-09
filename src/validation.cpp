@@ -113,8 +113,6 @@ const std::string strMessageMagic = "Merit Signed Message:\n";
 // Internal stuff
 namespace
 {
-    const int VALIDATE_SAMPLE_COUNT = 10;
-
     struct CBlockIndexWorkComparator
     {
         bool operator()(const CBlockIndex *pa, const CBlockIndex *pb) const {
@@ -288,7 +286,17 @@ namespace
     }
 
     const char PARAM_SCRIPT_ADDRESS = 3;
+
+    const int DEFAULT_VALIDATE_SAMPLE_COUNT = 10;
+
+    bool ShouldValidate(bool sample)
+    {
+        const int sample_count = gArgs.GetArg("-validationsamplecount", DEFAULT_VALIDATE_SAMPLE_COUNT);
+        return !sample || sample_count <= 0 || (rand() % sample_count) == 0;
+    }
+
 } // namespace
+
 
 AddressPair ExtractAddress(const CTxOut& tout)
 {
@@ -3503,8 +3511,8 @@ static bool ConnectBlock(
                 block,
                 state,
                 chainparams.GetConsensus(), 
-                !fJustCheck && validate,
-                !fJustCheck && validate)) {
+                !fJustCheck,
+                !fJustCheck)) {
         return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
     }
 
@@ -4716,6 +4724,7 @@ bool ActivateBestChain(
         const CChainParams& chainparams,
         std::shared_ptr<const CBlock> pblock,
         bool sample) {
+
     // Note that while we're often called here from ProcessNewBlock, this is
     // far from a guarantee. Things in the P2P/RPC will often end up calling
     // us in the middle of ProcessNewBlock - do not assume pblock is set
@@ -4727,6 +4736,7 @@ bool ActivateBestChain(
     CBlockIndex *pindexMostWork = nullptr;
     CBlockIndex *pindexNewTip = nullptr;
     int nStopAtHeight = gArgs.GetArg("-stopatheight", DEFAULT_STOPATHEIGHT);
+
     do {
         boost::this_thread::interruption_point();
         if (ShutdownRequested())
@@ -4747,7 +4757,7 @@ bool ActivateBestChain(
             if (pindexMostWork == nullptr || pindexMostWork == chainActive.Tip())
                 return true;
 
-            const bool validate = !sample || (rand() % VALIDATE_SAMPLE_COUNT) == 0;
+            const bool validate = ShouldValidate(sample);
 
             bool fInvalidFound = false;
             std::shared_ptr<const CBlock> nullBlockPtr;
@@ -5638,7 +5648,7 @@ bool ProcessNewBlock(
         if (fNewBlock) *fNewBlock = false;
         CValidationState state;
 
-        const bool validate = !sample || (rand() % VALIDATE_SAMPLE_COUNT) == 0;
+        const bool validate = ShouldValidate(sample);
 
         // Ensure that CheckBlock() passes before calling AcceptBlock, as
         // belt-and-suspenders.
