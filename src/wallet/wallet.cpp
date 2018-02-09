@@ -1499,8 +1499,8 @@ isminetype CWallet::IsMine(const referral::Referral& ref) const
 {
     LOCK(cs_wallet);
     const auto root = GetRootReferral();
-    return 
-        mapWalletRTx.count(ref.GetHash()) || 
+    return
+        mapWalletRTx.count(ref.GetHash()) ||
         (root && ref.parentAddress == root->GetAddress()) ? ISMINE_ALL : ISMINE_NO;
 }
 
@@ -4110,7 +4110,7 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool)
 
         CWalletDB walletdb(*dbw);
 
-        
+
         auto it = setKeyPool.begin();
         while(it != setKeyPool.end()) {
             nIndex = *it;
@@ -4132,6 +4132,10 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool)
 
             it++;
         }
+
+        // if (it == setKeyPool.end()) {
+        //     throw std::runtime_error(std::string(__func__) + ": beconed key was not found");
+        // }
 
         // do not remove key from pool
         if (Daedalus()) {

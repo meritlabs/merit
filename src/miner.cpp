@@ -906,7 +906,6 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
     unsigned int nExtraNonce = 0;
 
     std::shared_ptr<CReserveScript> coinbaseScript;
-    GetMainSignals().ScriptForMining(coinbaseScript);
 
     ctpl::thread_pool pool{nThreads};
 
@@ -915,9 +914,8 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
         // due to some internal error but also if the keypool is empty.
         // In the latter case, already the pointer is NULL.
         if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
-            throw std::runtime_error(
-                    "No coinbase script available "
-                    "(mining requires confirmed wallet)");
+            LogPrintf("No coinbase script available (mining requires confirmed wallet)."
+                " Blockchain might be not fully synced.\n");
         }
 
         while (true) {
@@ -938,6 +936,24 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
                         break;
                     MilliSleep(1000);
                 } while (true);
+            }
+
+            while (IsInitialBlockDownload()) {
+                LogPrintf("Initial blockchain download is active.\n");
+                MilliSleep(1000);
+            }
+
+            if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
+                LogPrintf("No coinbase script found, generating new.\n");
+                GetMainSignals().ScriptForMining(coinbaseScript);
+            }
+
+
+            if (!coinbaseScript || coinbaseScript->reserveScript.empty()) {
+                throw std::runtime_error(
+                        "No coinbase script available"
+                        " (mining requires confirmed wallet)."
+                        " Miner will be stopped.\n");
             }
 
             //
@@ -1052,9 +1068,11 @@ void static MeritMiner(const CChainParams& chainparams, uint8_t nThreads)
         }
     } catch (const boost::thread_interrupted&) {
         LogPrintf("MeritMiner terminated\n");
+        gArgs.ForceSetArg("-mine", 0);
         throw;
     } catch (const std::runtime_error& e) {
         LogPrintf("MeritMiner runtime error: %s\n", e.what());
+        gArgs.ForceSetArg("-mine", 0);
         return;
     }
 }
