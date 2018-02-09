@@ -134,13 +134,13 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 if (ExtractDestination(txout.scriptPubKey, address))
                 {
                     // Sent to Merit Address
-                    sub.type = TransactionRecord::SendToAddress;
+                    sub.type = is_invite ? TransactionRecord::SendInvite : TransactionRecord::SendToAddress;
                     sub.address = EncodeDestination(address);
                 }
                 else
                 {
                     // Sent to IP, or other non-address transaction like OP_EVAL
-                    sub.type = TransactionRecord::SendToOther;
+                    sub.type = is_invite ? TransactionRecord::SendInvite : TransactionRecord::SendToOther;
                     sub.address = mapValue["to"];
                 }
 

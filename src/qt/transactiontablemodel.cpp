@@ -432,9 +432,9 @@ QString TransactionTableModel::formatTxToAddress(const TransactionRecord *wtx, b
     case TransactionRecord::SendToAddress:
     case TransactionRecord::Generated:
     case TransactionRecord::GeneratedInvite:
+    case TransactionRecord::SendInvite:
         return lookupAddress(wtx->address, tooltip) + watchAddress;
     case TransactionRecord::SendToOther:
-    case TransactionRecord::SendInvite:
         return QString::fromStdString(wtx->address) + watchAddress;
     case TransactionRecord::SendToSelf:
     default:
@@ -548,8 +548,9 @@ QVariant TransactionTableModel::txWatchonlyDecoration(const TransactionRecord *w
 QString TransactionTableModel::formatTooltip(const TransactionRecord *rec) const
 {
     QString tooltip = formatTxStatus(rec) + QString("\n") + formatTxType(rec);
-    if(rec->type==TransactionRecord::RecvFromOther || rec->type==TransactionRecord::SendToOther ||
-       rec->type==TransactionRecord::SendToAddress || rec->type==TransactionRecord::RecvWithAddress)
+    if(rec->type == TransactionRecord::RecvFromOther || rec->type == TransactionRecord::SendToOther ||
+       rec->type == TransactionRecord::SendToAddress || rec->type == TransactionRecord::RecvWithAddress ||
+       rec->type == TransactionRecord::SendInvite || rec->type == TransactionRecord::RecvInvite)
     {
         tooltip += QString(" ") + formatTxToAddress(rec, true);
     }
