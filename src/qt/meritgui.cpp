@@ -1144,14 +1144,19 @@ void MeritGUI::setMiningStatus(bool isMining)
         miningStatusIcon->setToolTip(tr("Mining is <b>not enabled</b>"));
     }
 
+    int pow_threads = DEFAULT_MINING_POW_THREADS;
+    int bucket_threads = DEFAULT_MINING_BUCKET_THREADS;
+    int bucket_size = DEFAULT_MINING_BUCKET_SIZE;
+
+    gArgs.ForceSetArg("-minepowthreads", itostr(pow_threads));
+    gArgs.ForceSetArg("-minebucketsize", itostr(bucket_size));
+    gArgs.ForceSetArg("-minebucketthreads", itostr(bucket_threads));
+    gArgs.ForceSetArg("-mine", (isMining ? "1" : "0"));
+
     startMiningAction->setEnabled(!isMining);
     stopMiningAction->setEnabled(isMining);
 
-    auto nThreads = DEFAULT_MINING_THREADS;
-    gArgs.ForceSetArg("-mine", (isMining ? "1" : "0"));
-    gArgs.ForceSetArg("-mineproclimit", std::to_string(nThreads));
-
-    GenerateMerit(isMining, nThreads, Params());
+    GenerateMerit(isMining, pow_threads, bucket_size, bucket_threads, Params());
 }
 #endif // ENABLE_WALLET
 
