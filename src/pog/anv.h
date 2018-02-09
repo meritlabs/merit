@@ -6,6 +6,7 @@
 #define MERIT_POG_ANV_H
 
 #include "primitives/referral.h"
+#include "consensus/params.h"
 #include "refdb.h"
 
 #include <vector>
@@ -16,10 +17,21 @@ namespace pog
      * Aggregate Network Value is computed by walking the referral tree down from the 
      * key_id specified and aggregating each child's ANV.
      */
-    referral::MaybeAddressANV ComputeANV(const referral::Address&, const referral::ReferralsViewDB&);
-    referral::AddressANVs GetANVs(const referral::Addresses& addresses, const referral::ReferralsViewDB&);
+    referral::MaybeAddressANV ComputeANV(
+            const referral::Address&,
+            const referral::ReferralsViewDB&);
+
+    referral::AddressANVs GetANVs(
+            const referral::Addresses& addresses,
+            const referral::ReferralsViewDB&);
+
     referral::AddressANVs GetAllANVs(const referral::ReferralsViewDB&);
-    referral::AddressANVs GetAllRewardableANVs(const referral::ReferralsViewDB&);
+
+    void GetAllRewardableANVs(
+            const referral::ReferralsViewDB&,
+            const Consensus::Params&,
+            int height,
+            referral::AddressANVs&);
 
 } // namespace pog
 

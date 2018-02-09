@@ -139,8 +139,9 @@ static const int64_t BLOCK_DOWNLOAD_TIMEOUT_BASE = 1000000;
 /** Additional block download timeout per parallel downloading peer (i.e. 5 min) */
 static const int64_t BLOCK_DOWNLOAD_TIMEOUT_PER_PEER = 500000;
 
-// TODO: turn back to one day
-static const int64_t DEFAULT_MAX_TIP_AGE = 100 * 24 * 60 * 60;
+/** A day used to determine if we are in initial block download.*/
+static const int64_t DEFAULT_MAX_TIP_AGE = 24 * 60 * 60;
+
 /** Maximum age of our tip in seconds for us to be considered current for fee estimation */
 static const int64_t MAX_FEE_ESTIMATION_TIP_AGE = 3 * 60 * 60;
 
@@ -530,8 +531,17 @@ void InitScriptExecutionCache();
 
 
 /** Functions for disk access for blocks */
-bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus::Params& consensusParams);
-bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams);
+bool ReadBlockFromDisk(
+        CBlock& block,
+        const CDiskBlockPos& pos,
+        const Consensus::Params& consensusParams,
+        bool validate = true);
+
+bool ReadBlockFromDisk(
+        CBlock& block,
+        const CBlockIndex* pindex,
+        const Consensus::Params& consensusParams,
+        bool validate = true);
 
 /** Functions for validating blocks and updating the block tree */
 

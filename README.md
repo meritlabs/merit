@@ -32,6 +32,12 @@ Merit aims to be present wherever users of the community are.  To that end, you 
 Getting Started
 -------------------
 
+### Get the Latest Release
+
+You can find the latest releases of Merit [here](https://github.com/meritlabs/merit/releases).
+
+### Build from Source
+
 Clone this repo.
 
     git clone https://github.com/meritlabs/merit.git
