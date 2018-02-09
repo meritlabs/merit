@@ -286,14 +286,12 @@ static void BannedListChanged(ClientModel *clientmodel)
     QMetaObject::invokeMethod(clientmodel, "updateBanlist", Qt::QueuedConnection);
 }
 
-static void BlockTipChanged(ClientModel *clientmodel, bool initialSync, const CBlockIndex *pIndex, bool fHeader)
+static void BlockTipChanged(ClientModel *clientmodel, bool, const CBlockIndex *pIndex, bool fHeader)
 {
     // lock free async UI updates in case we have a new block tip
     // during initial sync, only update the UI if the last update
     // was > 250ms (MODEL_UPDATE_DELAY) ago
-    int64_t now = 0;
-    if (initialSync)
-        now = GetTimeMillis();
+    int64_t now = GetTimeMillis();
 
     int64_t& nLastUpdateNotification = fHeader ? nLastHeaderTipUpdateNotification : nLastBlockTipUpdateNotification;
 
@@ -303,7 +301,7 @@ static void BlockTipChanged(ClientModel *clientmodel, bool initialSync, const CB
         clientmodel->cachedBestHeaderTime = pIndex->GetBlockTime();
     }
     // if we are in-sync, update the UI regardless of last update time
-    if (!initialSync || now - nLastUpdateNotification > MODEL_UPDATE_DELAY) {
+    if (now - nLastUpdateNotification > MODEL_UPDATE_DELAY) {
         //pass an async signal to the UI thread
         QMetaObject::invokeMethod(clientmodel, "numBlocksChanged", Qt::QueuedConnection,
                                   Q_ARG(int, pIndex->nHeight),
