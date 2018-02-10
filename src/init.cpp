@@ -354,8 +354,8 @@ std::string HelpMessage(HelpMessageMode mode)
     }
     strUsage += HelpMessageOpt("-mine", _("Mine coins in the background"));
     strUsage += HelpMessageOpt("-minepowthreads=<n>", strprintf(_("Set the number of threads for pow attempt if enabled (-1 = all cores, default: %d)"), DEFAULT_MINING_POW_THREADS));
-    strUsage += HelpMessageOpt("-minebucketsize=<n>", strprintf(_("Set the number of nonces to check by one bucket (0 - unlimited)"), DEFAULT_MINING_BUCKET_SIZE));
-    strUsage += HelpMessageOpt("-minebucketthreads=<n>", strprintf(_("Set the number of buckets run in parrallel"), DEFAULT_MINING_BUCKET_THREADS));
+    strUsage += HelpMessageOpt("-minebucketsize=<n>", strprintf(_("Set the number of nonces to check by one bucket (0 - unlimited) (default: %d)"), DEFAULT_MINING_BUCKET_SIZE));
+    strUsage += HelpMessageOpt("-minebucketthreads=<n>", strprintf(_("Set the number of buckets run in parrallel (default: %d)"), DEFAULT_MINING_BUCKET_THREADS));
 
     strUsage += HelpMessageOpt("-datadir=<dir>", _("Specify data directory"));
     if (showDebug) {
