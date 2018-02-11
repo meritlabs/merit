@@ -1,7 +1,7 @@
-Contributing to Bitcoin Core
+Contributing to Merit Core
 ============================
 
-The Bitcoin Core project operates an open contributor model where anyone is
+The Merit Core project operates an open contributor model where anyone is
 =======
 Contributing to Merit Core
 ============================
