@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "util.h"
 #include <vector>
 
 namespace cuckoo
@@ -46,6 +47,7 @@ bool VerifyProofOfWork(
         const std::set<uint32_t>& cycle,
         const Consensus::Params& params)
 {
+
     if (cycle.size() != params.nCuckooProofSize) {
         return false;
     }
