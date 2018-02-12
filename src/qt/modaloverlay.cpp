@@ -31,7 +31,7 @@ ModalOverlay::ModalOverlay(QWidget *parent) :
         raise();
     }
 
-    blockProcessTime.clear();
+    block_time_samples.clear();
     setVisible(false);
 }
 
@@ -81,6 +81,7 @@ void ModalOverlay::setKnownBestHeight(int count, const QDateTime& blockDate)
 void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
 {
     QDateTime currentDate = QDateTime::currentDateTime();
+    setKnownBestHeight(count, blockDate);
 
     //We want to change progress text if importing so the
     //user knows we are in reindexing stage. 
@@ -99,32 +100,30 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     double verificationProgress = bestHeaderHeight == 0 ? 0 : 
         static_cast<double>(count) / static_cast<double>(bestHeaderHeight);
 
-    qint64 currentMillis = currentDate.toMSecsSinceEpoch();
-    blockProcessTime.push_front(qMakePair(currentMillis, count));
+    qint64 current_millis = currentDate.toMSecsSinceEpoch();
+    block_time_samples.push_front(qMakePair(current_millis, count));
 
     // show progress speed if we have more then one sample
-    if (blockProcessTime.size() == AVG_WINDOW_LENGTH)
+    if (block_time_samples.size() == AVG_WINDOW_LENGTH)
     {
-        double progressDelta = 0;
-        double progressPerHour = 0;
-        qint64 timeDelta = 0;
-        qint64 remainingMSecs = 0;
+        qint64 time_delta = 0;
+        qint64 remaining_msecs = 0;
 
-        QPair<qint64, double> sample = blockProcessTime.takeLast();
-        timeDelta = currentMillis - sample.first;
-        double prevVerificationProgress = bestHeaderHeight == 0 ? 0 : 
-        static_cast<double>(sample.second) / static_cast<double>(bestHeaderHeight);
+        QPair<qint64, double> sample = block_time_samples.takeLast();
+        time_delta = current_millis - sample.first;
 
-        progressDelta = verificationProgress - prevVerificationProgress;
+        const int blocks_delta = count - sample.second;
+        if(blocks_delta >= 0) {
 
-        progressPerHour = progressDelta/static_cast<double>(timeDelta)*1000*3600;
-        remainingMSecs = (bestHeaderHeight - count) * timeDelta / (count - sample.second);
+            const int blocks_per_hour = static_cast<int>(blocks_delta/static_cast<double>(time_delta)*1000*3600);
+            remaining_msecs = (bestHeaderHeight - count) * time_delta / blocks_delta;
 
-        // show progress increase per hour
-        ui->progressIncreasePerH->setText(QString::number(progressPerHour*100, 'f', 2)+"%");
+            // show progress increase per hour
+            ui->blocksPerH->setText(QString::number(blocks_per_hour)+tr(" (blocks/h)"));
 
-        // show expected remaining time
-        ui->expectedTimeLeft->setText(GUIUtil::formatNiceTimeOffset(remainingMSecs/1000));
+            // show expected remaining time
+            ui->expectedTimeLeft->setText(GUIUtil::formatNiceTimeOffset(remaining_msecs/1000));
+        }
     }
 
     // show the last block date

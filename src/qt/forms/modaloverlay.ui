@@ -185,12 +185,12 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="text">
-              <string>Progress increase per hour</string>
+              <string>Blocks Per Hour</string>
              </property>
             </widget>
            </item>
            <item row="6" column="1">
-            <widget class="QLabel" name="progressIncreasePerH">
+            <widget class="QLabel" name="blocksPerH">
              <property name="text">
               <string>calculating...</string>
              </property>

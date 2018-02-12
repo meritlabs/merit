@@ -46,7 +46,7 @@ private:
     Ui::ModalOverlay *ui;
     int bestHeaderHeight; //best known height (based on the headers)
     QDateTime bestHeaderDate;
-    QVector<QPair<qint64, int> > blockProcessTime;
+    QVector<QPair<qint64, int> > block_time_samples;
     bool layerIsVisible;
     bool userClosed;
 };
