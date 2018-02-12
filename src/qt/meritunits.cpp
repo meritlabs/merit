@@ -62,7 +62,7 @@ QString MeritUnits::name(int unit)
     case MRT: return QString("MRT");
     case mMRT: return QString("mMRT");
     case uMRT: return QString::fromUtf8("μMRT");
-    case INV: return QString("Invite");
+    case INV: return QString("Invites");
     default: return QString("???");
     }
 }
