@@ -1943,7 +1943,7 @@ bool RewardInvites(
             total_winners,
             params.daedalus_max_outstanding_invites_per_address);
 
-    assert(winners.size() <= total_winners);
+    assert(winners.size() <= static_cast<size_t>(total_winners));
 
     rewards = pog::RewardInvites(winners);
 

@@ -202,7 +202,7 @@ bool ProduceSignature(const BaseSignatureCreator& creator, const CScript& fromPu
     uint160 scriptAddress;
     sigdata.scriptWitness.stack.clear();
 
-    if (solved && whichType == TX_SCRIPTHASH || whichType == TX_PARAMETERIZED_SCRIPTHASH)
+    if ((solved && whichType == TX_SCRIPTHASH) || whichType == TX_PARAMETERIZED_SCRIPTHASH)
     {
         // Solver returns the subscript that needs to be evaluated;
         // the final scriptSig is the signatures from that
