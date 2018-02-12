@@ -424,6 +424,7 @@ SendCoinsEntry *SendCoinsDialog::addEntry()
     connect(entry, SIGNAL(removeEntry(SendCoinsEntry*)), this, SLOT(removeEntry(SendCoinsEntry*)));
     connect(entry, SIGNAL(payAmountChanged()), this, SLOT(coinControlUpdateLabels()));
     connect(entry, SIGNAL(subtractFeeFromAmountChanged()), this, SLOT(coinControlUpdateLabels()));
+    connect(entry, SIGNAL(sendTypeChanged(int)), this, SLOT(sentTypeChanged(int)));
 
     // Focus the field, so that entry can start immediately
     entry->clear();
@@ -881,6 +882,19 @@ void SendCoinsDialog::coinControlUpdateLabels()
         ui->labelCoinControlAutomaticallySelected->show();
         ui->widgetCoinControl->hide();
         ui->labelCoinControlInsuffFunds->hide();
+    }
+}
+
+void SendCoinsDialog::sendTypeChanged(int newIndex)
+{
+    switch(newIndex)
+    {
+        case SendCoinsEntry::SEND_MRT_INDEX:
+            ui->frameFee->setEnabled(true);
+            break;
+        case SendCoinsEntry::SEND_INV_INDEX:
+            ui->frameFee->setEnabled(false);
+            break;
     }
 }
 

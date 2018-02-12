@@ -16,9 +16,6 @@
 #include <QApplication>
 #include <QClipboard>
 
-static constexpr int SEND_MRT_INDEX = 0;
-static constexpr int SEND_INV_INDEX = 1;
-
 SendCoinsEntry::SendCoinsEntry(const PlatformStyle *_platformStyle, QWidget *parent) :
     QStackedWidget(parent),
     ui(new Ui::SendCoinsEntry),
@@ -277,10 +274,11 @@ void SendCoinsEntry::setupComboBox()
 {
     ui->sendTypeComboBox->insertItem(SEND_MRT_INDEX, QStringLiteral("Send Merit"));
     ui->sendTypeComboBox->insertItem(SEND_INV_INDEX, QStringLiteral("Send Invites"));
-    connect(ui->sendTypeComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(sendTypeChanged(int)));
+    connect(ui->sendTypeComboBox, SIGNAL(currentIndexChanged(int)), this, SIGNAL(sendTypeChanged(int)));
+    connect(ui->sendTypeComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(updateSendType(int)));
 }
 
-void SendCoinsEntry::sendTypeChanged(int newIndex)
+void SendCoinsEntry::updateSendType(int newIndex)
 {
     switch(newIndex)
     {
