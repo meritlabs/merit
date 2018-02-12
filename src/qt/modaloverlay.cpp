@@ -98,8 +98,9 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     // keep a vector of samples of verification progress at height
     double verificationProgress = bestHeaderHeight == 0 ? 0 : 
         static_cast<double>(count) / static_cast<double>(bestHeaderHeight);
+
     qint64 currentMillis = currentDate.toMSecsSinceEpoch();
-    blockProcessTime.push_front(qMakePair(currentMillis, verificationProgress));
+    blockProcessTime.push_front(qMakePair(currentMillis, count));
 
     // show progress speed if we have more then one sample
     if (blockProcessTime.size() == AVG_WINDOW_LENGTH)
@@ -111,9 +112,13 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
 
         QPair<qint64, double> sample = blockProcessTime.takeLast();
         timeDelta = currentMillis - sample.first;
-        progressDelta = verificationProgress - sample.second;
+        double prevVerificationProgress = bestHeaderHeight == 0 ? 0 : 
+        static_cast<double>(sample.second) / static_cast<double>(bestHeaderHeight);
+
+        progressDelta = verificationProgress - prevVerificationProgress;
+
         progressPerHour = progressDelta/static_cast<double>(timeDelta)*1000*3600;
-        remainingMSecs = (bestHeaderHeight - count) * timeDelta / AVG_WINDOW_LENGTH;
+        remainingMSecs = (bestHeaderHeight - count) * timeDelta / (count - sample.second);
 
         // show progress increase per hour
         ui->progressIncreasePerH->setText(QString::number(progressPerHour*100, 'f', 2)+"%");
