@@ -121,3 +121,7 @@ contrib/devtools/split-debug.sh
 .settings
 .tags*
 .vscode/*
+
+# static analysis
+cppcheck-report
+result.xml
