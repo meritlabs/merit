@@ -113,7 +113,7 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
         time_delta = current_millis - sample.first;
 
         const int blocks_delta = count - sample.second;
-        if(blocks_delta >= 0) {
+        if(blocks_delta > 0) {
 
             const int blocks_per_hour = static_cast<int>(blocks_delta/static_cast<double>(time_delta)*1000*3600);
             remaining_msecs = (bestHeaderHeight - count) * time_delta / blocks_delta;
