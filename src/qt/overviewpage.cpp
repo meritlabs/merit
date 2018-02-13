@@ -245,13 +245,13 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
 
     // Recent transactions
     ui->listTransactions->setItemDelegate(txdelegate);
-    ui->listTransactions->setMinimumHeight(NUM_ITEMS * (DECORATION_SIZE + 2));
+    ui->listTransactions->setMinimumHeight(DECORATION_SIZE + 2);
     ui->listTransactions->setAttribute(Qt::WA_MacShowFocusRect, false);
     ui->inviteNotice->hide();
 
     // Unlock Requests
     ui->listNetwork->setItemDelegate(referraldelegate);
-    ui->listNetwork->setMinimumHeight(NUM_ITEMS * (DECORATION_SIZE + 2));
+    ui->listNetwork->setMinimumHeight(DECORATION_SIZE + 2);
     ui->listNetwork->setAttribute(Qt::WA_MacShowFocusRect, false);
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
