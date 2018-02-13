@@ -384,6 +384,11 @@ void OverviewPage::setBalance(
     UpdateInvitationStatus();
 }
 
+void OverviewPage::SetAliasLabel()
+{
+    ui->aliasLabel->setText(walletModel->GetAlias());
+}
+
 // show/hide watch-only labels
 void OverviewPage::updateWatchOnlyLabels(bool showWatchOnly)
 {
@@ -452,6 +457,8 @@ void OverviewPage::setWalletModel(WalletModel *model)
 
         updateWatchOnlyLabels(model->haveWatchOnly());
         connect(model, SIGNAL(notifyWatchonlyChanged(bool)), this, SLOT(updateWatchOnlyLabels(bool)));
+
+        SetAliasLabel();
     }
 
     // update the display unit, to not use the default ("MRT")
