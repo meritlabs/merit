@@ -1,9 +1,9 @@
-#!/bin/sh
+#!/bin/bash
 # Copyright (c) 2018 The Merit Foundation developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-set -euo pipefail
+set -eu
 
 function help {
     echo "usage: $0 <tag> <pkcs12> <password>"
