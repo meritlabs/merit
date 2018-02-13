@@ -170,8 +170,8 @@ public:
         QDateTime date = index.data(ReferralListModel::DateRole).toDateTime();
         QString addressString = index.data(ReferralListModel::AddressRole).toString();
         QString aliasString = index.data(ReferralListModel::AliasRole).toString();
-        QString displayString = aliasString.isEmpty() ? addressString :
-            aliasString + " (" + addressString + ")";
+        QString displayString = aliasString.isEmpty() ? QString("Anonymous User") :
+            QString("@") + aliasString;
 
         painter->setPen(COLOR_BAREADDRESS);
         painter->drawText(timestampRect, Qt::AlignLeft|Qt::AlignVCenter, GUIUtil::dateTimeStr(date));
@@ -305,10 +305,15 @@ void OverviewPage::handleReferralClicked(const QModelIndex &index)
         tr("Invite") + " " + aliasString;
 
     QString text = aliasString.isEmpty() ?
-        tr("Do you want to invite") + " " + addressString:
-        tr("Do you want to invite") + " " + aliasString + " " + tr("with the address") + " " + addressString;
-
-    auto ret = QMessageBox::question(this, title, text);
+        tr("Do you want to invite") + " " + addressString + "?":
+        tr("Do you want to invite") + " @" + aliasString + " " + tr("with the address") + " " + addressString + "?";
+    
+    QMessageBox *msgBox = new QMessageBox(QMessageBox::Question,
+                                title, text,
+                                QMessageBox::Yes | QMessageBox::No,
+                                this);
+    msgBox->setStyleSheet(QString("QMessageBox { background-color: white; }"));
+    auto ret = msgBox->exec();
     if(ret != QMessageBox::Yes) {
         return;
     }
