@@ -486,8 +486,8 @@ void MeritGUI::createToolBars()
         toolbar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         toolbar->setStyleSheet(
               QString("QToolBar { spacing: 0px; }") +
-              QString("QToolButton { padding: 0 10px; height: 40px; font-weight: bold; font-size: 13px; }") +
-              QString("QToolButton:checked { background-color: #CACACA; border-radius: 0; border: none; opacity: 1}"));
+              QString("QToolButton { padding: 0 10px; height: 40px; font-weight: bold; font-size: 13px; border: none; }") +
+              QString("QToolButton:checked { background-color: #CACACA; opacity: 1}"));
         toolbar->addAction(overviewAction);
         toolbar->addAction(sendCoinsAction);
         toolbar->addAction(receiveCoinsAction);
