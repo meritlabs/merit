@@ -7,7 +7,7 @@ set -eu
 
 function help {
     echo "usage: $0 <tag> <pkcs12> <password>"
-    echo "example: $0 0.3.3"
+    echo "example: $0 0.3.3 merit.pfx pfxPassowrd"
 
     exit 1
 }
