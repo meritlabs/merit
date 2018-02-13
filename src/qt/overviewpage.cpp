@@ -13,6 +13,7 @@
 #include "optionsmodel.h"
 #include "platformstyle.h"
 #include "transactionfilterproxy.h"
+#include "transactionrecord.h"
 #include "transactiontablemodel.h"
 #include "referrallistmodel.h"
 #include "walletmodel.h"
@@ -57,6 +58,11 @@ public:
         qint64 amount = index.data(TransactionTableModel::AmountRole).toLongLong();
         bool confirmed = index.data(TransactionTableModel::ConfirmedRole).toBool();
         qint64 invitesNumber = index.data(TransactionTableModel::InviteRole).toLongLong();
+
+        auto txType = index.data(TransactionTableModel::TypeRole);
+        bool isMined =  txType == TransactionRecord::Generated ||
+                        txType == TransactionRecord::GeneratedInvite;
+
         QVariant value = index.data(Qt::ForegroundRole);
         QColor foreground = option.palette.color(QPalette::Text);
         if(value.canConvert<QBrush>())
@@ -92,13 +98,18 @@ public:
         }
 
         painter->setPen(foreground);
+        QString amountText;
         if (index.data(TransactionTableModel::IsInviteRole).toBool()) {
-            QString inviteText = QString("Invites: ") + QString::number(invitesNumber);
-            painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, inviteText);
+            QString plurality = invitesNumber > 1 ? QString("s") : QString();
+            amountText = QString::number(invitesNumber) + QString(" Invite") + plurality;
         } else {
-            QString amountText = MeritUnits::formatWithUnit(unit, amount, true, MeritUnits::separatorAlways);
-            painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, amountText);
+            amountText = MeritUnits::formatWithUnit(unit, amount, true, MeritUnits::separatorAlways);
         }
+
+        if(isMined)
+            amountText = QString("Mining Reward: ") + amountText;
+
+        painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, amountText);
 
         if(!confirmed)
         {

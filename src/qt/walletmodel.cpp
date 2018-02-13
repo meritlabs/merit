@@ -465,7 +465,12 @@ bool WalletModel::AliasExists(const std::string& alias) const
 QString WalletModel::GetAlias() const
 {
     assert(wallet);
-    return QString::fromStdString(wallet->GetAlias());
+    auto walletAlias = wallet->GetAlias();
+
+    if(walletAlias.length() > 0)
+        return QString::fromStdString("@" + walletAlias);
+    
+    return QString();
 }
 
 bool WalletModel::AddressBeaconed(const CMeritAddress& address) const
