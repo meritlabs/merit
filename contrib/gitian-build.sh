@@ -218,7 +218,7 @@ fi
 # Add a "v" if no -c
 if [[ $commit = false ]]
 then
-	COMMIT="v${VERSION}"
+	COMMIT="m${VERSION}"
 fi
 echo ${COMMIT}
 
