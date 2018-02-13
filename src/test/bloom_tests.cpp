@@ -194,7 +194,6 @@ BOOST_AUTO_TEST_CASE(merkle_block_1)
     BOOST_CHECK(merkleBlock.header.GetHash() == block.GetHash());
 
     BOOST_CHECK(merkleBlock.vMatchedTxn.size() == 1);
-    std::pair<unsigned int, uint256> pair = merkleBlock.vMatchedTxn[0];
 
     BOOST_CHECK(merkleBlock.vMatchedTxn[0].second == uint256S("d94f0b89843d92eccb76ecc6a453349c6a12fddd88336462c8a9f4864eee917e"));
     BOOST_CHECK(merkleBlock.vMatchedTxn[0].first == 0);
@@ -223,7 +222,6 @@ BOOST_AUTO_TEST_CASE(merkle_block_2)
     BOOST_CHECK(merkleBlock.header.GetHash() == block.GetHash());
 
     BOOST_CHECK(merkleBlock.vMatchedTxn.size() == 1);
-    std::pair<unsigned int, uint256> pair = merkleBlock.vMatchedTxn[0];
 
     BOOST_CHECK(merkleBlock.vMatchedTxn[0].second == uint256S("07960c05741d1ebf8f6da4c0dd27fdf0dd428e7c63881c7ca6023e2a65e1e746"));
     BOOST_CHECK(merkleBlock.vMatchedTxn[0].first == 0);
