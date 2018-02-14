@@ -25,7 +25,14 @@ ModalOverlay::ModalOverlay(QWidget *parent) :
     userClosed(false)
 {
     ui->setupUi(this);
-    connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(closeClicked()));
+
+    #ifdef ALLOW_HIDE_SYNC
+        connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(closeClicked()));
+    #else
+        ui->closeButton->setEnabled(false);
+        ui->closeButton->setHidden(true);
+    #endif
+
     if (parent) {
         parent->installEventFilter(this);
         raise();
