@@ -38,7 +38,7 @@ struct CAddressUnspentKey {
 
         if(encoded_type >= 10) {
             type = encoded_type - 10;
-            isInvite = true; 
+            isInvite = true;
         } else {
             type = encoded_type;
             isInvite = false;
@@ -270,23 +270,20 @@ struct CMempoolAddressDelta
     CScript scriptPubKey;
     uint256 prevhash;
     unsigned int prevout;
-    bool is_invite;
 
-    CMempoolAddressDelta(int64_t t, CAmount a, uint256 hash, unsigned int out, bool invite) {
+    CMempoolAddressDelta(int64_t t, CAmount a, uint256 hash, unsigned int out) {
         time = t;
         amount = a;
         prevhash = hash;
         prevout = out;
-        is_invite = invite;
     }
 
-    CMempoolAddressDelta(int64_t t, CAmount a, const CScript& script, bool invite) {
+    CMempoolAddressDelta(int64_t t, CAmount a, const CScript& script) {
         time = t;
         amount = a;
         scriptPubKey = script;
         prevhash.SetNull();
         prevout = 0;
-        is_invite = invite;
     }
 };
 
@@ -297,13 +294,15 @@ struct CMempoolAddressDeltaKey
     uint256 txhash;
     unsigned int index;
     int spending;
+    bool invite;
 
-    CMempoolAddressDeltaKey(int addressType, uint160 addressHash, uint256 hash, unsigned int i, int s) {
+    CMempoolAddressDeltaKey(int addressType, uint160 addressHash, uint256 hash, unsigned int i, int s, bool is_invite) {
         type = addressType;
         addressBytes = addressHash;
         txhash = hash;
         index = i;
         spending = s;
+        invite = is_invite;
     }
 
     CMempoolAddressDeltaKey(int addressType, uint160 addressHash) {

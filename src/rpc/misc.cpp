@@ -1239,35 +1239,6 @@ struct TxHeightCmp {
     }
 };
 
-void getAddressTxIds(
-    std::vector<AddressPair> addresses,
-    int start,
-    int end,
-    bool is_invite,
-    std::set<AddressTx, TxHeightCmp>& txids)
-{
-    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
-
-    for (const auto& it : addresses) {
-        if (start > 0 && end > 0) {
-            if (!GetAddressIndex(it.first, it.second, is_invite, addressIndex, start, end)) {
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
-            }
-        } else {
-            if (!GetAddressIndex(it.first, it.second, is_invite, addressIndex)) {
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
-            }
-        }
-    }
-
-    for (std::vector<std::pair<CAddressIndexKey, CAmount>>::const_iterator it = addressIndex.begin(); it != addressIndex.end(); it++) {
-        int height = it->first.blockHeight;
-        std::string txid = it->first.txhash.GetHex();
-
-        txids.insert(std::make_tuple(height, is_invite, txid));
-    }
-}
-
 UniValue getaddresstxids(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1)
@@ -1311,24 +1282,30 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
         }
     }
 
+    std::set<AddressTx, TxHeightCmp> txids;
+
     std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
 
-    for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
+    for (const auto& it : addresses) {
         if (start > 0 && end > 0) {
-            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex, start, end)) {
+            if (!GetAddressIndex(it.first, it.second, true, addressIndex, start, end) ||
+                !GetAddressIndex(it.first, it.second, false, addressIndex, start, end)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
             }
         } else {
-            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex)) {
+            if (!GetAddressIndex(it.first, it.second, true, addressIndex) ||
+                !GetAddressIndex(it.first, it.second, false, addressIndex)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
             }
         }
     }
 
-    std::set<AddressTx, TxHeightCmp> txids;
+    for (const auto& it: addressIndex) {
+        int height = it.first.blockHeight;
+        std::string txid = it.first.txhash.GetHex();
 
-    getAddressTxIds(addresses, start, end, true, txids);
-    getAddressTxIds(addresses, start, end, false, txids);
+        txids.insert(std::make_tuple(height, it.first.invite, txid));
+    }
 
     UniValue result(UniValue::VARR);
 
@@ -1461,12 +1438,14 @@ template <class IndexPair>
 void DecorateEasySendTransactionInformation(UniValue& ret, const IndexPair& pair, const size_t& confirmations)
 {
     const auto& key = pair.first;
+
     ret.push_back(Pair("found", true));
     ret.push_back(Pair("txid", key.txhash.GetHex()));
     ret.push_back(Pair("index", static_cast<int>(key.index)));
-    ret.push_back(Pair("amount", ValueFromAmount(GetAmount(pair.second))));
+    ret.push_back(Pair("amount", !key.invite ? ValueFromAmount(GetAmount(pair.second)) : GetAmount(pair.second)));
     ret.push_back(Pair("spending", key.spending));
     ret.push_back(Pair("confirmations", static_cast<int>(confirmations)));
+    ret.push_back(Pair("invite", key.invite));
 
     CSpentIndexValue spent_value;
     bool spent = false;
@@ -1499,12 +1478,14 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
                 "\"scriptaddress\" (string) Base58 address of script used in easy transaction.\n"
                 "}\n"
                 "\nResult:\n"
-                "{\n"
-                "  \"found\"  (bool) True if found otherwise false\n"
-                "  \"txid\"  (string) The transaction id\n"
-                "  \"index\"  (number) The spending input index\n"
-                "  ,...\n"
-                "}\n"
+                "[\n"
+                "   {\n"
+                "       \"found\"  (bool) True if found otherwise false\n"
+                "       \"txid\"  (string) The transaction id\n"
+                "       \"index\"  (number) The spending input index\n"
+                "       ,...\n"
+                "   }\n"
+                "]\n"
                 "\nExamples:\n"
                 + HelpExampleCli("getinputforeasysend", "mp2FqA5kiszSWREEQXBmmMmGBYwiLuGFLt")
                 );
@@ -1522,19 +1503,30 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
 
     mempool.getAddressIndex(addresses, mempool_indexes);
 
-    UniValue ret(UniValue::VOBJ);
+    UniValue ret(UniValue::VARR);
     if(!mempool_indexes.empty()) {
-        DecorateEasySendTransactionInformation(ret, mempool_indexes[0], 0);
+        for (const auto& index: mempool_indexes) {
+            UniValue in(UniValue::VOBJ);
+
+            DecorateEasySendTransactionInformation(in, index, 0);
+            ret.push_back(in);
+        }
+
         return ret;
-
     } else {
-
         std::vector<std::pair<CAddressIndexKey, CAmount>> coins;
         GetAddressIndex(*script_id, SCRIPT_TYPE, false, coins);
+        GetAddressIndex(*script_id, SCRIPT_TYPE, true, coins);
 
-        if(!coins.empty()) {
-            size_t confirmations = std::max(0, chainActive.Height() - coins[0].first.blockHeight);
-            DecorateEasySendTransactionInformation(ret, coins[0], confirmations);
+        if (!coins.empty()) {
+            for (const auto& coin : coins) {
+                UniValue in(UniValue::VOBJ);
+
+                size_t confirmations = std::max(0, chainActive.Height() - coin.first.blockHeight);
+                DecorateEasySendTransactionInformation(in, coin, confirmations);
+                ret.push_back(in);
+            }
+
             return ret;
         }
     }

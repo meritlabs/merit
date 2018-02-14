@@ -176,7 +176,7 @@ UniValue generateBlocks(
 
         auto shared_pblock = std::make_shared<const CBlock>(*pblock);
 
-        if (!ProcessNewBlock(Params(), shared_pblock, true, nullptr, true))
+        if (!ProcessNewBlock(Params(), shared_pblock, true, nullptr, false))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
         ++nHeight;
         blockHashes.push_back(pblock->GetHash().GetHex());
@@ -813,7 +813,7 @@ UniValue submitblock(const JSONRPCRequest& request)
 
     submitblock_StateCatcher sc(block.GetHash());
     RegisterValidationInterface(&sc);
-    bool fAccepted = ProcessNewBlock(Params(), blockptr, true, nullptr, true);
+    bool fAccepted = ProcessNewBlock(Params(), blockptr, true, nullptr, false);
     UnregisterValidationInterface(&sc);
     if (fBlockPresent) {
         if (fAccepted && !sc.found) {
