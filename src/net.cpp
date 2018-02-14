@@ -1984,6 +1984,8 @@ void CConnman::ThreadMessageHandler()
 
         for (CNode* pnode : vNodesCopy)
         {
+            assert(pnode);
+
             if (pnode->fDisconnect)
                 continue;
 

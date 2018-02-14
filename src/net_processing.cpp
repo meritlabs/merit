@@ -666,14 +666,12 @@ bool AddOrphanTx(const CTransactionRef& tx, NodeId peer) EXCLUSIVE_LOCKS_REQUIRE
     return true;
 }
 
-int static EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+int EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
     auto it = mapOrphanReferrals.find(hash);
     if (it == mapOrphanReferrals.end()) {
         return 0;
     }
-
-    mapOrphanReferrals.erase(it);
 
     auto itPrev = mapOrphanReferralsByPrev.find(it->second.ref->parentAddress);
 
@@ -686,23 +684,28 @@ int static EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         }
     }
 
+    mapOrphanReferrals.erase(it);
     return 1;
 }
 
-int static EraseOrphanTx(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+int EraseOrphanTx(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
-    std::map<uint256, COrphanTx>::iterator it = mapOrphanTransactions.find(hash);
-    if (it == mapOrphanTransactions.end())
+    auto it = mapOrphanTransactions.find(hash);
+    if (it == mapOrphanTransactions.end()) {
         return 0;
+    }
+
     for (const CTxIn& txin : it->second.tx->vin)
     {
         auto itPrev = mapOrphanTransactionsByPrev.find(txin.prevout);
         if (itPrev == mapOrphanTransactionsByPrev.end())
             continue;
+
         itPrev->second.erase(it);
         if (itPrev->second.empty())
             mapOrphanTransactionsByPrev.erase(itPrev);
     }
+
     mapOrphanTransactions.erase(it);
     return 1;
 }
@@ -710,17 +713,25 @@ int static EraseOrphanTx(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 void EraseOrphansFor(NodeId peer)
 {
     int nErased = 0;
-    for (const auto& it: mapOrphanTransactions) {
-        if (it.second.fromPeer == peer) {
-            nErased += EraseOrphanTx(it.second.tx->GetHash());
+    {
+        auto it = mapOrphanTransactions.begin();
+        while (it != mapOrphanTransactions.end()) {
+            auto maybe_erase = it++;
+            if (maybe_erase->second.fromPeer == peer) {
+                nErased += EraseOrphanTx(maybe_erase->second.tx->GetHash());
+            }
         }
     }
     if (nErased > 0) LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx from peer=%d\n", nErased, peer);
 
     nErased = 0;
-    for (const auto& it: mapOrphanReferrals) {
-        if (it.second.fromPeer == peer) {
-            nErased += EraseOrphanReferral(it.second.ref->GetHash());
+    {
+        auto it = mapOrphanReferrals.begin();
+        while(it != mapOrphanReferrals.end()) {
+            auto maybe_erase = it++; 
+            if (maybe_erase->second.fromPeer == peer) {
+                nErased += EraseOrphanReferral(maybe_erase->second.ref->GetHash());
+            }
         }
     }
     if (nErased > 0) LogPrint(BCLog::REFMEMPOOL, "Erased %d orphan referrals from peer=%d\n", nErased, peer);
@@ -2179,13 +2190,15 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
                 for (const auto& mi : itByPrev->second) {
 
-                    const auto fromPeerId = (*mi).second.fromPeer;
+                    const auto fromPeerId = mi->second.fromPeer;
 
                     if (setMisbehaving.count(fromPeerId)) {
                         continue;
                     }
 
-                    const auto& porphanRef = (*mi).second.ref;
+                    const auto& porphanRef = mi->second.ref;
+                    assert(porphanRef);
+
                     const auto& orphanRef = *porphanRef;
                     const auto& orphanHash = orphanRef.GetHash();
 
@@ -2898,7 +2911,8 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         pfrom->fRelayTxes = true;
     }
 
-    else if (strCommand == NetMsgType::FEEFILTER) {
+    else if (strCommand == NetMsgType::FEEFILTER)
+    {
         CAmount newFeeFilter = 0;
         vRecv >> newFeeFilter;
         if (MoneyRange(newFeeFilter)) {
