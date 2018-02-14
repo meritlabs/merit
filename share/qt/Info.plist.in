@@ -26,11 +26,11 @@
   <string>@CLIENT_VERSION_MAJOR@.@CLIENT_VERSION_MINOR@.@CLIENT_VERSION_REVISION@</string>
 
   <key>CFBundleSignature</key>
-  <string>????</string>
+  <string>org.meritfoundation.Merit-Qt</string>
 
   <key>CFBundleExecutable</key>
   <string>Merit-Qt</string>
-  
+
   <key>CFBundleName</key>
   <string>Merit-Qt</string>
 
@@ -99,7 +99,7 @@
 
   <key>LSAppNapIsDisabled</key>
     <string>True</string>
-  
+
   <key>LSApplicationCategoryType</key>
     <string>public.app-category.finance</string>
 </dict>

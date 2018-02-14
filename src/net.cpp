@@ -1984,6 +1984,8 @@ void CConnman::ThreadMessageHandler()
 
         for (CNode* pnode : vNodesCopy)
         {
+            assert(pnode);
+
             if (pnode->fDisconnect)
                 continue;
 
@@ -2578,12 +2580,6 @@ void CConnman::RecordBytesSent(uint64_t bytes)
 
     // TODO, exclude whitebind peers
     nMaxOutboundTotalBytesSentInCycle += bytes;
-}
-
-void CConnman::SetMaxOutboundTarget(uint64_t limit)
-{
-    LOCK(cs_totalBytesSent);
-    nMaxOutboundLimit = limit;
 }
 
 uint64_t CConnman::GetMaxOutboundTarget()

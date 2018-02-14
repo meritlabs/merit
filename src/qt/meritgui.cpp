@@ -486,8 +486,8 @@ void MeritGUI::createToolBars()
         toolbar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         toolbar->setStyleSheet(
               QString("QToolBar { spacing: 0px; }") +
-              QString("QToolButton { padding: 0 10px; height: 40px; font-weight: bold; font-size: 13px; }") +
-              QString("QToolButton:checked { background-color: #CACACA; border-radius: 0; border: none; opacity: 1}"));
+              QString("QToolButton { padding: 0 10px; height: 40px; font-weight: bold; font-size: 13px; border: none; }") +
+              QString("QToolButton:checked { background-color: #CACACA; opacity: 1}"));
         toolbar->addAction(overviewAction);
         toolbar->addAction(sendCoinsAction);
         toolbar->addAction(receiveCoinsAction);
@@ -1144,14 +1144,19 @@ void MeritGUI::setMiningStatus(bool isMining)
         miningStatusIcon->setToolTip(tr("Mining is <b>not enabled</b>"));
     }
 
+    int pow_threads = DEFAULT_MINING_POW_THREADS;
+    int bucket_threads = DEFAULT_MINING_BUCKET_THREADS;
+    int bucket_size = DEFAULT_MINING_BUCKET_SIZE;
+
+    gArgs.ForceSetArg("-minepowthreads", itostr(pow_threads));
+    gArgs.ForceSetArg("-minebucketsize", itostr(bucket_size));
+    gArgs.ForceSetArg("-minebucketthreads", itostr(bucket_threads));
+    gArgs.ForceSetArg("-mine", (isMining ? "1" : "0"));
+
     startMiningAction->setEnabled(!isMining);
     stopMiningAction->setEnabled(isMining);
 
-    auto nThreads = DEFAULT_MINING_THREADS;
-    gArgs.ForceSetArg("-mine", (isMining ? "1" : "0"));
-    gArgs.ForceSetArg("-mineproclimit", std::to_string(nThreads));
-
-    GenerateMerit(isMining, nThreads, Params());
+    GenerateMerit(isMining, pow_threads, bucket_size, bucket_threads, Params());
 }
 #endif // ENABLE_WALLET
 

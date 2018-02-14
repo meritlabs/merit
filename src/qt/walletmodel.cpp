@@ -480,7 +480,7 @@ bool WalletModel::Daedalus() const
     return wallet->Daedalus();
 }
 
-bool WalletModel::SendInviteTo(const std::string& address)
+bool WalletModel::SendInviteTo(const std::string& address, int amount)
 {
     assert(wallet);
     CTxDestination dest = LookupDestination(address);
@@ -490,7 +490,7 @@ bool WalletModel::SendInviteTo(const std::string& address)
 
     CTransactionRef tx;
     try {
-        tx = wallet->SendInviteTo(GetScriptForDestination(dest));
+        tx = wallet->SendInviteTo(GetScriptForDestination(dest), amount);
     } catch (...) { }
     return tx != nullptr;
 }

@@ -196,7 +196,7 @@ void Shutdown()
         pwallet->Flush(false);
     }
 #endif
-    GenerateMerit(false, 0, Params());
+    GenerateMerit(false, 0, 0, 0, Params());
     MapPort(false);
     UnregisterValidationInterface(peerLogic.get());
     peerLogic.reset();
@@ -353,7 +353,9 @@ std::string HelpMessage(HelpMessageMode mode)
 #endif
     }
     strUsage += HelpMessageOpt("-mine", _("Mine coins in the background"));
-    strUsage += HelpMessageOpt("-mineproclimit=<n>", strprintf(_("Set the number of threads for coins mining if enabled (-1 = all cores, default: %d)"), DEFAULT_MINING_THREADS));
+    strUsage += HelpMessageOpt("-minepowthreads=<n>", strprintf(_("Set the number of threads for pow attempt if enabled (-1 = all cores, default: %d)"), DEFAULT_MINING_POW_THREADS));
+    strUsage += HelpMessageOpt("-minebucketsize=<n>", strprintf(_("Set the number of nonces to check by one bucket (0 - unlimited) (default: %d)"), DEFAULT_MINING_BUCKET_SIZE));
+    strUsage += HelpMessageOpt("-minebucketthreads=<n>", strprintf(_("Set the number of buckets run in parrallel (default: %d)"), DEFAULT_MINING_BUCKET_THREADS));
 
     strUsage += HelpMessageOpt("-datadir=<dir>", _("Specify data directory"));
     if (showDebug) {
@@ -383,6 +385,7 @@ std::string HelpMessage(HelpMessageMode mode)
             "(default: 0 = disable pruning blocks, 1 = allow manual pruning via RPC, >%u = automatically prune block files to stay under the specified target size in MiB)"), MIN_DISK_SPACE_FOR_BLOCK_FILES / 1024 / 1024));
     strUsage += HelpMessageOpt("-reindex-chainstate", _("Rebuild chain state from the currently indexed blocks"));
     strUsage += HelpMessageOpt("-reindex", _("Rebuild chain state and block index from the blk*.dat files on disk"));
+    strUsage += HelpMessageOpt("-validationsamplecount=<n>", _("Take 1 out of N samples for validation when initially downloading or reindexing the blockchain."));
 #ifndef WIN32
     strUsage += HelpMessageOpt("-sysperms", _("Create new files with system default permissions, instead of umask 077 (only effective with disabled wallet functionality)"));
 #endif
@@ -697,7 +700,7 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
 
     // scan for better chains in the block chain database, that are not yet connected in the active best chain
     CValidationState state;
-    if (!ActivateBestChain(state, chainparams)) {
+    if (!ActivateBestChain(state, chainparams, nullptr, true)) {
         LogPrintf("Failed to connect best block\n");
         StartShutdown();
     }
@@ -1537,7 +1540,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                 bool is_coinsview_empty = fReset || fReindexChainState || pcoinsTip->GetBestBlock().IsNull();
                 if (!is_coinsview_empty) {
                     // LoadChainTip sets chainActive based on pcoinsTip's best block
-                    if (!LoadChainTip(chainparams)) {
+                    if (!LoadChainTip(chainparams, true)) {
                         strLoadError = _("Error initializing block database");
                         break;
                     }
@@ -1764,7 +1767,10 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     if(gArgs.GetBoolArg("-mine", DEFAULT_MINING)) {
         // Generate coins in the background
-        GenerateMerit(true, gArgs.GetArg("-mineproclimit", DEFAULT_MINING_THREADS), chainparams);
+        auto pow_threads = gArgs.GetArg("-minepowthreads", DEFAULT_MINING_POW_THREADS);
+        auto bucket_size = gArgs.GetArg("-minebucketsize", DEFAULT_MINING_BUCKET_SIZE);
+        auto bucket_threads = gArgs.GetArg("-minebucketthreads", DEFAULT_MINING_BUCKET_THREADS);
+        GenerateMerit(true, pow_threads, bucket_size, bucket_threads, chainparams);
     }
 
     // ********************************************************* Step 12: finished
@@ -1773,8 +1779,6 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     uiInterface.InitMessage(_("Done loading"));
 
 #ifdef ENABLE_WALLET
-    // wait until mempools are loaded
-    while(fImporting) { }
     for (CWalletRef pwallet : vpwallets) {
         pwallet->postInitProcess(scheduler);
     }

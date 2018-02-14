@@ -176,7 +176,7 @@ UniValue generateBlocks(
 
         auto shared_pblock = std::make_shared<const CBlock>(*pblock);
 
-        if (!ProcessNewBlock(Params(), shared_pblock, true, nullptr))
+        if (!ProcessNewBlock(Params(), shared_pblock, true, nullptr, true))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
         ++nHeight;
         blockHashes.push_back(pblock->GetHash().GetHex());
@@ -215,7 +215,7 @@ UniValue generatetoaddress(const JSONRPCRequest& request)
         nMaxTries = request.params[2].get_int();
     }
 
-    int nThreads = DEFAULT_MINING_THREADS;
+    int nThreads = DEFAULT_MINING_POW_THREADS;
 
     if (!request.params[3].isNull()) {
         nThreads = request.params[3].get_int();
@@ -274,7 +274,9 @@ UniValue getmininginfo(const JSONRPCRequest& request)
     obj.push_back(Pair("difficulty",         (double)GetDifficulty()));
     obj.push_back(Pair("difficultyedgebits", pindexPrev->nEdgeBits));
     obj.push_back(Pair("mining",             gArgs.GetBoolArg("-mine", DEFAULT_MINING)));
-    obj.push_back(Pair("mineproclimit",      gArgs.GetArg("-mineproclimit", DEFAULT_MINING_THREADS)));
+    obj.push_back(Pair("minepowthreads",     gArgs.GetArg("-minepowthreads", DEFAULT_MINING_POW_THREADS)));
+    obj.push_back(Pair("minebucketsize",     gArgs.GetArg("-minebucketsize", DEFAULT_MINING_BUCKET_SIZE)));
+    obj.push_back(Pair("minebucketthreads",  gArgs.GetArg("-minebucketthreads", DEFAULT_MINING_BUCKET_THREADS)));
     obj.push_back(Pair("errors",             GetWarnings("statusbar")));
     obj.push_back(Pair("networkhashps",      getnetworkhashps(request)));
     obj.push_back(Pair("pooledtx",           (uint64_t)mempool.size()));
@@ -559,7 +561,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     static std::unique_ptr<CBlockTemplate> pblocktemplate;
     if (pindexPrev != chainActive.Tip() || (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 5))
     {
-        // Clear pindexPrev so future calls make a new block, despite any failures from here on  
+        // Clear pindexPrev so future calls make a new block, despite any failures from here on
         pindexPrev = nullptr;
 
         // Store the pindexBest used before CreateNewBlock, to avoid races
@@ -811,7 +813,7 @@ UniValue submitblock(const JSONRPCRequest& request)
 
     submitblock_StateCatcher sc(block.GetHash());
     RegisterValidationInterface(&sc);
-    bool fAccepted = ProcessNewBlock(Params(), blockptr, true, nullptr);
+    bool fAccepted = ProcessNewBlock(Params(), blockptr, true, nullptr, true);
     UnregisterValidationInterface(&sc);
     if (fBlockPresent) {
         if (fAccepted && !sc.found) {
@@ -990,24 +992,29 @@ UniValue estimaterawfee(const JSONRPCRequest& request)
 
 UniValue setmining(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
+    if (request.fHelp || request.params.size() < 1 || request.params.size() > 4)
         throw std::runtime_error(
-            "setmining mine ( mineproclimit )\n"
-            "\nSet 'generate' true or false to turn generation on or off.\n"
-            "Generation is limited to 'mineproclimit' processors, -1 is unlimited.\n"
-            "See the getgenerate call for the current setting.\n"
+            "setmining mine ( minepowthreads ) ( minebucketsize ) ( minebucketthreads ) \n"
+            "\nSet 'mine' true or false to turn generation on or off.\n"
+            "Generation is limited to 'minepowthreads' threads per pow attempt, -1 is unlimited.\n"
+            "If 'minebucketsize' is more than 1, then it runs buckets of nonces in parallel.\n"
+            "'minebucketthreads' set how many buckets run in parallel.\n"
+            "See the getmining call for the current setting.\n"
             "\nArguments:\n"
-            "1. mine           (boolean, required) Set to true to turn on mining, off to turn off.\n"
-            "2. mineproclimit  (numeric, optional) Set the processor limit for when mining is on. Can be -1 for unlimited.\n"
+            "1. mine                (boolean, required) Set to true to turn on mining, off to turn off.\n"
+            "2. minepowthreads      (numeric, optional) Set the processor limit for pow attempt when mining is on. Can be -1 for unlimited.\n"
+            "3. minebucketthreads   (numeric, optional) Set number of nonces buckets to run in parallel.\n"
+            "4. minebucketsize      (numeric, optional) Set number of nonces in on bucket.\n"
             "\nExamples:\n"
             "\nSet the generation on with a limit of one processor\n"
-            + HelpExampleCli("setgenerate", "true 1") +
+            + HelpExampleCli("setmining", "true 1")
+            + HelpExampleCli("setmining", "true 4 2 10") +
             "\nCheck the setting\n"
-            + HelpExampleCli("getgenerate", "") +
+            + HelpExampleCli("getmining", "") +
             "\nTurn off generation\n"
-            + HelpExampleCli("setgenerate", "false") +
+            + HelpExampleCli("setmining", "false") +
             "\nUsing json rpc\n"
-            + HelpExampleRpc("setgenerate", "true, 1")
+            + HelpExampleRpc("getmining", "true, 1")
         );
 
     if (Params().MineBlocksOnDemand())
@@ -1017,20 +1024,32 @@ UniValue setmining(const JSONRPCRequest& request)
     if (request.params.size() > 0)
         mine = request.params[0].get_bool();
 
-    int nThreads = DEFAULT_MINING_THREADS;
+    int pow_threads = DEFAULT_MINING_POW_THREADS;
 
     if (request.params.size() > 1) {
-        nThreads = request.params[1].get_int();
-        if (nThreads == 0)
+        pow_threads = request.params[1].get_int();
+        if (pow_threads == 0)
             mine = false;
     }
 
+    int bucket_threads = DEFAULT_MINING_BUCKET_THREADS;
+    if (request.params.size() > 2) {
+        bucket_threads = request.params[2].get_int();
+    }
+
+    int bucket_size = DEFAULT_MINING_BUCKET_SIZE;
+    if (request.params.size() > 3) {
+        bucket_size = request.params[3].get_int();
+    }
+
     gArgs.ForceSetArg("-mine", (mine ? "1" : "0"));
-    gArgs.ForceSetArg("-mineproclimit", itostr(nThreads));
+    gArgs.ForceSetArg("-minepowthreads", itostr(pow_threads));
+    gArgs.ForceSetArg("-minebucketsize", itostr(bucket_size));
+    gArgs.ForceSetArg("-minebucketthreads", itostr(bucket_threads));
 
-    GenerateMerit(mine, nThreads, Params());
+    GenerateMerit(mine, pow_threads, bucket_size, bucket_threads, Params());
 
-    return NullUniValue;
+    return gArgs.GetBoolArg("-mine", DEFAULT_MINING);
 }
 
 UniValue getmining(const JSONRPCRequest& request)

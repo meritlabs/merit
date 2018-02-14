@@ -896,17 +896,19 @@ UniValue inviteaddress(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() != 1)
+    if (request.fHelp || request.params.size() == 0 || request.params.size() > 2)
         throw std::runtime_error(
-            "inviteaddress \"address\""
+            "inviteaddress \"address\" (amount)" 
             "\nConfirm given address's referral.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
             "1. \"address\"  (string, required) The merit address to confirm.\n"
+            "2. \"amount\"   (number, optional) Optional amount of invites to send to the address. Default is 1.\n"
             "\nResult:\n"
             "\"txid\"        (string) The invite transaction id.\n"
             "\nExamples:\n"
             + HelpExampleCli("inviteaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
+            + HelpExampleCli("inviteaddress", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\" 10")
         );
 
     if(!pwallet->Daedalus()) {
@@ -921,13 +923,21 @@ UniValue inviteaddress(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
 
+    int amount = 1;
+    if(!request.params[1].isNull()) {
+        amount = request.params[1].get_int();
+        if(amount < 1) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Amount should be at least 1");
+        }
+    }
+
     EnsureWalletIsUnlocked(pwallet);
 
     if (pwallet->GetBroadcastTransactions() && !g_connman) {
         throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
     }
 
-    auto tx = pwallet->SendInviteTo(GetScriptForDestination(dest));
+    auto tx = pwallet->SendInviteTo(GetScriptForDestination(dest), amount);
     if(!tx) {
        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to confirm the address");
     }
@@ -4939,10 +4949,10 @@ UniValue generate(const JSONRPCRequest& request)
         max_tries = request.params[1].get_int();
     }
 
-    int nThreads = DEFAULT_MINING_THREADS;
+    int pow_threads = DEFAULT_MINING_POW_THREADS;
 
     if (!request.params[2].isNull()) {
-        nThreads = request.params[2].get_int();
+        pow_threads = request.params[2].get_int();
     }
 
     std::shared_ptr<CReserveScript> coinbase_script;
@@ -4958,7 +4968,7 @@ UniValue generate(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INTERNAL_ERROR, "No coinbase script available");
     }
 
-    return generateBlocks(coinbase_script, num_generate, max_tries, true, nThreads);
+    return generateBlocks(coinbase_script, num_generate, max_tries, true, pow_threads);
 }
 
 UniValue unlockwallet(const JSONRPCRequest& request)

@@ -16,17 +16,6 @@ namespace cuckoo
 {
 
 /**
- * Find cycle for block that satisfies the proof-of-work requirement specified
- * by block hash
- */
-bool FindProofOfWork(
-        uint256 hash,
-        unsigned int nBits,
-        uint8_t edgeBits,
-        std::set<uint32_t>& cycle,
-        const Consensus::Params& params);
-
-/**
  * Check that provided cycle satisfies the proof-of-work requirement specified
  * by block hash
  */

@@ -359,10 +359,13 @@ namespace referral
         return anvs;
     }
 
-    AddressANVs ReferralsViewDB::GetAllRewardableANVs() const
+    void ReferralsViewDB::GetAllRewardableANVs(
+            const Consensus::Params& params,
+            int height,
+            referral::AddressANVs& entrants) const
     {
         const auto heap_size = GetLotteryHeapSize();
-        AddressANVs anvs;
+        bool found_genesis = false;
         for (uint64_t i = 0; i < heap_size; i++) {
             LotteryEntrant v;
             if (!m_db.Read(std::make_pair(DB_LOT_VAL, i), v)) {
@@ -378,9 +381,17 @@ namespace referral
                 continue;
             }
 
-            anvs.push_back(*maybe_anv);
+            /*
+             * After block 13499 the genesis address does not participate in the lottery.
+             * So don't include the genesis address as an entrant.
+             */
+            if(!found_genesis && height >= 13500 && maybe_anv->address == params.genesis_address) {
+                found_genesis = true;
+                continue;
+            }
+
+            entrants.push_back(*maybe_anv);
         }
-        return anvs;
     }
 
     bool ReferralsViewDB::FindLotteryPos(const Address& address, uint64_t& pos) const

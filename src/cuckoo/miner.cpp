@@ -15,29 +15,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "util.h"
 #include <vector>
 
 namespace cuckoo
 {
-
-bool FindProofOfWork(
-        const uint256 hash,
-        unsigned int nBits,
-        uint8_t edgeBits,
-        std::set<uint32_t>& cycle,
-        const Consensus::Params& params)
-{
-    assert(cycle.empty());
-    bool cycleFound = FindCycle(hash, edgeBits, params.nCuckooProofSize, cycle);
-
-    if (cycleFound && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {
-        return true;
-    }
-
-    cycle.clear();
-
-    return false;
-}
 
 bool VerifyProofOfWork(
         uint256 hash,
@@ -46,6 +28,7 @@ bool VerifyProofOfWork(
         const std::set<uint32_t>& cycle,
         const Consensus::Params& params)
 {
+
     if (cycle.size() != params.nCuckooProofSize) {
         return false;
     }

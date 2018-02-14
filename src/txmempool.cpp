@@ -782,7 +782,14 @@ void CTxMemPool::removeForBlock(const std::vector<CTransactionRef>& vtx, unsigne
             entries.push_back(&*i);
     }
     // Before the txs in the new block have been removed from the mempool, update policy estimates
-    if (minerPolicyEstimator) {minerPolicyEstimator->processBlock(nBlockHeight, entries);}
+    // Skip invites in fee estimation. Assume if first is an invite, all are.
+    if (minerPolicyEstimator && !entries.empty()
+            && entries[0]->GetSharedEntryValue()
+            && entries[0]->GetSharedEntryValue()->IsInvite() == false) {
+
+        minerPolicyEstimator->processBlock(nBlockHeight, entries);
+    }
+
     for (const auto& tx : vtx)
     {
         txiter it = mapTx.find(tx->GetHash());

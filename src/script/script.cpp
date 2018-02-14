@@ -208,18 +208,10 @@ unsigned int CScript::GetSigOpCount(const CScript& scriptSig) const
     return subscript.GetSigOpCount(true);
 }
 
-bool CScript::IsPayToPublicKey() const
-{
-    // Extra-fast test for pay-to-pubkey CScripts:
-    return 
-        (this->size() == 67 && (*this)[66] == OP_CHECKSIG) || 
-        (this->size() == 35 && (*this)[34] == OP_CHECKSIG );
-}
-
 bool CScript::IsPayToPublicKeyHash() const
 {
     // Extra-fast test for pay-to-pubkey-hash CScripts:
-    return 
+    return
         size() == 25 &&
         (*this)[0] == OP_DUP &&
         (*this)[1] == OP_HASH160 &&
@@ -231,7 +223,7 @@ bool CScript::IsPayToPublicKeyHash() const
 bool CScript::IsPayToScriptHash() const
 {
     // Extra-fast test for pay-to-script-hash CScripts:
-    return 
+    return
         size() == 23 &&
         (*this)[0] == OP_HASH160 &&
         (*this)[1] == 0x14 &&
@@ -240,7 +232,7 @@ bool CScript::IsPayToScriptHash() const
 
 bool CScript::IsParameterizedPayToScriptHash() const
 {
-    return 
+    return
         size() > 25 &&
         (*this)[0] == OP_HASH160 &&
         (*this)[1] == 0x14 &&
@@ -249,7 +241,7 @@ bool CScript::IsParameterizedPayToScriptHash() const
         (*this)[size() - 1] == OP_GREATERTHANOREQUAL;
 }
 
-bool CScript::ExtractParameterizedPayToScriptHashParams(CScript& params) const 
+bool CScript::ExtractParameterizedPayToScriptHashParams(CScript& params) const
 {
     if(!IsParameterizedPayToScriptHash()) return false;
 
@@ -268,7 +260,7 @@ bool CScript::IsPayToWitnessScriptHash() const
 
 bool CScript::IsStandardPayToHash() const
 {
-    return 
+    return
         IsPayToPublicKeyHash() ||
         IsPayToScriptHash() ||
         IsParameterizedPayToScriptHash() ||

@@ -40,6 +40,7 @@ static const char DB_REINDEX_FLAG = 'R';
 static const char DB_LAST_BLOCK = 'l';
 
 namespace {
+    const int VERIFY_SAMPLE_COUNT = 10;
 
 struct CoinEntry {
     COutPoint* outpoint;
@@ -414,10 +415,9 @@ bool CBlockTreeDB::WriteTimestampBlockIndex(const CTimestampBlockIndexKey &block
 }
 
 bool CBlockTreeDB::ReadTimestampBlockIndex(const uint256 &hash, unsigned int &ltimestamp) {
-
-    CTimestampBlockIndexValue(lts);
+    CTimestampBlockIndexValue lts;
     if (!Read(std::make_pair(DB_BLOCKHASHINDEX, hash), lts))
-	return false;
+	    return false;
 
     ltimestamp = lts.ltimestamp;
     return true;
@@ -431,11 +431,15 @@ bool CBlockTreeDB::ReadFlag(const std::string &name, bool &fValue) {
     char ch;
     if (!Read(std::make_pair(DB_FLAG, name), ch))
         return false;
+
     fValue = ch == '1';
     return true;
 }
 
-bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, std::function<CBlockIndex*(const uint256&)> insertBlockIndex)
+bool CBlockTreeDB::LoadBlockIndexGuts(
+        const Consensus::Params& consensusParams,
+        std::function<CBlockIndex*(const uint256&)> insertBlockIndex,
+        bool sample)
 {
     std::unique_ptr<CDBIterator> pcursor(NewIterator());
 
@@ -465,8 +469,16 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
                 pindexNew->nTx            = diskindex.nTx;
                 pindexNew->sCycle       = diskindex.sCycle;
 
-                if (!cuckoo::VerifyProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits, pindexNew->nEdgeBits, pindexNew->sCycle, consensusParams))
+                const bool verify = !sample || (rand() % VERIFY_SAMPLE_COUNT) == 0;
+                if (verify && 
+                        !cuckoo::VerifyProofOfWork(
+                            pindexNew->GetBlockHash(),
+                            pindexNew->nBits,
+                            pindexNew->nEdgeBits,
+                            pindexNew->sCycle,
+                            consensusParams)) {
                     return error("%s: CheckProofOfWork failed: %s", __func__, pindexNew->ToString());
+                }
 
                 pcursor->Next();
             } else {

@@ -9,7 +9,6 @@
 #include <QDebug>
 #include <QList>
 
-
 extern referral::ReferralTxMemPool mempoolReferral;
 
 ReferralListPriv::ReferralListPriv(CWallet *_wallet) : wallet{_wallet}
@@ -29,12 +28,12 @@ bool DisplayReferral(
 
     const auto& addr = ref->GetAddress();
 
-    return ShowReferral(ref) 
+    return ShowReferral(ref)
         && addresses.count(addr) == 0
-        && wallet->IsMine(*ref) 
-        && !wallet->IsMe(*ref) 
+        && wallet->IsMine(*ref)
+        && !wallet->IsMe(*ref)
         && CheckAddressBeaconed(addr);
-} 
+}
 
 void ReferralListPriv::Refresh()
 {
@@ -151,7 +150,7 @@ void ReferralListModel::Refresh()
     assert(priv);
     priv->Refresh();
 
-    Q_EMIT dataChanged(index(0, 0), index(priv->Size()-1, 0));
+    Q_EMIT dataChanged(this->index(0, 0), this->index(priv->Size()-1, 0));
 }
 
 // QVariant ReferralListModel::headerData(int section, Qt::Orientation orientation, int role) const;

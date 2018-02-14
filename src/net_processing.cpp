@@ -606,10 +606,12 @@ void UnregisterNodeSignals(CNodeSignals& nodeSignals)
 void AddToCompactExtraTransactions(const CTransactionRef& tx)
 {
     size_t max_extra_txn = gArgs.GetArg("-blockreconstructionextratxn", DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_TXN);
-    if (max_extra_txn <= 0)
+    if (max_extra_txn == 0)
         return;
+
     if (!vExtraTxnForCompact.size())
         vExtraTxnForCompact.resize(max_extra_txn);
+
     vExtraTxnForCompact[vExtraTxnForCompactIt] = std::make_pair(tx->GetWitnessHash(), tx);
     vExtraTxnForCompactIt = (vExtraTxnForCompactIt + 1) % max_extra_txn;
 }
@@ -664,14 +666,12 @@ bool AddOrphanTx(const CTransactionRef& tx, NodeId peer) EXCLUSIVE_LOCKS_REQUIRE
     return true;
 }
 
-int static EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+int EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
     auto it = mapOrphanReferrals.find(hash);
     if (it == mapOrphanReferrals.end()) {
         return 0;
     }
-
-    mapOrphanReferrals.erase(it);
 
     auto itPrev = mapOrphanReferralsByPrev.find(it->second.ref->parentAddress);
 
@@ -684,23 +684,28 @@ int static EraseOrphanReferral(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         }
     }
 
+    mapOrphanReferrals.erase(it);
     return 1;
 }
 
-int static EraseOrphanTx(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+int EraseOrphanTx(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
-    std::map<uint256, COrphanTx>::iterator it = mapOrphanTransactions.find(hash);
-    if (it == mapOrphanTransactions.end())
+    auto it = mapOrphanTransactions.find(hash);
+    if (it == mapOrphanTransactions.end()) {
         return 0;
+    }
+
     for (const CTxIn& txin : it->second.tx->vin)
     {
         auto itPrev = mapOrphanTransactionsByPrev.find(txin.prevout);
         if (itPrev == mapOrphanTransactionsByPrev.end())
             continue;
+
         itPrev->second.erase(it);
         if (itPrev->second.empty())
             mapOrphanTransactionsByPrev.erase(itPrev);
     }
+
     mapOrphanTransactions.erase(it);
     return 1;
 }
@@ -708,17 +713,25 @@ int static EraseOrphanTx(uint256 hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 void EraseOrphansFor(NodeId peer)
 {
     int nErased = 0;
-    for (const auto& it: mapOrphanTransactions) {
-        if (it.second.fromPeer == peer) {
-            nErased += EraseOrphanTx(it.second.tx->GetHash());
+    {
+        auto it = mapOrphanTransactions.begin();
+        while (it != mapOrphanTransactions.end()) {
+            auto maybe_erase = it++;
+            if (maybe_erase->second.fromPeer == peer) {
+                nErased += EraseOrphanTx(maybe_erase->second.tx->GetHash());
+            }
         }
     }
     if (nErased > 0) LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx from peer=%d\n", nErased, peer);
 
     nErased = 0;
-    for (const auto& it: mapOrphanReferrals) {
-        if (it.second.fromPeer == peer) {
-            nErased += EraseOrphanReferral(it.second.ref->GetHash());
+    {
+        auto it = mapOrphanReferrals.begin();
+        while(it != mapOrphanReferrals.end()) {
+            auto maybe_erase = it++; 
+            if (maybe_erase->second.fromPeer == peer) {
+                nErased += EraseOrphanReferral(maybe_erase->second.ref->GetHash());
+            }
         }
     }
     if (nErased > 0) LogPrint(BCLog::REFMEMPOOL, "Erased %d orphan referrals from peer=%d\n", nErased, peer);
@@ -1022,11 +1035,11 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_REFERRAL:
         return recentRejects->contains(inv.hash) ||
             mempoolReferral.Exists(inv.hash) ||
-            mapOrphanReferrals.count(inv.hash);
+            mapOrphanReferrals.count(inv.hash) ||
             prefviewcache->Exists(inv.hash);
+    default:
+        return true;
     }
-    // Don't know what it is, just say we already got one
-    return true;
 }
 
 void RelayInventory(const CInv& inv, CConnman& connman)
@@ -1165,7 +1178,7 @@ void static ProcessGetData(CNode* pfrom, const Consensus::Params& consensusParam
                     } else {
                         // Send block from disk
                         std::shared_ptr<CBlock> pblockRead = std::make_shared<CBlock>();
-                        if (!ReadBlockFromDisk(*pblockRead, (*mi).second, consensusParams))
+                        if (!ReadBlockFromDisk(*pblockRead, (*mi).second, consensusParams, false))
                             assert(!"cannot load block from disk");
                         pblock = pblockRead;
                     }
@@ -1872,7 +1885,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         }
 
         CBlock block;
-        bool ret = ReadBlockFromDisk(block, it->second, chainparams.GetConsensus());
+        bool ret = ReadBlockFromDisk(block, it->second, chainparams.GetConsensus(), false);
         assert(ret);
 
         SendBlockTransactions(block, req, pfrom, connman);
@@ -2177,13 +2190,15 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
                 for (const auto& mi : itByPrev->second) {
 
-                    const auto fromPeerId = (*mi).second.fromPeer;
+                    const auto fromPeerId = mi->second.fromPeer;
 
                     if (setMisbehaving.count(fromPeerId)) {
                         continue;
                     }
 
-                    const auto& porphanRef = (*mi).second.ref;
+                    const auto& porphanRef = mi->second.ref;
+                    assert(porphanRef);
+
                     const auto& orphanRef = *porphanRef;
                     const auto& orphanHash = orphanRef.GetHash();
 
@@ -2435,7 +2450,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 mapBlockSource.emplace(pblock->GetHash(), std::make_pair(pfrom->GetId(), false));
             }
             bool fNewBlock = false;
-            ProcessNewBlock(chainparams, pblock, true, &fNewBlock);
+            ProcessNewBlock(chainparams, pblock, true, &fNewBlock, IsInitialBlockDownload());
             if (fNewBlock) {
                 pfrom->nLastBlockTime = GetTime();
             } else {
@@ -2515,7 +2530,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             bool fNewBlock = false;
             // Since we requested this block (it was in mapBlocksInFlight), force it to be processed,
             // even if it would not be a candidate for new tip (missing previous block, chain not long enough, etc)
-            ProcessNewBlock(chainparams, pblock, true, &fNewBlock);
+            ProcessNewBlock(chainparams, pblock, true, &fNewBlock, IsInitialBlockDownload());
             if (fNewBlock) {
                 pfrom->nLastBlockTime = GetTime();
             } else {
@@ -2701,7 +2716,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             mapBlockSource.emplace(hash, std::make_pair(pfrom->GetId(), true));
         }
         bool fNewBlock = false;
-        ProcessNewBlock(chainparams, pblock, forceProcessing, &fNewBlock);
+        ProcessNewBlock(chainparams, pblock, forceProcessing, &fNewBlock, IsInitialBlockDownload());
         if (fNewBlock) {
             pfrom->nLastBlockTime = GetTime();
         } else {
@@ -2896,7 +2911,8 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         pfrom->fRelayTxes = true;
     }
 
-    else if (strCommand == NetMsgType::FEEFILTER) {
+    else if (strCommand == NetMsgType::FEEFILTER)
+    {
         CAmount newFeeFilter = 0;
         vRecv >> newFeeFilter;
         if (MoneyRange(newFeeFilter)) {
@@ -3321,7 +3337,7 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                     }
                     if (!fGotBlockFromCache) {
                         CBlock block;
-                        bool ret = ReadBlockFromDisk(block, pBestIndex, consensusParams);
+                        bool ret = ReadBlockFromDisk(block, pBestIndex, consensusParams, false);
                         assert(ret);
                         BlockHeaderAndShortIDs cmpctblock(block, state.fWantsCmpctWitness);
                         connman.PushMessage(pto, msgMaker.Make(nSendFlags, NetMsgType::CMPCTBLOCK, cmpctblock));
