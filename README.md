@@ -1,16 +1,18 @@
-Merit Core   
+Merit Core
 =====================================
 
-### Merit aims to be the world's most adopted digital currency. 
+[![Build Status](https://travis-ci.org/meritlabs/merit.svg?branch=master)](https://travis-ci.org/meritlabs/merit)
+
+### Merit aims to be the world's most adopted digital currency.
 You can learn more about the Merit Vision at: www.merit.me
 
 What is Merit?
 ----------------
 
-Merit is a digital currency that focuses on community, simplicity, and safety. It introduces significant innovation to previous digital currencies.  Namely, it is: 
-* Merit is **invite-only**. 
+Merit is a digital currency that focuses on community, simplicity, and safety. It introduces significant innovation to previous digital currencies.  Namely, it is:
+* Merit is **invite-only**.
 * Merit introduces the notion of **ambassador mining** in addition to classic _security mining._
-* Merit features **decentralized vaults** on the blockchain to protect and provide peace-of-mind. 
+* Merit features **decentralized vaults** on the blockchain to protect and provide peace-of-mind.
 * Merit can be sent to **anyone** whether they have a Merit Wallet yet or not.
 
 Merit Core is a distributed peer-to-peer server that maintains a ledger using a global blockchain. For the convenience of all users, especially non-technical ones, you can also use Merit Core to mine on your machine with a couple of clicks.
@@ -21,8 +23,9 @@ Community Resources
 
 Merit aims to be present wherever users of the community are.  To that end, you can find members of the core team on:
 
-![Slack Badge](https://slackin.merit.me/badge.svg) 
-* [Slack](https://slackin.merit.me) 
+![Slack Badge](https://slackin.merit.me/badge.svg)
+
+* [Slack](https://slackin.merit.me)
 * [Telegram](https://t.me/meritworld)
 * [Discord](https://discord.gg/X3v3n3b)
 * [Merit Forum](https://forum.merit.me/) @ www.merit.me
@@ -51,14 +54,14 @@ such as any recent GCC or Clang version.
     cd src/
     make obj/build.h
     cd ../
-    make 
+    make
     make install
 
 
 Start Mining
 ---------------
 
-Before you can use Merit and mine you must unlock your wallet by giving it a parent key. 
+Before you can use Merit and mine you must unlock your wallet by giving it a parent key.
 Merit is currently invite-only and typically the parent key is owned by someone
 who is willing to invite you to merit. Once you unlock the wallet you will have
 to wait for the other person to confirm the wallet before you can mine.
