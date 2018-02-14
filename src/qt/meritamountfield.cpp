@@ -15,6 +15,7 @@
 #include <QKeyEvent>
 #include <QLineEdit>
 
+static constexpr int MERIT_STEP_SIZE = 100000;
 /** QSpinBox that uses fixed-point numbers internally and uses our own
  * formatting/parsing functions.
  */
@@ -26,7 +27,7 @@ public:
     explicit AmountSpinBox(QWidget *parent):
         QAbstractSpinBox(parent),
         currentUnit(MeritUnits::MRT),
-        singleStep(100000) // satoshis
+        singleStep(MERIT_STEP_SIZE) // satoshis
     {
         setAlignment(Qt::AlignRight);
 
@@ -193,7 +194,8 @@ Q_SIGNALS:
 
 MeritAmountField::MeritAmountField(QWidget *parent) :
     QWidget(parent),
-    amount(0)
+    amount(0),
+    unitModel(nullptr)
 {
     amount = new AmountSpinBox(this);
     amount->setLocale(QLocale::c());
@@ -202,8 +204,9 @@ MeritAmountField::MeritAmountField(QWidget *parent) :
 
     QHBoxLayout *layout = new QHBoxLayout(this);
     layout->addWidget(amount);
+    unitModel = new MeritUnits(this);
     unit = new QValueComboBox(this);
-    unit->setModel(new MeritUnits(this));
+    unit->setModel(unitModel);
     layout->addWidget(unit);
     layout->addStretch(1);
     layout->setContentsMargins(0,0,0,0);
@@ -300,4 +303,20 @@ void MeritAmountField::setDisplayUnit(int newUnit)
 void MeritAmountField::setSingleStep(const CAmount& step)
 {
     amount->setSingleStep(step);
+}
+
+void MeritAmountField::setInviteMode()
+{
+    unitModel->setToInviteUnits();
+    setDisplayUnit(MeritUnits::INV);
+    amount->setDisplayUnit(MeritUnits::INV);
+    setSingleStep(1);
+}
+
+void MeritAmountField::setMeritMode()
+{
+    unitModel->setToMeritUnits();
+    setDisplayUnit(MeritUnits::MRT);
+    amount->setDisplayUnit(MeritUnits::MRT);
+    setSingleStep(MERIT_STEP_SIZE);
 }

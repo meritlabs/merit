@@ -11,6 +11,7 @@
 #include <QWidget>
 
 class AmountSpinBox;
+class MeritUnits;
 
 QT_BEGIN_NAMESPACE
 class QValueComboBox;
@@ -57,6 +58,9 @@ public:
     */
     QWidget *setupTabChain(QWidget *prev);
 
+    void setInviteMode();
+    void setMeritMode();
+
 Q_SIGNALS:
     void valueChanged();
 
@@ -66,6 +70,7 @@ protected:
 
 private:
     AmountSpinBox *amount;
+    MeritUnits *unitModel;
     QValueComboBox *unit;
 
 private Q_SLOTS:

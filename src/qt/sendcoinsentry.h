@@ -46,6 +46,12 @@ public:
     QWidget *setupTabChain(QWidget *prev);
 
     void setFocus();
+    enum sendingType
+    {
+        SEND_MRT_INDEX = 0,
+        SEND_INV_INDEX = 1
+    };
+
 
 public Q_SLOTS:
     void clear();
@@ -54,6 +60,7 @@ Q_SIGNALS:
     void removeEntry(SendCoinsEntry *entry);
     void payAmountChanged();
     void subtractFeeFromAmountChanged();
+    void sendTypeChanged(int index);
 
 private Q_SLOTS:
     void deleteClicked();
@@ -61,6 +68,7 @@ private Q_SLOTS:
     void on_addressBookButton_clicked();
     void on_pasteButton_clicked();
     void updateDisplayUnit();
+    void updateSendType(int index);
 
 private:
     SendCoinsRecipient recipient;
@@ -68,6 +76,7 @@ private:
     WalletModel *model;
     const PlatformStyle *platformStyle;
 
+    void setupComboBox();
     bool updateLabel(const QString &address);
 };
 

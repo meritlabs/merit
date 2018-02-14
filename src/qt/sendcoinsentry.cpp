@@ -47,6 +47,8 @@ SendCoinsEntry::SendCoinsEntry(const PlatformStyle *_platformStyle, QWidget *par
     connect(ui->deleteButton, SIGNAL(clicked()), this, SLOT(deleteClicked()));
     connect(ui->deleteButton_is, SIGNAL(clicked()), this, SLOT(deleteClicked()));
     connect(ui->deleteButton_s, SIGNAL(clicked()), this, SLOT(deleteClicked()));
+
+    setupComboBox();
 }
 
 SendCoinsEntry::~SendCoinsEntry()
@@ -266,4 +268,29 @@ bool SendCoinsEntry::updateLabel(const QString &address)
     }
 
     return false;
+}
+
+void SendCoinsEntry::setupComboBox()
+{
+    ui->sendTypeComboBox->insertItem(SEND_MRT_INDEX, QStringLiteral("Send Merit"));
+    ui->sendTypeComboBox->insertItem(SEND_INV_INDEX, QStringLiteral("Send Invites"));
+    connect(ui->sendTypeComboBox, SIGNAL(currentIndexChanged(int)), this, SIGNAL(sendTypeChanged(int)));
+    connect(ui->sendTypeComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(updateSendType(int)));
+}
+
+void SendCoinsEntry::updateSendType(int newIndex)
+{
+    switch(newIndex)
+    {
+        case SEND_MRT_INDEX:
+            ui->checkboxSubtractFeeFromAmount->setEnabled(true);
+            ui->checkboxSubtractFeeFromAmount->setHidden(false);
+            ui->payAmount->setMeritMode();
+            break;
+        case SEND_INV_INDEX:
+            ui->checkboxSubtractFeeFromAmount->setEnabled(false);
+            ui->checkboxSubtractFeeFromAmount->setHidden(true);
+            ui->payAmount->setInviteMode();
+            break;
+    }
 }
