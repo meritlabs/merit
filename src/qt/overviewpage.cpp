@@ -308,12 +308,12 @@ void OverviewPage::handleReferralClicked(const QModelIndex &index)
         tr("Do you want to invite") + " " + addressString + "?":
         tr("Do you want to invite") + " @" + aliasString + " " + tr("with the address") + " " + addressString + "?";
     
-    QMessageBox *msgBox = new QMessageBox(QMessageBox::Question,
-                                title, text,
-                                QMessageBox::Yes | QMessageBox::No,
-                                this);
-    msgBox->setStyleSheet(QString("QMessageBox { background-color: white; }"));
-    auto ret = msgBox->exec();
+    QMessageBox msgBox{QMessageBox::Question,
+                        title, text,
+                        QMessageBox::Yes | QMessageBox::No,
+                        this};
+    msgBox.setStyleSheet(QString("QMessageBox { background-color: white; }"));
+    auto ret = msgBox.exec();
     if(ret != QMessageBox::Yes) {
         return;
     }
