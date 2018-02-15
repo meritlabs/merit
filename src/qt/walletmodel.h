@@ -146,6 +146,7 @@ public:
     referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string alias = "");
 
     bool AliasExists(const std::string& alias) const;
+    QString GetAlias() const;
     bool AddressBeaconed(const CMeritAddress& address) const;
     bool AddressConfirmed(const CMeritAddress& address) const;
     bool Daedalus() const;

@@ -507,8 +507,8 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
 
         int type = ExtractAddressFromScript(hashBytes, prevout.scriptPubKey);
         if(type > 0) {
-            CMempoolAddressDeltaKey key(type, uint160(hashBytes), txhash, j, 1);
-            CMempoolAddressDelta delta(entry.GetTime(), prevout.nValue * -1, input.prevout.hash, input.prevout.n, tx.IsInvite());
+            CMempoolAddressDeltaKey key(type, uint160(hashBytes), txhash, j, 1, tx.IsInvite());
+            CMempoolAddressDelta delta(entry.GetTime(), prevout.nValue * -1, input.prevout.hash, input.prevout.n);
             mapAddress.insert(std::make_pair(key, delta));
             inserted.push_back(key);
         }
@@ -519,8 +519,8 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
 
         int type = ExtractAddressFromScript(hashBytes, out.scriptPubKey);
         if(type > 0) {
-            CMempoolAddressDeltaKey key(type, uint160(hashBytes), txhash, k, 0);
-            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(entry.GetTime(), out.nValue, out.scriptPubKey, tx.IsInvite())));
+            CMempoolAddressDeltaKey key(type, uint160(hashBytes), txhash, k, 0, tx.IsInvite());
+            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(entry.GetTime(), out.nValue, out.scriptPubKey)));
             inserted.push_back(key);
         }
     }
@@ -782,7 +782,14 @@ void CTxMemPool::removeForBlock(const std::vector<CTransactionRef>& vtx, unsigne
             entries.push_back(&*i);
     }
     // Before the txs in the new block have been removed from the mempool, update policy estimates
-    if (minerPolicyEstimator) {minerPolicyEstimator->processBlock(nBlockHeight, entries);}
+    // Skip invites in fee estimation. Assume if first is an invite, all are.
+    if (minerPolicyEstimator && !entries.empty()
+            && entries[0]->GetSharedEntryValue()
+            && entries[0]->GetSharedEntryValue()->IsInvite() == false) {
+
+        minerPolicyEstimator->processBlock(nBlockHeight, entries);
+    }
+
     for (const auto& tx : vtx)
     {
         txiter it = mapTx.find(tx->GetHash());
@@ -1107,7 +1114,7 @@ bool CCoinsViewMemPool::GetCoin(const COutPoint &outpoint, Coin &coin) const {
     CTransactionRef ptx = mempool.get(outpoint.hash);
     if (ptx) {
         if (outpoint.n < ptx->vout.size()) {
-            coin = Coin(ptx->vout[outpoint.n], MEMPOOL_HEIGHT, false, false);
+            coin = Coin(ptx->vout[outpoint.n], MEMPOOL_HEIGHT, false, ptx->IsInvite());
             return true;
         } else {
             return false;

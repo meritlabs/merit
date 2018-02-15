@@ -285,8 +285,6 @@ namespace
         return state.Error(strMessage);
     }
 
-    const char PARAM_SCRIPT_ADDRESS = 3;
-
     const int DEFAULT_VALIDATE_SAMPLE_COUNT = 10;
 
     bool ShouldValidate(bool sample)
@@ -1079,7 +1077,7 @@ static bool AcceptToMemoryPoolWorker(
                         for (const auto& address: indexes) {
                             // if address is of invite tx and it is out,
                             // then we found confirmation invite in mempool ==> duplicate
-                            if (address.second.is_invite && address.second.prevhash.IsNull()) {
+                            if (address.first.invite && address.second.prevhash.IsNull()) {
                                 debug("Found confirmation tx in mempool for same alias \"%s\"", referral->alias);
                                 return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
                             }
@@ -3353,8 +3351,7 @@ void IndexTransaction(
 {
     const auto& txhash = tx.GetHash();
 
-    if (!tx.IsCoinBase())
-    {
+    if (!tx.IsCoinBase()) {
         for (unsigned int j = 0; j < static_cast<unsigned int>(tx.vin.size()); j++) {
 
             const CTxIn input = tx.vin[j];
@@ -3403,7 +3400,6 @@ void IndexTransaction(
                             static_cast<int>(addressType),
                             hashBytes}));
         }
-
     }
 
     for (unsigned int k = 0; k < tx.vout.size(); k++) {
@@ -3474,7 +3470,7 @@ static bool ConnectBlock(
     if (!CheckBlock(
                 block,
                 state,
-                chainparams.GetConsensus(), 
+                chainparams.GetConsensus(),
                 !fJustCheck,
                 !fJustCheck)) {
         return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
