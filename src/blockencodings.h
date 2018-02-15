@@ -162,12 +162,13 @@ public:
 
             // Transactions and invites are mixed up, seperate them and then
             // move the invites to the invites vector.
-            auto invite_itr = std::partition(txn.begin(), txn.end(),
+            auto invite_itr = std::stable_partition(txn.begin(), txn.end(),
                     [](const CTransactionRef& tx) {
                         return tx->IsInvite() == false;
                     });
 
             const auto real_txn_size = std::distance(txn.begin(), invite_itr);
+            assert(real_txn_size >= 0);
 
             invites.resize(std::distance(invite_itr, txn.end()));
             std::copy(invite_itr, txn.end(), invites.begin());
