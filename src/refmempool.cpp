@@ -20,17 +20,17 @@
 namespace referral
 {
 
-Address GetAddress(const RefMemPoolEntry& entry)
+const Address& GetAddress(const RefMemPoolEntry& entry)
 {
     return entry.GetSharedEntryValue()->GetAddress();
 }
 
-std::string GetAlias(const RefMemPoolEntry& entry)
+const std::string& GetAlias(const RefMemPoolEntry& entry)
 {
     return entry.GetSharedEntryValue()->alias;
 }
 
-Address GetParentAddress(const RefMemPoolEntry& entry)
+const Address& GetParentAddress(const RefMemPoolEntry& entry)
 {
     return entry.GetSharedEntryValue()->parentAddress;
 }

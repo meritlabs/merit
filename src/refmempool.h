@@ -80,9 +80,9 @@ struct referral_alias {
 struct referral_parent {
 };
 
-Address GetAddress(const RefMemPoolEntry& entry);
-std::string GetAlias(const RefMemPoolEntry& entry);
-Address GetParentAddress(const RefMemPoolEntry& entry);
+const Address& GetAddress(const RefMemPoolEntry& entry);
+const std::string& GetAlias(const RefMemPoolEntry& entry);
+const Address& GetParentAddress(const RefMemPoolEntry& entry);
 
 class ReferralTxMemPool
 {
@@ -103,7 +103,7 @@ public:
                 boost::multi_index::tag<referral_address>,
                 boost::multi_index::global_fun<
                     const RefMemPoolEntry&,
-                    Address,
+                    const Address&,
                     &GetAddress>,
                 SaltedHasher<160>>,
             // use non-unique here to support empty tags.
@@ -113,13 +113,13 @@ public:
                 boost::multi_index::tag<referral_alias>,
                 boost::multi_index::global_fun<
                     const RefMemPoolEntry&,
-                    std::string,
+                    const std::string&,
                     &GetAlias>>,
             boost::multi_index::hashed_non_unique<
                 boost::multi_index::tag<referral_parent>,
                 boost::multi_index::global_fun<
                     const RefMemPoolEntry&,
-                    Address,
+                    const Address&,
                     &GetParentAddress>,
                 SaltedHasher<160>>,
             // sorted by descendants count
