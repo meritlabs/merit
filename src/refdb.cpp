@@ -823,8 +823,8 @@ namespace referral
             confirmation.second = amount;
             new_confirmation = true;
         } else {
-            confirmation.second +=amount;
-            assert(confirmation.second > 0);
+            confirmation.second += amount;
+            assert(confirmation.second >= 0);
         }
 
         if (!m_db.Write(
@@ -909,7 +909,7 @@ namespace referral
         }
 
         debug("Confirming %d pre daedalus addresses", addresses.size());
-        std::sort(addresses.begin(), addresses.end(), 
+        std::sort(addresses.begin(), addresses.end(),
                 [](const AddressPair& a, const AddressPair& b) {
                 return a.second < b.second;
                 });
