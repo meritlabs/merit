@@ -806,6 +806,7 @@ UniValue getaddressmempool(const JSONRPCRequest& request)
             "    \"timestamp\"  (number) The time the transaction entered the mempool (seconds)\n"
             "    \"prevtxid\"  (string) The previous txid (if spending)\n"
             "    \"prevout\"  (string) The previous transaction output index (if spending)\n"
+            "    \"isInvite\"  (boolean) If transaction is an invite\n"
             "  }\n"
             "]\n"
             "\nExamples:\n"
@@ -844,6 +845,7 @@ UniValue getaddressmempool(const JSONRPCRequest& request)
         delta.push_back(Pair("satoshis", it->second.amount));
         delta.push_back(Pair("script", HexStr(it->second.scriptPubKey)));
         delta.push_back(Pair("timestamp", it->second.time));
+        delta.push_back(Pair("isInvite", it->first.invite));
         if (it->second.amount < 0) {
             delta.push_back(Pair("prevtxid", it->second.prevhash.GetHex()));
             delta.push_back(Pair("prevout", (int)it->second.prevout));
@@ -1439,7 +1441,6 @@ void DecorateEasySendTransactionInformation(UniValue& ret, const IndexPair& pair
 {
     const auto& key = pair.first;
 
-    ret.push_back(Pair("found", true));
     ret.push_back(Pair("txid", key.txhash.GetHex()));
     ret.push_back(Pair("index", static_cast<int>(key.index)));
     ret.push_back(Pair("amount", !key.invite ? ValueFromAmount(GetAmount(pair.second)) : GetAmount(pair.second)));
@@ -1531,8 +1532,6 @@ UniValue getinputforeasysend(const JSONRPCRequest& request)
         }
     }
 
-    //If we get here we didn't find a transaction with the addresss.
-    ret.push_back(Pair("found", false));
     return ret;
 }
 
