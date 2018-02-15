@@ -13,6 +13,7 @@
 
 class ClientModel;
 class TransactionFilterProxy;
+class QSortFilterProxyModel;
 class ReferralViewDelegate;
 class TxViewDelegate;
 class PlatformStyle;
@@ -76,7 +77,9 @@ private:
 
     ReferralViewDelegate *referraldelegate;
     TxViewDelegate *txdelegate;
-    std::unique_ptr<TransactionFilterProxy> filter;
+    std::unique_ptr<TransactionFilterProxy> txFilter;
+    std::unique_ptr<QSortFilterProxyModel> pendingRequestsFilter;
+    std::unique_ptr<QSortFilterProxyModel> approvedRequestsFilter;
     bool is_confirmed = false;
 
     long mempool_size = 0;

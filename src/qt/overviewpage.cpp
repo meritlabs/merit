@@ -261,12 +261,16 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     ui->inviteNotice->hide();
 
     // Unlock Requests
-    ui->listNetwork->setItemDelegate(referraldelegate);
-    ui->listNetwork->setMinimumHeight(DECORATION_SIZE + 2);
-    ui->listNetwork->setAttribute(Qt::WA_MacShowFocusRect, false);
+    ui->listPendingRequests->setItemDelegate(referraldelegate);
+    ui->listPendingRequests->setMinimumHeight(DECORATION_SIZE + 2);
+    ui->listPendingRequests->setMaximumHeight(3 * (DECORATION_SIZE + 2));
+    ui->listPendingRequests->setAttribute(Qt::WA_MacShowFocusRect, false);
+    ui->listApprovedRequests->setItemDelegate(referraldelegate);
+    ui->listApprovedRequests->setMinimumHeight(DECORATION_SIZE + 2);
+    ui->listApprovedRequests->setAttribute(Qt::WA_MacShowFocusRect, false);
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
-    connect(ui->listNetwork, SIGNAL(clicked(QModelIndex)), this, SLOT(handleReferralClicked(QModelIndex)));
+    connect(ui->listPendingRequests, SIGNAL(clicked(QModelIndex)), this, SLOT(handleReferralClicked(QModelIndex)));
 
     // start with displaying the "out of sync" warnings
     showOutOfSyncWarning(true);
@@ -277,8 +281,8 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
 
 void OverviewPage::handleTransactionClicked(const QModelIndex &index)
 {
-    if(filter)
-        Q_EMIT transactionClicked(filter->mapToSource(index));
+    if(txFilter)
+        Q_EMIT transactionClicked(txFilter->mapToSource(index));
 }
 
 void OverviewPage::handleReferralClicked(const QModelIndex &index)
@@ -461,18 +465,29 @@ void OverviewPage::setWalletModel(WalletModel *model)
     if(model && model->getOptionsModel())
     {
         // Set up transaction list
-        filter.reset(new TransactionFilterProxy());
-        filter->setSourceModel(model->getTransactionTableModel());
-        filter->setLimit(NUM_ITEMS);
-        filter->setDynamicSortFilter(true);
-        filter->setSortRole(Qt::EditRole);
-        filter->setShowInactive(false);
-        filter->sort(TransactionTableModel::Date, Qt::DescendingOrder);
+        txFilter.reset(new TransactionFilterProxy());
+        txFilter->setSourceModel(model->getTransactionTableModel());
+        txFilter->setLimit(NUM_ITEMS);
+        txFilter->setDynamicSortFilter(true);
+        txFilter->setSortRole(Qt::EditRole);
+        txFilter->setShowInactive(false);
+        txFilter->sort(TransactionTableModel::Date, Qt::DescendingOrder);
 
-        ui->listTransactions->setModel(filter.get());
+        pendingRequestsFilter.reset(new QSortFilterProxyModel(this));
+        pendingRequestsFilter->setSourceModel(model->getReferralListModel());
+        pendingRequestsFilter->setFilterRole(ReferralListModel::StatusRole);
+        pendingRequestsFilter->setFilterFixedString(QString("Pending"));
+
+        approvedRequestsFilter.reset(new QSortFilterProxyModel(this));
+        approvedRequestsFilter->setSourceModel(model->getReferralListModel());
+        approvedRequestsFilter->setFilterRole(ReferralListModel::StatusRole);
+        approvedRequestsFilter->setFilterFixedString(QString("Confirmed"));
+
+        ui->listTransactions->setModel(txFilter.get());
         ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
 
-        ui->listNetwork->setModel(model->getReferralListModel());
+        ui->listPendingRequests->setModel(pendingRequestsFilter.get());
+        ui->listApprovedRequests->setModel(approvedRequestsFilter.get());
 
         is_confirmed = walletModel->IsConfirmed();
         UpdateInvitationStatus();
