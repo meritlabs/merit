@@ -271,7 +271,7 @@ bool ProcessNewBlock(
         const std::shared_ptr<const CBlock> pblock,
         bool fForceProcessing,
         bool* fNewBlock,
-        bool validate);
+        bool sample);
 
 /**
  * Process incoming block headers.
