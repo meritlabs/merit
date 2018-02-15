@@ -56,7 +56,7 @@ std::string EncodeHexRef(const referral::Referral& ref);
 void ScriptPubKeyToUniv(
         const CScript& scriptPubKey,
         UniValue& out,
-        bool fIncludeHex);
+        bool fIncludeHex = true);
 
 void TxToUniv(
         const CTransaction& tx,

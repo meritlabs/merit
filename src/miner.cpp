@@ -893,7 +893,7 @@ static bool ProcessBlockFound(const CBlock* pblock, const CChainParams& chainpar
 
     // Process this block the same as if we had received it from another node
     std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(*pblock);
-    if (!ProcessNewBlock(chainparams, shared_pblock, true, nullptr, true))
+    if (!ProcessNewBlock(chainparams, shared_pblock, true, nullptr, false))
         return error("MeritMiner: ProcessNewBlock, block not accepted");
 
     return true;

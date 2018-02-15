@@ -77,8 +77,12 @@ struct referral_address {
 struct referral_alias {
 };
 
-Address GetAddress(const RefMemPoolEntry& entry);
-std::string GetAlias(const RefMemPoolEntry& entry);
+struct referral_parent {
+};
+
+const Address& GetAddress(const RefMemPoolEntry& entry);
+const std::string& GetAlias(const RefMemPoolEntry& entry);
+const Address& GetParentAddress(const RefMemPoolEntry& entry);
 
 class ReferralTxMemPool
 {
@@ -99,7 +103,7 @@ public:
                 boost::multi_index::tag<referral_address>,
                 boost::multi_index::global_fun<
                     const RefMemPoolEntry&,
-                    Address,
+                    const Address&,
                     &GetAddress>,
                 SaltedHasher<160>>,
             // use non-unique here to support empty tags.
@@ -109,8 +113,15 @@ public:
                 boost::multi_index::tag<referral_alias>,
                 boost::multi_index::global_fun<
                     const RefMemPoolEntry&,
-                    std::string,
+                    const std::string&,
                     &GetAlias>>,
+            boost::multi_index::hashed_non_unique<
+                boost::multi_index::tag<referral_parent>,
+                boost::multi_index::global_fun<
+                    const RefMemPoolEntry&,
+                    const Address&,
+                    &GetParentAddress>,
+                SaltedHasher<160>>,
             // sorted by descendants count
             boost::multi_index::ordered_non_unique<
                 boost::multi_index::tag<descendants_count>,
@@ -125,6 +136,7 @@ public:
     using RefIter = indexed_referrals_set::nth_index<0>::type::iterator;
     using RefAddressIter = indexed_referrals_set::nth_index<1>::type::iterator;
     using RefAliasIter = indexed_referrals_set::nth_index<2>::type::iterator;
+    using RefParentIter = indexed_referrals_set::nth_index<3>::type::iterator;
 
     using setEntries = std::set<RefIter, CompareIteratorByHash<RefIter>>;
 
@@ -184,7 +196,7 @@ public:
     void CalculateDescendants(RefIter entryit, setEntries& setDescendants) const;
 
     /**
-     * Get children of a given referral
+     * Get children of a given mempool entry referral
      */
     const setEntries& GetMemPoolChildren(RefIter entry) const;
 
@@ -215,7 +227,11 @@ public:
     /** Get referral by id - hash, address or alias */
     ReferralRef Get(const ReferralId& referral_id) const;
 
+    /** Find all referrals with given alias */
     std::pair<RefAliasIter, RefAliasIter> Find(const std::string& alias) const;
+
+    /** Find all referrals with given parent address */
+    std::pair<RefParentIter, RefParentIter> Find(const Address& parentAddress) const;
 
     unsigned long Size() const
     {
