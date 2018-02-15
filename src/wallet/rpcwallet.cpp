@@ -5082,31 +5082,8 @@ UniValue getanv(const JSONRPCRequest& request)
     }
 
     ObserveSafeMode();
-    LOCK2(cs_main, pwallet->cs_wallet);
 
-    std::vector<referral::Address> keys;
-
-    auto addrs = pwallet->mapAddressBook;
-    for (const auto &addrEntry: addrs) {
-        CTxDestination dest = addrEntry.first;
-
-        if (IsMine(*pwallet, dest)) {
-            uint160 key;
-            if(GetUint160(dest, key)) {
-                keys.push_back(key);
-            }
-        }
-    }
-
-    auto anvs = pog::GetANVs(keys, *prefviewdb);
-
-    auto total =
-        std::accumulate(std::begin(anvs), std::end(anvs), CAmount{0},
-            [](CAmount total, const referral::AddressANV& v){
-                return total + v.anv;
-            });
-
-    return total;
+    return pwallet->GetANV();
 }
 
 #ifdef ENABLE_WALLET

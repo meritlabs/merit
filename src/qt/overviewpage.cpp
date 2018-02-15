@@ -486,6 +486,11 @@ void OverviewPage::setWalletModel(WalletModel *model)
                 model->getWatchUnconfirmedBalance(),
                 model->getWatchImmatureBalance(),
                 model->getBalance(nullptr, true));
+        
+        setYourNetwork(
+                model->GetAlias(),
+                model->GetUnlockCode(),
+                model->GetANV());
 
         connect(
                 model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)),
