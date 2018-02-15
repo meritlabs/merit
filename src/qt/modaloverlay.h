@@ -37,6 +37,7 @@ public Q_SLOTS:
     void showHide(bool hide = false, bool userRequested = false);
     void closeClicked();
     bool isLayerVisible() const { return layerIsVisible; }
+    void allowHide();
 
 protected:
     bool eventFilter(QObject * obj, QEvent * ev);
@@ -49,6 +50,7 @@ private:
     QVector<QPair<qint64, int> > block_time_samples;
     bool layerIsVisible;
     bool userClosed;
+    bool canHide = false;
 };
 
 #endif // MERIT_QT_MODALOVERLAY_H

@@ -25,12 +25,13 @@ ModalOverlay::ModalOverlay(QWidget *parent) :
     userClosed(false)
 {
     ui->setupUi(this);
+    ui->closeButton->setEnabled(false);
+    ui->closeButton->setHidden(true);
+
+    connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(closeClicked()));
 
     #ifdef ALLOW_HIDE_SYNC
-        connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(closeClicked()));
-    #else
-        ui->closeButton->setEnabled(false);
-        ui->closeButton->setHidden(true);
+        allowHide();
     #endif
 
     if (parent) {
@@ -176,7 +177,10 @@ void ModalOverlay::toggleVisibility()
 
 void ModalOverlay::showHide(bool hide, bool userRequested)
 {
-    if ( (layerIsVisible && !hide) || (!layerIsVisible && hide) || (!hide && userClosed && !userRequested))
+    if (!canHide ||
+            (layerIsVisible && !hide) || 
+            (!layerIsVisible && hide) || 
+            (!hide && userClosed && !userRequested))
         return;
 
     if (!isVisible() && !hide)
@@ -197,4 +201,11 @@ void ModalOverlay::closeClicked()
 {
     showHide(true);
     userClosed = true;
+}
+
+void ModalOverlay::allowHide()
+{
+    ui->closeButton->setEnabled(true);
+    ui->closeButton->setHidden(false);
+    canHide = true;
 }

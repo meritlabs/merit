@@ -540,7 +540,7 @@ background-color: rgb(232, 179, 54);</string>
               </property>
               <property name="icon">
                <iconset resource="../merit.qrc">
-                <normaloff>:/icons/hourglass</normaloff>:/icons/hourglass</iconset>
+                <normaloff>:/icons/warning</normaloff>:/icons/warning</iconset>
               </property>
               <property name="iconSize">
                <size>
