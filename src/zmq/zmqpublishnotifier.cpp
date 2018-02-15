@@ -172,7 +172,7 @@ bool CZMQPublishHashTransactionNotifier::NotifyTransaction(const CTransaction &t
 bool CZMQPublishHashReferralNotifier::NotifyReferral(const referral::ReferralRef &ref)
 {
     uint256 hash = ref->GetHash();
-    LogPrint(BCLog::ZMQ, "zmq: Publish hashreferral %s\n", hash.GetHex());
+    LogPrint(BCLog::ZMQ, "zmq: Publish hashreferraltx %s\n", hash.GetHex());
     char data[32];
     for (unsigned int i = 0; i < 32; i++)
         data[31 - i] = hash.begin()[i];
