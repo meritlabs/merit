@@ -31,20 +31,9 @@ BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTX
         m_prefilled_txn(1), m_prefilled_inv{}, 
         header(block)
 {
-    bool first_inv_is_coinbase = block.IsDaedalus() && !block.invites.empty() && block.invites[0]->IsCoinBase();
-    if(block.IsDaedalus() && !block.invites.empty()) {
-        m_short_inv_ids.resize(block.invites.size() - (first_inv_is_coinbase ? 1 : 0));
-    }
-
     FillShortIDSelector();
     //TODO: Use our mempool prior to block acceptance to predictively fill more than just the coinbase
     m_prefilled_txn[0] = {0, block.vtx[0]};
-
-    size_t inv_coinbase_end = 0;
-    if(first_inv_is_coinbase) {
-        m_prefilled_inv.push_back({0, block.invites[0]});
-        inv_coinbase_end = 1;
-    }
 
     std::transform(
             std::begin(block.vtx) + 1, std::end(block.vtx), std::begin(m_short_tx_ids),
@@ -52,19 +41,30 @@ BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTX
                 return GetShortID(fUseWTXID ? tx->GetWitnessHash() : tx->GetHash());
             });
 
-    if(block.IsDaedalus() && !block.invites.empty()) {
-        std::transform(
-                std::begin(block.invites) + inv_coinbase_end, std::end(block.invites), std::begin(m_short_inv_ids),
-                [this,fUseWTXID](const CTransactionRef& inv) {
-                return GetShortID(fUseWTXID ? inv->GetWitnessHash() : inv->GetHash());
-                });
-    }
-
     std::transform(
             std::begin(block.m_vRef), std::end(block.m_vRef), std::begin(m_short_ref_ids),
             [this,fUseWTXID](const referral::ReferralRef& ref) {
                 return GetShortID(ref->GetHash());
             });
+
+    if(block.IsDaedalus() && !block.invites.empty()) {
+        auto first_invite = block.invites.begin();
+        size_t short_id_size = block.invites.size();
+
+        //if the first invite is a coinbase we prefill it.
+        if(block.invites[0]->IsCoinBase()) {
+            m_prefilled_inv.push_back({0, block.invites[0]});
+            short_id_size--;
+            first_invite++;
+        }
+
+        m_short_inv_ids.resize(short_id_size);
+        std::transform(
+                first_invite, block.invites.end(), m_short_inv_ids.begin(),
+                [this,fUseWTXID](const CTransactionRef& inv) {
+                    return GetShortID(fUseWTXID ? inv->GetWitnessHash() : inv->GetHash());
+                });
+    }
 }
 
 void BlockHeaderAndShortIDs::FillShortIDSelector() const {
@@ -119,6 +119,11 @@ ReadStatus InitTxnData(
     for (size_t i = 0; i < block_short_tx_ids.size(); i++) {
         while (i + index_offset < txn_available.size() && txn_available[i + index_offset])
             index_offset++;
+
+        if(i + index_offset == txn_available.size()) {
+            break;
+        }
+
         short_tx_ids[block_short_tx_ids[i]] = i + index_offset;
         // To determine the chance that the number of entries in a bucket exceeds N,
         // we use the fact that the number of elements in a single bucket is
@@ -138,7 +143,6 @@ ReadStatus InitTxnData(
     if (short_tx_ids.size() != block_short_tx_ids.size())
         return READ_STATUS_FAILED; // Short ID collision
 
-    std::vector<bool> have_txn(txn_available.size());
     {
         LOCK(txn_pool->cs);
         const std::vector<std::pair<uint256, CTxMemPool::txiter> >& vTxHashes = txn_pool->vTxHashes;
@@ -146,9 +150,8 @@ ReadStatus InitTxnData(
             uint64_t shortid = cmpctblock.GetShortID(vTxHashes[i].first);
             std::unordered_map<uint64_t, uint16_t>::iterator idit = short_tx_ids.find(shortid);
             if (idit != short_tx_ids.end()) {
-                if (!have_txn[idit->second]) {
+                if (txn_available[idit->second] == nullptr) {
                     txn_available[idit->second] = vTxHashes[i].second->GetSharedEntryValue();
-                    have_txn[idit->second]  = true;
                     mempool_txn_count++;
                 } else {
                     // If we find two mempool txn that match the short id, just request it.
@@ -172,9 +175,8 @@ ReadStatus InitTxnData(
         uint64_t shortid = cmpctblock.GetShortID(extra_txn[i].first);
         std::unordered_map<uint64_t, uint16_t>::iterator idit = short_tx_ids.find(shortid);
         if (idit != short_tx_ids.end()) {
-            if (!have_txn[idit->second]) {
+            if (txn_available[idit->second] == nullptr) {
                 txn_available[idit->second] = extra_txn[i].second;
-                have_txn[idit->second]  = true;
                 mempool_txn_count++;
                 extra_txn_count++;
             } else {
@@ -217,9 +219,7 @@ ReadStatus InitRefData(
     std::unordered_map<uint64_t, uint16_t> short_ids(block_short_ids.size());
     uint16_t index_offset = 0;
     for (size_t i = 0; i < block_short_ids.size(); i++) {
-        while (i + index_offset < available.size() && available[i + index_offset])
-            index_offset++;
-        short_ids[block_short_ids[i]] = i + index_offset;
+        short_ids[block_short_ids[i]] = i;
         if (short_ids.bucket_size(short_ids.bucket(block_short_ids[i])) > 12)
             return READ_STATUS_FAILED;
     }
@@ -227,7 +227,6 @@ ReadStatus InitRefData(
     if (short_ids.size() != block_short_ids.size())
         return READ_STATUS_FAILED; // Short ID collision
 
-    std::vector<bool> have_ref(available.size());
     {
         LOCK(pool->cs);
         auto refs = pool->GetReferrals();
@@ -235,9 +234,8 @@ ReadStatus InitRefData(
             uint64_t shortid = cmpctblock.GetShortID(ref->GetHash());
             auto idit = short_ids.find(shortid);
             if (idit != short_ids.end()) {
-                if (!have_ref[idit->second]) {
+                if (available[idit->second] == nullptr) {
                     available[idit->second] = ref;
-                    have_ref[idit->second]  = true;
                     mempool_count++;
                 } else {
                     if (available[idit->second]) {
@@ -255,9 +253,8 @@ ReadStatus InitRefData(
         uint64_t shortid = cmpctblock.GetShortID(e.first);
         auto idit = short_ids.find(shortid);
         if (idit != short_ids.end()) {
-            if (!have_ref[idit->second]) {
+            if (available[idit->second] == nullptr) {
                 available[idit->second] = e.second;
-                have_ref[idit->second]  = true;
                 mempool_count++;
                 extra_count++;
             } else {
@@ -440,7 +437,25 @@ ReadStatus PartiallyDownloadedBlock::FillBlock(
         return READ_STATUS_CHECKBLOCK_FAILED;
     }
 
-    LogPrint(BCLog::CMPCTBLOCK, "Successfully reconstructed block %s with %lu txn prefilled, %lu txn from mempool (incl at least %lu from extra pool) and %lu txn requested\n", hash.ToString(), m_prefilled_txn_count, m_mempool_txn_count, m_extra_txn_count, vtx_missing.size());
+    LogPrint(
+            BCLog::CMPCTBLOCK,
+            "Successfully reconstructed block %s with %lu txn prefilled, %lu inv"
+            " prefilled, %lu txn from mempool,%lu inv from mempool, %lu ref from"
+            " mempool, %lu txn from extra pool, %lu inv from extra pool, %lu ref"
+            " from extra pool, %lu txn requested, %lu inv requested, %lu ref requested\n",
+            hash.ToString(),
+            m_prefilled_txn_count,
+            m_prefilled_inv_count,
+            m_mempool_txn_count,
+            m_mempool_inv_count,
+            m_mempool_ref_count,
+            m_extra_txn_count,
+            m_extra_inv_count,
+            m_extra_ref_count,
+            vtx_missing.size(),
+            inv_missing.size(),
+            ref_missing.size());
+
     if (vtx_missing.size() < 5) {
         for (const auto& tx : vtx_missing) {
             LogPrint(BCLog::CMPCTBLOCK, "Reconstructed block %s required tx %s\n", hash.ToString(), tx->GetHash().ToString());
