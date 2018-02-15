@@ -1317,15 +1317,6 @@ inline void static SendBlockTransactions(const CBlock& block, const BlockTransac
         resp.txn[i] = block.vtx[req.m_transaction_indices[i]];
     }
 
-    for (size_t i = 0; i < req.m_referral_indices.size(); i++) {
-        if (req.m_referral_indices[i] >= block.m_vRef.size()) {
-            LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 100);
-            LogPrintf("Peer %d sent us a getblocktxn with out-of-bounds referral indices", pfrom->GetId());
-            return;
-        }
-        resp.refs[i] = block.m_vRef[req.m_referral_indices[i]];
-    }
     for (size_t i = 0; i < req.m_invite_indices.size(); i++) {
         if (req.m_invite_indices[i] >= block.invites.size()) {
             LOCK(cs_main);
@@ -1334,6 +1325,16 @@ inline void static SendBlockTransactions(const CBlock& block, const BlockTransac
             return;
         }
         resp.invites[i] = block.invites[req.m_invite_indices[i]];
+    }
+
+    for (size_t i = 0; i < req.m_referral_indices.size(); i++) {
+        if (req.m_referral_indices[i] >= block.m_vRef.size()) {
+            LOCK(cs_main);
+            Misbehaving(pfrom->GetId(), 100);
+            LogPrintf("Peer %d sent us a getblocktxn with out-of-bounds referral indices", pfrom->GetId());
+            return;
+        }
+        resp.refs[i] = block.m_vRef[req.m_referral_indices[i]];
     }
     LOCK(cs_main);
     const CNetMsgMaker msgMaker(pfrom->GetSendVersion());
@@ -2049,8 +2050,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             for (uint256 hash : vEraseQueue)
                 EraseOrphanTx(hash);
         }
-        else if (fMissingInputs)
-        {
+        else if (fMissingInputs) {
             bool fRejectedParents = false; // It may be the case that the orphans parents have all been rejected
             for (const CTxIn& txin : tx.vin) {
                 if (recentRejects->contains(txin.prevout.hash)) {
@@ -2374,16 +2374,27 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 req.expect_invites = cmpctblock.header.IsDaedalus();
 
                 for (size_t i = 0; i < cmpctblock.BlockTxCount(); i++) {
-                    if (!partialBlock.IsTxAvailable(i))
+                    if (!partialBlock.IsTxAvailable(i)) {
                         req.m_transaction_indices.push_back(i);
+                    }
                 }
 
                 for (size_t i = 0; i < cmpctblock.BlockInvCount(); i++) {
-                    if (!partialBlock.IsInviteAvailable(i))
+                    if (!partialBlock.IsInviteAvailable(i)) {
                         req.m_invite_indices.push_back(i);
+                    }
                 }
 
-                if (req.m_transaction_indices.empty() && req.m_invite_indices.empty()) {
+                for (size_t i = 0; i < cmpctblock.BlockRefCount(); i++) {
+                    if (!partialBlock.IsRefAvailable(i)) {
+                        req.m_referral_indices.push_back(i);
+                    }
+                }
+
+                if ( req.m_transaction_indices.empty()
+                        && req.m_invite_indices.empty()
+                        && req.m_referral_indices.empty()) {
+
                     // Dirty hack to jump to BLOCKTXN code (TODO: move message handling into their own functions)
                     BlockTransactions txn;
                     txn.blockhash = cmpctblock.header.GetHash();
