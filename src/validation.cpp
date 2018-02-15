@@ -738,8 +738,6 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
         return false;
     }
 
-    referral::RefMemPoolEntry entry(*referral, nAcceptTime, chainActive.Height());
-
     const uint256 hash = referral->GetHash();
 
     {
@@ -772,6 +770,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_INVALID, "ref-bad-sig");
         }
 
+        referral::RefMemPoolEntry entry(*referral, nAcceptTime, chainActive.Height());
         pool.AddUnchecked(referral->GetHash(), entry);
     }
 

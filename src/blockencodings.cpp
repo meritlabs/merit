@@ -31,8 +31,9 @@ BlockHeaderAndShortIDs::BlockHeaderAndShortIDs(const CBlock& block, bool fUseWTX
         m_prefilled_txn(1), m_prefilled_inv{}, 
         header(block)
 {
-    bool first_inv_is_coinbase = block.IsDaedalus() && !block.invites.empty() && block.invites[0]->IsCoinBase();
+    bool first_inv_is_coinbase = false;
     if(block.IsDaedalus() && !block.invites.empty()) {
+        first_inv_is_coinbase = block.invites[0]->IsCoinBase();
         m_short_inv_ids.resize(block.invites.size() - (first_inv_is_coinbase ? 1 : 0));
     }
 

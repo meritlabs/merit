@@ -174,6 +174,7 @@ uint256 BlockMerkleRoot(const CBlock& block, bool* mutated)
         leaves[i] = block.m_vRef[s]->GetHash();
     };
 
+    assert(i == leaves.size());
     return ComputeMerkleRoot(leaves, mutated);
 }
 
