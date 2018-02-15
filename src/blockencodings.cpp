@@ -117,7 +117,7 @@ ReadStatus InitTxnData(
     std::unordered_map<uint64_t, uint16_t> short_tx_ids(block_short_tx_ids.size());
     uint16_t index_offset = 0;
     for (size_t i = 0; i < block_short_tx_ids.size(); i++) {
-        while (txn_available[i + index_offset])
+        while (i + index_offset < txn_available.size() && txn_available[i + index_offset])
             index_offset++;
         short_tx_ids[block_short_tx_ids[i]] = i + index_offset;
         // To determine the chance that the number of entries in a bucket exceeds N,
@@ -201,27 +201,86 @@ ReadStatus InitTxnData(
 
     return READ_STATUS_OK;
 }
+ReadStatus InitRefData(
+        std::vector<referral::ReferralRef>& available,
+        const BlockHeaderAndShortIDs& cmpctblock,
+        const ShortIds& block_short_ids,
+        const ExtraReferrals& extra, 
+        referral::ReferralTxMemPool* pool,
+        size_t& mempool_count,
+        size_t& extra_count)
+{
+    assert(pool);
+
+    available.resize(cmpctblock.BlockRefCount());
+
+    std::unordered_map<uint64_t, uint16_t> short_ids(block_short_ids.size());
+    uint16_t index_offset = 0;
+    for (size_t i = 0; i < block_short_ids.size(); i++) {
+        while (i + index_offset < available.size() && available[i + index_offset])
+            index_offset++;
+        short_ids[block_short_ids[i]] = i + index_offset;
+        if (short_ids.bucket_size(short_ids.bucket(block_short_ids[i])) > 12)
+            return READ_STATUS_FAILED;
+    }
+
+    if (short_ids.size() != block_short_ids.size())
+        return READ_STATUS_FAILED; // Short ID collision
+
+    std::vector<bool> have_ref(available.size());
+    {
+        LOCK(pool->cs);
+        auto refs = pool->GetReferrals();
+        for (const auto& ref : refs) {
+            uint64_t shortid = cmpctblock.GetShortID(ref->GetHash());
+            auto idit = short_ids.find(shortid);
+            if (idit != short_ids.end()) {
+                if (!have_ref[idit->second]) {
+                    available[idit->second] = ref;
+                    have_ref[idit->second]  = true;
+                    mempool_count++;
+                } else {
+                    if (available[idit->second]) {
+                        available[idit->second].reset();
+                        mempool_count--;
+                    }
+                }
+            }
+            if (mempool_count == short_ids.size())
+                break;
+        }
+    }
+
+    for (const auto& e : extra) {
+        uint64_t shortid = cmpctblock.GetShortID(e.first);
+        auto idit = short_ids.find(shortid);
+        if (idit != short_ids.end()) {
+            if (!have_ref[idit->second]) {
+                available[idit->second] = e.second;
+                have_ref[idit->second]  = true;
+                mempool_count++;
+                extra_count++;
+            } else {
+                if (available[idit->second]
+                        && available[idit->second]->GetHash() != e.second->GetHash()) {
+
+                    available[idit->second].reset();
+                    mempool_count--;
+                    extra_count--;
+                }
+            }
+        }
+        if (mempool_count == short_ids.size())
+            break;
+    }
+
+    return READ_STATUS_OK;
+}
 
 ReadStatus PartiallyDownloadedBlock::InitData(
         const BlockHeaderAndShortIDs& cmpctblock,
         const ExtraTransactions& extra_txn_and_inv,
         const ExtraReferrals& extra_ref) {
-
-
-    ExtraTransactions extra_txn;
-    ExtraTransactions extra_inv;
-
-    std::copy_if(extra_txn_and_inv.begin(), extra_txn_and_inv.end(),
-            std::back_inserter(extra_txn),
-            [](const ExtraTransaction& tx) {
-                return !tx.second->IsInvite();
-            });
-
-    std::copy_if(extra_txn_and_inv.begin(), extra_txn_and_inv.end(),
-            std::back_inserter(extra_inv),
-            [](const ExtraTransaction& tx) {
-                return tx.second->IsInvite();
-            });
 
     auto txn_and_inv_size = 
         cmpctblock.m_short_tx_ids.size() 
@@ -243,15 +302,13 @@ ReadStatus PartiallyDownloadedBlock::InitData(
 
     header = cmpctblock.header;
 
-    m_refs_available.resize(cmpctblock.BlockRefCount());
-
     const auto txn_read_status = InitTxnData(
             m_txn_available,
             cmpctblock.BlockTxCount(),
             cmpctblock.m_prefilled_txn,
             cmpctblock.m_short_tx_ids,
             cmpctblock,
-            extra_txn, 
+            extra_txn_and_inv, 
             m_txn_pool,
             m_mempool_txn_count,
             m_prefilled_txn_count,
@@ -267,7 +324,7 @@ ReadStatus PartiallyDownloadedBlock::InitData(
             cmpctblock.m_prefilled_inv,
             cmpctblock.m_short_inv_ids,
             cmpctblock,
-            extra_inv, 
+            extra_txn_and_inv, 
             m_txn_pool,
             m_mempool_inv_count,
             m_prefilled_inv_count,
@@ -275,6 +332,19 @@ ReadStatus PartiallyDownloadedBlock::InitData(
 
     if(inv_read_status != READ_STATUS_OK) {
         return inv_read_status;
+    }
+
+    const auto ref_read_status = InitRefData(
+        m_refs_available,
+        cmpctblock,
+        cmpctblock.m_short_ref_ids,
+        extra_ref,
+        m_ref_pool,
+        m_mempool_ref_count,
+        m_extra_ref_count);
+
+    if(ref_read_status != READ_STATUS_OK) {
+        return ref_read_status;
     }
 
     LogPrint(BCLog::CMPCTBLOCK, "Initialized PartiallyDownloadedBlock for block %s using a cmpctblock of size %lu\n", cmpctblock.header.GetHash().ToString(), GetSerializeSize(cmpctblock, SER_NETWORK, PROTOCOL_VERSION));
@@ -294,26 +364,33 @@ bool PartiallyDownloadedBlock::IsInviteAvailable(size_t index) const {
     return m_inv_available[index] != nullptr;
 }
 
-ReadStatus FillTxns(
-        std::vector<CTransactionRef>& vtx, 
-        const std::vector<CTransactionRef>& txn_available,
-        const MissingTransactions& vtx_missing)
-{
-    vtx.resize(txn_available.size());
+bool PartiallyDownloadedBlock::IsRefAvailable(size_t index) const {
+    assert(!header.IsNull());
+    assert(index < m_refs_available.size());
+    return m_refs_available[index] != nullptr;
+}
 
-    size_t tx_missing_offset = 0;
-    for (size_t i = 0; i < txn_available.size(); i++) {
-        if (!txn_available[i]) {
-            if (vtx_missing.size() <= tx_missing_offset) {
+template<typename ItemRef>
+ReadStatus FillItems(
+        std::vector<ItemRef>& items, 
+        const std::vector<ItemRef>& available,
+        const std::vector<ItemRef>& missing)
+{
+    items.resize(available.size());
+
+    size_t missing_offset = 0;
+    for (size_t i = 0; i < available.size(); i++) {
+        if (!available[i]) {
+            if (missing.size() <= missing_offset) {
                 return READ_STATUS_INVALID;
             }
-            vtx[i] = vtx_missing[tx_missing_offset++];
+            items[i] = missing[missing_offset++];
         } else {
-            vtx[i] = std::move(txn_available[i]);
+            items[i] = std::move(available[i]);
         }
     }
 
-    if (vtx_missing.size() != tx_missing_offset) {
+    if (missing.size() != missing_offset) {
         return READ_STATUS_INVALID;
     }
 
@@ -327,22 +404,30 @@ ReadStatus PartiallyDownloadedBlock::FillBlock(
         const MissingReferrals& ref_missing) {
 
     assert(!header.IsNull());
+
     uint256 hash = header.GetHash();
     block = header;
 
-    const auto fill_txn_status = FillTxns(block.vtx, m_txn_available, vtx_missing);
+    const auto fill_txn_status = FillItems(block.vtx, m_txn_available, vtx_missing);
     if(fill_txn_status != READ_STATUS_OK) {
         return fill_txn_status;
     }
 
-    const auto fill_inv_status = FillTxns(block.invites, m_inv_available, inv_missing);
+    const auto fill_inv_status = FillItems(block.invites, m_inv_available, inv_missing);
     if(fill_inv_status != READ_STATUS_OK) {
         return fill_inv_status;
+    }
+
+    const auto fill_ref_status = FillItems(block.m_vRef, m_refs_available, ref_missing);
+    if(fill_ref_status != READ_STATUS_OK) {
+        return fill_ref_status;
     }
 
     // Make sure we can't call FillBlock again.
     header.SetNull();
     m_txn_available.clear();
+    m_inv_available.clear();
+    m_refs_available.clear();
 
     CValidationState state;
     if (!CheckBlock(block, state, Params().GetConsensus())) {
