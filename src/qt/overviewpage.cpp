@@ -384,6 +384,29 @@ void OverviewPage::setBalance(
     UpdateInvitationStatus();
 }
 
+void OverviewPage::setYourNetwork(
+        const QString &alias,
+        const QString &address,
+        const CAmount &anv)
+{
+    int unit = walletModel->getOptionsModel()->getDisplayUnit();
+
+    if(alias.length() > 0)
+    {
+        ui->aliasTitleLabel->setHidden(false);
+        ui->aliasFieldLabel->setHidden(false);
+        ui->aliasFieldLabel->setText(alias);
+    }
+    else
+    {
+        ui->aliasTitleLabel->setHidden(true);
+        ui->aliasFieldLabel->setHidden(true);
+    }
+
+    ui->unlockCodeFieldLabel->setText(address);
+    ui->anvFieldLabel->setText(MeritUnits::formatWithUnit(unit, anv, false, MeritUnits::separatorAlways));
+}
+
 // show/hide watch-only labels
 void OverviewPage::updateWatchOnlyLabels(bool showWatchOnly)
 {
@@ -565,4 +588,5 @@ void OverviewPage::SetShadows()
     ui->balanceFrame->setGraphicsEffect(MakeFrameShadowEffect());
     ui->transactionsFrame->setGraphicsEffect(MakeFrameShadowEffect());
     ui->networkFrame->setGraphicsEffect(MakeFrameShadowEffect());
+    ui->unlockRequestFrame->setGraphicsEffect(MakeFrameShadowEffect());
 }
