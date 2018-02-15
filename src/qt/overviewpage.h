@@ -80,6 +80,7 @@ private:
 
 private:
     QString FormatInviteBalance(CAmount invites);
+    void SetAliasLabel();
     void SetShadows();
 
 

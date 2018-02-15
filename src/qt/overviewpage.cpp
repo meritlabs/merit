@@ -13,6 +13,7 @@
 #include "optionsmodel.h"
 #include "platformstyle.h"
 #include "transactionfilterproxy.h"
+#include "transactionrecord.h"
 #include "transactiontablemodel.h"
 #include "referrallistmodel.h"
 #include "walletmodel.h"
@@ -57,6 +58,11 @@ public:
         qint64 amount = index.data(TransactionTableModel::AmountRole).toLongLong();
         bool confirmed = index.data(TransactionTableModel::ConfirmedRole).toBool();
         qint64 invitesNumber = index.data(TransactionTableModel::InviteRole).toLongLong();
+
+        auto txType = index.data(TransactionTableModel::TypeRole);
+        bool isMined =  txType == TransactionRecord::Generated ||
+                        txType == TransactionRecord::GeneratedInvite;
+
         QVariant value = index.data(Qt::ForegroundRole);
         QColor foreground = option.palette.color(QPalette::Text);
         if(value.canConvert<QBrush>())
@@ -92,13 +98,18 @@ public:
         }
 
         painter->setPen(foreground);
+        QString amountText;
         if (index.data(TransactionTableModel::IsInviteRole).toBool()) {
-            QString inviteText = QString("Invites: ") + QString::number(invitesNumber);
-            painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, inviteText);
+            QString plurality = invitesNumber > 1 ? QString("s") : QString();
+            amountText = QString::number(invitesNumber) + QString(" Invite") + plurality;
         } else {
-            QString amountText = MeritUnits::formatWithUnit(unit, amount, true, MeritUnits::separatorAlways);
-            painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, amountText);
+            amountText = MeritUnits::formatWithUnit(unit, amount, true, MeritUnits::separatorAlways);
         }
+
+        if(isMined)
+            amountText = QString("Mining Reward: ") + amountText;
+
+        painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, amountText);
 
         if(!confirmed)
         {
@@ -159,8 +170,8 @@ public:
         QDateTime date = index.data(ReferralListModel::DateRole).toDateTime();
         QString addressString = index.data(ReferralListModel::AddressRole).toString();
         QString aliasString = index.data(ReferralListModel::AliasRole).toString();
-        QString displayString = aliasString.isEmpty() ? addressString :
-            aliasString + " (" + addressString + ")";
+        QString displayString = aliasString.isEmpty() ? QString("Anonymous User") :
+            QString("@") + aliasString;
 
         painter->setPen(COLOR_BAREADDRESS);
         painter->drawText(timestampRect, Qt::AlignLeft|Qt::AlignVCenter, GUIUtil::dateTimeStr(date));
@@ -294,10 +305,15 @@ void OverviewPage::handleReferralClicked(const QModelIndex &index)
         tr("Invite") + " " + aliasString;
 
     QString text = aliasString.isEmpty() ?
-        tr("Do you want to invite") + " " + addressString:
-        tr("Do you want to invite") + " " + aliasString + " " + tr("with the address") + " " + addressString;
-
-    auto ret = QMessageBox::question(this, title, text);
+        tr("Do you want to invite") + " " + addressString + "?":
+        tr("Do you want to invite") + " @" + aliasString + " " + tr("with the address") + " " + addressString + "?";
+    
+    QMessageBox msgBox{QMessageBox::Question,
+                        title, text,
+                        QMessageBox::Yes | QMessageBox::No,
+                        this};
+    msgBox.setStyleSheet(QString("QMessageBox { background-color: white; }"));
+    auto ret = msgBox.exec();
     if(ret != QMessageBox::Yes) {
         return;
     }
@@ -384,6 +400,11 @@ void OverviewPage::setBalance(
     UpdateInvitationStatus();
 }
 
+void OverviewPage::SetAliasLabel()
+{
+    ui->aliasLabel->setText(walletModel->GetAlias());
+}
+
 // show/hide watch-only labels
 void OverviewPage::updateWatchOnlyLabels(bool showWatchOnly)
 {
@@ -452,6 +473,8 @@ void OverviewPage::setWalletModel(WalletModel *model)
 
         updateWatchOnlyLabels(model->haveWatchOnly());
         connect(model, SIGNAL(notifyWatchonlyChanged(bool)), this, SLOT(updateWatchOnlyLabels(bool)));
+
+        SetAliasLabel();
     }
 
     // update the display unit, to not use the default ("MRT")
