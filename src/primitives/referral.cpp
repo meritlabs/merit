@@ -26,14 +26,17 @@ namespace referral
             "meritlabs",
         };
 
+        const std::regex ALIAS_REGEX(strprintf("^([a-z0-9_-]){3,%d}$", MAX_ALIAS_LENGTH), std::regex_constants::icase);
     }
 
 bool CheckReferralAlias(std::string alias)
 {
-    std::regex alias_regex(strprintf("^([a-z0-9_-]){0,%d}$", MAX_ALIAS_LENGTH), std::regex_constants::icase);
+    if(alias.empty()) {
+        return true;
+    }
 
     // check alias contains only valid symbols
-    if (!std::regex_match(alias, alias_regex)) {
+    if (!std::regex_match(alias, ALIAS_REGEX)) {
         return false;
     }
 
