@@ -220,6 +220,9 @@ struct CNodeState {
      */
     bool fSupportsDesiredCmpctVersion;
 
+    //! Whether the node's mempool was requested yet or not
+    bool asked_mempool;
+
     CNodeState(CAddress addrIn, std::string addrNameIn) : address(addrIn), name(addrNameIn) {
         fCurrentlyConnected = false;
         nMisbehavior = 0;
@@ -242,6 +245,7 @@ struct CNodeState {
         fHaveWitness = false;
         fWantsCmpctWitness = false;
         fSupportsDesiredCmpctVersion = false;
+        asked_mempool = false;
     }
 };
 
@@ -1565,6 +1569,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             assert(pfrom->fInbound == false);
             pfrom->fDisconnect = true;
         }
+
         return true;
     }
 
@@ -1610,6 +1615,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             nCMPCTBLOCKVersion = 1;
             connman.PushMessage(pfrom, msgMaker.Make(NetMsgType::SENDCMPCT, fAnnounceUsingCMPCTBLOCK, nCMPCTBLOCKVersion));
         }
+
         pfrom->fSuccessfullyConnected = true;
     }
 
@@ -2150,8 +2156,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
         const uint256 hash = pref->GetHash();
 
-        LogPrintf("Referral message received\n");
-
         LOCK(cs_main);
 
         // mark that we got the referral from pfrom
@@ -2173,9 +2177,11 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
             pfrom->nLastRefTime = GetTime();
 
-            LogPrint(BCLog::REFMEMPOOL, "AcceptToMemoryPool: peer=%d: accepted %s (poolsz %u refs)\n",
+            LogPrint(BCLog::REFMEMPOOL, "AcceptToMemoryPool: peer=%d: accepted %s (address %s with alias %s) (poolsz %u refs)\n",
                 pfrom->GetId(),
                 hash.ToString(),
+                CMeritAddress{pref->addressType, pref->GetAddress()}.ToString(),
+                pref->alias,
                 mempoolReferral.Size());
 
             // Recursively process any orphan referral that depended on this one
@@ -2781,6 +2787,8 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             return true;
         }
 
+        LogPrint(BCLog::NET, "Peer %d requested mempool\n", pfrom->GetId());
+
         LOCK(pfrom->cs_inventory);
         pfrom->fSendMempool = true;
     }
@@ -3257,6 +3265,18 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
             GetMainSignals().Broadcast(nTimeBestReceived, &connman);
         }
 
+        // Ask the node to send over it's mempool if we are done with the initial block download
+        // and not importing or reindexing.
+        if((connman.GetLocalServices() & NODE_BLOOM)
+                && !state.asked_mempool
+                && !fReindex 
+                && !fImporting 
+                && !IsInitialBlockDownload()) {
+            state.asked_mempool = true;
+            LogPrintf("Asking node %d for mempool\n", pto->GetId());
+            connman.PushMessage(pto, msgMaker.Make(NetMsgType::MEMPOOL));
+        }
+
         //
         // Try sending block announcements via headers
         //
@@ -3447,6 +3467,11 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
 
                 for (const auto& txinfo : vtxinfo) {
                     const uint256& hash = txinfo.tx->GetHash();
+
+                    if (pto->filterInventoryKnown.contains(hash)) {
+                        continue;
+                    }
+
                     CInv inv(MSG_TX, hash);
                     pto->setInventoryTxToSend.erase(hash);
                     if (filterrate) {
@@ -3467,6 +3492,11 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                 const auto referrals = mempoolReferral.GetReferrals();
                 for (const auto& ref : referrals) {
                     const uint256& hash = ref->GetHash();
+
+                    if (pto->filterInventoryKnown.contains(hash)) {
+                        continue;
+                    }
+
                     pto->setInventoryReferralToSend.erase(hash);
                     pto->filterInventoryKnown.insert(hash);
 
@@ -3485,7 +3515,7 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                 // Produce a vector with all candidates for sending
                 std::vector<std::set<uint256>::iterator> vInvTx;
                 vInvTx.reserve(pto->setInventoryTxToSend.size());
-                for (std::set<uint256>::iterator it = pto->setInventoryTxToSend.begin(); it != pto->setInventoryTxToSend.end(); it++) {
+                for (auto it = pto->setInventoryTxToSend.begin(); it != pto->setInventoryTxToSend.end(); it++) {
                     vInvTx.push_back(it);
                 }
 
