@@ -1565,6 +1565,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             assert(pfrom->fInbound == false);
             pfrom->fDisconnect = true;
         }
+
         return true;
     }
 
@@ -1610,6 +1611,12 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             nCMPCTBLOCKVersion = 1;
             connman.PushMessage(pfrom, msgMaker.Make(NetMsgType::SENDCMPCT, fAnnounceUsingCMPCTBLOCK, nCMPCTBLOCKVersion));
         }
+
+        // Ask the node to send over it's mempool
+        if(connman.GetLocalServices() & NODE_BLOOM) {
+            connman.PushMessage(pfrom, msgMaker.Make(NetMsgType::MEMPOOL));
+        }
+
         pfrom->fSuccessfullyConnected = true;
     }
 
@@ -2781,6 +2788,8 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
             return true;
         }
 
+        LogPrint(BCLog::NET, "Peer %d requested mempool\n", pfrom->GetId());
+
         LOCK(pfrom->cs_inventory);
         pfrom->fSendMempool = true;
     }
@@ -3447,6 +3456,11 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
 
                 for (const auto& txinfo : vtxinfo) {
                     const uint256& hash = txinfo.tx->GetHash();
+
+                    if (pto->filterInventoryKnown.contains(hash)) {
+                        continue;
+                    }
+
                     CInv inv(MSG_TX, hash);
                     pto->setInventoryTxToSend.erase(hash);
                     if (filterrate) {
@@ -3467,6 +3481,11 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                 const auto referrals = mempoolReferral.GetReferrals();
                 for (const auto& ref : referrals) {
                     const uint256& hash = ref->GetHash();
+
+                    if (pto->filterInventoryKnown.contains(hash)) {
+                        continue;
+                    }
+
                     pto->setInventoryReferralToSend.erase(hash);
                     pto->filterInventoryKnown.insert(hash);
 
@@ -3485,7 +3504,7 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                 // Produce a vector with all candidates for sending
                 std::vector<std::set<uint256>::iterator> vInvTx;
                 vInvTx.reserve(pto->setInventoryTxToSend.size());
-                for (std::set<uint256>::iterator it = pto->setInventoryTxToSend.begin(); it != pto->setInventoryTxToSend.end(); it++) {
+                for (auto it = pto->setInventoryTxToSend.begin(); it != pto->setInventoryTxToSend.end(); it++) {
                     vInvTx.push_back(it);
                 }
 

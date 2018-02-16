@@ -30,6 +30,7 @@
 #include "util.h"
 #include "utilstrencodings.h"
 #include "net_processing.h"
+#include "netmessagemaker.h"
 #include "hash.h"
 #include "base58.h"
 
@@ -1778,6 +1779,37 @@ UniValue relaymempool(const JSONRPCRequest& request)
     return ret;
 }
 
+UniValue requestmempool(const JSONRPCRequest& request)
+{
+    if (request.fHelp)
+        throw std::runtime_error(
+            "requestmempool\n"
+            "\nAsks peers to relay their mempool.\n"
+            "\nResult:\n"
+            " {\n"
+            "   \"totalnodes\" : 100,   (number) Number of nodes the request was sent to.\n"
+            " }\n"
+            "\nExamples:\n"
+            + HelpExampleCli("requestmempool", "")
+        );
+
+    if(!g_connman)
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+
+    g_connman->ForEachNode([](CNode* pnode)
+    {
+        const CNetMsgMaker msgMaker(pnode->GetSendVersion());
+        g_connman->PushMessage(pnode, msgMaker.Make(NetMsgType::MEMPOOL));
+    });
+
+    UniValue ret(UniValue::VOBJ);
+
+    int total = g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL);
+    ret.push_back(Pair("totalnodes", total));
+
+    return ret;
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
@@ -1799,6 +1831,7 @@ static const CRPCCommand commands[] =
     { "blockchain",         "getrefmempoolinfo",      &getrefmempoolinfo,      {} },
     { "blockchain",         "getrawmempool",          &getrawmempool,          {"verbose"} },
     { "blockchain",         "relaymempool",           &relaymempool,           {} },
+    { "blockchain",         "requestmempool",         &requestmempool,         {} },
     { "blockchain",         "gettxout",               &gettxout,               {"txid","n","include_mempool"} },
     { "blockchain",         "gettxoutsetinfo",        &gettxoutsetinfo,        {} },
     { "blockchain",         "pruneblockchain",        &pruneblockchain,        {"height"} },
