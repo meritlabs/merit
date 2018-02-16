@@ -100,7 +100,7 @@ background-color: rgb(232, 179, 54);</string>
         <number>0</number>
        </property>
        <item>
-        <widget class="QFrame" name="networkFrame">
+        <widget class="QFrame" name="communityFrame">
          <property name="frameShape">
           <enum>QFrame::StyledPanel</enum>
          </property>
@@ -132,7 +132,7 @@ background-color: rgb(232, 179, 54);</string>
                </font>
               </property>
               <property name="text">
-               <string>Your Network</string>
+               <string>Your Community</string>
               </property>
              </widget>
             </item>
@@ -188,7 +188,7 @@ background-color: rgb(232, 179, 54);</string>
            </layout>
           </item>
           <item>
-           <layout class="QGridLayout" name="gridLayout_2" columnstretch="0,0" columnminimumwidth="0,0">
+           <layout class="QGridLayout" name="gridLayout_2" columnstretch="0,0">
             <property name="topMargin">
              <number>12</number>
             </property>
@@ -214,49 +214,6 @@ background-color: rgb(232, 179, 54);</string>
               </property>
              </widget>
             </item>
-            <item row="0" column="0">
-             <widget class="QLabel" name="aliasTitleLabel">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="text">
-               <string>Your Merit Alias:</string>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="0">
-             <widget class="QLabel" name="label_9">
-              <property name="text">
-               <string>Your ANV:</string>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="0">
-             <widget class="QLabel" name="label_7">
-              <property name="text">
-               <string>Your Unlock Code:</string>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="1">
-             <widget class="QLabel" name="anvFieldLabel">
-              <property name="font">
-               <font>
-                <weight>75</weight>
-                <bold>true</bold>
-               </font>
-              </property>
-              <property name="text">
-               <string>0.000 000 00 MRT</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-              </property>
-             </widget>
-            </item>
             <item row="1" column="1">
              <widget class="QLabel" name="unlockCodeFieldLabel">
               <property name="sizePolicy">
@@ -279,6 +236,26 @@ background-color: rgb(232, 179, 54);</string>
               </property>
               <property name="textInteractionFlags">
                <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="0">
+             <widget class="QLabel" name="aliasTitleLabel">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="text">
+               <string>Your Merit Alias:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="label_7">
+              <property name="text">
+               <string>Your Full Address:</string>
               </property>
              </widget>
             </item>
@@ -333,7 +310,7 @@ background-color: rgb(232, 179, 54);</string>
                </font>
               </property>
               <property name="text">
-               <string>Unlock Requests</string>
+               <string>Community Activity</string>
               </property>
              </widget>
             </item>
@@ -390,7 +367,7 @@ background-color: rgb(232, 179, 54);</string>
              </font>
             </property>
             <property name="text">
-             <string>Pending Requests</string>
+             <string>Invitation Requests</string>
             </property>
            </widget>
           </item>
@@ -431,7 +408,7 @@ background-color: rgb(232, 179, 54);</string>
              </font>
             </property>
             <property name="text">
-             <string>Approved Requests</string>
+             <string>Invites Sent</string>
             </property>
            </widget>
           </item>

@@ -88,27 +88,32 @@ public:
         font.setBold(true);
         font.setWeight(QFont::Bold);
         painter->setFont(font);
+
+        QString amountText;
+
         if(amount < 0)
         {
             foreground = COLOR_NEGATIVE;
+            amountText = QString("Sent: ");
+            amount = -amount;
         }
         else
         {
             foreground = COLOR_LIGHTBLUE;
+            if(isMined)
+                amountText = QString("Mining Reward: ");
+            else
+                amountText = QString("Received: ");
+        }
+
+        if (index.data(TransactionTableModel::IsInviteRole).toBool()) {
+            QString plurality = invitesNumber > 1 ? QString("s") : QString();
+            amountText += QString::number(invitesNumber) + QString(" Invite") + plurality;
+        } else {
+            amountText += MeritUnits::formatWithUnit(unit, amount, false, MeritUnits::separatorAlways);
         }
 
         painter->setPen(foreground);
-        QString amountText;
-        if (index.data(TransactionTableModel::IsInviteRole).toBool()) {
-            QString plurality = invitesNumber > 1 ? QString("s") : QString();
-            amountText = QString::number(invitesNumber) + QString(" Invite") + plurality;
-        } else {
-            amountText = MeritUnits::formatWithUnit(unit, amount, true, MeritUnits::separatorAlways);
-        }
-
-        if(isMined)
-            amountText = QString("Mining Reward: ") + amountText;
-
         painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, amountText);
 
         if(!confirmed)
@@ -253,6 +258,7 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     ui->labelTransactionsStatus->setIcon(icon);
     ui->labelWalletStatus->setIcon(icon);
     ui->networkAlertLabel->setIcon(icon);
+    ui->requestsAlertLabel->setIcon(icon);
 
     // Recent transactions
     ui->listTransactions->setItemDelegate(txdelegate);
@@ -277,6 +283,7 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     connect(ui->labelWalletStatus, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
     connect(ui->labelTransactionsStatus, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
     connect(ui->networkAlertLabel, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
+    connect(ui->requestsAlertLabel, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
 }
 
 void OverviewPage::handleTransactionClicked(const QModelIndex &index)
@@ -404,13 +411,10 @@ void OverviewPage::setBalance(
     UpdateInvitationStatus();
 }
 
-void OverviewPage::setYourNetwork(
+void OverviewPage::setYourCommunity(
         const QString &alias,
-        const QString &address,
-        const CAmount &anv)
+        const QString &address)
 {
-    int unit = walletModel->getOptionsModel()->getDisplayUnit();
-
     if(alias.length() > 0)
     {
         ui->aliasTitleLabel->setHidden(false);
@@ -424,7 +428,6 @@ void OverviewPage::setYourNetwork(
     }
 
     ui->unlockCodeFieldLabel->setText(address);
-    ui->anvFieldLabel->setText(MeritUnits::formatWithUnit(unit, anv, false, MeritUnits::separatorAlways));
 }
 
 // show/hide watch-only labels
@@ -497,10 +500,9 @@ void OverviewPage::setWalletModel(WalletModel *model)
                 model->getWatchImmatureBalance(),
                 model->getBalance(nullptr, true));
         
-        setYourNetwork(
+        setYourCommunity(
                 model->GetAlias(),
-                model->GetUnlockCode(),
-                model->GetANV());
+                model->GetUnlockCode());
 
         connect(
                 model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)),
@@ -550,6 +552,7 @@ void OverviewPage::showOutOfSyncWarning(bool fShow)
     ui->labelWalletStatus->setVisible(fShow);
     ui->labelTransactionsStatus->setVisible(fShow);
     ui->networkAlertLabel->setVisible(fShow);
+    ui->requestsAlertLabel->setVisible(fShow);
 }
 
 void OverviewPage::HideInviteNotice()
@@ -623,6 +626,6 @@ void OverviewPage::SetShadows()
 {
     ui->balanceFrame->setGraphicsEffect(MakeFrameShadowEffect());
     ui->transactionsFrame->setGraphicsEffect(MakeFrameShadowEffect());
-    ui->networkFrame->setGraphicsEffect(MakeFrameShadowEffect());
+    ui->communityFrame->setGraphicsEffect(MakeFrameShadowEffect());
     ui->unlockRequestFrame->setGraphicsEffect(MakeFrameShadowEffect());
 }
