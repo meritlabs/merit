@@ -220,6 +220,9 @@ struct CNodeState {
      */
     bool fSupportsDesiredCmpctVersion;
 
+    //! Whether the node's mempool was requested yet or not
+    bool asked_mempool;
+
     CNodeState(CAddress addrIn, std::string addrNameIn) : address(addrIn), name(addrNameIn) {
         fCurrentlyConnected = false;
         nMisbehavior = 0;
@@ -242,6 +245,7 @@ struct CNodeState {
         fHaveWitness = false;
         fWantsCmpctWitness = false;
         fSupportsDesiredCmpctVersion = false;
+        asked_mempool = false;
     }
 };
 
@@ -1610,11 +1614,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 connman.PushMessage(pfrom, msgMaker.Make(NetMsgType::SENDCMPCT, fAnnounceUsingCMPCTBLOCK, nCMPCTBLOCKVersion));
             nCMPCTBLOCKVersion = 1;
             connman.PushMessage(pfrom, msgMaker.Make(NetMsgType::SENDCMPCT, fAnnounceUsingCMPCTBLOCK, nCMPCTBLOCKVersion));
-        }
-
-        // Ask the node to send over it's mempool
-        if(connman.GetLocalServices() & NODE_BLOOM) {
-            connman.PushMessage(pfrom, msgMaker.Make(NetMsgType::MEMPOOL));
         }
 
         pfrom->fSuccessfullyConnected = true;
@@ -3264,6 +3263,17 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
         if (!fReindex && !fImporting && !IsInitialBlockDownload())
         {
             GetMainSignals().Broadcast(nTimeBestReceived, &connman);
+        }
+
+        // Ask the node to send over it's mempool if we are done with the initial block download
+        // and not importing or reindexing.
+        if((connman.GetLocalServices() & NODE_BLOOM)
+                && !state.asked_mempool
+                && !fReindex 
+                && !fImporting 
+                && !IsInitialBlockDownload()) {
+            state.asked_mempool = true;
+            connman.PushMessage(pto, msgMaker.Make(NetMsgType::MEMPOOL));
         }
 
         //
