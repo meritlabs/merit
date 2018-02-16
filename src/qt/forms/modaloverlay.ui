@@ -242,7 +242,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               <number>0</number>
              </property>
              <item>
-              <widget class="QPushButton" name="warningIcon">
+              <widget class="QPushButton" name="hourglassIcon">
                <property name="enabled">
                 <bool>false</bool>
                </property>
@@ -250,9 +250,9 @@ QLabel { color: rgb(40,40,40);  }</string>
                 <string/>
                </property>
                <property name="icon">
-                <iconset>
-                 <normaloff>:/icons/warning</normaloff>
-                 <disabledoff>:/icons/warning</disabledoff>:/icons/warning</iconset>
+                <iconset resource="../merit.qrc">
+                 <normaloff>:/icons/hourglass</normaloff>
+                 <disabledoff>:/icons/hourglass</disabledoff>:/icons/hourglass</iconset>
                </property>
                <property name="iconSize">
                 <size>
@@ -282,16 +282,22 @@ QLabel { color: rgb(40,40,40);  }</string>
            </item>
            <item>
             <layout class="QVBoxLayout" name="verticalLayoutInfoText">
+             <property name="spacing">
+              <number>12</number>
+             </property>
              <property name="leftMargin">
               <number>0</number>
              </property>
              <property name="topMargin">
               <number>0</number>
              </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
              <item>
               <widget class="QLabel" name="infoText">
                <property name="text">
-                <string>Recent transactions may not yet be visible, and therefore your wallet's balance might be incorrect. This information will be correct once your wallet has finished synchronizing with the merit network, as detailed below.</string>
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Hang Tight!&lt;/span&gt; Merit is a decentralized network that is powered by a worldwide community of people like you. &lt;span style=&quot; text-decoration: underline;&quot;&gt;Before you can unlock your wallet&lt;/span&gt;, this application has to finish syncing with other peers on the network. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="textFormat">
                 <enum>Qt::RichText</enum>
@@ -305,12 +311,12 @@ QLabel { color: rgb(40,40,40);  }</string>
               <widget class="QLabel" name="infoTextStrong">
                <property name="font">
                 <font>
-                 <weight>75</weight>
-                 <bold>true</bold>
+                 <weight>50</weight>
+                 <bold>false</bold>
                 </font>
                </property>
                <property name="text">
-                <string>Attempting to spend merits that are affected by not-yet-displayed transactions will not be accepted by the network.</string>
+                <string>Once you have synced with the rest of the network, this screen will be dismissed.  This usually takes less than an hour.</string>
                </property>
                <property name="textFormat">
                 <enum>Qt::RichText</enum>
@@ -396,6 +402,8 @@ QLabel { color: rgb(40,40,40);  }</string>
    <container>1</container>
   </customwidget>
  </customwidgets>
- <resources/>
+ <resources>
+  <include location="../merit.qrc"/>
+ </resources>
  <connections/>
 </ui>

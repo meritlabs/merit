@@ -85,6 +85,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
     QMainWindow(parent),
     enableWallet(false),
     clientModel(nullptr),
+    walletModel(nullptr),
     walletFrame(nullptr),
     unitDisplayControl(nullptr),
     labelWalletEncryptionIcon(nullptr),
@@ -560,13 +561,22 @@ void MeritGUI::setClientModel(ClientModel *_clientModel)
 }
 
 #ifdef ENABLE_WALLET
-bool MeritGUI::addWallet(const QString& name, WalletModel *walletModel)
+bool MeritGUI::addWallet(const QString& name, WalletModel *_walletModel)
 {
     if(!walletFrame)
         return false;
-    bool isReferred = walletModel->IsReferred();
+
+    walletModel = _walletModel;
+    assert(walletModel);
+
+    isReferred = walletModel->IsReferred();
     setWalletActionsEnabled(true, isReferred);
-    if(!isReferred) {
+    if(isReferred)
+    {
+        modalOverlay->allowHide();
+    } 
+    else
+    {
         enterUnlockCode->setModel(walletModel);
         enterUnlockCode->showHide(false, false);
     }
@@ -817,6 +827,12 @@ void MeritGUI::setNumBlocks(int count, const QDateTime& blockDate, double nVerif
             modalOverlay->setKnownBestHeight(count, blockDate);
         else
             modalOverlay->tipUpdate(count, blockDate);
+
+        if(!isReferred && walletModel && walletModel->IsReferred())
+        {
+            isReferred = true;
+            modalOverlay->allowHide();
+        }
     }
     if (!clientModel)
         return;

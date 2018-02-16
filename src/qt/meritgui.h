@@ -80,6 +80,7 @@ protected:
 
 private:
     ClientModel *clientModel;
+    WalletModel *walletModel;
     WalletFrame *walletFrame;
 
     UnitDisplayStatusBarControl *unitDisplayControl;
@@ -129,6 +130,8 @@ private:
     /** Keep track of previous number of blocks, to detect progress */
     int prevBlocks;
     int spinnerFrame;
+
+    bool isReferred = false;
 
     const PlatformStyle *platformStyle;
 
