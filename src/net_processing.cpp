@@ -2156,8 +2156,6 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
         const uint256 hash = pref->GetHash();
 
-        LogPrintf("Referral message received\n");
-
         LOCK(cs_main);
 
         // mark that we got the referral from pfrom
@@ -2179,9 +2177,11 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
             pfrom->nLastRefTime = GetTime();
 
-            LogPrint(BCLog::REFMEMPOOL, "AcceptToMemoryPool: peer=%d: accepted %s (poolsz %u refs)\n",
+            LogPrint(BCLog::REFMEMPOOL, "AcceptToMemoryPool: peer=%d: accepted %s (address %s with alias %s) (poolsz %u refs)\n",
                 pfrom->GetId(),
                 hash.ToString(),
+                CMeritAddress{pref->addressType, pref->GetAddress()}.ToString(),
+                pref->alias,
                 mempoolReferral.Size());
 
             // Recursively process any orphan referral that depended on this one
@@ -3273,6 +3273,7 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
                 && !fImporting 
                 && !IsInitialBlockDownload()) {
             state.asked_mempool = true;
+            LogPrintf("Asking node %d for mempool\n", pto->GetId());
             connman.PushMessage(pto, msgMaker.Make(NetMsgType::MEMPOOL));
         }
 
