@@ -88,27 +88,32 @@ public:
         font.setBold(true);
         font.setWeight(QFont::Bold);
         painter->setFont(font);
+
+        QString amountText;
+
         if(amount < 0)
         {
             foreground = COLOR_NEGATIVE;
+            amountText = QString("Sent: ");
+            amount = -amount;
         }
         else
         {
             foreground = COLOR_LIGHTBLUE;
+            if(isMined)
+                amountText = QString("Mining Reward: ");
+            else
+                amountText = QString("Received: ");
+        }
+
+        if (index.data(TransactionTableModel::IsInviteRole).toBool()) {
+            QString plurality = invitesNumber > 1 ? QString("s") : QString();
+            amountText += QString::number(invitesNumber) + QString(" Invite") + plurality;
+        } else {
+            amountText += MeritUnits::formatWithUnit(unit, amount, false, MeritUnits::separatorAlways);
         }
 
         painter->setPen(foreground);
-        QString amountText;
-        if (index.data(TransactionTableModel::IsInviteRole).toBool()) {
-            QString plurality = invitesNumber > 1 ? QString("s") : QString();
-            amountText = QString::number(invitesNumber) + QString(" Invite") + plurality;
-        } else {
-            amountText = MeritUnits::formatWithUnit(unit, amount, true, MeritUnits::separatorAlways);
-        }
-
-        if(isMined)
-            amountText = QString("Mining Reward: ") + amountText;
-
         painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, amountText);
 
         if(!confirmed)
@@ -253,6 +258,7 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     ui->labelTransactionsStatus->setIcon(icon);
     ui->labelWalletStatus->setIcon(icon);
     ui->networkAlertLabel->setIcon(icon);
+    ui->requestsAlertLabel->setIcon(icon);
 
     // Recent transactions
     ui->listTransactions->setItemDelegate(txdelegate);
@@ -261,24 +267,29 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     ui->inviteNotice->hide();
 
     // Unlock Requests
-    ui->listNetwork->setItemDelegate(referraldelegate);
-    ui->listNetwork->setMinimumHeight(DECORATION_SIZE + 2);
-    ui->listNetwork->setAttribute(Qt::WA_MacShowFocusRect, false);
+    ui->listPendingRequests->setItemDelegate(referraldelegate);
+    ui->listPendingRequests->setMinimumHeight(DECORATION_SIZE + 2);
+    ui->listPendingRequests->setMaximumHeight(3 * (DECORATION_SIZE + 2));
+    ui->listPendingRequests->setAttribute(Qt::WA_MacShowFocusRect, false);
+    ui->listApprovedRequests->setItemDelegate(referraldelegate);
+    ui->listApprovedRequests->setMinimumHeight(DECORATION_SIZE + 2);
+    ui->listApprovedRequests->setAttribute(Qt::WA_MacShowFocusRect, false);
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
-    connect(ui->listNetwork, SIGNAL(clicked(QModelIndex)), this, SLOT(handleReferralClicked(QModelIndex)));
+    connect(ui->listPendingRequests, SIGNAL(clicked(QModelIndex)), this, SLOT(handleReferralClicked(QModelIndex)));
 
     // start with displaying the "out of sync" warnings
     showOutOfSyncWarning(true);
     connect(ui->labelWalletStatus, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
     connect(ui->labelTransactionsStatus, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
     connect(ui->networkAlertLabel, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
+    connect(ui->requestsAlertLabel, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
 }
 
 void OverviewPage::handleTransactionClicked(const QModelIndex &index)
 {
-    if(filter)
-        Q_EMIT transactionClicked(filter->mapToSource(index));
+    if(txFilter)
+        Q_EMIT transactionClicked(txFilter->mapToSource(index));
 }
 
 void OverviewPage::handleReferralClicked(const QModelIndex &index)
@@ -400,9 +411,23 @@ void OverviewPage::setBalance(
     UpdateInvitationStatus();
 }
 
-void OverviewPage::SetAliasLabel()
+void OverviewPage::setYourCommunity(
+        const QString &alias,
+        const QString &address)
 {
-    ui->aliasLabel->setText(walletModel->GetAlias());
+    if(alias.length() > 0)
+    {
+        ui->aliasTitleLabel->setHidden(false);
+        ui->aliasFieldLabel->setHidden(false);
+        ui->aliasFieldLabel->setText(alias);
+    }
+    else
+    {
+        ui->aliasTitleLabel->setHidden(true);
+        ui->aliasFieldLabel->setHidden(true);
+    }
+
+    ui->unlockCodeFieldLabel->setText(address);
 }
 
 // show/hide watch-only labels
@@ -438,18 +463,29 @@ void OverviewPage::setWalletModel(WalletModel *model)
     if(model && model->getOptionsModel())
     {
         // Set up transaction list
-        filter.reset(new TransactionFilterProxy());
-        filter->setSourceModel(model->getTransactionTableModel());
-        filter->setLimit(NUM_ITEMS);
-        filter->setDynamicSortFilter(true);
-        filter->setSortRole(Qt::EditRole);
-        filter->setShowInactive(false);
-        filter->sort(TransactionTableModel::Date, Qt::DescendingOrder);
+        txFilter.reset(new TransactionFilterProxy());
+        txFilter->setSourceModel(model->getTransactionTableModel());
+        txFilter->setLimit(NUM_ITEMS);
+        txFilter->setDynamicSortFilter(true);
+        txFilter->setSortRole(Qt::EditRole);
+        txFilter->setShowInactive(false);
+        txFilter->sort(TransactionTableModel::Date, Qt::DescendingOrder);
 
-        ui->listTransactions->setModel(filter.get());
+        pendingRequestsFilter.reset(new QSortFilterProxyModel(this));
+        pendingRequestsFilter->setSourceModel(model->getReferralListModel());
+        pendingRequestsFilter->setFilterRole(ReferralListModel::StatusRole);
+        pendingRequestsFilter->setFilterFixedString(QString("Pending"));
+
+        approvedRequestsFilter.reset(new QSortFilterProxyModel(this));
+        approvedRequestsFilter->setSourceModel(model->getReferralListModel());
+        approvedRequestsFilter->setFilterRole(ReferralListModel::StatusRole);
+        approvedRequestsFilter->setFilterFixedString(QString("Confirmed"));
+
+        ui->listTransactions->setModel(txFilter.get());
         ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
 
-        ui->listNetwork->setModel(model->getReferralListModel());
+        ui->listPendingRequests->setModel(pendingRequestsFilter.get());
+        ui->listApprovedRequests->setModel(approvedRequestsFilter.get());
 
         is_confirmed = walletModel->IsConfirmed();
         UpdateInvitationStatus();
@@ -463,6 +499,10 @@ void OverviewPage::setWalletModel(WalletModel *model)
                 model->getWatchUnconfirmedBalance(),
                 model->getWatchImmatureBalance(),
                 model->getBalance(nullptr, true));
+        
+        setYourCommunity(
+                model->GetAlias(),
+                model->GetUnlockCode());
 
         connect(
                 model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)),
@@ -473,8 +513,6 @@ void OverviewPage::setWalletModel(WalletModel *model)
 
         updateWatchOnlyLabels(model->haveWatchOnly());
         connect(model, SIGNAL(notifyWatchonlyChanged(bool)), this, SLOT(updateWatchOnlyLabels(bool)));
-
-        SetAliasLabel();
     }
 
     // update the display unit, to not use the default ("MRT")
@@ -514,6 +552,7 @@ void OverviewPage::showOutOfSyncWarning(bool fShow)
     ui->labelWalletStatus->setVisible(fShow);
     ui->labelTransactionsStatus->setVisible(fShow);
     ui->networkAlertLabel->setVisible(fShow);
+    ui->requestsAlertLabel->setVisible(fShow);
 }
 
 void OverviewPage::HideInviteNotice()
@@ -587,5 +626,6 @@ void OverviewPage::SetShadows()
 {
     ui->balanceFrame->setGraphicsEffect(MakeFrameShadowEffect());
     ui->transactionsFrame->setGraphicsEffect(MakeFrameShadowEffect());
-    ui->networkFrame->setGraphicsEffect(MakeFrameShadowEffect());
+    ui->communityFrame->setGraphicsEffect(MakeFrameShadowEffect());
+    ui->unlockRequestFrame->setGraphicsEffect(MakeFrameShadowEffect());
 }

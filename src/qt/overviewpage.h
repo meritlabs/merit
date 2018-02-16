@@ -13,6 +13,7 @@
 
 class ClientModel;
 class TransactionFilterProxy;
+class QSortFilterProxyModel;
 class ReferralViewDelegate;
 class TxViewDelegate;
 class PlatformStyle;
@@ -48,6 +49,9 @@ public Q_SLOTS:
             CAmount watchUnconfBalance,
             CAmount watchImmatureBalance,
             CAmount inviteBalance);
+    void setYourCommunity(
+            const QString &alias,
+            const QString &address);
     void UpdateInvitationStatus();
     void UpdateNetworkView();
     void HideInviteNotice();
@@ -72,7 +76,9 @@ private:
 
     ReferralViewDelegate *referraldelegate;
     TxViewDelegate *txdelegate;
-    std::unique_ptr<TransactionFilterProxy> filter;
+    std::unique_ptr<TransactionFilterProxy> txFilter;
+    std::unique_ptr<QSortFilterProxyModel> pendingRequestsFilter;
+    std::unique_ptr<QSortFilterProxyModel> approvedRequestsFilter;
     bool is_confirmed = false;
 
     long mempool_size = 0;
@@ -80,7 +86,6 @@ private:
 
 private:
     QString FormatInviteBalance(CAmount invites);
-    void SetAliasLabel();
     void SetShadows();
 
 

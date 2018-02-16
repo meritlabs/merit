@@ -1027,6 +1027,7 @@ public:
     CAmount GetImmatureWatchOnlyBalance(bool invite = false) const;
     CAmount GetLegacyBalance(const isminefilter& filter, int minDepth, const std::string* account) const;
     CAmount GetAvailableBalance(const CCoinControl* coinControl = nullptr, bool invite = false) const;
+    CAmount GetANV() const;
     pog::RewardsAmount GetRewards() const;
     /**
      * Insert additional inputs into the transaction by
@@ -1240,6 +1241,13 @@ public:
         auto ref = GetRootReferral();
 
         return ref != nullptr ? ref->alias : "";
+    }
+
+    std::string GetUnlockCode() const
+    {
+        auto ref = GetRootReferral();
+
+        return ref != nullptr ? EncodeDestination(CKeyID{ref->GetAddress()}) : "";
     }
 
     referral::ReferralRef GenerateNewReferral(

@@ -18,6 +18,7 @@
 #include "keystore.h"
 #include "validation.h"
 #include "net.h"
+#include "pog/anv.h"
 #include "policy/fees.h"
 #include "policy/policy.h"
 #include "policy/rbf.h"
@@ -2413,6 +2414,34 @@ CAmount CWallet::GetBalance(bool invite) const
     }
 
     return nTotal;
+}
+
+CAmount CWallet::GetANV() const
+{
+    LOCK2(cs_main, cs_wallet);
+
+    std::vector<referral::Address> keys;
+
+    for (const auto &addrEntry: mapAddressBook) {
+        CTxDestination dest = addrEntry.first;
+
+        if (::IsMine(*this, dest)) {
+            uint160 key;
+            if(GetUint160(dest, key)) {
+                keys.push_back(key);
+            }
+        }
+    }
+
+    auto anvs = pog::GetANVs(keys, *prefviewdb);
+
+    auto total =
+        std::accumulate(std::begin(anvs), std::end(anvs), CAmount{0},
+            [](CAmount total, const referral::AddressANV& v){
+                return total + v.anv;
+            });
+
+    return total;
 }
 
 pog::RewardsAmount CWallet::GetRewards() const

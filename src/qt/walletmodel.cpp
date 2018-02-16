@@ -473,6 +473,23 @@ QString WalletModel::GetAlias() const
     return QString();
 }
 
+QString WalletModel::GetUnlockCode() const
+{
+    assert(wallet);
+    auto unlockCode = wallet->GetUnlockCode();
+
+    if(unlockCode.length() > 0)
+        return QString::fromStdString(unlockCode);
+    
+    return QString();
+}
+
+CAmount WalletModel::GetANV() const
+{
+    assert(wallet);
+    return wallet->GetANV();
+}
+
 bool WalletModel::AddressBeaconed(const CMeritAddress& address) const
 {
     assert(wallet);

@@ -147,6 +147,8 @@ public:
 
     bool AliasExists(const std::string& alias) const;
     QString GetAlias() const;
+    QString GetUnlockCode() const;
+    CAmount GetANV() const;
     bool AddressBeaconed(const CMeritAddress& address) const;
     bool AddressConfirmed(const CMeritAddress& address) const;
     bool Daedalus() const;
