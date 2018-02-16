@@ -363,7 +363,7 @@ QString OverviewPage::FormatInviteBalance(CAmount invites)
         + QString(";\">")
         + QString::number(invites)
         + "</span><span style=\" font-size: 12pt; font-weight:600;\"> "
-        + tr("Avaliable")
+        + tr("Available")
         + " "
         + inviteOrInvites
         + "</span></p></body></html>";
