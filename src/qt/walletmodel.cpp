@@ -443,10 +443,15 @@ bool WalletModel::IsReferred() const
     return wallet->IsReferred();
 }
 
-bool WalletModel::IsConfirmed() const
+bool WalletModel::IsConfirmed()
 {
     assert(wallet);
-    return wallet->IsConfirmed();
+    bool walletConfirmed = wallet->IsConfirmed();
+    if(walletConfirmed != isConfirmed)
+    {
+        isConfirmed = walletConfirmed;
+        Q_EMIT isConfirmedChanged(isConfirmed);
+    }
 }
 
 referral::ReferralRef WalletModel::Unlock(const referral::Address& parentAddress, const std::string alias)

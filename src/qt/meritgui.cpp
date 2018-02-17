@@ -97,6 +97,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
     progressBar(nullptr),
     progressDialog(nullptr),
     appMenuBar(nullptr),
+    miningMenu(nullptr),
     overviewAction(nullptr),
     historyAction(nullptr),
     quitAction(nullptr),
@@ -462,9 +463,10 @@ void MeritGUI::createMenuBar()
     }
     settings->addAction(optionsAction);
 
-    QMenu *mining = appMenuBar->addMenu(tr("&Mining"));
-    mining->addAction(startMiningAction);
-    mining->addAction(stopMiningAction);
+    miningMenu = appMenuBar->addMenu(tr("&Mining"));
+    miningMenu->addAction(startMiningAction);
+    miningMenu->addAction(stopMiningAction);
+    miningMenu->setEnabled(false);
 
     QMenu *help = appMenuBar->addMenu(tr("&Help"));
     if(walletFrame)
@@ -571,6 +573,7 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *_walletModel)
 
     isReferred = walletModel->IsReferred();
     setWalletActionsEnabled(true, isReferred);
+    connect(walletModel, SIGNAL(isConfirmedChanged(bool)), this, SLOT(setMiningEnabled(bool)));
     if(isReferred)
     {
         modalOverlay->allowHide();
@@ -581,6 +584,11 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *_walletModel)
         enterUnlockCode->showHide(false, false);
     }
     return walletFrame->addWallet(name, walletModel);
+}
+
+void MeritGUI::setMiningEnabled(bool enabled)
+{
+    miningMenu->setEnabled(enabled);
 }
 
 bool MeritGUI::setCurrentWallet(const QString& name)

@@ -142,7 +142,7 @@ public:
     CAmount getWatchImmatureBalance(bool invite = false) const;
     EncryptionStatus getEncryptionStatus() const;
     bool IsReferred() const;
-    bool IsConfirmed() const;
+    bool IsConfirmed();
     referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string alias = "");
 
     bool AliasExists(const std::string& alias) const;
@@ -238,6 +238,7 @@ private:
     CWallet *wallet;
     bool fHaveWatchOnly;
     bool fForceCheckBalanceChanged;
+    bool isConfirmed;
 
     // Wallet has an options model for wallet-specific options
     // (transaction fee, for example)
@@ -298,6 +299,8 @@ Q_SIGNALS:
 
     // Fired when a transaction is updated.
     void transactionUpdated();
+
+    void isConfirmedChanged(bool);
 
 public Q_SLOTS:
     /* Wallet status might have changed */
