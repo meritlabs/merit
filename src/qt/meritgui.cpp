@@ -1180,7 +1180,14 @@ void MeritGUI::setMiningStatus(bool isMining)
     startMiningAction->setEnabled(!isMining);
     stopMiningAction->setEnabled(isMining);
 
-    GenerateMerit(isMining, pow_threads, bucket_size, bucket_threads, Params());
+    try
+    {
+        GenerateMerit(isMining, pow_threads, bucket_size, bucket_threads, Params());
+    } catch(std::exception& e) {
+        uiInterface.ThreadSafeMessageBox(
+                _("Error: There was an error starting the miner: ") + e.what(), // Same message as AbortNode
+                "", CClientUIInterface::MSG_ERROR);
+    }
 }
 #endif // ENABLE_WALLET
 

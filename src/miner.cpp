@@ -950,6 +950,8 @@ void MinerWorker(int thread_id, MinerContext& ctx)
         }
 
         CBlock* pblock = &pblocktemplate->block;
+        assert(pblock);
+
         pblock->nNonce = start_nonce;
         IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
@@ -1056,12 +1058,15 @@ void MinerWorker(int thread_id, MinerContext& ctx)
     LogPrintf("MeritMiner pool #%d terminated\n", thread_id);
 }
 
-void static MeritMiner(const CChainParams& chainparams, int pow_threads, int bucket_size, int bucket_threads)
+void static MeritMiner(
+        std::shared_ptr<CReserveScript> coinbase_script,
+        const CChainParams& chainparams,
+        int pow_threads,
+        int bucket_size,
+        int bucket_threads)
 {
+    assert(coinbase_script);
     RenameThread("merit-miner");
-
-    std::shared_ptr<CReserveScript> coinbase_script;
-    GetMainSignals().ScriptForMining(coinbase_script);
 
     if (bucket_threads < 1) {
         bucket_threads = 1;
@@ -1073,10 +1078,10 @@ void static MeritMiner(const CChainParams& chainparams, int pow_threads, int buc
 
     using pool_ptr = std::unique_ptr<ctpl::thread_pool>;
     ctpl::thread_pool parallel_pool(bucket_threads);
-    std::vector<pool_ptr>* cuckoo_pools = new std::vector<pool_ptr>();
+    std::vector<pool_ptr> cuckoo_pools;
 
     for (int i = 0; i < bucket_threads; i++) {
-        cuckoo_pools->push_back(pool_ptr(new ctpl::thread_pool(pow_threads)));
+        cuckoo_pools.push_back(pool_ptr(new ctpl::thread_pool(pow_threads)));
     }
 
     std::atomic<bool> alive{true};
@@ -1100,7 +1105,7 @@ void static MeritMiner(const CChainParams& chainparams, int pow_threads, int buc
                 bucket_size,
                 chainparams,
                 coinbase_script,
-                *(cuckoo_pools->at(t))
+                *(cuckoo_pools.at(t))
             };
 
             parallel_pool.push(MinerWorker, ctx);
@@ -1113,7 +1118,7 @@ void static MeritMiner(const CChainParams& chainparams, int pow_threads, int buc
         LogPrintf("MeritMiner terminated\n");
         alive = false;
         for (int i = 0; i < bucket_threads; i++) {
-            cuckoo_pools->at(i)->stop(true);
+            cuckoo_pools.at(i)->stop(true);
         }
         throw;
     } catch (const std::runtime_error& e) {
@@ -1141,5 +1146,18 @@ void GenerateMerit(bool mine, int pow_threads, int bucket_size, int bucket_threa
     if (pow_threads == 0 || !mine)
         return;
 
-    minerThread = new boost::thread(&MeritMiner, chainparams, pow_threads, bucket_size, bucket_threads);
+    std::shared_ptr<CReserveScript> coinbase_script;
+    GetMainSignals().ScriptForMining(coinbase_script);
+
+    if(!coinbase_script) {
+        throw std::runtime_error("unable to generate a coinbase script for mining");
+    }
+
+    minerThread = new boost::thread(
+            &MeritMiner,
+            coinbase_script,
+            chainparams,
+            pow_threads,
+            bucket_size,
+            bucket_threads);
 }
