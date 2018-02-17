@@ -59,10 +59,6 @@ public:
         bool confirmed = index.data(TransactionTableModel::ConfirmedRole).toBool();
         qint64 invitesNumber = index.data(TransactionTableModel::InviteRole).toLongLong();
 
-        auto txType = index.data(TransactionTableModel::TypeRole);
-        bool isMined =  txType == TransactionRecord::Generated ||
-                        txType == TransactionRecord::GeneratedInvite;
-
         QVariant value = index.data(Qt::ForegroundRole);
         QColor foreground = option.palette.color(QPalette::Text);
         if(value.canConvert<QBrush>())
@@ -100,10 +96,19 @@ public:
         else
         {
             foreground = COLOR_LIGHTBLUE;
-            if(isMined)
-                amountText = QString("Mining Reward: ");
-            else
-                amountText = QString("Received: ");
+            int txType = index.data(TransactionTableModel::TypeRole).toInt();
+
+            switch(txType) {
+                case TransactionRecord::Generated:
+                    amountText = QString("Mining Reward: ");
+                    break;
+                case TransactionRecord::GeneratedInvite:
+                    amountText = QString("Invite: ");
+                    break;
+                case TransactionRecord::AmbassadorReward:
+                    amountText = QString("Ambassador Reward: ");
+                    break;
+            }
         }
 
         if (index.data(TransactionTableModel::IsInviteRole).toBool()) {

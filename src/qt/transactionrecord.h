@@ -76,6 +76,7 @@ public:
     {
         Other,
         Generated,
+        AmbassadorReward,
         SendToAddress,
         SendToOther,
         RecvWithAddress,
