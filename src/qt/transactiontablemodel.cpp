@@ -384,6 +384,8 @@ QString TransactionTableModel::formatTxType(const TransactionRecord *wtx) const
         return tr("Payment to yourself");
     case TransactionRecord::Generated:
         return tr("Mined");
+    case TransactionRecord::AmbassadorReward:
+        return tr("Ambassador Reward");
     case TransactionRecord::GeneratedInvite:
         return tr("Mined invite");
     case TransactionRecord::RecvInvite:
@@ -399,6 +401,7 @@ QVariant TransactionTableModel::txAddressDecoration(const TransactionRecord *wtx
 {
     switch(wtx->type)
     {
+    case TransactionRecord::AmbassadorReward:
     case TransactionRecord::Generated:
     case TransactionRecord::GeneratedInvite:
         return QIcon(":/icons/tx_mined");
@@ -430,6 +433,7 @@ QString TransactionTableModel::formatTxToAddress(const TransactionRecord *wtx, b
         return QString::fromStdString(wtx->address) + watchAddress;
     case TransactionRecord::RecvWithAddress:
     case TransactionRecord::SendToAddress:
+    case TransactionRecord::AmbassadorReward:
     case TransactionRecord::Generated:
     case TransactionRecord::GeneratedInvite:
     case TransactionRecord::SendInvite:
@@ -449,6 +453,7 @@ QVariant TransactionTableModel::addressColor(const TransactionRecord *wtx) const
     {
     case TransactionRecord::RecvWithAddress:
     case TransactionRecord::SendToAddress:
+    case TransactionRecord::AmbassadorReward:
     case TransactionRecord::Generated:
     case TransactionRecord::GeneratedInvite:
     case TransactionRecord::SendInvite:

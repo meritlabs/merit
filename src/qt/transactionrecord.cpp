@@ -72,9 +72,13 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 if (wtx.IsCoinBase())
                 {
                     // Generated
-                    sub.type = is_invite ?
-                        TransactionRecord::GeneratedInvite :
-                        TransactionRecord::Generated;
+                    if(is_invite)  {
+                        sub.type = TransactionRecord::GeneratedInvite;
+                    } else {
+                        sub.type = i == 0 ?
+                            TransactionRecord::Generated :
+                            TransactionRecord::AmbassadorReward;
+                    }
                 }
 
                 parts.append(sub);
