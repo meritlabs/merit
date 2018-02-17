@@ -452,6 +452,7 @@ bool WalletModel::IsConfirmed()
         isConfirmed = walletConfirmed;
         Q_EMIT isConfirmedChanged(isConfirmed);
     }
+    return walletConfirmed;
 }
 
 referral::ReferralRef WalletModel::Unlock(const referral::Address& parentAddress, const std::string alias)
