@@ -177,7 +177,7 @@ void ModalOverlay::toggleVisibility()
 
 void ModalOverlay::showHide(bool hide, bool userRequested)
 {
-    if (!canHide ||
+    if (
             (layerIsVisible && !hide) || 
             (!layerIsVisible && hide) || 
             (!hide && userClosed && !userRequested))
