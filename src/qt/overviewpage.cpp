@@ -611,6 +611,10 @@ void OverviewPage::UpdateNetworkView()
         return;
     }
 
+    setYourCommunity(
+            walletModel->GetAlias(),
+            walletModel->GetUnlockCode());
+
     auto ref_model = walletModel->getReferralListModel();
     if(ref_model) {
         ref_model->Refresh();
