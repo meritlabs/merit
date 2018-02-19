@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>851</width>
+    <width>914</width>
     <height>682</height>
    </rect>
   </property>
@@ -180,6 +180,9 @@ background-color: rgb(232, 179, 54);</string>
             </item>
             <item>
              <widget class="QLabel" name="inviteBalance">
+              <property name="toolTip">
+               <string>Invites are distributed via a lottery in every block.</string>
+              </property>
               <property name="text">
                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:12pt;&quot;&gt;0 &lt;/span&gt;&lt;span style=&quot; font-size:12pt; font-weight:600;&quot;&gt;Available Invites&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
@@ -247,6 +250,9 @@ background-color: rgb(232, 179, 54);</string>
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
+              <property name="toolTip">
+               <string>Your Merit Alias is an optional unique identifier that others can use to send you Merit or request an invitation to the network.</string>
+              </property>
               <property name="text">
                <string>Your Merit Alias:</string>
               </property>
@@ -254,6 +260,9 @@ background-color: rgb(232, 179, 54);</string>
             </item>
             <item row="1" column="0">
              <widget class="QLabel" name="label_7">
+              <property name="toolTip">
+               <string>Others can use your full address to send you Merit or request an invitation to the network.</string>
+              </property>
               <property name="text">
                <string>Your Full Address:</string>
               </property>
@@ -366,6 +375,9 @@ background-color: rgb(232, 179, 54);</string>
               <bold>true</bold>
              </font>
             </property>
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the users that have requested an invite from you.&lt;/p&gt;&lt;p&gt;If you have available invites, you can use them to approve these requests.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
             <property name="text">
              <string>Invitation Requests</string>
             </property>
@@ -406,6 +418,9 @@ background-color: rgb(232, 179, 54);</string>
               <weight>75</weight>
               <bold>true</bold>
              </font>
+            </property>
+            <property name="toolTip">
+             <string>These are the addresses referred by you that are already confirmed and part of the Merit network.</string>
             </property>
             <property name="text">
              <string>Invites Sent</string>
