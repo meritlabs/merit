@@ -26,8 +26,7 @@ bool dockClickHandler(id self,SEL _cmd,...) {
     
     s_instance->handleDockIconClickEvent();
     
-    // Return NO (false) to suppress the default OS X actions
-    return false;
+    return true;
 }
 
 void setupDockClickHandler() {
