@@ -274,7 +274,6 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     // Unlock Requests
     ui->listPendingRequests->setItemDelegate(referraldelegate);
     ui->listPendingRequests->setMinimumHeight(DECORATION_SIZE + 2);
-    ui->listPendingRequests->setMaximumHeight(3 * (DECORATION_SIZE + 2));
     ui->listPendingRequests->setAttribute(Qt::WA_MacShowFocusRect, false);
     ui->listApprovedRequests->setItemDelegate(referraldelegate);
     ui->listApprovedRequests->setMinimumHeight(DECORATION_SIZE + 2);
@@ -491,6 +490,10 @@ void OverviewPage::setWalletModel(WalletModel *model)
 
         ui->listPendingRequests->setModel(pendingRequestsFilter.get());
         ui->listApprovedRequests->setModel(approvedRequestsFilter.get());
+
+        // show up to 5 pending invite requests before having to scroll to view more.
+        ui->listPendingRequests->setMinimumHeight(
+            std::min(5, pendingRequestsFilter->rowCount()) * (DECORATION_SIZE + 2));
 
         is_confirmed = walletModel->IsConfirmed();
         UpdateInvitationStatus();
