@@ -53,9 +53,11 @@ public Q_SLOTS:
             const QString &alias,
             const QString &address);
     void UpdateInvitationStatus();
+    void UpdateInviteRequestView();
     void UpdateNetworkView();
     void HideInviteNotice();
     void MempoolSizeChanged(long size, size_t bytes);
+    void resizeEvent(QResizeEvent*);
 
 Q_SIGNALS:
     void transactionClicked(const QModelIndex &index);
@@ -83,6 +85,8 @@ private:
 
     long mempool_size = 0;
     size_t mempool_bytes = 0;
+
+    QPixmap* spread_pixmap;
 
 private:
     QString FormatInviteBalance(CAmount invites);
