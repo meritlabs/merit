@@ -1245,9 +1245,15 @@ public:
 
     std::string GetUnlockCode() const
     {
-        auto ref = GetRootReferral();
+        const auto ref = GetRootReferral();
+        return ref ? CMeritAddress{ref->addressType, ref->GetAddress()}.ToString() : "";
+    }
 
-        return ref != nullptr ? EncodeDestination(CKeyID{ref->GetAddress()}) : "";
+    referral::MaybeAddress GetRootAddress() const
+    {
+        auto ref = GetRootReferral();
+        return ref != nullptr ?
+            referral::MaybeAddress{ref->GetAddress()} : referral::MaybeAddress{};
     }
 
     referral::ReferralRef GenerateNewReferral(

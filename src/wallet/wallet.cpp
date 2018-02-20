@@ -2420,20 +2420,26 @@ CAmount CWallet::GetANV() const
 {
     LOCK2(cs_main, cs_wallet);
 
-    std::vector<referral::Address> keys;
+    std::set<referral::Address> keys;
+
+    auto root_address = GetRootAddress();
+    if(!root_address) {
+        return 0;
+    }
+
+    keys.insert(*root_address);
 
     for (const auto &addrEntry: mapAddressBook) {
         CTxDestination dest = addrEntry.first;
-
-        if (::IsMine(*this, dest)) {
-            uint160 key;
-            if(GetUint160(dest, key)) {
-                keys.push_back(key);
+        uint160 key;
+        if(GetUint160(dest, key)) {
+            if (HaveKey(CKeyID{key})) {
+                keys.insert(key);
             }
         }
     }
 
-    auto anvs = pog::GetANVs(keys, *prefviewdb);
+    auto anvs = pog::GetANVs({keys.begin(), keys.end()}, *prefviewdb);
 
     auto total =
         std::accumulate(std::begin(anvs), std::end(anvs), CAmount{0},
