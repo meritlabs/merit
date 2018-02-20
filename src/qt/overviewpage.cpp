@@ -28,6 +28,8 @@ namespace
 {
     const int DECORATION_SIZE = 54;
     const int NUM_ITEMS = 10;
+    const int SPREAD_MARGIN_W = 50;
+    const int SPREAD_MARGIN_H = 10;
 }
 
 class TxViewDelegate : public QAbstractItemDelegate
@@ -288,6 +290,8 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     connect(ui->labelTransactionsStatus, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
     connect(ui->networkAlertLabel, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
     connect(ui->requestsAlertLabel, SIGNAL(clicked()), this, SLOT(handleOutOfSyncWarningClicks()));
+
+    spread_pixmap = new QPixmap{":/icons/spread"};
 }
 
 void OverviewPage::handleTransactionClicked(const QModelIndex &index)
@@ -497,6 +501,7 @@ void OverviewPage::setWalletModel(WalletModel *model)
 
         is_confirmed = walletModel->IsConfirmed();
         UpdateInvitationStatus();
+        UpdateInviteRequestView();
 
         // Keep up to date with wallet
         setBalance(
@@ -591,10 +596,52 @@ void OverviewPage::UpdateInvitationStatus()
         ui->inviteNotice->show();
     } else {
         ui->inviteNotice->setStyleSheet("QLabel {background-color: rgb(128, 255, 128)}");
-        ui->inviteNotice->setText("<html><head/><body><p align=\"center\"><span style=\" font-size:12pt; font-weight:600;\">Your invitation request is accepted!</span></p></body></html>");
+        ui->inviteNotice->setText("<html><head/><body><p align=\"center\"><span style=\" font-size:12pt; font-weight:600;\">You Have Been Invited to Merit!</span></p></body></html>");
         QTimer::singleShot(3000, this, SLOT(HideInviteNotice()));
     }
     is_confirmed = confirmed;
+}
+
+void OverviewPage::UpdateInviteRequestView() 
+{
+    assert(ui);
+    assert(spread_pixmap);
+    if(!walletModel) return;
+
+    assert(pendingRequestsFilter);
+    assert(approvedRequestsFilter);
+
+    const bool has_requests = pendingRequestsFilter->rowCount() > 0;
+    const bool has_approved = approvedRequestsFilter->rowCount() > 0;
+
+
+    if(has_requests) { 
+        ui->spreadTheWord->hide();
+        ui->noPendingInvitesLabel->hide();
+        ui->listPendingRequests->show();
+    } else { 
+        ui->listPendingRequests->hide();
+        ui->noPendingInvitesLabel->show();
+        ui->spreadTheWord->setHidden(true);
+        const auto s = ui->spreadTheWordIcon->size();
+        const auto ps = static_cast<QWidget*>(ui->spreadTheWordIcon->parent())->size();
+        const auto w = std::max(50, ps.width() - SPREAD_MARGIN_W);
+        const auto h = s.height() - SPREAD_MARGIN_H;
+
+        auto scaled_pixmap = spread_pixmap->scaled(w, h, Qt::KeepAspectRatio);
+
+        ui->spreadTheWordIcon->setPixmap(scaled_pixmap);
+        ui->spreadTheWord->adjustSize();
+        ui->spreadTheWord->setHidden(false);
+    }
+
+    if(!has_approved) {
+        ui->approvedRequestsLabel->hide();
+        ui->listApprovedRequests->hide();
+    } else {
+        ui->approvedRequestsLabel->show();
+        ui->listApprovedRequests->show();
+    }
 }
 
 void OverviewPage::MempoolSizeChanged(long size, size_t bytes)
@@ -604,8 +651,15 @@ void OverviewPage::MempoolSizeChanged(long size, size_t bytes)
     }
 
     UpdateNetworkView();
+    UpdateInviteRequestView();
+
     mempool_size = size;
     mempool_bytes = bytes;
+}
+
+void OverviewPage::resizeEvent(QResizeEvent *)
+{
+    UpdateInviteRequestView();
 }
 
 void OverviewPage::UpdateNetworkView()
