@@ -615,7 +615,7 @@ void OverviewPage::UpdateInviteRequestView()
     const bool has_approved = approvedRequestsFilter->rowCount() > 0;
 
 
-    if(has_requests) { 
+    if (has_requests) {
         ui->spreadTheWord->hide();
         ui->noPendingInvitesLabel->hide();
         ui->listPendingRequests->show();
@@ -624,11 +624,15 @@ void OverviewPage::UpdateInviteRequestView()
         ui->noPendingInvitesLabel->show();
         ui->spreadTheWord->setHidden(true);
         const auto s = ui->spreadTheWordIcon->size();
-        const auto ps = static_cast<QWidget*>(ui->spreadTheWordIcon->parent())->size();
+
+        const auto ps =
+            static_cast<QWidget*>(ui->spreadTheWordIcon->parent())->size();
+
         const auto w = std::max(50, ps.width() - SPREAD_MARGIN_W);
         const auto h = s.height() - SPREAD_MARGIN_H;
 
-        auto scaled_pixmap = spread_pixmap->scaled(w, h, Qt::KeepAspectRatio);
+        auto scaled_pixmap = spread_pixmap->scaled(
+                w, h, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
         ui->spreadTheWordIcon->setPixmap(scaled_pixmap);
         ui->spreadTheWord->adjustSize();
