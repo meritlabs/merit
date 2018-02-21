@@ -114,6 +114,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
     toggleHideAction(nullptr),
     encryptWalletAction(nullptr),
     backupWalletAction(nullptr),
+    exportWalletQRAction(nullptr),
     changePassphraseAction(nullptr),
     aboutQtAction(nullptr),
     openRPCConsoleAction(nullptr),
@@ -369,6 +370,8 @@ void MeritGUI::createActions()
     encryptWalletAction->setCheckable(true);
     backupWalletAction = new QAction(platformStyle->TextColorIcon(":/icons/filesave"), tr("&Backup Wallet..."), this);
     backupWalletAction->setStatusTip(tr("Backup wallet to another location"));
+    exportWalletQRAction = new QAction(platformStyle->TextColorIcon(":/icons/filesave"), tr("&Export Wallet..."), this);
+    exportWalletQRAction->setStatusTip(tr("Export wallet to another device"));
     changePassphraseAction = new QAction(platformStyle->TextColorIcon(":/icons/key"), tr("&Change Passphrase..."), this);
     changePassphraseAction->setStatusTip(tr("Change the passphrase used for wallet encryption"));
     signMessageAction = new QAction(platformStyle->TextColorIcon(":/icons/edit"), tr("Sign &message..."), this);
@@ -445,6 +448,7 @@ void MeritGUI::createMenuBar()
     {
         file->addAction(openAction);
         file->addAction(backupWalletAction);
+        file->addAction(exportWalletQRAction);
         file->addAction(signMessageAction);
         file->addAction(verifyMessageAction);
         file->addSeparator();
@@ -628,6 +632,7 @@ void MeritGUI::setWalletActionsEnabled(bool enabled, bool isReferred)
     historyAction->setEnabled(enabled);
     encryptWalletAction->setEnabled(enabled);
     backupWalletAction->setEnabled(enabled);
+    exportWalletQRAction->setEnabled(enabled);
     changePassphraseAction->setEnabled(enabled);
     signMessageAction->setEnabled(enabled && isReferred);
     verifyMessageAction->setEnabled(enabled && isReferred);
