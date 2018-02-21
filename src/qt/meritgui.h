@@ -94,7 +94,6 @@ private:
     QProgressDialog *progressDialog;
 
     QMenuBar *appMenuBar;
-    QMenu *backupMenu;
     QMenu *miningMenu;
     QAction *overviewAction;
     QAction *historyAction;
@@ -111,8 +110,7 @@ private:
     QAction *optionsAction;
     QAction *toggleHideAction;
     QAction *encryptWalletAction;
-    QAction *backupWalletFileAction;
-    QAction *backupWalletQRAction;
+    QAction *backupWalletAction;
     QAction *changePassphraseAction;
     QAction *aboutQtAction;
     QAction *openRPCConsoleAction;
