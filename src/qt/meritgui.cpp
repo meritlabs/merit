@@ -97,6 +97,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
     progressBar(nullptr),
     progressDialog(nullptr),
     appMenuBar(nullptr),
+    backupMenu(nullptr),
     miningMenu(nullptr),
     overviewAction(nullptr),
     historyAction(nullptr),
@@ -113,7 +114,8 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
     optionsAction(nullptr),
     toggleHideAction(nullptr),
     encryptWalletAction(nullptr),
-    backupWalletAction(nullptr),
+    backupWalletFileAction(nullptr),
+    backupWalletQRAction(nullptr),
     changePassphraseAction(nullptr),
     aboutQtAction(nullptr),
     openRPCConsoleAction(nullptr),
@@ -367,8 +369,10 @@ void MeritGUI::createActions()
     encryptWalletAction = new QAction(platformStyle->TextColorIcon(":/icons/lock_closed"), tr("&Encrypt Wallet..."), this);
     encryptWalletAction->setStatusTip(tr("Encrypt the private keys that belong to your wallet"));
     encryptWalletAction->setCheckable(true);
-    backupWalletAction = new QAction(platformStyle->TextColorIcon(":/icons/filesave"), tr("&Backup Wallet..."), this);
-    backupWalletAction->setStatusTip(tr("Backup wallet to another location"));
+    backupWalletFileAction = new QAction(platformStyle->TextColorIcon(":/icons/filesave"), tr("&Backup Wallet to File..."), this);
+    backupWalletFileAction->setStatusTip(tr("Backup wallet to a file for desktop use"));
+    backupWalletQRAction = new QAction(platformStyle->TextColorIcon(":/icons/filesave"), tr("Backup Wallet to &QR Code..."), this);
+    backupWalletQRAction->setStatusTip(tr("Backup wallet with a QR code to scan with a mobile device"));
     changePassphraseAction = new QAction(platformStyle->TextColorIcon(":/icons/key"), tr("&Change Passphrase..."), this);
     changePassphraseAction->setStatusTip(tr("Change the passphrase used for wallet encryption"));
     signMessageAction = new QAction(platformStyle->TextColorIcon(":/icons/edit"), tr("Sign &message..."), this);
@@ -413,7 +417,7 @@ void MeritGUI::createActions()
     if(walletFrame)
     {
         connect(encryptWalletAction, SIGNAL(triggered(bool)), walletFrame, SLOT(encryptWallet(bool)));
-        connect(backupWalletAction, SIGNAL(triggered()), walletFrame, SLOT(backupWallet()));
+        connect(backupWalletFileAction, SIGNAL(triggered()), walletFrame, SLOT(backupWallet()));
         connect(changePassphraseAction, SIGNAL(triggered()), walletFrame, SLOT(changePassphrase()));
         connect(signMessageAction, SIGNAL(triggered()), this, SLOT(gotoSignMessageTab()));
         connect(verifyMessageAction, SIGNAL(triggered()), this, SLOT(gotoVerifyMessageTab()));
@@ -444,7 +448,11 @@ void MeritGUI::createMenuBar()
     if(walletFrame)
     {
         file->addAction(openAction);
-        file->addAction(backupWalletAction);
+        backupMenu = file->addMenu(tr("&Backup Wallet"));
+        backupMenu->addAction(backupWalletFileAction);
+        #ifdef USE_QRCODE
+            backupMenu->addAction(backupWalletQRAction);
+        #endif
         file->addAction(signMessageAction);
         file->addAction(verifyMessageAction);
         file->addSeparator();
@@ -627,7 +635,8 @@ void MeritGUI::setWalletActionsEnabled(bool enabled, bool isReferred)
     receiveCoinsMenuAction->setEnabled(enabled && isReferred);
     historyAction->setEnabled(enabled);
     encryptWalletAction->setEnabled(enabled);
-    backupWalletAction->setEnabled(enabled);
+    backupWalletFileAction->setEnabled(enabled);
+    backupWalletQRAction->setEnabled(enabled);
     changePassphraseAction->setEnabled(enabled);
     signMessageAction->setEnabled(enabled && isReferred);
     verifyMessageAction->setEnabled(enabled && isReferred);
