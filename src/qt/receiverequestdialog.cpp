@@ -27,7 +27,7 @@
 #endif
 
 #ifdef USE_QRCODE
-#include <qrencode.h>
+#include <qrutil.h>
 #endif
 
 QRImageWidget::QRImageWidget(QWidget *parent):
@@ -161,24 +161,12 @@ void ReceiveRequestDialog::update()
         {
             ui->lblQRCode->setText(tr("Resulting URI too long, try to reduce the text for label / message."));
         } else {
-            QRcode *code = QRcode_encodeString(uri.toUtf8().constData(), 0, QR_ECLEVEL_L, QR_MODE_8, 1);
-            if (!code)
+            QImage qrImage = qrutil::encodeQString(uri);
+            if (qrImage.isNull())
             {
                 ui->lblQRCode->setText(tr("Error encoding URI into QR Code."));
                 return;
             }
-            QImage qrImage = QImage(code->width + 8, code->width + 8, QImage::Format_RGB32);
-            qrImage.fill(0xffffff);
-            unsigned char *p = code->data;
-            for (int y = 0; y < code->width; y++)
-            {
-                for (int x = 0; x < code->width; x++)
-                {
-                    qrImage.setPixel(x + 4, y + 4, ((*p & 1) ? 0x0 : 0xffffff));
-                    p++;
-                }
-            }
-            QRcode_free(code);
 
             QImage qrAddrImage = QImage(QR_IMAGE_SIZE, QR_IMAGE_SIZE+20, QImage::Format_RGB32);
             qrAddrImage.fill(0xffffff);
