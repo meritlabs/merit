@@ -51,11 +51,14 @@ void ExportWalletDialog::setQRCodeVisibility()
         #ifdef USE_QRCODE
             QImage qrImage = qrutil::encodeQString(QString("{\"message\": \"Hello World\"}"));
 
-            QPainter painter(&qrImage);
+            QImage qrBackImage = QImage(QR_IMAGE_SIZE, QR_IMAGE_SIZE, QImage::Format_RGB32);
+            qrBackImage.fill(0xffffff);
+
+            QPainter painter(&qrBackImage);
             painter.drawImage(0, 0, qrImage.scaled(QR_IMAGE_SIZE, QR_IMAGE_SIZE));
             painter.end();
 
-            ui->lblQRCode->setPixmap(QPixmap::fromImage(qrImage));
+            ui->lblQRCode->setPixmap(QPixmap::fromImage(qrBackImage));
         #endif
     }
     else
