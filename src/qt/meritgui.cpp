@@ -14,6 +14,7 @@
 #include "guiconstants.h"
 #include "guiutil.h"
 #include "enterunlockcode.h"
+#include "exportwalletdialog.h"
 #include "miner.h"
 #include "modaloverlay.h"
 #include "networkstyle.h"
@@ -160,6 +161,9 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
 
     rpcConsole = new RPCConsole(_platformStyle, 0);
     helpMessageDialog = new HelpMessageDialog(this, false);
+#ifdef USE_QRCODE
+    exportWalletDialog = new ExportWalletDialog(this);
+#endif
 #ifdef ENABLE_WALLET
     if(enableWallet)
     {
@@ -417,6 +421,7 @@ void MeritGUI::createActions()
     {
         connect(encryptWalletAction, SIGNAL(triggered(bool)), walletFrame, SLOT(encryptWallet(bool)));
         connect(backupWalletAction, SIGNAL(triggered()), walletFrame, SLOT(backupWallet()));
+        connect(exportWalletQRAction, SIGNAL(triggered()), this, SLOT(showExportWallet()));
         connect(changePassphraseAction, SIGNAL(triggered()), walletFrame, SLOT(changePassphrase()));
         connect(signMessageAction, SIGNAL(triggered()), this, SLOT(gotoSignMessageTab()));
         connect(verifyMessageAction, SIGNAL(triggered()), this, SLOT(gotoVerifyMessageTab()));
@@ -737,6 +742,13 @@ void MeritGUI::showDebugWindowActivateConsole()
 void MeritGUI::showHelpMessageClicked()
 {
     helpMessageDialog->show();
+}
+
+void MeritGUI::showExportWallet()
+{
+    #ifdef USE_QRCODE
+        exportWalletDialog->show();
+    #endif
 }
 
 #ifdef ENABLE_WALLET
