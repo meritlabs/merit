@@ -898,7 +898,7 @@ UniValue inviteaddress(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() == 0 || request.params.size() > 2)
         throw std::runtime_error(
-            "inviteaddress \"address\" (amount)" 
+            "inviteaddress \"address\" (amount)"
             "\nConfirm given address's referral.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
@@ -3963,7 +3963,7 @@ UniValue encryptwallet(const JSONRPCRequest& request)
     // slack space in .dat files; that is bad if the old data is
     // unencrypted private keys. So:
     StartShutdown();
-    return "wallet encrypted; Merit server stopping, restart to run with encrypted wallet. The keypool has been flushed and a new HD seed was generated (if you are using HD). You need to make a new backup.";
+    return "wallet encrypted; Merit server stopping, restart to run with encrypted wallet.";
 }
 
 UniValue lockunspent(const JSONRPCRequest& request)

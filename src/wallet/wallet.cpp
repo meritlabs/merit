@@ -768,17 +768,6 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
         pwalletdbEncryption = nullptr;
 
         Lock();
-        Unlock(strWalletPassphrase);
-
-        // if we are using HD, replace the HD master key (seed) with a new one
-        if (IsHDEnabled()) {
-            if (!SetHDMasterKey(GenerateNewHDMasterKey())) {
-                return false;
-            }
-        }
-
-        NewKeyPool();
-        Lock();
 
         // Need to completely rewrite the wallet file; if we don't, bdb might keep
         // bits of the unencrypted private key in slack space in the database file.
