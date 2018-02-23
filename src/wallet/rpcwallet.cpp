@@ -3963,7 +3963,7 @@ UniValue encryptwallet(const JSONRPCRequest& request)
     // slack space in .dat files; that is bad if the old data is
     // unencrypted private keys. So:
     StartShutdown();
-    return "wallet encrypted; Merit server stopping, restart to run with encrypted wallet.";
+    return "wallet encrypted; Merit server stopping, restart to run with encrypted wallet. You need to make a new backup.";
 }
 
 UniValue lockunspent(const JSONRPCRequest& request)
