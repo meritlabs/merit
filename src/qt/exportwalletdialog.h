@@ -3,6 +3,8 @@
 
 #include <QDialog>
 
+class WalletModel;
+
 namespace Ui {
     class ExportWalletDialog;
 }
@@ -12,7 +14,7 @@ class ExportWalletDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit ExportWalletDialog(QWidget *parent = 0);
+    explicit ExportWalletDialog(QWidget *parent, WalletModel *model);
     ~ExportWalletDialog();
 
 private Q_SLOTS:
@@ -20,6 +22,7 @@ private Q_SLOTS:
     void onShowClicked();
 
 private:
+    WalletModel *walletModel;
     Ui::ExportWalletDialog *ui;
     bool qrCodeIsVisible = false;
 
