@@ -188,6 +188,16 @@ public:
         // Note that of those with the service bits flag, most only support a subset of possible options
         vSeeds.clear();
         vSeeds.emplace_back("seed.merit.me", false);
+        vSeeds.emplace_back("seed.brightkey.io", false);
+        vSeeds.emplace_back("seed.adil.io", false);
+        vSeeds.emplace_back("seed.lvlup.com", false);
+        vSeeds.emplace_back("merit.crypvix.com", false);
+        vSeeds.emplace_back("seeds.merit.blockcasts.com", false);
+        vSeeds.emplace_back("merit.commerce6.com", false);
+        vSeeds.emplace_back("seeds.venturebot.us", false);
+        vSeeds.emplace_back("seed.firstpri.me", false);
+        vSeeds.emplace_back("seeds.merit.rocks", false);
+
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
 
