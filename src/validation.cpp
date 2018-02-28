@@ -647,17 +647,13 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTra
         gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000,
         gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60);
 
-    // same flow for referrals mempool, but w/o UpdateReferralsFromBlock
     // TODO: add UpdateReferralsFromBlock to account dynamic referral sizes
-    std::vector<uint256> vRefHashUpdate;
     auto rit = disconnectReferrals.queued.get<insertion_order>().rbegin();
     while (rit != disconnectReferrals.queued.get<insertion_order>().rend()) {
         CValidationState stateDummy;
         bool missingDummy;
         if (!fAddToMempool || !AcceptReferralToMemoryPool(mempoolReferral, stateDummy, *rit, missingDummy, true)) {
             mempoolReferral.RemoveRecursive(**rit, MemPoolRemovalReason::REORG);
-        } else if (mempoolReferral.Exists((*it)->GetHash())) {
-            vRefHashUpdate.push_back((*it)->GetHash());
         }
         ++rit;
     }
@@ -2914,7 +2910,7 @@ static DisconnectResult DisconnectBlock(
         return DISCONNECT_FAILED;
     }
 
-    if (block_undo.invites_undo.size() !=  block.invites.size()) {
+    if (block_undo.invites_undo.size() != block.invites.size()) {
         error("DisconnectBlock(): block invites and undo data inconsistent");
         return DISCONNECT_FAILED;
     }
@@ -4283,13 +4279,20 @@ bool static DisconnectTip(CValidationState& state,
     }
     LogPrint(BCLog::BENCH, "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * MILLI);
     // Write the chain state to disk, if necessary.
-    if (!FlushStateToDisk(chainparams, state, FLUSH_STATE_IF_NEEDED))
+    if (!FlushStateToDisk(chainparams, state, FLUSH_STATE_ALWAYS))
         return false;
 
     if (disconnectTransactions) {
         // Save transactions to re-add to mempool at end of reorg
         for (const auto& tx : reverse_iterate(block.vtx)) {
             disconnectTransactions->addEntry(tx);
+        }
+
+        if (block.IsDaedalus()) {
+            // Save invites to re-add to mempool at end of reorg
+            for (const auto& invite : reverse_iterate(block.invites)) {
+                disconnectTransactions->addEntry(invite);
+            }
         }
 
         while (disconnectTransactions->DynamicMemoryUsage() > MAX_DISCONNECTED_TX_POOL_SIZE * 1000) {
@@ -4567,6 +4570,7 @@ static bool ActivateBestChainStep(
 
     // Disconnect active blocks which are no longer in the best chain.
     bool fBlocksDisconnected = false;
+    // transactions and invites
     DisconnectedBlockEntries<CTransaction> disconnectTransactions;
     DisconnectedBlockEntries<referral::Referral> disconnectReferrals;
     while (chainActive.Tip() && chainActive.Tip() != pindexFork) {
