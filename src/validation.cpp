@@ -648,7 +648,6 @@ void UpdateMempoolForReorg(DisconnectedBlockEntries<CTransaction>& disconnectTra
         gArgs.GetArg("-mempoolexpiry", DEFAULT_MEMPOOL_EXPIRY) * 60 * 60);
 
     // TODO: add UpdateReferralsFromBlock to account dynamic referral sizes
-    std::vector<uint256> vRefHashUpdate;
     auto rit = disconnectReferrals.queued.get<insertion_order>().rbegin();
     while (rit != disconnectReferrals.queued.get<insertion_order>().rend()) {
         CValidationState stateDummy;
