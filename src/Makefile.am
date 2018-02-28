@@ -293,6 +293,8 @@ crypto_libmerit_crypto_a_SOURCES = \
   crypto/hmac_sha256.h \
   crypto/hmac_sha512.cpp \
   crypto/hmac_sha512.h \
+  crypto/pkcs5_pbkdf2.cpp \
+  crypto/pkcs5_pbkdf2.h \
   crypto/ripemd160.cpp \
   crypto/ripemd160.h \
   crypto/sha1.cpp \
