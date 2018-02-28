@@ -824,7 +824,9 @@ namespace referral
             new_confirmation = true;
         } else {
             confirmation.second += amount;
-            assert(confirmation.second >= 0);
+            if(confirmation.second < 0) {
+                return false;
+            }
         }
 
         if (!m_db.Write(
