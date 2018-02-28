@@ -26,7 +26,11 @@ namespace referral
             "meritlabs",
         };
 
-        const std::regex ALIAS_REGEX(strprintf("^([a-z0-9_-]){3,%d}$", MAX_ALIAS_LENGTH), std::regex_constants::icase);
+        /*
+         * Older versions of GCC have a bug doing icase matching with character classes.
+         * https://gcc.gnu.org/bugzilla/show_bug.cgi?id=71500
+         */
+        const std::regex ALIAS_REGEX(strprintf("^([a-z0-9A-Z_-]){3,%d}$", MAX_ALIAS_LENGTH), std::regex_constants::icase);
     }
 
 bool CheckReferralAlias(std::string alias)
