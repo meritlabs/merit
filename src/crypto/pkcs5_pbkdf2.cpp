@@ -44,12 +44,12 @@ int pkcs5_pbkdf2(const uint8_t* passphrase, size_t passphrase_length,
         asalt[salt_length + 1] = (count >> 16) & 0xff;
         asalt[salt_length + 2] = (count >> 8) & 0xff;
         asalt[salt_length + 3] = (count >> 0) & 0xff;
-        CHMAC_SHA512(asalt, asalt_size).Write(passphrase, passphrase_length).Finalize(digest1);
+        CHMAC_SHA512(passphrase, passphrase_length).Write(asalt, asalt_size).Finalize(digest1);
         std::copy_n(digest1, sizeof(buffer), buffer);
 
         for (iteration = 1; iteration < iterations; iteration++)
         {
-            CHMAC_SHA512(digest1, sizeof(digest1)).Write(passphrase, passphrase_length).Finalize(digest2);
+            CHMAC_SHA512(passphrase, passphrase_length).Write(digest1, sizeof(digest1)).Finalize(digest2);
             std::copy_n(digest2, sizeof(digest1), digest1);
             for (index = 0; index < sizeof(buffer); index++)
                 buffer[index] ^= digest1[index];
@@ -65,7 +65,7 @@ int pkcs5_pbkdf2(const uint8_t* passphrase, size_t passphrase_length,
     std::fill_n(digest2, sizeof(digest2), 0);
     std::fill_n(buffer, sizeof(buffer), 0);
     std::fill_n(asalt, asalt_size, 0);
-    delete asalt;
+    delete[] asalt;
 
     return 0;
 }
