@@ -316,7 +316,7 @@ QLabel { color: rgb(40,40,40);  }</string>
                 </font>
                </property>
                <property name="text">
-                <string>Once you have synced with the rest of the network, this screen will be dismissed.  This usually takes less than an hour.</string>
+                <string>Once you have synced with the rest of the network, this screen will be dismissed.</string>
                </property>
                <property name="textFormat">
                 <enum>Qt::RichText</enum>
