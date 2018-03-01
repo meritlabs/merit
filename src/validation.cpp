@@ -2673,7 +2673,7 @@ bool RemoveReferrals(const CBlock& block)
 
     // Update offset and Record referrals into the referral DB
     for (const auto& rtx : block.m_vRef) {
-        if (!prefviewdb->RemoveReferral(*rtx))
+        if (!prefviewcache->RemoveReferral(*rtx))
             return false;
     }
     return true;
