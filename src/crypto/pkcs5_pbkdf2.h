@@ -17,10 +17,6 @@
 #ifndef PKCS5PBKDF2_H
 #define PKCS5PBKDF2_H
 
-#include <stddef.h>
-#include <stdint.h>
-#include "pkcs5_pbkdf2.h"
-
 /* Password-Based Key Derivation Function 2 (PKCS #5 v2.0). */
 /* Code based on IEEE Std 802.11-2007, Annex H.4.2. */
 /* returns 0 if successful. */
