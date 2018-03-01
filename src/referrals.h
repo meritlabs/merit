@@ -89,7 +89,7 @@ public:
     bool Exists(const std::string&) const;
 
     /** Remove referral from cache */
-    void RemoveReferral(const Referral&) const;
+    bool RemoveReferral(const Referral&) const;
 
     /** Flush referrals to disk and clear cache */
     void Flush();

@@ -90,10 +90,10 @@ void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
     referrals_index.insert(ref);
 }
 
-void ReferralsViewCache::RemoveReferral(const Referral& ref) const
+bool ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
     referrals_index.erase(ref.GetAddress());
-    m_db->RemoveReferral(ref);
+    return m_db->RemoveReferral(ref);
 }
 
 bool ReferralsViewCache::IsConfirmed(const Address& address) const
