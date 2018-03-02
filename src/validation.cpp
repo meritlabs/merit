@@ -934,13 +934,6 @@ static bool AcceptToMemoryPoolWorker(
         // so we don't need to keep lock on mempool
         view.SetBackend(dummy);
 
-        if (!Consensus::CheckTxInputs(tx, state, view, GetSpendHeight(view))) {
-            return error(
-                    "%s: inputs tx inputs for transaction %s",
-                    __func__,
-                    tx.GetHash().GetHex());
-        }
-
         // Only accept BIP68 sequence locked transactions that can be mined
         // in the next block; we don't want our mempool filled up with
         // transactions that can't be mined yet. Must keep pool.cs for this
@@ -2403,6 +2396,9 @@ bool CheckInputs(
 {
     if (!tx.IsCoinBase())
     {
+        if (!Consensus::CheckTxInputs(tx, state, inputs, spendHeight))
+            return false;
+
         if (pvChecks)
             pvChecks->reserve(tx.vin.size());
 
@@ -3596,12 +3592,9 @@ static bool ConnectBlock(
 
         if (validate) {
             if (!tx.IsCoinBase()) {
-                if (!Consensus::CheckTxInputs(tx, state, view, GetSpendHeight(view))) {
-                    return error(
-                            "%s: inputs tx inputs for transaction %s",
-                            __func__,
-                            tx.GetHash().GetHex());
-                }
+                if (!view.HaveInputs(tx))
+                    return state.DoS(100, error("ConnectBlock(): inputs missing/spent"),
+                            REJECT_INVALID, "bad-txns-inputs-missingorspent");
 
                 // Check that transaction is BIP68 final
                 // BIP68 lock checks (as opposed to nLockTime checks) must
@@ -3612,7 +3605,6 @@ static bool ConnectBlock(
                 }
 
                 if (!SequenceLocks(tx, &prevheights, *pindex)) {
-                    LogPrint(BCLog::VALIDATION, "%s: contains a non-BIP68-final transaction: txid %s\n", __func__, tx.GetHash().GetHex());
                     return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
                             REJECT_INVALID, "bad-txns-nonfinal");
                 }
@@ -3624,8 +3616,7 @@ static bool ConnectBlock(
             // * witness (when witness enabled in flags and excludes coinbase)
             nSigOpsCost += GetTransactionSigOpCost(tx, view, flags);
             if (nSigOpsCost > MAX_BLOCK_SIGOPS_COST)
-                LogPrint(BCLog::VALIDATION, "%s: too many sigops: txid %s\n", __func__, tx.GetHash().GetHex());
-                return state.DoS(100, error("%s: too many sigops", __func__),
+                return state.DoS(100, error("ConnectBlock(): too many sigops"),
                         REJECT_INVALID, "bad-blk-sigops");
 
             txdata.emplace_back(tx);
