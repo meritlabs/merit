@@ -283,7 +283,6 @@ public:
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 500;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 5000;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
