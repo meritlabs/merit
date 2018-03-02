@@ -91,6 +91,7 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
                                   TransactionFilterProxy::TYPE(TransactionRecord::SendToOther));
     typeWidget->addItem(tr("To yourself"), TransactionFilterProxy::TYPE(TransactionRecord::SendToSelf));
     typeWidget->addItem(tr("Mined"), TransactionFilterProxy::TYPE(TransactionRecord::Generated));
+    typeWidget->addItem(tr("Ambassador Reward"), TransactionFilterProxy::TYPE(TransactionRecord::AmbassadorReward));
     // Invites
     typeWidget->addItem(tr("Mined invite"), TransactionFilterProxy::TYPE(TransactionRecord::GeneratedInvite));
     typeWidget->addItem(tr("Received invite to"), TransactionFilterProxy::TYPE(TransactionRecord::RecvInvite));
