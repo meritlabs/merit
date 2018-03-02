@@ -8,6 +8,7 @@
 #define MERIT_WALLET_WALLET_H
 
 #include "amount.h"
+#include "crypto/mnemonic/mnemonic.h"
 #include "policy/feerate.h"
 #include "streams.h"
 #include "tinyformat.h"
@@ -1221,7 +1222,9 @@ public:
     bool IsHDEnabled() const;
 
     /* Generates a new HD master key (will not be activated) */
+    CPubKey InnerGenerateMasterKey(const CKey& key);
     CPubKey GenerateNewHDMasterKey();
+    CPubKey GenerateMasterKeyFromMnemonic(const word_list& mnemonic, const std::string& passphrase = "");
 
     /* Set the current HD master key (will reset the chain child index counters)
        Sets the master key's version based on the current wallet version (so the

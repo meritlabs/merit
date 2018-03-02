@@ -10,7 +10,7 @@
 using word_list = std::vector<std::string>;
 namespace mnemonic
 {
-    uint8_t *mnemonic_to_key(const word_list& mnemonic, const std::string& passphrase = "");
+    uint8_t *mnemonic_to_seed(const word_list& mnemonic, const std::string& passphrase = "");
     void print_uint8(const uint8_t* bytes, const int& num = 0);
 }
 
