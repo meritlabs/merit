@@ -573,7 +573,7 @@ void BlockAssembler::SortForBlock(
     // transactions for block inclusion.
     sortedEntries.clear();
     sortedEntries.insert(sortedEntries.begin(), package.begin(), package.end());
-    std::sort(sortedEntries.begin(), sortedEntries.end(), CompareIteratorByEntryTime<CTxMemPool::txiter>());
+    std::sort(sortedEntries.begin(), sortedEntries.end(), CompareTxIterByAncestorCount());
 }
 
 void BlockAssembler::AddReferrals()
