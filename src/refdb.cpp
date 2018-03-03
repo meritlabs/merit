@@ -815,6 +815,7 @@ namespace referral
         m_db.Read(DB_CONFIRMATION_TOTAL, total_confirmations);
 
         bool new_confirmation = false;
+        bool delete_confirmation = false;
         ConfirmationPair confirmation;
         if(!m_db.Read(
                     std::make_pair(DB_CONFIRMATION, address),
@@ -824,6 +825,15 @@ namespace referral
             new_confirmation = true;
         } else {
             confirmation.second += amount;
+
+            //We delete the last confirmation only if amount of invites reaches
+            //0 and it is the last confirmation in the array. This is to handle
+            //DisconnectBlock correctly.
+            assert(total_confirmations > 0);
+
+            delete_confirmation = confirmation.second == 0
+                && confirmation.first == total_confirmations - 1;
+
             if(confirmation.second < 0) {
                 return false;
             }
@@ -847,9 +857,18 @@ namespace referral
             if(!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations + 1)) {
                 return false;
             }
+        } else if (delete_confirmation) {
+            if(!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations - 1)) {
+                return false;
+            }
+            if(!m_db.Erase(std::make_pair(DB_CONFIRMATION, address))) {
+                return false;
+            }
+            if(!m_db.Erase(std::make_pair(DB_CONFIRMATION_IDX, confirmation.first))) {
+                return false;
+            }
         }
         return true;
-
     }
 
     bool ReferralsViewDB::Exists(const referral::Address& address) const
