@@ -94,7 +94,6 @@ bool AliasesEqual(std::string a, std::string b) {
         return true;
     }
 
-    //Check left side
     return TransposeEqual(a, b);
 }
 
