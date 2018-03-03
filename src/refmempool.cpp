@@ -25,7 +25,7 @@ const Address& GetAddress(const RefMemPoolEntry& entry)
     return entry.GetSharedEntryValue()->GetAddress();
 }
 
-const std::string& GetAlias(const RefMemPoolEntry& entry)
+std::string GetAlias(const RefMemPoolEntry& entry)
 {
     auto normalized_alias = entry.GetSharedEntryValue()->alias;
     NormalizeAlias(normalized_alias);

@@ -81,7 +81,7 @@ struct referral_parent {
 };
 
 const Address& GetAddress(const RefMemPoolEntry& entry);
-const std::string& GetAlias(const RefMemPoolEntry& entry);
+std::string GetAlias(const RefMemPoolEntry& entry);
 const Address& GetParentAddress(const RefMemPoolEntry& entry);
 
 class ReferralTxMemPool
@@ -113,7 +113,7 @@ public:
                 boost::multi_index::tag<referral_alias>,
                 boost::multi_index::global_fun<
                     const RefMemPoolEntry&,
-                    const std::string&,
+                    std::string,
                     &GetAlias>>,
             boost::multi_index::hashed_non_unique<
                 boost::multi_index::tag<referral_parent>,
