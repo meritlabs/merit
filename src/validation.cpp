@@ -422,9 +422,10 @@ bool CheckReferralAliasUnique(
     if (block != nullptr) {
         auto it = std::find_if (
             block->m_vRef.begin(), block->m_vRef.end(),
-            [&referral_in](const referral::ReferralRef& ref) {
+            [&referral_in, &params, blockheight](const referral::ReferralRef& ref) {
                 return 
-                    referral::AliasesEqual(ref->alias, referral_in->alias) &&
+                    referral::AliasesEqual(ref->alias, referral_in->alias,
+                            blockheight >= params.safer_alias_blockheight) &&
                     ref->GetHash() != referral_in->GetHash();
             });
 

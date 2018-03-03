@@ -274,8 +274,9 @@ void NormalizeAlias(std::string& alias);
 /**
  * Returns true if the two aliases are equal. The aliases are compared
  * in normalize form. Also a transpose check is done on either side.
+ * unless safe mode off, then it's just a byte compare.
  */
-bool AliasesEqual(std::string a, std::string b);
+bool AliasesEqual(std::string a, std::string b, bool safe);
 
 } //namespace referral
 

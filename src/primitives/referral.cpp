@@ -82,7 +82,11 @@ bool TransposeEqual(const std::string& a, const std::string& b) {
     return true;
 }
 
-bool AliasesEqual(std::string a, std::string b) {
+bool AliasesEqual(std::string a, std::string b, bool safe) {
+    if(!safe) {
+        return a == b;
+    }
+
     NormalizeAlias(a);
     NormalizeAlias(b);
 
