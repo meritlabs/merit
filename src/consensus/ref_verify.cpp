@@ -10,27 +10,33 @@
 
 namespace referral
 {
-bool CheckReferral(const Referral& referral, CValidationState& state)
-{
-    // Basic checks that don't depend on any context
-    if (referral.GetAddress().IsNull()) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-address");
-    }
-
-    // Check referral pubkey and signature
-    if (!referral.pubkey.IsValid()) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-ref-invalid-pubkey");
-    } else {
-        if (referral.signature.empty()) {
-            return state.DoS(100, false, REJECT_INVALID, "bad-ref-sig-empty");
+    bool CheckReferral(
+            const Referral& referral,
+            int blockheight,
+            const Consensus::Params& params,
+            CValidationState& state)
+    {
+        // Basic checks that don't depend on any context
+        if (referral.GetAddress().IsNull()) {
+            return state.DoS(100, false, REJECT_INVALID, "bad-ref-no-address");
         }
-    }
 
-    if (referral.version >= Referral::INVITE_VERSION && !CheckReferralAlias(referral.alias)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-ref-invalid-alias");
-    }
+        // Check referral pubkey and signature
+        if (!referral.pubkey.IsValid()) {
+            return state.DoS(100, false, REJECT_INVALID, "bad-ref-invalid-pubkey");
+        } else {
+            if (referral.signature.empty()) {
+                return state.DoS(100, false, REJECT_INVALID, "bad-ref-sig-empty");
+            }
+        }
 
-    return true;
-}
+        if (referral.version >= Referral::INVITE_VERSION 
+                && !CheckReferralAlias(referral.alias, blockheight, params)) {
+
+            return state.DoS(100, false, REJECT_INVALID, "bad-ref-invalid-alias");
+        }
+
+        return true;
+    }
 
 } //namespace referral

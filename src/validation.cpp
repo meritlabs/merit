@@ -728,7 +728,12 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
 
     missingReferrer = false;
 
-    if (!CheckReferral(*referral, state)) {
+    if (!CheckReferral(
+                *referral,
+                chainActive.Height(),
+                Params().GetConsensus(),
+                state)) {
+
         return false;
     }
 
@@ -2641,13 +2646,16 @@ bool UpdateANV(const CBlock& block, CCoinsViewCache& view) {
 
 bool IndexReferrals(
         const referral::ReferralRefs ordered_referrals,
-        bool allow_no_parent = false)
+        bool allow_no_parent,
+        int blockheight,
+        const Consensus::Params& params)
 {
     assert(prefviewdb);
 
     // Update offset and Record referrals into the referral DB
     for (const auto& rtx : ordered_referrals) {
-        if (!prefviewdb->InsertReferral(*rtx, allow_no_parent)) {
+        if (!prefviewdb->InsertReferral(
+                    *rtx, allow_no_parent, blockheight, params)) {
             return false;
         }
     }
@@ -3473,7 +3481,7 @@ static bool ConnectBlock(
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if (!IndexReferrals(block.m_vRef, true)) {
+            if (!IndexReferrals(block.m_vRef, true, 0, chainparams.GetConsensus())) {
                 return AbortNode(state, "Failed to write referral index");
             }
 
@@ -3918,7 +3926,12 @@ static bool ConnectBlock(
     //The order is important here. We must insert the referrals so that
     //the referral tree is updated to be correct before we debit/credit
     //the ANV to the appropriate addresses.
-    if (!IndexReferrals(ordered_referrals)) {
+    if (!IndexReferrals(
+                ordered_referrals,
+                false,
+                pindex->nHeight,
+                chainparams.GetConsensus())) {
+
         return AbortNode(state, "Failed to write referrals");
     }
 
@@ -5109,13 +5122,6 @@ bool CheckBlock(
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
                                  strprintf("Invite transaction check failed (tx hash %s) %s", invite_tx->GetHash().ToString(), state.GetDebugMessage()));
 
-    // Check referrals
-    for (const auto& ref : block.m_vRef) {
-        if (!CheckReferral(*ref, state)) {
-            return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
-                strprintf("Referral check failed (ref hash %s) %s", ref->GetHash().GetHex(), state.GetDebugMessage()));
-        }
-    }
     unsigned int nSigOps = 0;
     for (const auto& tx : block.vtx) {
         nSigOps += GetLegacySigOpCount(*tx);
@@ -5334,6 +5340,7 @@ static bool ContextualCheckBlock(
     if(!validate) {
         return true;
     }
+
     if (!ValidateContextualDaedalusBlock(block, state, consensusParams, view, pindexPrev)) {
         return false; // state is expected to be set by ValidateDaedalus();
     }
@@ -5354,6 +5361,13 @@ static bool ContextualCheckBlock(
     for (const auto& inv : block.invites) {
         if (!IsFinalTx(*inv, nHeight, nLockTimeCutoff)) {
             return state.DoS(10, false, REJECT_INVALID, "bad-invites-nonfinal", false, "non-final invites");
+        }
+    }
+
+    for (const auto& ref : block.m_vRef) {
+        if (!CheckReferral(*ref, nHeight, consensusParams, state)) {
+            //statge is cet by CheckReferral
+            return false;
         }
     }
 
@@ -6340,7 +6354,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if (!IndexReferrals(block.m_vRef, true)) {
+            if (!IndexReferrals(block.m_vRef, true, 0, chainparams.GetConsensus())) {
                 return error("%s: IndexReferrals failed", __func__);
             }
 

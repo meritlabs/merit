@@ -206,7 +206,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
     }
 
     // check if provided referral's alias is valid and not yet occupied
-    if(!referral::CheckReferralAlias(alias)) {
+    if(!referral::CheckReferralAliasSafe(alias)) {
         throw std::runtime_error(std::string(__func__) + ": the alias doesn't pass validation");
     }
 

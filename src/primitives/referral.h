@@ -5,6 +5,7 @@
 #ifndef MERIT_PRIMITIVES_REFERRAL_H
 #define MERIT_PRIMITIVES_REFERRAL_H
 
+#include "consensus/params.h"
 #include "hash.h"
 #include "pubkey.h"
 #include "script/script.h"
@@ -26,6 +27,7 @@ using ReferralId = boost::variant<uint256, referral::Address, std::string>;
 struct MutableReferral;
 
 static const int MAX_ALIAS_LENGTH = 20;
+static const int BIGGER_MAX_ALIAS_LENGTH = 30;
 
 struct MutableReferral;
 
@@ -251,7 +253,23 @@ static inline ReferralRef MakeReferralRef(Ref&& referralIn)
  * It must not be greater than a certain size and not use certain
  * blacklisted words
  */
-bool CheckReferralAlias(std::string ref);
+bool CheckReferralAlias(
+        std::string ref,
+        int blockheight,
+        const Consensus::Params&);
+
+/**
+ * Safe version of CheckReferralAlias that assumes the new safety rules.
+ */
+bool CheckReferralAliasSafe(std::string alias);
+
+/**
+ * Normalizes an alias to a form that can compared and stored.
+ * This function is safe to handle any user input. It does not validate
+ * if the alias is a valid one, you must use CheckReferralAlias after
+ * normalization to decide if the alias is valid.
+ */
+void NormalizeAlias(std::string& alias);
 
 } //namespace referral
 

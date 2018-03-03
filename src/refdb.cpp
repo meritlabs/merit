@@ -80,15 +80,38 @@ namespace referral
         return {};
     }
 
-    MaybeReferral ReferralsViewDB::GetReferral(const std::string& alias) const
+    MaybeReferral ReferralsViewDB::GetReferral(
+            const std::string& alias,
+            int blockheight,
+            const Consensus::Params& params) const
     {
         if (alias.size() == 0 || alias.size() > MAX_ALIAS_LENGTH) {
             return {};
         }
 
         Address address;
-        if (m_db.Read(std::make_pair(DB_ALIAS, alias), address)) {
-            return GetReferral(address);
+
+        if (blockheight >= params.safer_alias_blockheight) {
+            auto normalized_alias = alias;
+            NormalizeAlias(normalized_alias);
+
+            //Exact search first
+            if (m_db.Read(std::make_pair(DB_ALIAS, normalized_alias), address)) {
+                return GetReferral(address);
+            }
+
+            //Do single transpose search. See Exists method for an explanation why.
+            for (int c = 1; c < normalized_alias.size(); c++) {
+                std::swap(normalized_alias[c-1], normalized_alias[c]);
+                if (m_db.Read(std::make_pair(DB_ALIAS, normalized_alias), address)) {
+                    return GetReferral(address);
+                }
+                std::swap(normalized_alias[c-1], normalized_alias[c]);
+            }
+        } else {
+            if (m_db.Read(std::make_pair(DB_ALIAS, alias), address)) {
+                return GetReferral(address);
+            }
         }
 
         return {};
@@ -121,13 +144,17 @@ namespace referral
         return children;
     }
 
-    bool ReferralsViewDB::InsertReferral(const Referral& referral, bool allow_no_parent)
+    bool ReferralsViewDB::InsertReferral(
+            const Referral& referral,
+            bool allow_no_parent,
+            int blockheight,
+            const Consensus::Params& params)
     {
         debug("Inserting referral %s parent %s",
                 CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
                 referral.parentAddress.GetHex());
 
-        if(referral.alias.size() > MAX_ALIAS_LENGTH) {
+        if (referral.alias.size() > MAX_ALIAS_LENGTH) {
             return false;
         }
 
@@ -155,8 +182,17 @@ namespace referral
 
         if (referral.version >= Referral::INVITE_VERSION && referral.alias.size() > 0) {
             // write referral referral address by alias
-            if (!m_db.Write(std::make_pair(DB_ALIAS, referral.alias), referral.GetAddress()))
-                return false;
+            if (blockheight >= params.safer_alias_blockheight) {
+                auto normalized_alias = referral.alias;
+                NormalizeAlias(normalized_alias);
+                if (!m_db.Write(std::make_pair(DB_ALIAS, normalized_alias), referral.GetAddress())) {
+                    return false;
+                }
+            } else {
+                if (!m_db.Write(std::make_pair(DB_ALIAS, referral.alias), referral.GetAddress())) {
+                    return false;
+                }
+            }
         }
 
         // Typically because the referral should be written in order we should
@@ -202,17 +238,21 @@ namespace referral
     {
         debug("Removing Referral %d", CMeritAddress{referral.addressType, referral.GetAddress()}.ToString());
 
-        if (!m_db.Erase(std::make_pair(DB_REFERRALS, referral.GetAddress())))
+        if (!m_db.Erase(std::make_pair(DB_REFERRALS, referral.GetAddress()))) {
             return false;
+        }
 
-        if (!m_db.Erase(std::make_pair(DB_HASH, referral.GetHash())))
+        if (!m_db.Erase(std::make_pair(DB_HASH, referral.GetHash()))) {
             return false;
+        }
 
-        if (!m_db.Erase(std::make_pair(DB_PUBKEY, referral.pubkey)))
+        if (!m_db.Erase(std::make_pair(DB_PUBKEY, referral.pubkey))) {
             return false;
+        }
 
-        if (!m_db.Erase(std::make_pair(DB_PARENT_ADDRESS, referral.GetAddress())))
+        if (!m_db.Erase(std::make_pair(DB_PARENT_ADDRESS, referral.GetAddress()))) {
             return false;
+        }
 
         ChildAddresses children;
         m_db.Read(std::make_pair(DB_CHILDREN, referral.parentAddress), children);
@@ -221,8 +261,9 @@ namespace referral
                     referral.GetAddress()),
                 std::end(children));
 
-        if (!m_db.Write(std::make_pair(DB_CHILDREN, referral.parentAddress), children))
+        if (!m_db.Write(std::make_pair(DB_CHILDREN, referral.parentAddress), children)) {
             return false;
+        }
 
         return true;
     }
@@ -377,7 +418,7 @@ namespace referral
                 break;
             }
 
-            if(maybe_anv->address_type != 1 && maybe_anv->address_type != 2) {
+            if (maybe_anv->address_type != 1 && maybe_anv->address_type != 2) {
                 continue;
             }
 
@@ -385,7 +426,7 @@ namespace referral
              * After block 13499 the genesis address does not participate in the lottery.
              * So don't include the genesis address as an entrant.
              */
-            if(!found_genesis && height >= 13500 && maybe_anv->address == params.genesis_address) {
+            if (!found_genesis && height >= 13500 && maybe_anv->address == params.genesis_address) {
                 found_genesis = true;
                 continue;
             }
@@ -440,7 +481,7 @@ namespace referral
 
         //Don't include non key or script addresses.
         //parameterized addresses are not allowed.
-        if(!pog::IsValidAmbassadorDestination(address_type)) {
+        if (!pog::IsValidAmbassadorDestination(address_type)) {
             //return true here because false means bad error.
             return true;
         }
@@ -815,7 +856,7 @@ namespace referral
         m_db.Read(DB_CONFIRMATION_TOTAL, total_confirmations);
 
         ConfirmationPair confirmation;
-        if(!m_db.Read(
+        if (!m_db.Read(
                     std::make_pair(DB_CONFIRMATION, address),
                     confirmation)) {
             confirmation.first = total_confirmations;
@@ -831,7 +872,7 @@ namespace referral
                 return false;
             }
 
-            if(!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations + 1)) {
+            if (!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations + 1)) {
                 return false;
             }
         } else {
@@ -841,20 +882,20 @@ namespace referral
             //0 and it is the last confirmation in the array. This is to handle
             //DisconnectBlock correctly.
             assert(total_confirmations > 0);
-            if(confirmation.second == 0 && confirmation.first == total_confirmations - 1) {
-                if(!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations - 1)) {
+            if (confirmation.second == 0 && confirmation.first == total_confirmations - 1) {
+                if (!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations - 1)) {
                     return false;
                 }
-                if(!m_db.Erase(std::make_pair(DB_CONFIRMATION, address))) {
+                if (!m_db.Erase(std::make_pair(DB_CONFIRMATION, address))) {
                     return false;
                 }
-                if(!m_db.Erase(std::make_pair(DB_CONFIRMATION_IDX, confirmation.first))) {
+                if (!m_db.Erase(std::make_pair(DB_CONFIRMATION_IDX, confirmation.first))) {
                     return false;
                 }
                 return true;
             }
 
-            if(confirmation.second < 0) {
+            if (confirmation.second < 0) {
                 return false;
             }
         }
@@ -873,15 +914,43 @@ namespace referral
         return m_db.Exists(std::make_pair(DB_REFERRALS, address));
     }
 
-    bool ReferralsViewDB::Exists(const std::string& alias) const
+    bool ReferralsViewDB::Exists(
+            const std::string& alias, 
+            int blockheight,
+            const Consensus::Params& params) const
     {
+        if (blockheight >= params.safer_alias_blockheight) {
+            auto normalized_alias = alias;
+            NormalizeAlias(normalized_alias);
+            if (normalized_alias.empty()) {
+                return false;
+            }
+            
+            //Try exact match
+            if (m_db.Exists(std::make_pair(DB_ALIAS, normalized_alias))) {
+                return true;
+            }
+
+            //We are disallowing names that have two characters transposed.
+            //People often have a hard time spotting differences in single
+            //Trasnpositions. 
+            for(int c = 1; c < normalized_alias.size(); c++) {
+                std::swap(normalized_alias[c-1], normalized_alias[c]);
+                if (m_db.Exists(std::make_pair(DB_ALIAS, normalized_alias))) {
+                    return true;
+                }
+                std::swap(normalized_alias[c-1], normalized_alias[c]);
+            }
+
+            return false;
+        }
         return alias.size() > 0 && m_db.Exists(std::make_pair(DB_ALIAS, alias));
     }
 
     bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const
     {
         ConfirmationPair confirmation;
-        if(!m_db.Read(
+        if (!m_db.Read(
                     std::make_pair(DB_CONFIRMATION, address),
                     confirmation)) {
             return false;
@@ -973,7 +1042,7 @@ namespace referral
 
         ConfirmationPair pair{0,0};
 
-        if(!m_db.Read(
+        if (!m_db.Read(
                     std::make_pair(DB_CONFIRMATION, val.second),
                     pair)) {
             return MaybeConfirmedAddress{};
