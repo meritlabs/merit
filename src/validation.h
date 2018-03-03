@@ -583,7 +583,7 @@ bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool = true);
  */
 CTxDestination LookupDestination(const std::string& address);
 
-const referral::ReferralRef LookupReferral(
+referral::ReferralRef LookupReferral(
         referral::ReferralId& referral_id,
         int blockheight,
         const Consensus::Params& params);

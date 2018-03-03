@@ -5211,10 +5211,15 @@ CTxDestination LookupDestination(const std::string& address)
         return dest;
     }
 
-    // Get referral by alias from cache
-    // He we assume we are in safer mode by giving the blockheight as the safer_alias_blockheight
+    // Get referral by alias from cache.
+    // He we assume we are in safer mode by giving the blockheight as the safer_alias_blockheight.
+    // We don't do the transpose check here because LookupDestination is used for in the client
+    // code and not valiation
     auto cached_referral = prefviewdb->GetReferral(
-            address, Params().GetConsensus().safer_alias_blockheight, Params().GetConsensus());
+            address,
+            Params().GetConsensus().safer_alias_blockheight,
+            Params().GetConsensus(),
+            false);
 
     if (cached_referral) {
         return CMeritAddress{cached_referral->addressType, cached_referral->GetAddress()}.Get();
@@ -5232,13 +5237,15 @@ CTxDestination LookupDestination(const std::string& address)
     return dest;
 }
 
-const referral::ReferralRef LookupReferral(
+referral::ReferralRef LookupReferral(
         referral::ReferralId& referral_id,
         int blockheight,
         const Consensus::Params& params)
 {
+    //We don't do transpose check here because LookupReferral is used by client
+    //code retrieval not consensus. 
     auto chain_referral =
-        prefviewdb->GetReferral(referral_id, blockheight, params);
+        prefviewdb->GetReferral(referral_id, blockheight, params, false);
 
     if (chain_referral) {
         return MakeReferralRef(*chain_referral);

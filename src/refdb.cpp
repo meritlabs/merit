@@ -48,15 +48,18 @@ namespace referral
                 const ReferralsViewDB *db;
                 const int blockheight;
                 const Consensus::Params& params;
+                const bool transpose_check;
 
             public:
                 ReferralIdVisitor(
                         const ReferralsViewDB *db_in,
                         int blockheight_in,
-                        const Consensus::Params& params_in) : 
+                        const Consensus::Params& params_in,
+                        bool transpose_check_in) : 
                     db{db_in},
                     blockheight{blockheight_in},
-                    params{params_in} {}
+                    params{params_in},
+                    transpose_check{transpose_check_in} {}
 
                 MaybeReferral operator()(const std::string &id) const {
                     return db->GetReferral(id, blockheight, params);
@@ -96,7 +99,8 @@ namespace referral
     MaybeReferral ReferralsViewDB::GetReferral(
             const std::string& alias,
             int blockheight,
-            const Consensus::Params& params) const
+            const Consensus::Params& params,
+            bool transpose_check) const
     {
         if (alias.size() == 0 || alias.size() > MAX_ALIAS_LENGTH) {
             return {};
@@ -114,12 +118,14 @@ namespace referral
             }
 
             //Do single transpose search. See Exists method for an explanation why.
-            for (int c = 1; c < normalized_alias.size(); c++) {
-                std::swap(normalized_alias[c-1], normalized_alias[c]);
-                if (m_db.Read(std::make_pair(DB_ALIAS, normalized_alias), address)) {
-                    return GetReferral(address);
+            if (transpose_check) {
+                for (int c = 1; c < normalized_alias.size(); c++) {
+                    std::swap(normalized_alias[c-1], normalized_alias[c]);
+                    if (m_db.Read(std::make_pair(DB_ALIAS, normalized_alias), address)) {
+                        return GetReferral(address);
+                    }
+                    std::swap(normalized_alias[c-1], normalized_alias[c]);
                 }
-                std::swap(normalized_alias[c-1], normalized_alias[c]);
             }
         } else {
             if (m_db.Read(std::make_pair(DB_ALIAS, alias), address)) {
@@ -133,10 +139,12 @@ namespace referral
     MaybeReferral ReferralsViewDB::GetReferral(
             const ReferralId& referral_id,
             int blockheight,
-            const Consensus::Params& params) const
+            const Consensus::Params& params,
+            bool transpose_check) const
     {
         return boost::apply_visitor(
-                ReferralIdVisitor{this, blockheight, params}, referral_id);
+                ReferralIdVisitor{this, blockheight, params, transpose_check},
+                referral_id);
     }
 
 
@@ -934,7 +942,8 @@ namespace referral
     bool ReferralsViewDB::Exists(
             const std::string& alias, 
             int blockheight,
-            const Consensus::Params& params) const
+            const Consensus::Params& params,
+            bool transpose_check) const
     {
         if (blockheight >= params.safer_alias_blockheight) {
             auto normalized_alias = alias;
@@ -951,12 +960,14 @@ namespace referral
             //We are disallowing names that have two characters transposed.
             //People often have a hard time spotting differences in single
             //Trasnpositions. 
-            for(int c = 1; c < normalized_alias.size(); c++) {
-                std::swap(normalized_alias[c-1], normalized_alias[c]);
-                if (m_db.Exists(std::make_pair(DB_ALIAS, normalized_alias))) {
-                    return true;
+            if (transpose_check) {
+                for(int c = 1; c < normalized_alias.size(); c++) {
+                    std::swap(normalized_alias[c-1], normalized_alias[c]);
+                    if (m_db.Exists(std::make_pair(DB_ALIAS, normalized_alias))) {
+                        return true;
+                    }
+                    std::swap(normalized_alias[c-1], normalized_alias[c]);
                 }
-                std::swap(normalized_alias[c-1], normalized_alias[c]);
             }
 
             return false;

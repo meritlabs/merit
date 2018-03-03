@@ -159,7 +159,7 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 312020;   // About Aug 2, 2018
 
         // Block where safer aliases are enabled.
-        consensus.safer_alias_blockheight = 90000;
+        consensus.safer_alias_blockheight = 92000;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000002");
@@ -295,7 +295,7 @@ public:
         consensus.defaultAssumeValid = uint256S("14933df1e491d761a3972449bc88f3525f2081060af8534f8e54ad8d793f61b0"); //1135275
 
         // Block where safer aliases are enabled.
-        consensus.safer_alias_blockheight = 3000;
+        consensus.safer_alias_blockheight = 2060;
 
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
@@ -421,7 +421,7 @@ public:
         consensus.defaultAssumeValid = uint256S("0x00");
 
         // Block where safer aliases are enabled.
-        consensus.safer_alias_blockheight = 3000;
+        consensus.safer_alias_blockheight = 2060;
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;

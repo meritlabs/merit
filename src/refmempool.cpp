@@ -245,16 +245,6 @@ ReferralRef ReferralTxMemPool::Get(const std::string& alias) const
         return it->GetSharedEntryValue();
     }
 
-    //Search by transposing each adjacent pair which is done for the DB search.
-    for (int c = 1; c < normalized_alias.size(); c++) {
-        std::swap(normalized_alias[c-1], normalized_alias[c]);
-        it = mapRTx.get<referral_alias>().find(normalized_alias);
-        if(it != mapRTx.get<referral_alias>().end()) {
-            return it->GetSharedEntryValue();
-        }
-        std::swap(normalized_alias[c-1], normalized_alias[c]);
-    }
-
     return nullptr;
 }
 
@@ -271,15 +261,6 @@ std::pair<ReferralTxMemPool::RefAliasIter, ReferralTxMemPool::RefAliasIter> Refe
     auto pair = mapRTx.get<referral_alias>().equal_range(normalized_alias);
     if(pair.first != mapRTx.get<referral_alias>().end()) {
         return pair;
-    }
-
-    for (int c = 1; c < normalized_alias.size(); c++) {
-        std::swap(normalized_alias[c-1], normalized_alias[c]);
-        pair = mapRTx.get<referral_alias>().equal_range(normalized_alias);
-        if(pair.first != mapRTx.get<referral_alias>().end()) {
-            return pair;
-        }
-        std::swap(normalized_alias[c-1], normalized_alias[c]);
     }
 
     return pair;
@@ -314,15 +295,6 @@ bool ReferralTxMemPool::Exists(const std::string& alias) const
     //Try exact match first
     if(mapRTx.get<referral_alias>().count(normalized_alias) != 0) {
         return true;
-    }
-
-    //Search by transposing each adjacent pair
-    for (int c = 1; c < normalized_alias.size(); c++) {
-        std::swap(normalized_alias[c-1], normalized_alias[c]);
-        if(mapRTx.get<referral_alias>().count(normalized_alias) != 0) {
-            return true;
-        }
-        std::swap(normalized_alias[c-1], normalized_alias[c]);
     }
 
     return false;

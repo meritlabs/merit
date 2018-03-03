@@ -90,12 +90,14 @@ public:
     MaybeReferral GetReferral(
             const std::string&,
             int blockheight,
-            const Consensus::Params& params) const;
+            const Consensus::Params& params,
+            bool transpose_check = true) const;
 
     MaybeReferral GetReferral(
             const ReferralId&,
             int blockheight,
-            const Consensus::Params& params) const;
+            const Consensus::Params& params,
+            bool transpose_check = true) const;
 
     MaybeAddressPair GetParentAddress(const Address&) const;
     MaybeAddress GetAddressByPubKey(const CPubKey&) const;
@@ -139,7 +141,8 @@ public:
     bool Exists(
             const std::string& alias,
             int blockheight,
-            const Consensus::Params& params) const;
+            const Consensus::Params& params,
+            bool transpose_check = true) const;
 
     bool IsConfirmed(const Address&) const;
     bool UpdateConfirmation(char address_type, const Address&, CAmount amount);
