@@ -27,7 +27,7 @@ using ReferralId = boost::variant<uint256, referral::Address, std::string>;
 struct MutableReferral;
 
 static const int MAX_ALIAS_LENGTH = 20;
-static const int BIGGER_MAX_ALIAS_LENGTH = 30;
+static const int BIGGER_MAX_ALIAS_LENGTH = 28;
 
 struct MutableReferral;
 

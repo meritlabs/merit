@@ -37,9 +37,9 @@ namespace referral
          * Only lowercase and exclude 0 and 1 to help reduce risk of homoglyph attacks
          * since '0' looks like 'o' and '1' looks like 'l'
          *
-         * This leaves the name space to have a size of 36^27
+         * This leaves the name space to have a size of (34^2)*(36^28)
          */
-        const std::regex SAFER_ALIAS_REGEX(strprintf("^([a-z2-9_-]){3,%d}$", BIGGER_MAX_ALIAS_LENGTH));
+        const std::regex SAFER_ALIAS_REGEX(strprintf("^[a-z2-9]([a-z2-9_-]){1,%d}[a-z2-9]$", BIGGER_MAX_ALIAS_LENGTH));
     }
 
 void NormalizeAlias(std::string& alias)
