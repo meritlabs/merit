@@ -814,28 +814,15 @@ namespace referral
         uint64_t total_confirmations = 0;
         m_db.Read(DB_CONFIRMATION_TOTAL, total_confirmations);
 
-        bool new_confirmation = false;
         ConfirmationPair confirmation;
         if(!m_db.Read(
                     std::make_pair(DB_CONFIRMATION, address),
                     confirmation)) {
             confirmation.first = total_confirmations;
             confirmation.second = amount;
-            new_confirmation = true;
-        } else {
-            confirmation.second += amount;
-            if(confirmation.second < 0) {
-                return false;
-            }
-        }
 
-        if (!m_db.Write(
-                    std::make_pair(DB_CONFIRMATION, address),
-                    confirmation)) {
-            return false;
-        }
-
-        if(new_confirmation) {
+            //We have a new confirmed address so add it to the end of the invite lottery
+            //and index it.
             if (!m_db.Write(
                         std::make_pair(DB_CONFIRMATION_IDX, total_confirmations),
                         std::make_pair(
@@ -847,9 +834,38 @@ namespace referral
             if(!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations + 1)) {
                 return false;
             }
-        }
-        return true;
+        } else {
+            confirmation.second += amount;
 
+            //We delete the last confirmation only if amount of invites reaches
+            //0 and it is the last confirmation in the array. This is to handle
+            //DisconnectBlock correctly.
+            assert(total_confirmations > 0);
+            if(confirmation.second == 0 && confirmation.first == total_confirmations - 1) {
+                if(!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations - 1)) {
+                    return false;
+                }
+                if(!m_db.Erase(std::make_pair(DB_CONFIRMATION, address))) {
+                    return false;
+                }
+                if(!m_db.Erase(std::make_pair(DB_CONFIRMATION_IDX, confirmation.first))) {
+                    return false;
+                }
+                return true;
+            }
+
+            if(confirmation.second < 0) {
+                return false;
+            }
+        }
+
+        if (!m_db.Write(
+                    std::make_pair(DB_CONFIRMATION, address),
+                    confirmation)) {
+            return false;
+        }
+
+        return true;
     }
 
     bool ReferralsViewDB::Exists(const referral::Address& address) const
