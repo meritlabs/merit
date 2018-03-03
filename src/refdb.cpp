@@ -814,15 +814,26 @@ namespace referral
         uint64_t total_confirmations = 0;
         m_db.Read(DB_CONFIRMATION_TOTAL, total_confirmations);
 
-        bool new_confirmation = false;
-        bool delete_confirmation = false;
         ConfirmationPair confirmation;
         if(!m_db.Read(
                     std::make_pair(DB_CONFIRMATION, address),
                     confirmation)) {
             confirmation.first = total_confirmations;
             confirmation.second = amount;
-            new_confirmation = true;
+
+            //We have a new confirmed address so add it to the end of the invite lottery
+            //and index it.
+            if (!m_db.Write(
+                        std::make_pair(DB_CONFIRMATION_IDX, total_confirmations),
+                        std::make_pair(
+                            address_type,
+                            address))) {
+                return false;
+            }
+
+            if(!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations + 1)) {
+                return false;
+            }
         } else {
             confirmation.second += amount;
 
@@ -830,9 +841,18 @@ namespace referral
             //0 and it is the last confirmation in the array. This is to handle
             //DisconnectBlock correctly.
             assert(total_confirmations > 0);
-
-            delete_confirmation = confirmation.second == 0
-                && confirmation.first == total_confirmations - 1;
+            if(confirmation.second == 0 && confirmation.first == total_confirmations - 1) {
+                if(!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations - 1)) {
+                    return false;
+                }
+                if(!m_db.Erase(std::make_pair(DB_CONFIRMATION, address))) {
+                    return false;
+                }
+                if(!m_db.Erase(std::make_pair(DB_CONFIRMATION_IDX, confirmation.first))) {
+                    return false;
+                }
+                return true;
+            }
 
             if(confirmation.second < 0) {
                 return false;
@@ -845,29 +865,6 @@ namespace referral
             return false;
         }
 
-        if(new_confirmation) {
-            if (!m_db.Write(
-                        std::make_pair(DB_CONFIRMATION_IDX, total_confirmations),
-                        std::make_pair(
-                            address_type,
-                            address))) {
-                return false;
-            }
-
-            if(!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations + 1)) {
-                return false;
-            }
-        } else if (delete_confirmation) {
-            if(!m_db.Write(DB_CONFIRMATION_TOTAL, total_confirmations - 1)) {
-                return false;
-            }
-            if(!m_db.Erase(std::make_pair(DB_CONFIRMATION, address))) {
-                return false;
-            }
-            if(!m_db.Erase(std::make_pair(DB_CONFIRMATION_IDX, confirmation.first))) {
-                return false;
-            }
-        }
         return true;
     }
 
