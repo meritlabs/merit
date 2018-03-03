@@ -92,7 +92,11 @@ public:
             int blockheight,
             const Consensus::Params& params) const;
 
-    MaybeReferral GetReferral(const ReferralId&) const;
+    MaybeReferral GetReferral(
+            const ReferralId&,
+            int blockheight,
+            const Consensus::Params& params) const;
+
     MaybeAddressPair GetParentAddress(const Address&) const;
     MaybeAddress GetAddressByPubKey(const CPubKey&) const;
     ChildAddresses GetChildren(const Address&) const;

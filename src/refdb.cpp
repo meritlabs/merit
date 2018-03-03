@@ -46,8 +46,21 @@ namespace referral
         {
             private:
                 const ReferralsViewDB *db;
+                const int blockheight;
+                const Consensus::Params& params;
+
             public:
-                explicit ReferralIdVisitor(const ReferralsViewDB *db_in): db{db_in} {}
+                ReferralIdVisitor(
+                        const ReferralsViewDB *db_in,
+                        int blockheight_in,
+                        const Consensus::Params& params_in) : 
+                    db{db_in},
+                    blockheight{blockheight_in},
+                    params{params_in} {}
+
+                MaybeReferral operator()(const std::string &id) const {
+                    return db->GetReferral(id, blockheight, params);
+                }
 
                 template <typename T>
                     MaybeReferral operator()(const T &id) const {
@@ -117,9 +130,13 @@ namespace referral
         return {};
     }
 
-    MaybeReferral ReferralsViewDB::GetReferral(const ReferralId& referral_id) const
+    MaybeReferral ReferralsViewDB::GetReferral(
+            const ReferralId& referral_id,
+            int blockheight,
+            const Consensus::Params& params) const
     {
-        return boost::apply_visitor(ReferralIdVisitor(this), referral_id);
+        return boost::apply_visitor(
+                ReferralIdVisitor{this, blockheight, params}, referral_id);
     }
 
 

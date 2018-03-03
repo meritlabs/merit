@@ -63,7 +63,10 @@ bool ReferralsViewCache::Exists(const Address& address) const
     return false;
 }
 
-bool ReferralsViewCache::Exists(const std::string& alias) const
+bool ReferralsViewCache::Exists(
+        const std::string& alias,
+        int blockheight,
+        const Consensus::Params& params) const
 {
     if (alias.size() == 0) {
         return false;
@@ -71,11 +74,28 @@ bool ReferralsViewCache::Exists(const std::string& alias) const
 
     {
         LOCK(m_cs_cache);
-        if (referrals_index.get<by_alias>().count(alias) > 0) {
-            return true;
+        if(blockheight >= params.safer_alias_blockheight) {
+            auto normalized_alias = alias;
+            NormalizeAlias(normalized_alias);
+
+            if (referrals_index.get<by_alias>().count(normalized_alias) > 0) {
+                return true;
+            }
+
+            for (int c = 1; c < normalized_alias.size(); c++) {
+                std::swap(normalized_alias[c-1], normalized_alias[c]);
+                if (referrals_index.get<by_alias>().count(normalized_alias) > 0) {
+                    return true;
+                }
+                std::swap(normalized_alias[c-1], normalized_alias[c]);
+            }
+        } else {
+            if (referrals_index.get<by_alias>().count(alias) > 0) {
+                return true;
+            }
         }
     }
-    if (auto ref = m_db->GetReferral(alias)) {
+    if (auto ref = m_db->GetReferral(alias, blockheight, params)) {
         InsertReferralIntoCache(*ref);
         return true;
     }

@@ -27,7 +27,9 @@ const Address& GetAddress(const RefMemPoolEntry& entry)
 
 const std::string& GetAlias(const RefMemPoolEntry& entry)
 {
-    return entry.GetSharedEntryValue()->alias;
+    auto normalized_alias = entry.GetSharedEntryValue()->alias;
+    NormalizeAlias(normalized_alias);
+    return normalized_alias;
 }
 
 const Address& GetParentAddress(const RefMemPoolEntry& entry)
@@ -235,8 +237,25 @@ ReferralRef ReferralTxMemPool::Get(const Address& address) const
 ReferralRef ReferralTxMemPool::Get(const std::string& alias) const
 {
     LOCK(cs);
-    auto it = mapRTx.get<referral_alias>().find(alias);
-    return it != mapRTx.get<referral_alias>().end() ? it->GetSharedEntryValue() : nullptr;
+    auto normalized_alias = alias;
+    NormalizeAlias(normalized_alias);
+
+    auto it = mapRTx.get<referral_alias>().find(normalized_alias);
+    if(it != mapRTx.get<referral_alias>().end()) {
+        return it->GetSharedEntryValue();
+    }
+
+    //Search by transposing each adjacent pair which is done for the DB search.
+    for (int c = 1; c < normalized_alias.size(); c++) {
+        std::swap(normalized_alias[c-1], normalized_alias[c]);
+        it = mapRTx.get<referral_alias>().find(normalized_alias);
+        if(it != mapRTx.get<referral_alias>().end()) {
+            return it->GetSharedEntryValue();
+        }
+        std::swap(normalized_alias[c-1], normalized_alias[c]);
+    }
+
+    return nullptr;
 }
 
 ReferralRef ReferralTxMemPool::Get(const ReferralId& referral_id) const
@@ -246,7 +265,24 @@ ReferralRef ReferralTxMemPool::Get(const ReferralId& referral_id) const
 
 std::pair<ReferralTxMemPool::RefAliasIter, ReferralTxMemPool::RefAliasIter> ReferralTxMemPool::Find(const std::string& alias) const
 {
-    return mapRTx.get<referral_alias>().equal_range(alias);
+    auto normalized_alias = alias;
+    NormalizeAlias(normalized_alias);
+
+    auto pair = mapRTx.get<referral_alias>().equal_range(normalized_alias);
+    if(pair.first != mapRTx.get<referral_alias>().end()) {
+        return pair;
+    }
+
+    for (int c = 1; c < normalized_alias.size(); c++) {
+        std::swap(normalized_alias[c-1], normalized_alias[c]);
+        pair = mapRTx.get<referral_alias>().equal_range(normalized_alias);
+        if(pair.first != mapRTx.get<referral_alias>().end()) {
+            return pair;
+        }
+        std::swap(normalized_alias[c-1], normalized_alias[c]);
+    }
+
+    return pair;
 }
 
 std::pair<ReferralTxMemPool::RefParentIter, ReferralTxMemPool::RefParentIter> ReferralTxMemPool::Find(const Address& parentAddress) const
@@ -268,7 +304,28 @@ bool ReferralTxMemPool::Exists(const Address& address) const
 bool ReferralTxMemPool::Exists(const std::string& alias) const
 {
     LOCK(cs);
-    return alias.size() > 0 && mapRTx.get<referral_alias>().count(alias) != 0;
+    if(alias.empty()) {
+        return false;
+    }
+
+    auto normalized_alias = alias;
+    NormalizeAlias(normalized_alias);
+
+    //Try exact match first
+    if(mapRTx.get<referral_alias>().count(normalized_alias) != 0) {
+        return true;
+    }
+
+    //Search by transposing each adjacent pair
+    for (int c = 1; c < normalized_alias.size(); c++) {
+        std::swap(normalized_alias[c-1], normalized_alias[c]);
+        if(mapRTx.get<referral_alias>().count(normalized_alias) != 0) {
+            return true;
+        }
+        std::swap(normalized_alias[c-1], normalized_alias[c]);
+    }
+
+    return false;
 }
 
 void ReferralTxMemPool::GetReferralsForTransaction(const CTransactionRef& tx, ReferralTxMemPool::setEntries& txReferrals)

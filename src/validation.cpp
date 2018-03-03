@@ -404,20 +404,28 @@ bool CheckReferralSignature(const referral::Referral& ref)
 
 bool CheckReferralAliasUnique(
     const referral::ReferralRef& referral_in,
-    const CBlock* block)
+    const CBlock* block,
+    int blockheight,
+    const Consensus::Params& params)
 {
     if (referral_in->alias.size() == 0) {
         return true;
     }
 
-    bool unique = !prefviewcache->Exists(referral_in->alias);
+    bool unique =
+        !prefviewcache->Exists(
+            referral_in->alias,
+            blockheight,
+            params);
 
     // check block for same aliases if provided
     if (block != nullptr) {
         auto it = std::find_if (
             block->m_vRef.begin(), block->m_vRef.end(),
             [&referral_in](const referral::ReferralRef& ref) {
-                return ref->alias == referral_in->alias && ref->GetHash() != referral_in->GetHash();
+                return 
+                    referral::AliasesEqual(ref->alias, referral_in->alias) &&
+                    ref->GetHash() != referral_in->GetHash();
             });
 
         unique &= it == block->m_vRef.end();
@@ -757,7 +765,11 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
         // check if referral alias is already occupied
         // we allow referrals with non-unique aliases in mempool
         // but only one of them would be accepted to new block
-        if (!CheckReferralAliasUnique(referral, nullptr)) {
+        if (!CheckReferralAliasUnique(
+                    referral,
+                    nullptr,
+                    Params().GetConsensus().safer_alias_blockheight,
+                    Params().GetConsensus())) {
             return state.Invalid(false, REJECT_DUPLICATE, "ref-alias-duplicate");
         }
 
@@ -1059,7 +1071,11 @@ static bool AcceptToMemoryPoolWorker(
 
                 // if confirmed referral's alias is already in blockchain
                 // we have a duplicate
-                if (prefviewcache->Exists(referral->alias)) {
+                if (prefviewcache->Exists(
+                            referral->alias,
+                            Params().GetConsensus().safer_alias_blockheight,
+                            Params().GetConsensus())) {
+
                     return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
                 }
 
@@ -3778,7 +3794,12 @@ static bool ConnectBlock(
             }
 
             // is referral alias already occupied?
-            if (!CheckReferralAliasUnique(ref, &block)) {
+            if (!CheckReferralAliasUnique(
+                        ref,
+                        &block,
+                        pindex->nHeight,
+                        chainparams.GetConsensus())) {
+
                 return error("ConnectBlock(): Referral %s alias \"%s\" is already occupied", ref->GetHash().GetHex(), ref->alias);
             }
         }
@@ -5191,7 +5212,10 @@ CTxDestination LookupDestination(const std::string& address)
     }
 
     // Get referral by alias from cache
-    auto cached_referral = prefviewdb->GetReferral(address);
+    // He we assume we are in safer mode by giving the blockheight as the safer_alias_blockheight
+    auto cached_referral = prefviewdb->GetReferral(
+            address, Params().GetConsensus().safer_alias_blockheight, Params().GetConsensus());
+
     if (cached_referral) {
         return CMeritAddress{cached_referral->addressType, cached_referral->GetAddress()}.Get();
     }
@@ -5208,17 +5232,19 @@ CTxDestination LookupDestination(const std::string& address)
     return dest;
 }
 
-const referral::ReferralRef LookupReferral(referral::ReferralId& referral_id)
+const referral::ReferralRef LookupReferral(
+        referral::ReferralId& referral_id,
+        int blockheight,
+        const Consensus::Params& params)
 {
-    auto mempool_referral = mempoolReferral.Get(referral_id);
+    auto chain_referral =
+        prefviewdb->GetReferral(referral_id, blockheight, params);
 
-    if (mempool_referral) {
-        return mempool_referral;
+    if (chain_referral) {
+        return MakeReferralRef(*chain_referral);
     }
 
-    auto cached_referral = prefviewdb->GetReferral(referral_id);
-
-    return cached_referral ? MakeReferralRef(*cached_referral) : nullptr;
+    return mempoolReferral.Get(referral_id);
 }
 
 bool IsWitnessCommitment(const CTxOut& out)

@@ -121,7 +121,9 @@ UniValue getrawreferral(const JSONRPCRequest& request)
     }
 
     ReferralRef ref;
-    ref = LookupReferral(referral_id);
+    ref = LookupReferral(referral_id,
+            Params().GetConsensus().safer_alias_blockheight,
+            Params().GetConsensus());
 
     if (!ref) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about referral");

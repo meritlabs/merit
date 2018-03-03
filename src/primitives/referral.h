@@ -271,6 +271,12 @@ bool CheckReferralAliasSafe(std::string alias);
  */
 void NormalizeAlias(std::string& alias);
 
+/**
+ * Returns true if the two aliases are equal. The aliases are compared
+ * in normalize form. Also a transpose check is done on either side.
+ */
+bool AliasesEqual(std::string a, std::string b);
+
 } //namespace referral
 
 
