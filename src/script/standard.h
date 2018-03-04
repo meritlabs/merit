@@ -94,6 +94,7 @@ public:
  *  A CTxDestination is the internal data type encoded in a merit address
  */
 using CTxDestination = boost::variant<CNoDestination, CKeyID, CScriptID, CParamScriptID>;
+using CTxDestinations = std::vector<CTxDestination>;
 
 /** returns a numberical type based on destination */
 char AddressTypeFromDestination(const CTxDestination&);

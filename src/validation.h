@@ -577,11 +577,23 @@ bool CheckAddressConfirmed(const uint160&, char addr_type, bool checkMempool = t
 /** Check that an address is valid and ready to use */
 bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool = true);
 
+
+/**
+ * Try to decide if the address is an alias or an address.
+ * If it is an alias, lookup the address.
+ *
+ * It is possible to return multiple destinations if the alias is found in the
+ * mempool and there are conflicts
+ */
+CTxDestinations LookupDestinations(const std::string& address);
+
 /**
  * Try to decide if the address is an alias or an address.
  * If it is an alias, lookup the address.
  */
 CTxDestination LookupDestination(const std::string& address);
+
+const referral::ReferralRefs LookupReferrals(referral::ReferralId& referral_id);
 
 const referral::ReferralRef LookupReferral(referral::ReferralId& referral_id);
 

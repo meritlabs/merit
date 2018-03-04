@@ -238,8 +238,6 @@ inline void SerializeReferral(const RefType& ref, Stream& s)
     }
 }
 
-typedef std::shared_ptr<const Referral> ReferralRef;
-
 template <typename Ref>
 static inline ReferralRef MakeReferralRef(Ref&& referralIn)
 {

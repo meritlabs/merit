@@ -222,10 +222,10 @@ public:
     ReferralRef Get(const Address& address) const;
 
     /** Get referral by alias */
-    ReferralRef Get(const std::string& alias) const;
+    ReferralRefs Get(const std::string& alias) const;
 
     /** Get referral by id - hash, address or alias */
-    ReferralRef Get(const ReferralId& referral_id) const;
+    ReferralRefs Get(const ReferralId& referral_id) const;
 
     /** Find all referrals with given alias */
     std::pair<RefAliasIter, RefAliasIter> Find(const std::string& alias) const;

@@ -55,6 +55,7 @@
 #include <atomic>
 #include <sstream>
 #include <numeric>
+#include <stdexcept>
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -5172,7 +5173,7 @@ bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool)
     return maybe_hash ? CheckAddressConfirmed(*maybe_hash, addr.GetType(), checkMempool) : false;
 }
 
-CTxDestination LookupDestination(const std::string& address)
+CTxDestinations LookupDestinations(const std::string& address)
 {
     assert(prefviewdb);
 
@@ -5181,38 +5182,77 @@ CTxDestination LookupDestination(const std::string& address)
     // check if address is a valid destionation => it's an address
     // otherwise try to get referral by alias and get it's address
     if (IsValidDestination(dest)) {
-        return dest;
+        return {dest};
     }
 
     // Get referral by alias from cache
     auto cached_referral = prefviewdb->GetReferral(address);
     if (cached_referral) {
-        return CMeritAddress{cached_referral->addressType, cached_referral->GetAddress()}.Get();
+        return {CMeritAddress{cached_referral->addressType, cached_referral->GetAddress()}.Get()};
     }
 
     // Get referral by alias from cache
-    auto mempool_referral = mempoolReferral.Get(address);
-    if (mempool_referral) {
-        return CMeritAddress{mempool_referral->addressType, mempool_referral->GetAddress()}.Get();
+    auto mempool_referrals = mempoolReferral.Get(address);
+    if (!mempool_referrals.empty()) {
+        CTxDestinations dests;
+        for(const auto& ref: mempool_referrals) {
+            dests.push_back(CMeritAddress{ref->addressType, ref->GetAddress()}.Get());
+        }
+        return dests;
     }
 
     // if dest is not a valid festination and
     // we have no referrals assosiated with this alias
     // return decoded dest
-    return dest;
+    return {dest};
+}
+
+CTxDestination LookupDestination(const std::string& address)
+{
+    assert(prefviewdb);
+
+    auto dests = LookupDestinations(address);
+    if(dests.size() > 1) {
+        std::stringstream s;
+        s << "There are multiple destinations found with the alias " << address << std::endl;
+        s << "The conflicting destinations are..." << std::endl; 
+        for(const auto d : dests) {
+            s << '\t' << CMeritAddress{d}.ToString() << std::endl;
+        }
+        throw std::runtime_error{s.str()};
+    }
+
+    return dests.empty() ? CTxDestination{} : dests.front();
+}
+
+const referral::ReferralRefs LookupReferrals(referral::ReferralId& referral_id)
+{
+    auto cached_referral = prefviewdb->GetReferral(referral_id);
+
+    if(cached_referral) {
+        return {MakeReferralRef(*cached_referral)};
+    }
+
+    return mempoolReferral.Get(referral_id);
 }
 
 const referral::ReferralRef LookupReferral(referral::ReferralId& referral_id)
 {
-    auto mempool_referral = mempoolReferral.Get(referral_id);
-
-    if (mempool_referral) {
-        return mempool_referral;
+    auto mempool_referrals = LookupReferrals(referral_id);
+    if(mempool_referrals.size() > 1) {
+        std::stringstream s;
+        s << "There are multiple referrals found with the id specified" << std::endl;
+        s << "The conflicting referrals are..." << std::endl; 
+        for(const auto ref : mempool_referrals) {
+            s << "\tid:"
+              << ref->GetHash().GetHex()
+              << " address: "
+              << CMeritAddress{ref->addressType, ref->GetAddress()}.ToString()
+              << std::endl;
+        }
+        throw std::runtime_error{s.str()};
     }
-
-    auto cached_referral = prefviewdb->GetReferral(referral_id);
-
-    return cached_referral ? MakeReferralRef(*cached_referral) : nullptr;
+    return mempool_referrals.empty() ? nullptr : mempool_referrals.front();
 }
 
 bool IsWitnessCommitment(const CTxOut& out)
