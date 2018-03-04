@@ -39,7 +39,7 @@ namespace referral
          *
          * This leaves the name space to have a size of (34^2)*(36^28)
          */
-        const std::regex SAFER_ALIAS_REGEX(strprintf("^[a-z0-9]([a-z0-9_-]){1,%d}[a-z0-9]$", MAX_ALIAS_LENGTH));
+        const std::regex SAFER_ALIAS_REGEX(strprintf("^[a-z0-9]([a-z0-9_-]){1,%d}[a-z0-9]$", SAFER_MAX_ALIAS_LENGTH));
     }
 
 void NormalizeAlias(std::string& alias)
@@ -79,12 +79,9 @@ bool CheckReferralAliasSafe(std::string alias) {
     return INVALID_ALIAS_NAMES.count(alias) == 0;
 }
 
-bool CheckReferralAlias(
-        std::string alias,
-        int blockheight,
-        const Consensus::Params& params)
+bool CheckReferralAlias(std::string alias, bool normalize_alias)
 {
-    if(blockheight >= params.safer_alias_blockheight) {
+    if(normalize_alias) {
         return CheckReferralAliasSafe(alias);
     }
 

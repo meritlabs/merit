@@ -210,10 +210,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
         throw std::runtime_error(std::string(__func__) + ": the alias doesn't pass validation");
     }
 
-    if (prefviewcache->Exists(
-                alias,
-                Params().GetConsensus().safer_alias_blockheight,
-                Params().GetConsensus())) {
+    if (prefviewcache->Exists(alias, true)) {
         throw std::runtime_error(std::string(__func__) + ": provided alias is already occupied");
     }
 
@@ -246,11 +243,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
 
 bool CWallet::AliasExists(const std::string& alias) const
 {
-    return !alias.empty() &&
-        prefviewcache->Exists(
-            alias,
-            Params().GetConsensus().safer_alias_blockheight,
-            Params().GetConsensus());
+    return !alias.empty() && prefviewcache->Exists(alias, true);
 }
 
 bool CWallet::AddressBeaconed(const CMeritAddress& address) const

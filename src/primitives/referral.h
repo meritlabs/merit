@@ -28,6 +28,10 @@ struct MutableReferral;
 
 static const int MAX_ALIAS_LENGTH = 20;
 
+//This is 2 less than MAX_ALIAS_LENGTH because the SAFER_ALIAS_REGEX validates
+//the other 2 characters. So the ultimate length stays the same.
+static const int SAFER_MAX_ALIAS_LENGTH = 18;
+
 struct MutableReferral;
 
 /** The basic referral that is broadcast on the network and contained in
@@ -252,10 +256,7 @@ static inline ReferralRef MakeReferralRef(Ref&& referralIn)
  * It must not be greater than a certain size and not use certain
  * blacklisted words
  */
-bool CheckReferralAlias(
-        std::string ref,
-        int blockheight,
-        const Consensus::Params&);
+bool CheckReferralAlias(std::string ref, bool normalize_alias);
 
 /**
  * Safe version of CheckReferralAlias that assumes the new safety rules.

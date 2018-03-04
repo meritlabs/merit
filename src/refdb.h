@@ -89,13 +89,11 @@ public:
 
     MaybeReferral GetReferral(
             const std::string&,
-            int blockheight,
-            const Consensus::Params& params) const;
+            bool normalize_alias) const;
 
     MaybeReferral GetReferral(
             const ReferralId&,
-            int blockheight,
-            const Consensus::Params& params) const;
+            bool normalize_alias) const;
 
     MaybeAddressPair GetParentAddress(const Address&) const;
     MaybeAddress GetAddressByPubKey(const CPubKey&) const;
@@ -109,8 +107,8 @@ public:
     bool InsertReferral(
             const Referral&,
             bool allow_no_parent,
-            int blockheight,
-            const Consensus::Params&);
+            bool normalize_alias);
+
     bool RemoveReferral(const Referral&);
 
     void GetAllRewardableANVs(
@@ -136,10 +134,7 @@ public:
     /**
      * Check if a referral exists by alias.
      */
-    bool Exists(
-            const std::string& alias,
-            int blockheight,
-            const Consensus::Params& params) const;
+    bool Exists(const std::string& alias, bool normalize_alias) const;
 
     bool IsConfirmed(const Address&) const;
     bool UpdateConfirmation(char address_type, const Address&, CAmount amount);

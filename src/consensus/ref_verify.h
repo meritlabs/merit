@@ -22,8 +22,7 @@ namespace referral
     /** Context-independent validity checks */
     bool CheckReferral(
             const Referral& referral,
-            int blockheight,
-            const Consensus::Params& params,
+            bool normalize_alias,
             CValidationState& state);
 
 } //namespace referral

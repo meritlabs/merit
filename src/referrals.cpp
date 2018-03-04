@@ -65,26 +65,25 @@ bool ReferralsViewCache::Exists(const Address& address) const
 
 bool ReferralsViewCache::Exists(
         const std::string& alias,
-        int blockheight,
-        const Consensus::Params& params) const
+        bool normalize_alias) const
 {
     if (alias.size() == 0) {
         return false;
     }
 
-    auto normalized_alias = alias;
-    if(blockheight >= params.safer_alias_blockheight) {
-        NormalizeAlias(normalized_alias);
+    auto normalized = alias;
+    if(normalize_alias) {
+        NormalizeAlias(normalized);
     } 
 
     {
         LOCK(m_cs_cache);
-        if (referrals_index.get<by_alias>().count(normalized_alias) > 0) {
+        if (referrals_index.get<by_alias>().count(normalized) > 0) {
             return true;
         }
     }
 
-    if (auto ref = m_db->GetReferral(normalized_alias, blockheight, params)) {
+    if (auto ref = m_db->GetReferral(normalized, normalize_alias)) {
         InsertReferralIntoCache(*ref);
         return true;
     }

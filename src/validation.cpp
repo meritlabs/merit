@@ -405,27 +405,21 @@ bool CheckReferralSignature(const referral::Referral& ref)
 bool CheckReferralAliasUnique(
     const referral::ReferralRef& referral_in,
     const CBlock* block,
-    int blockheight,
-    const Consensus::Params& params)
+    bool normalize_alias)
 {
     if (referral_in->alias.size() == 0) {
         return true;
     }
 
-    bool unique =
-        !prefviewcache->Exists(
-            referral_in->alias,
-            blockheight,
-            params);
+    bool unique = !prefviewcache->Exists(referral_in->alias, normalize_alias);
 
     // check block for same aliases if provided
     if (block != nullptr) {
         auto it = std::find_if (
             block->m_vRef.begin(), block->m_vRef.end(),
-            [&referral_in, &params, blockheight](const referral::ReferralRef& ref) {
+            [&referral_in, normalize_alias](const referral::ReferralRef& ref) {
                 return 
-                    referral::AliasesEqual(ref->alias, referral_in->alias,
-                            blockheight >= params.safer_alias_blockheight) &&
+                    referral::AliasesEqual(ref->alias, referral_in->alias, normalize_alias) &&
                     ref->GetHash() != referral_in->GetHash();
             });
 
@@ -739,8 +733,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
 
     if (!CheckReferral(
                 *referral,
-                chainActive.Height(),
-                Params().GetConsensus(),
+                chainActive.Height() >= Params().GetConsensus().safer_alias_blockheight,
                 state)) {
 
         return false;
@@ -766,11 +759,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
         // check if referral alias is already occupied
         // we allow referrals with non-unique aliases in mempool
         // but only one of them would be accepted to new block
-        if (!CheckReferralAliasUnique(
-                    referral,
-                    nullptr,
-                    Params().GetConsensus().safer_alias_blockheight,
-                    Params().GetConsensus())) {
+        if (!CheckReferralAliasUnique(referral, nullptr, true)) {
             return state.Invalid(false, REJECT_DUPLICATE, "ref-alias-duplicate");
         }
 
@@ -1072,11 +1061,7 @@ static bool AcceptToMemoryPoolWorker(
 
                 // if confirmed referral's alias is already in blockchain
                 // we have a duplicate
-                if (prefviewcache->Exists(
-                            referral->alias,
-                            Params().GetConsensus().safer_alias_blockheight,
-                            Params().GetConsensus())) {
-
+                if (prefviewcache->Exists(referral->alias, true)) {
                     return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
                 }
 
@@ -2664,15 +2649,13 @@ bool UpdateANV(const CBlock& block, CCoinsViewCache& view) {
 bool IndexReferrals(
         const referral::ReferralRefs ordered_referrals,
         bool allow_no_parent,
-        int blockheight,
-        const Consensus::Params& params)
+        bool normalize_alias)
 {
     assert(prefviewdb);
 
     // Update offset and Record referrals into the referral DB
     for (const auto& rtx : ordered_referrals) {
-        if (!prefviewdb->InsertReferral(
-                    *rtx, allow_no_parent, blockheight, params)) {
+        if (!prefviewdb->InsertReferral(*rtx, allow_no_parent, normalize_alias)) {
             return false;
         }
     }
@@ -3498,7 +3481,7 @@ static bool ConnectBlock(
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if (!IndexReferrals(block.m_vRef, true, 0, chainparams.GetConsensus())) {
+            if (!IndexReferrals(block.m_vRef, true, false)) {
                 return AbortNode(state, "Failed to write referral index");
             }
 
@@ -3798,8 +3781,7 @@ static bool ConnectBlock(
             if (!CheckReferralAliasUnique(
                         ref,
                         &block,
-                        pindex->nHeight,
-                        chainparams.GetConsensus())) {
+                        pindex->nHeight >= chainparams.GetConsensus().safer_alias_blockheight)) {
 
                 return error("ConnectBlock(): Referral %s alias \"%s\" is already occupied", ref->GetHash().GetHex(), ref->alias);
             }
@@ -3951,8 +3933,7 @@ static bool ConnectBlock(
     if (!IndexReferrals(
                 ordered_referrals,
                 false,
-                pindex->nHeight,
-                chainparams.GetConsensus())) {
+                pindex->nHeight >= chainparams.GetConsensus().safer_alias_blockheight)) {
 
         return AbortNode(state, "Failed to write referrals");
     }
@@ -5216,10 +5197,7 @@ CTxDestination LookupDestination(const std::string& address)
     // He we assume we are in safer mode by giving the blockheight as the safer_alias_blockheight.
     // We don't do the transpose check here because LookupDestination is used for in the client
     // code and not valiation
-    auto cached_referral = prefviewdb->GetReferral(
-            address,
-            Params().GetConsensus().safer_alias_blockheight,
-            Params().GetConsensus());
+    auto cached_referral = prefviewdb->GetReferral(address, true);
 
     if (cached_referral) {
         return CMeritAddress{cached_referral->addressType, cached_referral->GetAddress()}.Get();
@@ -5239,13 +5217,12 @@ CTxDestination LookupDestination(const std::string& address)
 
 referral::ReferralRef LookupReferral(
         referral::ReferralId& referral_id,
-        int blockheight,
-        const Consensus::Params& params)
+        bool normalize_alias)
 {
     //We don't do transpose check here because LookupReferral is used by client
     //code retrieval not consensus. 
     auto chain_referral =
-        prefviewdb->GetReferral(referral_id, blockheight, params);
+        prefviewdb->GetReferral(referral_id, normalize_alias);
 
     if (chain_referral) {
         return MakeReferralRef(*chain_referral);
@@ -5398,7 +5375,11 @@ static bool ContextualCheckBlock(
     }
 
     for (const auto& ref : block.m_vRef) {
-        if (!CheckReferral(*ref, nHeight, consensusParams, state)) {
+        if (!CheckReferral(
+                    *ref,
+                    nHeight >= consensusParams.safer_alias_blockheight,
+                    state)) {
+
             //state is set by CheckReferral
             return false;
         }
@@ -6387,7 +6368,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if (!IndexReferrals(block.m_vRef, true, 0, chainparams.GetConsensus())) {
+            if (!IndexReferrals(block.m_vRef, true, false)) {
                 return error("%s: IndexReferrals failed", __func__);
             }
 

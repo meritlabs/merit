@@ -12,8 +12,7 @@ namespace referral
 {
     bool CheckReferral(
             const Referral& referral,
-            int blockheight,
-            const Consensus::Params& params,
+            bool normalize_alias,
             CValidationState& state)
     {
         // Basic checks that don't depend on any context
@@ -31,7 +30,7 @@ namespace referral
         }
 
         if (referral.version >= Referral::INVITE_VERSION 
-                && !CheckReferralAlias(referral.alias, blockheight, params)) {
+                && !CheckReferralAlias(referral.alias, normalize_alias)) {
 
             return state.DoS(100, false, REJECT_INVALID, "bad-ref-invalid-alias");
         }

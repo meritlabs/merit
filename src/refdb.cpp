@@ -46,20 +46,17 @@ namespace referral
         {
             private:
                 const ReferralsViewDB *db;
-                const int blockheight;
-                const Consensus::Params& params;
+                const bool normalize_alias;
 
             public:
                 ReferralIdVisitor(
                         const ReferralsViewDB *db_in,
-                        int blockheight_in,
-                        const Consensus::Params& params_in) :
+                        bool normalize_alias_in) : 
                     db{db_in},
-                    blockheight{blockheight_in},
-                    params{params_in} {}
+                    normalize_alias{normalize_alias_in} {}
 
                 MaybeReferral operator()(const std::string &id) const {
-                    return db->GetReferral(id, blockheight, params);
+                    return db->GetReferral(id, normalize_alias);
                 }
 
                 template <typename T>
@@ -95,8 +92,7 @@ namespace referral
 
     MaybeReferral ReferralsViewDB::GetReferral(
             const std::string& alias,
-            int blockheight,
-            const Consensus::Params& params) const
+            bool normalize_alias) const
     {
         if (alias.size() == 0 || alias.size() > MAX_ALIAS_LENGTH) {
             return {};
@@ -104,13 +100,13 @@ namespace referral
 
         Address address;
 
-        auto normalized_alias = alias;
+        auto normalized = alias;
 
-        if (blockheight >= params.safer_alias_blockheight) {
-            NormalizeAlias(normalized_alias);
+        if (normalize_alias) {
+            NormalizeAlias(normalized);
         }
 
-        if (m_db.Read(std::make_pair(DB_ALIAS, normalized_alias), address)) {
+        if (m_db.Read(std::make_pair(DB_ALIAS, normalized), address)) {
             return GetReferral(address);
         }
 
@@ -119,11 +115,10 @@ namespace referral
 
     MaybeReferral ReferralsViewDB::GetReferral(
             const ReferralId& referral_id,
-            int blockheight,
-            const Consensus::Params& params) const
+            bool normalize_alias) const
     {
         return boost::apply_visitor(
-                ReferralIdVisitor{this, blockheight, params},
+                ReferralIdVisitor{this, normalize_alias},
                 referral_id);
     }
 
@@ -152,8 +147,7 @@ namespace referral
     bool ReferralsViewDB::InsertReferral(
             const Referral& referral,
             bool allow_no_parent,
-            int blockheight,
-            const Consensus::Params& params)
+            bool normalize_alias) 
     {
         debug("Inserting referral %s parent %s",
                 CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
@@ -187,12 +181,12 @@ namespace referral
 
         if (referral.version >= Referral::INVITE_VERSION && referral.alias.size() > 0) {
             // write referral referral address by alias
-            auto normalized_alias = referral.alias;
-            if (blockheight >= params.safer_alias_blockheight) {
-                NormalizeAlias(normalized_alias);
+            auto normalized = referral.alias;
+            if (normalize_alias) {
+                NormalizeAlias(normalized);
             }
 
-            if (!m_db.Write(std::make_pair(DB_ALIAS, normalized_alias), referral.GetAddress())) {
+            if (!m_db.Write(std::make_pair(DB_ALIAS, normalized), referral.GetAddress())) {
                 return false;
             }
         }
@@ -918,16 +912,15 @@ namespace referral
 
     bool ReferralsViewDB::Exists(
             const std::string& alias, 
-            int blockheight,
-            const Consensus::Params& params) const
+            bool normalize_alias) const
     {
-        auto normalized_alias = alias;
-        if (blockheight >= params.safer_alias_blockheight) {
-            NormalizeAlias(normalized_alias);
+        auto normalized = alias;
+        if (normalize_alias) {
+            NormalizeAlias(normalized);
         }
 
-        return normalized_alias.size() > 0 &&
-            m_db.Exists(std::make_pair(DB_ALIAS, normalized_alias));
+        return normalized.size() > 0 &&
+            m_db.Exists(std::make_pair(DB_ALIAS, normalized));
     }
 
     bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const

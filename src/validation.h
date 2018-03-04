@@ -585,8 +585,7 @@ CTxDestination LookupDestination(const std::string& address);
 
 referral::ReferralRef LookupReferral(
         referral::ReferralId& referral_id,
-        int blockheight,
-        const Consensus::Params& params);
+        bool normalize_alias);
 
 /** When there are blocks in the active chain with missing data, rewind the chainstate and remove them from the block index */
 bool RewindBlockIndex(const CChainParams& params);

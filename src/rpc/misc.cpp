@@ -243,11 +243,8 @@ UniValue validatealias(const JSONRPCRequest& request)
     is_valid &= referral::CheckReferralAliasSafe(alias);
 
     // assume and do the new safer rule logic.
-    const auto &params = Params().GetConsensus();
-    auto height = params.safer_alias_blockheight;
-
-    bool is_vacant = !mempoolReferral.Exists(alias) 
-        && !prefviewcache->Exists(alias, height, params);
+    bool is_vacant =
+        !mempoolReferral.Exists(alias) && !prefviewcache->Exists(alias, true);
 
     ret.push_back(Pair("isvalid", is_valid));
     ret.push_back(Pair("isvacant", is_vacant));
