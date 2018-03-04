@@ -159,7 +159,7 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 312020;   // About Aug 2, 2018
 
         // Block where safer aliases are enabled.
-        consensus.safer_alias_blockheight = 92000;
+        consensus.safer_alias_blockheight = 94200;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000002");
