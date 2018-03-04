@@ -71,19 +71,19 @@ bool ReferralsViewCache::Exists(
         return false;
     }
 
-    auto normalized = alias;
+    auto maybe_normalized = alias;
     if(normalize_alias) {
-        NormalizeAlias(normalized);
+        NormalizeAlias(maybe_normalized);
     } 
 
     {
         LOCK(m_cs_cache);
-        if (referrals_index.get<by_alias>().count(normalized) > 0) {
+        if (referrals_index.get<by_alias>().count(maybe_normalized) > 0) {
             return true;
         }
     }
 
-    if (auto ref = m_db->GetReferral(normalized, normalize_alias)) {
+    if (auto ref = m_db->GetReferral(maybe_normalized, normalize_alias)) {
         InsertReferralIntoCache(*ref);
         return true;
     }
