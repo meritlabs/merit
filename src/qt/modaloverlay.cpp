@@ -12,9 +12,17 @@
 
 #include <QResizeEvent>
 #include <QPropertyAnimation>
+#include <QGraphicsOpacityEffect>
+#include <QTimer>
 
 //Defined in validation
 extern std::atomic_bool fImporting;
+
+namespace 
+{
+    int SLIDE_TRANSITION_SECONDS = 15;
+
+}
 
 ModalOverlay::ModalOverlay(QWidget *parent) :
     QWidget(parent),
@@ -27,6 +35,7 @@ ModalOverlay::ModalOverlay(QWidget *parent) :
     ui->setupUi(this);
     ui->closeButton->setEnabled(false);
     ui->closeButton->setHidden(true);
+    ui->overviewSlides->setCurrentIndex(0);
 
     connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(closeClicked()));
 
@@ -41,6 +50,9 @@ ModalOverlay::ModalOverlay(QWidget *parent) :
 
     block_time_samples.clear();
     setVisible(false);
+
+    //start slideshow
+    QTimer::singleShot(1000 * SLIDE_TRANSITION_SECONDS, this, SLOT(endSlide()));
 }
 
 ModalOverlay::~ModalOverlay()
@@ -134,9 +146,6 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
         }
     }
 
-    // show the last block date
-    ui->newestBlockDate->setText(blockDate.toString());
-
     // show the percentage done according to verificationProgress
     if(bestHeaderHeight == 0) {
         ui->percentageProgress->setText(tr("Connecting..."));
@@ -195,6 +204,36 @@ void ModalOverlay::showHide(bool hide, bool userRequested)
     animation->setEasingCurve(QEasingCurve::OutQuad);
     animation->start(QAbstractAnimation::DeleteWhenStopped);
     layerIsVisible = !hide;
+}
+
+void ModalOverlay::nextSlide() 
+{
+    int next = (ui->overviewSlides->currentIndex() + 1) % ui->overviewSlides->count();
+    ui->overviewSlides->setCurrentIndex(next);
+
+    QGraphicsOpacityEffect *e = new QGraphicsOpacityEffect(this);
+    ui->overviewSlides->setGraphicsEffect(e);
+    QPropertyAnimation* a = new QPropertyAnimation(e, "opacity");
+    a->setDuration(500);
+    a->setStartValue(0);
+    a->setEndValue(1);
+    a->setEasingCurve(QEasingCurve::OutQuad);
+    a->start(QAbstractAnimation::DeleteWhenStopped);
+
+    QTimer::singleShot(1000 * SLIDE_TRANSITION_SECONDS, this, SLOT(endSlide()));
+}
+
+void ModalOverlay::endSlide() 
+{
+    QGraphicsOpacityEffect *e = new QGraphicsOpacityEffect(this);
+    ui->overviewSlides->setGraphicsEffect(e);
+    QPropertyAnimation* a = new QPropertyAnimation(e, "opacity");
+    a->setDuration(500);
+    a->setStartValue(1);
+    a->setEndValue(0);
+    a->setEasingCurve(QEasingCurve::OutQuad);
+    a->start(QAbstractAnimation::DeleteWhenStopped);
+    QTimer::singleShot(600, this, SLOT(nextSlide()));
 }
 
 void ModalOverlay::closeClicked()

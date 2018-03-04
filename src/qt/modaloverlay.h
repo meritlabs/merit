@@ -38,6 +38,8 @@ public Q_SLOTS:
     void closeClicked();
     bool isLayerVisible() const { return layerIsVisible; }
     void allowHide();
+    void nextSlide();
+    void endSlide();
 
 protected:
     bool eventFilter(QObject * obj, QEvent * ev);
