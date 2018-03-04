@@ -39,7 +39,7 @@ namespace referral
          *
          * This leaves the name space to have a size of (34^2)*(36^28)
          */
-        const std::regex SAFER_ALIAS_REGEX(strprintf("^[a-z2-9]([a-z2-9_-]){1,%d}[a-z2-9]$", BIGGER_MAX_ALIAS_LENGTH));
+        const std::regex SAFER_ALIAS_REGEX(strprintf("^[a-z0-9]([a-z0-9_-]){1,%d}[a-z0-9]$", MAX_ALIAS_LENGTH));
     }
 
 void NormalizeAlias(std::string& alias)
