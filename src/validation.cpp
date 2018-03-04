@@ -5399,7 +5399,7 @@ static bool ContextualCheckBlock(
 
     for (const auto& ref : block.m_vRef) {
         if (!CheckReferral(*ref, nHeight, consensusParams, state)) {
-            //statge is cet by CheckReferral
+            //state is set by CheckReferral
             return false;
         }
     }
