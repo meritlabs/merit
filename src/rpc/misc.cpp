@@ -240,9 +240,11 @@ UniValue validatealias(const JSONRPCRequest& request)
 
     // alias can not be in address format
     bool is_valid = !IsValidDestination(dest);
-    is_valid &= referral::CheckReferralAlias(alias);
+    is_valid &= referral::CheckReferralAliasSafe(alias);
 
-    bool is_vacant = !mempoolReferral.Exists(alias) && !prefviewcache->Exists(alias);
+    // assume and do the new safer rule logic.
+    bool is_vacant =
+        !mempoolReferral.Exists(alias) && !prefviewcache->Exists(alias, true);
 
     ret.push_back(Pair("isvalid", is_valid));
     ret.push_back(Pair("isvacant", is_vacant));

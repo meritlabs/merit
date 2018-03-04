@@ -7,15 +7,23 @@
 
 class CValidationState;
 
+namespace Consensus
+{
+    struct Params;
+}
+
 namespace referral
 {
-class Referral;
-class ReferralsViewCache;
+    class Referral;
+    class ReferralsViewCache;
 
-/** Referral validation functions */
+    /** Referral validation functions */
 
-/** Context-independent validity checks */
-bool CheckReferral(const Referral& tx, CValidationState& state);
+    /** Context-independent validity checks */
+    bool CheckReferral(
+            const Referral& referral,
+            bool normalize_alias,
+            CValidationState& state);
 
 } //namespace referral
 

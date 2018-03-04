@@ -303,7 +303,8 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             ssValue >> rtx;
 
             CValidationState state;
-            if (!(referral::CheckReferral(*(rtx.GetReferral()), state)
+            if (!((referral::CheckReferral( *(rtx.GetReferral()), false, state)
+                   || referral::CheckReferral( *(rtx.GetReferral()), true, state))
                         && (rtx.GetHash() == hash)
                         && state.IsValid())) {
                 return false;

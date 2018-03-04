@@ -86,7 +86,7 @@ public:
     bool Exists(const uint256&) const;
 
     /** Check if referral alias occupied */
-    bool Exists(const std::string&) const;
+    bool Exists( const std::string& alias, bool normalize_alias) const;
 
     /** Remove referral from cache */
     bool RemoveReferral(const Referral&) const;

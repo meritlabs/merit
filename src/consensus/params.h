@@ -87,6 +87,9 @@ struct Params {
     int daedalus_block_window;
     int daedalus_min_one_invite_for_every_x_blocks;
     int daedalus_max_outstanding_invites_per_address;
+    
+    /** Bug Fix heights */
+    int safer_alias_blockheight;
 
 };
 } // namespace Consensus
