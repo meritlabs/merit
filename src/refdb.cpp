@@ -100,13 +100,13 @@ namespace referral
 
         Address address;
 
-        auto normalized = alias;
+        auto maybe_normalized = alias;
 
         if (normalize_alias) {
-            NormalizeAlias(normalized);
+            NormalizeAlias(maybe_normalized);
         }
 
-        if (m_db.Read(std::make_pair(DB_ALIAS, normalized), address)) {
+        if (m_db.Read(std::make_pair(DB_ALIAS, maybe_normalized), address)) {
             return GetReferral(address);
         }
 
@@ -181,12 +181,12 @@ namespace referral
 
         if (referral.version >= Referral::INVITE_VERSION && referral.alias.size() > 0) {
             // write referral referral address by alias
-            auto normalized = referral.alias;
+            auto maybe_normalized = referral.alias;
             if (normalize_alias) {
-                NormalizeAlias(normalized);
+                NormalizeAlias(maybe_normalized);
             }
 
-            if (!m_db.Write(std::make_pair(DB_ALIAS, normalized), referral.GetAddress())) {
+            if (!m_db.Write(std::make_pair(DB_ALIAS, maybe_normalized), referral.GetAddress())) {
                 return false;
             }
         }
@@ -914,13 +914,13 @@ namespace referral
             const std::string& alias, 
             bool normalize_alias) const
     {
-        auto normalized = alias;
+        auto maybe_normalized = alias;
         if (normalize_alias) {
-            NormalizeAlias(normalized);
+            NormalizeAlias(maybe_normalized);
         }
 
-        return normalized.size() > 0 &&
-            m_db.Exists(std::make_pair(DB_ALIAS, normalized));
+        return maybe_normalized.size() > 0 &&
+            m_db.Exists(std::make_pair(DB_ALIAS, maybe_normalized));
     }
 
     bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const
