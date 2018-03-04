@@ -292,7 +292,6 @@ bool ReferralTxMemPool::Exists(const std::string& alias) const
     auto normalized_alias = alias;
     NormalizeAlias(normalized_alias);
 
-    //Try exact match first
     if(mapRTx.get<referral_alias>().count(normalized_alias) != 0) {
         return true;
     }
