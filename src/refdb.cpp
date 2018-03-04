@@ -48,18 +48,15 @@ namespace referral
                 const ReferralsViewDB *db;
                 const int blockheight;
                 const Consensus::Params& params;
-                const bool transpose_check;
 
             public:
                 ReferralIdVisitor(
                         const ReferralsViewDB *db_in,
                         int blockheight_in,
-                        const Consensus::Params& params_in,
-                        bool transpose_check_in) : 
+                        const Consensus::Params& params_in) :
                     db{db_in},
                     blockheight{blockheight_in},
-                    params{params_in},
-                    transpose_check{transpose_check_in} {}
+                    params{params_in} {}
 
                 MaybeReferral operator()(const std::string &id) const {
                     return db->GetReferral(id, blockheight, params);
@@ -99,8 +96,7 @@ namespace referral
     MaybeReferral ReferralsViewDB::GetReferral(
             const std::string& alias,
             int blockheight,
-            const Consensus::Params& params,
-            bool transpose_check) const
+            const Consensus::Params& params) const
     {
         if (alias.size() == 0 || alias.size() > MAX_ALIAS_LENGTH) {
             return {};
@@ -108,29 +104,14 @@ namespace referral
 
         Address address;
 
+        auto normalized_alias = alias;
+
         if (blockheight >= params.safer_alias_blockheight) {
-            auto normalized_alias = alias;
             NormalizeAlias(normalized_alias);
+        }
 
-            //Exact search first
-            if (m_db.Read(std::make_pair(DB_ALIAS, normalized_alias), address)) {
-                return GetReferral(address);
-            }
-
-            //Do single transpose search. See Exists method for an explanation why.
-            if (transpose_check) {
-                for (int c = 1; c < normalized_alias.size(); c++) {
-                    std::swap(normalized_alias[c-1], normalized_alias[c]);
-                    if (m_db.Read(std::make_pair(DB_ALIAS, normalized_alias), address)) {
-                        return GetReferral(address);
-                    }
-                    std::swap(normalized_alias[c-1], normalized_alias[c]);
-                }
-            }
-        } else {
-            if (m_db.Read(std::make_pair(DB_ALIAS, alias), address)) {
-                return GetReferral(address);
-            }
+        if (m_db.Read(std::make_pair(DB_ALIAS, normalized_alias), address)) {
+            return GetReferral(address);
         }
 
         return {};
@@ -139,11 +120,10 @@ namespace referral
     MaybeReferral ReferralsViewDB::GetReferral(
             const ReferralId& referral_id,
             int blockheight,
-            const Consensus::Params& params,
-            bool transpose_check) const
+            const Consensus::Params& params) const
     {
         return boost::apply_visitor(
-                ReferralIdVisitor{this, blockheight, params, transpose_check},
+                ReferralIdVisitor{this, blockheight, params},
                 referral_id);
     }
 
@@ -207,16 +187,13 @@ namespace referral
 
         if (referral.version >= Referral::INVITE_VERSION && referral.alias.size() > 0) {
             // write referral referral address by alias
+            auto normalized_alias = referral.alias;
             if (blockheight >= params.safer_alias_blockheight) {
-                auto normalized_alias = referral.alias;
                 NormalizeAlias(normalized_alias);
-                if (!m_db.Write(std::make_pair(DB_ALIAS, normalized_alias), referral.GetAddress())) {
-                    return false;
-                }
-            } else {
-                if (!m_db.Write(std::make_pair(DB_ALIAS, referral.alias), referral.GetAddress())) {
-                    return false;
-                }
+            }
+
+            if (!m_db.Write(std::make_pair(DB_ALIAS, normalized_alias), referral.GetAddress())) {
+                return false;
             }
         }
 
@@ -942,37 +919,15 @@ namespace referral
     bool ReferralsViewDB::Exists(
             const std::string& alias, 
             int blockheight,
-            const Consensus::Params& params,
-            bool transpose_check) const
+            const Consensus::Params& params) const
     {
+        auto normalized_alias = alias;
         if (blockheight >= params.safer_alias_blockheight) {
-            auto normalized_alias = alias;
             NormalizeAlias(normalized_alias);
-            if (normalized_alias.empty()) {
-                return false;
-            }
-            
-            //Try exact match
-            if (m_db.Exists(std::make_pair(DB_ALIAS, normalized_alias))) {
-                return true;
-            }
-
-            //We are disallowing names that have two characters transposed.
-            //People often have a hard time spotting differences in single
-            //Trasnpositions. 
-            if (transpose_check) {
-                for(int c = 1; c < normalized_alias.size(); c++) {
-                    std::swap(normalized_alias[c-1], normalized_alias[c]);
-                    if (m_db.Exists(std::make_pair(DB_ALIAS, normalized_alias))) {
-                        return true;
-                    }
-                    std::swap(normalized_alias[c-1], normalized_alias[c]);
-                }
-            }
-
-            return false;
         }
-        return alias.size() > 0 && m_db.Exists(std::make_pair(DB_ALIAS, alias));
+
+        return normalized_alias.size() > 0 &&
+            m_db.Exists(std::make_pair(DB_ALIAS, normalized_alias));
     }
 
     bool ReferralsViewDB::IsConfirmed(const referral::Address& address) const

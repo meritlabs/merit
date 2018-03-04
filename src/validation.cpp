@@ -5219,8 +5219,7 @@ CTxDestination LookupDestination(const std::string& address)
     auto cached_referral = prefviewdb->GetReferral(
             address,
             Params().GetConsensus().safer_alias_blockheight,
-            Params().GetConsensus(),
-            false);
+            Params().GetConsensus());
 
     if (cached_referral) {
         return CMeritAddress{cached_referral->addressType, cached_referral->GetAddress()}.Get();
@@ -5246,7 +5245,7 @@ referral::ReferralRef LookupReferral(
     //We don't do transpose check here because LookupReferral is used by client
     //code retrieval not consensus. 
     auto chain_referral =
-        prefviewdb->GetReferral(referral_id, blockheight, params, false);
+        prefviewdb->GetReferral(referral_id, blockheight, params);
 
     if (chain_referral) {
         return MakeReferralRef(*chain_referral);

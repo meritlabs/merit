@@ -72,30 +72,19 @@ bool ReferralsViewCache::Exists(
         return false;
     }
 
+    auto normalized_alias = alias;
+    if(blockheight >= params.safer_alias_blockheight) {
+        NormalizeAlias(normalized_alias);
+    } 
+
     {
         LOCK(m_cs_cache);
-        if(blockheight >= params.safer_alias_blockheight) {
-            auto normalized_alias = alias;
-            NormalizeAlias(normalized_alias);
-
-            if (referrals_index.get<by_alias>().count(normalized_alias) > 0) {
-                return true;
-            }
-
-            for (int c = 1; c < normalized_alias.size(); c++) {
-                std::swap(normalized_alias[c-1], normalized_alias[c]);
-                if (referrals_index.get<by_alias>().count(normalized_alias) > 0) {
-                    return true;
-                }
-                std::swap(normalized_alias[c-1], normalized_alias[c]);
-            }
-        } else {
-            if (referrals_index.get<by_alias>().count(alias) > 0) {
-                return true;
-            }
+        if (referrals_index.get<by_alias>().count(normalized_alias) > 0) {
+            return true;
         }
     }
-    if (auto ref = m_db->GetReferral(alias, blockheight, params)) {
+
+    if (auto ref = m_db->GetReferral(normalized_alias, blockheight, params)) {
         InsertReferralIntoCache(*ref);
         return true;
     }

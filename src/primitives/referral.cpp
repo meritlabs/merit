@@ -58,47 +58,13 @@ void NormalizeAlias(std::string& alias)
     std::transform(alias.begin(), alias.end(), alias.begin(), ::tolower);
 }
 
-bool TransposeEqual(const std::string& a, const std::string& b) {
-    assert(a.size() > 1);
-    assert(a.size() == b.size());
-
-    if (a[0] != b[0] &&
-        a[1] != b[1] &&
-        a[0] != b[1] &&
-        a[1] != b[0]) {
-
-        return false;
-    }
-
-    for (int c = 2; c < a.size(); c++) {
-        if (a[c]   != b[c] &&
-            a[c-1] != b[c] &&
-            a[c]   != b[c-1]) {
-
-            return false;
-        }
-    }
-
-    return true;
-}
-
 bool AliasesEqual(std::string a, std::string b, bool safe) {
-    if(!safe) {
-        return a == b;
+    if(safe) {
+        NormalizeAlias(a);
+        NormalizeAlias(b);
     }
 
-    NormalizeAlias(a);
-    NormalizeAlias(b);
-
-    if(a.size() != b.size()) {
-        return false;
-    }
-
-    if(a == b) {
-        return true;
-    }
-
-    return TransposeEqual(a, b);
+    return a == b;
 }
 
 bool CheckReferralAliasSafe(std::string alias) {
