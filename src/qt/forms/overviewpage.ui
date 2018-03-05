@@ -247,7 +247,7 @@ background-color: rgb(232, 179, 54);</string>
                </font>
               </property>
               <property name="text">
-               <string>88888888888888888888888888888888888</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;88888888888888888888888888888888888&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="alignment">
                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -436,8 +436,8 @@ background-color: rgb(232, 179, 54);</string>
                </property>
                <property name="minimumSize">
                 <size>
-                 <width>50</width>
-                 <height>50</height>
+                 <width>98</width>
+                 <height>98</height>
                 </size>
                </property>
                <property name="maximumSize">
@@ -469,7 +469,7 @@ background-color: rgb(232, 179, 54);</string>
              <item alignment="Qt::AlignHCenter">
               <widget class="QLabel" name="spreadTheWordText">
                <property name="text">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#2067d1;&quot;&gt;Invite Others to Join Merit! &lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:10pt;&quot;&gt;Give them your Alias or Address and&lt;br/&gt;their requests will appear here.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#384c62;&quot;&gt;Invite Others to Join Merit! &lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:10pt;&quot;&gt;Give them your Alias or Address and&lt;br/&gt;their requests will appear here.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
               </widget>
              </item>
@@ -547,7 +547,7 @@ background-color: rgb(232, 179, 54);</string>
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
               <horstretch>0</horstretch>
-              <verstretch>1</verstretch>
+              <verstretch>0</verstretch>
              </sizepolicy>
             </property>
             <property name="autoFillBackground">

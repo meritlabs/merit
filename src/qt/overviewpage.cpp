@@ -619,6 +619,9 @@ void OverviewPage::UpdateInviteRequestView()
     if (has_requests) {
         ui->spreadTheWord->hide();
         ui->noPendingInvitesLabel->hide();
+        ui->listPendingRequests->setMinimumHeight(
+            std::min(5, pendingRequestsFilter->rowCount()) * (DECORATION_SIZE + 2));
+        ui->listPendingRequests->adjustSize();
         ui->listPendingRequests->show();
     } else { 
         ui->listPendingRequests->hide();
