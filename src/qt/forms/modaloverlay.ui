@@ -47,7 +47,7 @@
       <property name="bottomMargin">
        <number>60</number>
       </property>
-      <item alignment="Qt::AlignHCenter|Qt::AlignVCenter">
+      <item alignment="Qt::AlignHCenter">
        <widget class="QWidget" name="contentWidget" native="true">
         <property name="minimumSize">
          <size>
@@ -57,8 +57,8 @@
         </property>
         <property name="maximumSize">
          <size>
-          <width>700</width>
-          <height>600</height>
+          <width>500</width>
+          <height>480</height>
          </size>
         </property>
         <property name="styleSheet">
@@ -66,7 +66,7 @@
 
 QLabel { color: rgb(40,40,40);  }</string>
         </property>
-        <layout class="QVBoxLayout" name="verticalLayoutSub" stretch="0,0,0,1,0,0">
+        <layout class="QVBoxLayout" name="verticalLayoutSub" stretch="0,0,0,0,0,0,0">
          <property name="spacing">
           <number>0</number>
          </property>
@@ -115,7 +115,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="text">
-              <string>Download Progress</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Download Progress&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
             </widget>
            </item>
@@ -139,7 +139,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="text">
-              <string>Number of blocks left</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Number of blocks left&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
             </widget>
            </item>
@@ -150,33 +150,7 @@ QLabel { color: rgb(40,40,40);  }</string>
              </property>
             </widget>
            </item>
-           <item row="3" column="0">
-            <widget class="QLabel" name="labelLastBlockTime">
-             <property name="font">
-              <font>
-               <weight>75</weight>
-               <bold>true</bold>
-              </font>
-             </property>
-             <property name="text">
-              <string>Last block time</string>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="1">
-            <widget class="QLabel" name="newestBlockDate">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="text">
-              <string>Unknown...</string>
-             </property>
-            </widget>
-           </item>
-           <item row="6" column="0">
+           <item row="5" column="0">
             <widget class="QLabel" name="labelProgressIncrease">
              <property name="font">
               <font>
@@ -185,18 +159,18 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="text">
-              <string>Blocks Per Hour</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Blocks Per Hour&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
             </widget>
            </item>
-           <item row="6" column="1">
+           <item row="5" column="1">
             <widget class="QLabel" name="blocksPerH">
              <property name="text">
               <string>calculating...</string>
              </property>
             </widget>
            </item>
-           <item row="7" column="0">
+           <item row="6" column="0">
             <widget class="QLabel" name="labelEstimatedTimeLeft">
              <property name="font">
               <font>
@@ -205,11 +179,11 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="text">
-              <string>Estimated time left until synced</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Estimated time left until synced&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
             </widget>
            </item>
-           <item row="7" column="1">
+           <item row="6" column="1">
             <widget class="QLabel" name="expectedTimeLeft">
              <property name="text">
               <string>calculating...</string>
@@ -231,117 +205,174 @@ QLabel { color: rgb(40,40,40);  }</string>
            </property>
           </spacer>
          </item>
-         <item>
-          <layout class="QHBoxLayout" name="horizontalLayoutIconText" stretch="0,1">
-           <property name="topMargin">
-            <number>20</number>
+         <item alignment="Qt::AlignHCenter">
+          <widget class="QStackedWidget" name="overviewSlides">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>1</verstretch>
+            </sizepolicy>
            </property>
-           <item>
-            <layout class="QVBoxLayout" name="verticalLayoutIcon">
-             <property name="leftMargin">
-              <number>0</number>
+           <property name="minimumSize">
+            <size>
+             <width>460</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>460</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="currentIndex">
+            <number>3</number>
+           </property>
+           <widget class="QWidget" name="communityPage">
+            <widget class="QLabel" name="communityIcon">
+             <property name="geometry">
+              <rect>
+               <x>180</x>
+               <y>0</y>
+               <width>101</width>
+               <height>111</height>
+              </rect>
              </property>
-             <item>
-              <widget class="QPushButton" name="hourglassIcon">
-               <property name="enabled">
-                <bool>false</bool>
-               </property>
-               <property name="text">
-                <string/>
-               </property>
-               <property name="icon">
-                <iconset resource="../merit.qrc">
-                 <normaloff>:/icons/hourglass</normaloff>
-                 <disabledoff>:/icons/hourglass</disabledoff>:/icons/hourglass</iconset>
-               </property>
-               <property name="iconSize">
-                <size>
-                 <width>48</width>
-                 <height>48</height>
-                </size>
-               </property>
-               <property name="flat">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <spacer name="verticalSpacerWarningIcon">
-               <property name="orientation">
-                <enum>Qt::Vertical</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>20</width>
-                 <height>40</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QVBoxLayout" name="verticalLayoutInfoText">
-             <property name="spacing">
-              <number>12</number>
+             <property name="text">
+              <string/>
              </property>
-             <property name="leftMargin">
-              <number>0</number>
+             <property name="pixmap">
+              <pixmap resource="../merit.qrc">:/icons/community</pixmap>
              </property>
-             <property name="topMargin">
-              <number>0</number>
+            </widget>
+            <widget class="QLabel" name="communityLabel">
+             <property name="geometry">
+              <rect>
+               <x>0</x>
+               <y>110</y>
+               <width>461</width>
+               <height>91</height>
+              </rect>
              </property>
-             <property name="bottomMargin">
-              <number>0</number>
+             <property name="text">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#2067d1;&quot;&gt;COMMUNITY&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;The world's first invite-only digital currency;&lt;br/&gt; with better incentives for everyone.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
-             <item>
-              <widget class="QLabel" name="infoText">
-               <property name="text">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Hang Tight!&lt;/span&gt; Merit is a decentralized network that is powered by a worldwide community of people like you. &lt;span style=&quot; text-decoration: underline;&quot;&gt;Before you can unlock your wallet&lt;/span&gt;, this application has to finish syncing with other peers on the network. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-               </property>
-               <property name="textFormat">
-                <enum>Qt::RichText</enum>
-               </property>
-               <property name="wordWrap">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="infoTextStrong">
-               <property name="font">
-                <font>
-                 <weight>50</weight>
-                 <bold>false</bold>
-                </font>
-               </property>
-               <property name="text">
-                <string>Once you have synced with the rest of the network, this screen will be dismissed.</string>
-               </property>
-               <property name="textFormat">
-                <enum>Qt::RichText</enum>
-               </property>
-               <property name="wordWrap">
-                <bool>true</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <spacer name="verticalSpacerInTextSpace">
-               <property name="orientation">
-                <enum>Qt::Vertical</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>20</width>
-                 <height>40</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
-            </layout>
-           </item>
-          </layout>
+            </widget>
+           </widget>
+           <widget class="QWidget" name="safetyPage">
+            <widget class="QLabel" name="safetyIcon">
+             <property name="geometry">
+              <rect>
+               <x>180</x>
+               <y>0</y>
+               <width>101</width>
+               <height>111</height>
+              </rect>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="pixmap">
+              <pixmap resource="../merit.qrc">:/icons/safety</pixmap>
+             </property>
+            </widget>
+            <widget class="QLabel" name="safetyLabel">
+             <property name="geometry">
+              <rect>
+               <x>0</x>
+               <y>110</y>
+               <width>461</width>
+               <height>91</height>
+              </rect>
+             </property>
+             <property name="text">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#2067d1;&quot;&gt;SAFETY&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; color:#292929;&quot;&gt;Decentralized vaults, password-protected&lt;br/&gt; transactions, and cancellable transactions.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+            </widget>
+           </widget>
+           <widget class="QWidget" name="simplicityPage">
+            <widget class="QLabel" name="safetyIcon_2">
+             <property name="geometry">
+              <rect>
+               <x>180</x>
+               <y>0</y>
+               <width>101</width>
+               <height>111</height>
+              </rect>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="pixmap">
+              <pixmap resource="../merit.qrc">:/icons/simplicity</pixmap>
+             </property>
+            </widget>
+            <widget class="QLabel" name="safetyLabel_2">
+             <property name="geometry">
+              <rect>
+               <x>0</x>
+               <y>110</y>
+               <width>461</width>
+               <height>91</height>
+              </rect>
+             </property>
+             <property name="text">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#2067d1;&quot;&gt;SIMPLICITY&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Send Merit as easy as a text message or email,&lt;br/&gt;whether recipients are on the network or not.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+            </widget>
+           </widget>
+           <widget class="QWidget" name="waitPage">
+            <widget class="QPushButton" name="hourglassIcon">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="geometry">
+              <rect>
+               <x>180</x>
+               <y>0</y>
+               <width>101</width>
+               <height>101</height>
+              </rect>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="icon">
+              <iconset resource="../merit.qrc">
+               <normaloff>:/icons/hourglass</normaloff>
+               <disabledoff>:/icons/hourglass</disabledoff>:/icons/hourglass</iconset>
+             </property>
+             <property name="iconSize">
+              <size>
+               <width>90</width>
+               <height>90</height>
+              </size>
+             </property>
+             <property name="flat">
+              <bool>true</bool>
+             </property>
+            </widget>
+            <widget class="QLabel" name="infoText">
+             <property name="geometry">
+              <rect>
+               <x>0</x>
+               <y>100</y>
+               <width>461</width>
+               <height>101</height>
+              </rect>
+             </property>
+             <property name="text">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#2067d1;&quot;&gt;HANG TIGHT&lt;br/&gt;&lt;/span&gt;&lt;br/&gt;&lt;span style=&quot; text-decoration: underline; color:#000000;&quot;&gt;Before you can unlock your wallet, &lt;/span&gt;&lt;span style=&quot; color:#000000;&quot;&gt;this application&lt;br/&gt;has to finish syncing with other peers on the network.&lt;br/&gt;Merit is a decentralized network that is powered&lt;br/&gt;by people like you&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="textFormat">
+              <enum>Qt::RichText</enum>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </widget>
+          </widget>
          </item>
          <item>
           <spacer name="verticalSpacerAfterText">
@@ -351,10 +382,17 @@ QLabel { color: rgb(40,40,40);  }</string>
            <property name="sizeHint" stdset="0">
             <size>
              <width>20</width>
-             <height>40</height>
+             <height>10</height>
             </size>
            </property>
           </spacer>
+         </item>
+         <item>
+          <widget class="QLabel" name="learnMoreLink">
+           <property name="text">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:8pt; font-style:italic; color:#222e3c;&quot;&gt;Learn more about why Merit is the world’s friendliest digital currency at &lt;/span&gt;&lt;a href=&quot;https://www.merit.me/why-merit/&quot;&gt;&lt;span style=&quot; font-size:8pt; font-style:italic; text-decoration: underline; color:#0000ff;&quot;&gt;Merit.me&lt;/span&gt;&lt;/a&gt;&lt;span style=&quot; font-size:8pt; font-style:italic;&quot;&gt;.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+          </widget>
          </item>
          <item>
           <layout class="QHBoxLayout" name="horizontalLayoutButtons">

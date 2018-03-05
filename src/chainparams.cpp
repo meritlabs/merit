@@ -1,4 +1,4 @@
-// Copyright (c) 2013-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -22,6 +22,7 @@
 #include <chrono>
 #include <ctime>
 #include <iostream>
+#include <limits>
 #include <numeric>
 #include <set>
 #include <time.h>
@@ -156,7 +157,10 @@ public:
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 49000; // About Feb 2, 2018
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 312020;   // About Aug 2, 2018
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = std::numeric_limits<int>::max();
+
+        // Block where safer aliases are enabled.
+        consensus.safer_alias_blockheight = 94200;
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000002");
@@ -290,6 +294,9 @@ public:
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("14933df1e491d761a3972449bc88f3525f2081060af8534f8e54ad8d793f61b0"); //1135275
 
+        // Block where safer aliases are enabled.
+        consensus.safer_alias_blockheight = 2060;
+
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
         pchMessageStart[2] = 0x09;
@@ -406,12 +413,16 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 500;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 5000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = std::numeric_limits<int>::max();
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0x00");
 
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("0x00");
+
+        // Block where safer aliases are enabled.
+        consensus.safer_alias_blockheight = 2060;
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;

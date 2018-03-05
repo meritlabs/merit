@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -206,11 +206,11 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
     }
 
     // check if provided referral's alias is valid and not yet occupied
-    if(!referral::CheckReferralAlias(alias)) {
+    if(!referral::CheckReferralAliasSafe(alias)) {
         throw std::runtime_error(std::string(__func__) + ": the alias doesn't pass validation");
     }
 
-    if (prefviewcache->Exists(alias)) {
+    if (prefviewcache->Exists(alias, true)) {
         throw std::runtime_error(std::string(__func__) + ": provided alias is already occupied");
     }
 
@@ -243,8 +243,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
 
 bool CWallet::AliasExists(const std::string& alias) const
 {
-    if(alias.empty()) return false;
-    return prefviewcache->Exists(alias);
+    return !alias.empty() && prefviewcache->Exists(alias, true);
 }
 
 bool CWallet::AddressBeaconed(const CMeritAddress& address) const

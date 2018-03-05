@@ -122,7 +122,7 @@ void EnterUnlockCode::aliasChanged(const QString &newText)
 {
     auto alias = newText.toStdString();
 
-    bool valid = alias.empty() || referral::CheckReferralAlias(alias);
+    bool valid = referral::CheckReferralAliasSafe(alias);
     bool taken = !alias.empty() && walletModel->AliasExists(alias);
 
     aliasValid = valid && !taken;

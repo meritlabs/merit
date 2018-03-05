@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2011-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -498,6 +498,7 @@ void OverviewPage::setWalletModel(WalletModel *model)
         // show up to 5 pending invite requests before having to scroll to view more.
         ui->listPendingRequests->setMinimumHeight(
             std::min(5, pendingRequestsFilter->rowCount()) * (DECORATION_SIZE + 2));
+        ui->listPendingRequests->adjustSize();
 
         is_confirmed = walletModel->IsConfirmed();
         UpdateInvitationStatus();
@@ -618,6 +619,8 @@ void OverviewPage::UpdateInviteRequestView()
     if (has_requests) {
         ui->spreadTheWord->hide();
         ui->noPendingInvitesLabel->hide();
+        ui->listPendingRequests->setMinimumHeight(
+                std::min(5, pendingRequestsFilter->rowCount()) * (DECORATION_SIZE + 2));
         ui->listPendingRequests->show();
     } else { 
         ui->listPendingRequests->hide();
@@ -635,6 +638,7 @@ void OverviewPage::UpdateInviteRequestView()
                 w, h, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
         ui->spreadTheWordIcon->setPixmap(scaled_pixmap);
+        ui->spreadTheWordIcon->setMinimumHeight(h);
         ui->spreadTheWord->adjustSize();
         ui->spreadTheWord->setHidden(false);
     }
@@ -661,9 +665,10 @@ void OverviewPage::MempoolSizeChanged(long size, size_t bytes)
     mempool_bytes = bytes;
 }
 
-void OverviewPage::resizeEvent(QResizeEvent *)
+void OverviewPage::resizeEvent(QResizeEvent* e)
 {
     UpdateInviteRequestView();
+    QWidget::resizeEvent(e);
 }
 
 void OverviewPage::UpdateNetworkView()

@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -303,7 +303,8 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             ssValue >> rtx;
 
             CValidationState state;
-            if (!(referral::CheckReferral(*(rtx.GetReferral()), state)
+            if (!((referral::CheckReferral( *(rtx.GetReferral()), false, state)
+                   || referral::CheckReferral( *(rtx.GetReferral()), true, state))
                         && (rtx.GetHash() == hash)
                         && state.IsValid())) {
                 return false;

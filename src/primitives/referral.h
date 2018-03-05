@@ -1,10 +1,11 @@
-// Copyright (c) 2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef MERIT_PRIMITIVES_REFERRAL_H
 #define MERIT_PRIMITIVES_REFERRAL_H
 
+#include "consensus/params.h"
 #include "hash.h"
 #include "pubkey.h"
 #include "script/script.h"
@@ -26,6 +27,10 @@ using ReferralId = boost::variant<uint256, referral::Address, std::string>;
 struct MutableReferral;
 
 static const int MAX_ALIAS_LENGTH = 20;
+
+//This is 2 less than MAX_ALIAS_LENGTH because the SAFER_ALIAS_REGEX validates
+//the other 2 characters. So the ultimate length stays the same.
+static const int SAFER_MAX_ALIAS_LENGTH = 18;
 
 struct MutableReferral;
 
@@ -251,7 +256,27 @@ static inline ReferralRef MakeReferralRef(Ref&& referralIn)
  * It must not be greater than a certain size and not use certain
  * blacklisted words
  */
-bool CheckReferralAlias(std::string ref);
+bool CheckReferralAlias(std::string ref, bool normalize_alias);
+
+/**
+ * Safe version of CheckReferralAlias that assumes the new safety rules.
+ */
+bool CheckReferralAliasSafe(std::string alias);
+
+/**
+ * Normalizes an alias to a form that can compared and stored.
+ * This function is safe to handle any user input. It does not validate
+ * if the alias is a valid one, you must use CheckReferralAlias after
+ * normalization to decide if the alias is valid.
+ */
+void NormalizeAlias(std::string& alias);
+
+/**
+ * Returns true if the two aliases are equal. The aliases are compared
+ * in normalize form. Also a transpose check is done on either side.
+ * unless safe mode off, then it's just a byte compare.
+ */
+bool AliasesEqual(std::string a, std::string b, bool safe);
 
 } //namespace referral
 

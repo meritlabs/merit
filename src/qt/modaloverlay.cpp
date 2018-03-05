@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -12,9 +12,17 @@
 
 #include <QResizeEvent>
 #include <QPropertyAnimation>
+#include <QGraphicsOpacityEffect>
+#include <QTimer>
 
 //Defined in validation
 extern std::atomic_bool fImporting;
+
+namespace 
+{
+    int SLIDE_TRANSITION_SECONDS = 15;
+
+}
 
 ModalOverlay::ModalOverlay(QWidget *parent) :
     QWidget(parent),
@@ -27,6 +35,8 @@ ModalOverlay::ModalOverlay(QWidget *parent) :
     ui->setupUi(this);
     ui->closeButton->setEnabled(false);
     ui->closeButton->setHidden(true);
+    ui->overviewSlides->setCurrentIndex(0);
+    ui->learnMoreLink->setOpenExternalLinks(true);
 
     connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(closeClicked()));
 
@@ -41,6 +51,9 @@ ModalOverlay::ModalOverlay(QWidget *parent) :
 
     block_time_samples.clear();
     setVisible(false);
+
+    //start slideshow
+    QTimer::singleShot(1000 * SLIDE_TRANSITION_SECONDS, this, SLOT(endSlide()));
 }
 
 ModalOverlay::~ModalOverlay()
@@ -96,9 +109,13 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     static bool prev_importing = false; 
     if(prev_importing != fImporting) {
         if(fImporting) {
-            ui->labelSyncDone->setText(tr("Reindexing Progress"));
+            ui->labelSyncDone->setText(tr(
+                        "<html><head/><body><p><span style=\" color:#384c62;\">"
+                        "Indexing Progress</span></p></body></html>"));
         } else {
-            ui->labelSyncDone->setText(tr("Download Progress"));
+            ui->labelSyncDone->setText(tr(
+                        "<html><head/><body><p><span style=\" color:#384c62;\">"
+                        "Download Progress</span></p></body></html>"));
         }
         prev_importing = fImporting;
     }
@@ -133,9 +150,6 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
             ui->expectedTimeLeft->setText(GUIUtil::formatNiceTimeOffset(remaining_msecs/1000));
         }
     }
-
-    // show the last block date
-    ui->newestBlockDate->setText(blockDate.toString());
 
     // show the percentage done according to verificationProgress
     if(bestHeaderHeight == 0) {
@@ -195,6 +209,36 @@ void ModalOverlay::showHide(bool hide, bool userRequested)
     animation->setEasingCurve(QEasingCurve::OutQuad);
     animation->start(QAbstractAnimation::DeleteWhenStopped);
     layerIsVisible = !hide;
+}
+
+void ModalOverlay::nextSlide() 
+{
+    int next = (ui->overviewSlides->currentIndex() + 1) % ui->overviewSlides->count();
+    ui->overviewSlides->setCurrentIndex(next);
+
+    QGraphicsOpacityEffect *e = new QGraphicsOpacityEffect(this);
+    ui->overviewSlides->setGraphicsEffect(e);
+    QPropertyAnimation* a = new QPropertyAnimation(e, "opacity");
+    a->setDuration(500);
+    a->setStartValue(0);
+    a->setEndValue(1);
+    a->setEasingCurve(QEasingCurve::OutQuad);
+    a->start(QAbstractAnimation::DeleteWhenStopped);
+
+    QTimer::singleShot(1000 * SLIDE_TRANSITION_SECONDS, this, SLOT(endSlide()));
+}
+
+void ModalOverlay::endSlide() 
+{
+    QGraphicsOpacityEffect *e = new QGraphicsOpacityEffect(this);
+    ui->overviewSlides->setGraphicsEffect(e);
+    QPropertyAnimation* a = new QPropertyAnimation(e, "opacity");
+    a->setDuration(500);
+    a->setStartValue(1);
+    a->setEndValue(0);
+    a->setEasingCurve(QEasingCurve::OutQuad);
+    a->start(QAbstractAnimation::DeleteWhenStopped);
+    QTimer::singleShot(600, this, SLOT(nextSlide()));
 }
 
 void ModalOverlay::closeClicked()

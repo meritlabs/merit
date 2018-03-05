@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -120,8 +120,7 @@ UniValue getrawreferral(const JSONRPCRequest& request)
         referral_id = *(address.GetUint160());
     }
 
-    ReferralRef ref;
-    ref = LookupReferral(referral_id);
+    auto ref = LookupReferral(referral_id, true);
 
     if (!ref) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about referral");

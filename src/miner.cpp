@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -421,7 +421,7 @@ bool BlockAssembler::TestPackageContent(
         const referral::ReferralRefs& referrals)
 {
     uint64_t nPotentialBlockSize = nBlockSize; // only used with fNeedSizeAccounting
-    for (const CTxMemPool::txiter it : transactions) {
+    for (const auto it : transactions) {
         if (!IsFinalTx(it->GetEntryValue(), nHeight, nLockTimeCutoff))
             return false;
         if (!fIncludeWitness && it->GetEntryValue().HasWitness())
@@ -573,7 +573,7 @@ void BlockAssembler::SortForBlock(
     // transactions for block inclusion.
     sortedEntries.clear();
     sortedEntries.insert(sortedEntries.begin(), package.begin(), package.end());
-    std::sort(sortedEntries.begin(), sortedEntries.end(), CompareIteratorByEntryTime<CTxMemPool::txiter>());
+    std::sort(sortedEntries.begin(), sortedEntries.end(), CompareTxIterByAncestorCount());
 }
 
 void BlockAssembler::AddReferrals()
