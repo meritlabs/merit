@@ -620,8 +620,7 @@ void OverviewPage::UpdateInviteRequestView()
         ui->spreadTheWord->hide();
         ui->noPendingInvitesLabel->hide();
         ui->listPendingRequests->setMinimumHeight(
-            std::min(5, pendingRequestsFilter->rowCount()) * (DECORATION_SIZE + 2));
-        ui->listPendingRequests->adjustSize();
+                std::min(5, pendingRequestsFilter->rowCount()) * (DECORATION_SIZE + 2));
         ui->listPendingRequests->show();
     } else { 
         ui->listPendingRequests->hide();
@@ -639,6 +638,7 @@ void OverviewPage::UpdateInviteRequestView()
                 w, h, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
         ui->spreadTheWordIcon->setPixmap(scaled_pixmap);
+        ui->spreadTheWordIcon->setMinimumHeight(h);
         ui->spreadTheWord->adjustSize();
         ui->spreadTheWord->setHidden(false);
     }
