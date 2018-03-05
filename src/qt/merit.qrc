@@ -40,6 +40,9 @@
         <file alias="send">res/icons/send.png</file>
         <file alias="synced">res/icons/synced.png</file>
         <file alias="spread">res/icons/spread.png</file>
+        <file alias="community">res/icons/community.png</file>
+        <file alias="safety">res/icons/safety.png</file>
+        <file alias="simplicity">res/icons/simplicity.png</file>
         <file alias="transaction_0">res/icons/transaction0.png</file>
         <file alias="transaction_1">res/icons/clock1.png</file>
         <file alias="transaction_2">res/icons/clock2.png</file>
