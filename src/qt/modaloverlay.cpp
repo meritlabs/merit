@@ -109,9 +109,13 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     static bool prev_importing = false; 
     if(prev_importing != fImporting) {
         if(fImporting) {
-            ui->labelSyncDone->setText(tr("Reindexing Progress"));
+            ui->labelSyncDone->setText(tr(
+                        "<html><head/><body><p><span style=\" color:#384c62;\">"
+                        "Indexing Progress</span></p></body></html>"));
         } else {
-            ui->labelSyncDone->setText(tr("Download Progress"));
+            ui->labelSyncDone->setText(tr(
+                        "<html><head/><body><p><span style=\" color:#384c62;\">"
+                        "Download Progress</span></p></body></html>"));
         }
         prev_importing = fImporting;
     }
