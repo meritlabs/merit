@@ -498,6 +498,7 @@ void OverviewPage::setWalletModel(WalletModel *model)
         // show up to 5 pending invite requests before having to scroll to view more.
         ui->listPendingRequests->setMinimumHeight(
             std::min(5, pendingRequestsFilter->rowCount()) * (DECORATION_SIZE + 2));
+        ui->listPendingRequests->adjustSize();
 
         is_confirmed = walletModel->IsConfirmed();
         UpdateInvitationStatus();
@@ -661,9 +662,10 @@ void OverviewPage::MempoolSizeChanged(long size, size_t bytes)
     mempool_bytes = bytes;
 }
 
-void OverviewPage::resizeEvent(QResizeEvent *)
+void OverviewPage::resizeEvent(QResizeEvent* e)
 {
     UpdateInviteRequestView();
+    QWidget::resizeEvent(e);
 }
 
 void OverviewPage::UpdateNetworkView()

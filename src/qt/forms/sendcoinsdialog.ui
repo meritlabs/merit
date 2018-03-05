@@ -88,7 +88,7 @@
              <string notr="true">font-weight:bold;</string>
             </property>
             <property name="text">
-             <string>Coin Control Features</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Coin Control Features&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
            </widget>
           </item>
@@ -588,8 +588,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>824</width>
-        <height>72</height>
+        <width>830</width>
+        <height>108</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,1">
@@ -1325,7 +1325,7 @@ QListView {
  </resources>
  <connections/>
  <buttongroups>
-  <buttongroup name="groupCustomFee"/>
   <buttongroup name="groupFee"/>
+  <buttongroup name="groupCustomFee"/>
  </buttongroups>
 </ui>

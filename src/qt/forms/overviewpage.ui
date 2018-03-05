@@ -107,6 +107,12 @@ background-color: rgb(232, 179, 54);</string>
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>124</height>
+          </size>
+         </property>
          <property name="frameShape">
           <enum>QFrame::StyledPanel</enum>
          </property>
@@ -138,7 +144,7 @@ background-color: rgb(232, 179, 54);</string>
                </font>
               </property>
               <property name="text">
-               <string>Your Community</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Your Community&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
             </item>
@@ -290,6 +296,12 @@ background-color: rgb(232, 179, 54);</string>
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>300</height>
+          </size>
+         </property>
          <property name="frameShape">
           <enum>QFrame::StyledPanel</enum>
          </property>
@@ -334,7 +346,7 @@ background-color: rgb(232, 179, 54);</string>
                </font>
               </property>
               <property name="text">
-               <string>Community Activity</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Community Activity&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
             </item>
@@ -393,8 +405,11 @@ background-color: rgb(232, 179, 54);</string>
             <property name="toolTip">
              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the users that have requested an invite from you.&lt;/p&gt;&lt;p&gt;If you have available invites, you can use them to approve these requests.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
             <property name="text">
-             <string>Invitation Requests</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Invitation Requests&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
            </widget>
           </item>
@@ -454,7 +469,7 @@ background-color: rgb(232, 179, 54);</string>
              <item alignment="Qt::AlignHCenter">
               <widget class="QLabel" name="spreadTheWordText">
                <property name="text">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600;&quot;&gt;Invite Others to Join Merit! &lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:10pt;&quot;&gt;Give them your Alias or Address and&lt;br/&gt;their requests will appear here.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#2067d1;&quot;&gt;Invite Others to Join Merit! &lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:10pt;&quot;&gt;Give them your Alias or Address and&lt;br/&gt;their requests will appear here.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
               </widget>
              </item>
@@ -480,10 +495,13 @@ background-color: rgb(232, 179, 54);</string>
           <item>
            <widget class="QListView" name="listPendingRequests">
             <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
+             <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
               <horstretch>0</horstretch>
               <verstretch>0</verstretch>
              </sizepolicy>
+            </property>
+            <property name="autoFillBackground">
+             <bool>true</bool>
             </property>
             <property name="styleSheet">
              <string notr="true">QListView { background: transparent; }</string>
@@ -516,8 +534,11 @@ background-color: rgb(232, 179, 54);</string>
             <property name="toolTip">
              <string>These are the people referred and confirmed by you into the Merit network.  They are known as 'your community' and increase your likelihood of earning Ambassador Rewards.</string>
             </property>
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
             <property name="text">
-             <string>Invites Sent</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Invites Sent&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
            </widget>
           </item>
@@ -526,8 +547,11 @@ background-color: rgb(232, 179, 54);</string>
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
               <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
+              <verstretch>1</verstretch>
              </sizepolicy>
+            </property>
+            <property name="autoFillBackground">
+             <bool>true</bool>
             </property>
             <property name="styleSheet">
              <string notr="true">QListView { background: transparent; }</string>
@@ -555,6 +579,12 @@ background-color: rgb(232, 179, 54);</string>
       <layout class="QVBoxLayout" name="verticalLayout_3">
        <item>
         <widget class="QFrame" name="balanceFrame">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>203</height>
+          </size>
+         </property>
          <property name="styleSheet">
           <string notr="true"/>
          </property>
@@ -577,7 +607,7 @@ background-color: rgb(232, 179, 54);</string>
                </font>
               </property>
               <property name="text">
-               <string>Balances</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Balances&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
             </item>
@@ -928,6 +958,12 @@ background-color: rgb(232, 179, 54);</string>
        </item>
        <item>
         <widget class="QFrame" name="transactionsFrame">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>150</height>
+          </size>
+         </property>
          <property name="styleSheet">
           <string notr="true"/>
          </property>
@@ -950,7 +986,7 @@ background-color: rgb(232, 179, 54);</string>
                </font>
               </property>
               <property name="text">
-               <string>Recent transactions</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Recent transactions&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
             </item>

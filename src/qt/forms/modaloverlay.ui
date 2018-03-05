@@ -66,7 +66,7 @@
 
 QLabel { color: rgb(40,40,40);  }</string>
         </property>
-        <layout class="QVBoxLayout" name="verticalLayoutSub" stretch="0,0,0,0,0,0">
+        <layout class="QVBoxLayout" name="verticalLayoutSub" stretch="0,0,0,0,0,0,0">
          <property name="spacing">
           <number>0</number>
          </property>
@@ -115,7 +115,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="text">
-              <string>Download Progress</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Download Progress&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
             </widget>
            </item>
@@ -139,7 +139,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="text">
-              <string>Number of blocks left</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Number of blocks left&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
             </widget>
            </item>
@@ -159,7 +159,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="text">
-              <string>Blocks Per Hour</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Blocks Per Hour&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
             </widget>
            </item>
@@ -179,7 +179,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="text">
-              <string>Estimated time left until synced</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Estimated time left until synced&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
             </widget>
            </item>
@@ -356,13 +356,13 @@ QLabel { color: rgb(40,40,40);  }</string>
              <property name="geometry">
               <rect>
                <x>0</x>
-               <y>110</y>
+               <y>100</y>
                <width>461</width>
                <height>101</height>
               </rect>
              </property>
              <property name="text">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#2067d1;&quot;&gt;Hang Tight!&lt;br/&gt;&lt;/span&gt;&lt;br/&gt;&lt;span style=&quot; text-decoration: underline;&quot;&gt;Before you can unlock your wallet, &lt;/span&gt;this application&lt;br/&gt;has to finish syncing with other peers on the network.&lt;br/&gt;Merit is a decentralized network that is powered&lt;br/&gt;by people like you&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#2067d1;&quot;&gt;HANG TIGHT&lt;br/&gt;&lt;/span&gt;&lt;br/&gt;&lt;span style=&quot; text-decoration: underline; color:#000000;&quot;&gt;Before you can unlock your wallet, &lt;/span&gt;&lt;span style=&quot; color:#000000;&quot;&gt;this application&lt;br/&gt;has to finish syncing with other peers on the network.&lt;br/&gt;Merit is a decentralized network that is powered&lt;br/&gt;by people like you&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="textFormat">
               <enum>Qt::RichText</enum>
@@ -386,6 +386,13 @@ QLabel { color: rgb(40,40,40);  }</string>
             </size>
            </property>
           </spacer>
+         </item>
+         <item>
+          <widget class="QLabel" name="learnMoreLink">
+           <property name="text">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:8pt; font-style:italic; color:#222e3c;&quot;&gt;Learn more about why Merit is the world’s friendliest digital currency at &lt;/span&gt;&lt;a href=&quot;https://www.merit.me/why-merit/&quot;&gt;&lt;span style=&quot; font-size:8pt; font-style:italic; text-decoration: underline; color:#0000ff;&quot;&gt;Merit.me&lt;/span&gt;&lt;/a&gt;&lt;span style=&quot; font-size:8pt; font-style:italic;&quot;&gt;.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+          </widget>
          </item>
          <item>
           <layout class="QHBoxLayout" name="horizontalLayoutButtons">

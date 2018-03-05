@@ -36,6 +36,7 @@ ModalOverlay::ModalOverlay(QWidget *parent) :
     ui->closeButton->setEnabled(false);
     ui->closeButton->setHidden(true);
     ui->overviewSlides->setCurrentIndex(0);
+    ui->learnMoreLink->setOpenExternalLinks(true);
 
     connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(closeClicked()));
 
