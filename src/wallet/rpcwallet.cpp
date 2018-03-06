@@ -5017,20 +5017,21 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
+    auto dest = LookupDestination(request.params[0].get_str());
+    if (!IsValidDestination(dest)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "The Address or Alias cannot be found or is invalid.");
+    }
     CMeritAddress parentAddress{request.params[0].get_str()};
 
-    if (!parentAddress.IsValid()) {
-        throw std::runtime_error(strprintf("Parent address \"%s\" is not valid or in wrong format.", parentAddress.ToString().c_str()));
+    uint160 parentAddressUint160;
+    if(!GetUint160(dest, parentAddressUint160)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Error decoding the parent address.");
     }
-
-    auto parentAddressUint160 = parentAddress.GetUint160();
-    assert(parentAddressUint160);
 
     auto alias = request.params[1].isNull() ? "" : request.params[1].get_str();
 
-    referral::ReferralRef referral = pwallet->Unlock(*parentAddressUint160, alias);
+    referral::ReferralRef referral = pwallet->Unlock(parentAddressUint160, alias);
 
-    // TODO: Make this check more robust.
     UniValue obj(UniValue::VOBJ);
 
     obj.push_back(Pair("walletname", pwallet->GetName()));
