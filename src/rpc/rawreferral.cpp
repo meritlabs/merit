@@ -69,7 +69,7 @@ UniValue getrawreferral(const JSONRPCRequest& request)
             "  \"vsize\" : n,               (numeric) The virtual referral size\n"
             "  \"version\" : n,             (numeric) The version\n"
             "  \"address\" : \"xxx\",       (string) Beaconed address\n"
-            "  \"parentAddress\" : \"xxx\", (string) Parent address, that was used to unlock this referral\n"
+            "  \"parentAddress\" : \"xxx\", (string) Inviter address, that was used to create this referral\n"
             "  \"alias\" : \"xxx\",         (string, optional) Address alias\n"
             "  \"pubkey\" : \"xxx\",        (string) Signer pubkey\n"
             "  \"signature\" : \"xxx\",     (string) Referral signature\n"

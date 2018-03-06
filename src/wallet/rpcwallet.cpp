@@ -4980,38 +4980,38 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() < 1 || request.params[0].get_str().empty() || request.params.size() > 2) {
         throw std::runtime_error(
-            "unlockwallet \"parentaddress\" (\"alias\") \n"
+            "unlockwallet \"inviteraddress\" (\"alias\") \n"
             "Updates the wallet with referral code and beacons first key with associated referral.\n"
             "Returns an object containing various wallet state info.\n"
             "\nArguments:\n"
-            "1. parentaddress   (string, required) Parent address needed to unlock the wallet.\n"
-            "2. alias           (stirng, optional) wallet alias"
+            "1. inviteraddress   (string, required) Inviter address needed to unlock the wallet.\n"
+            "2. alias            (stirng, optional) Alias people can use globally to send you Merit"
             "\nResult:\n"
             "{\n"
-            "  \"address\": xxxxx,                (string) the wallet's root address. it's a referral address to use to share with other users\n"
-            "  \"walletname\": xxxxx,             (string) the wallet db file name\n"
-            "  \"walletversion\": xxxxx,          (numeric) the wallet version\n"
-            "  \"alias\": xxxxx,                  (string, optional) address alias that can be used as destination\n"
-            "  \"balance\": xxxxxxx,              (numeric) the total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
-            "  \"unconfirmed_balance\": xxx,      (numeric) the total unconfirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
-            "  \"immature_balance\": xxxxxx,      (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
-            "  \"txcount\": xxxxxxx,              (numeric) the total number of transactions in the wallet\n"
-            "  \"keypoololdest\": xxxxxx,         (numeric) the timestamp (seconds since Unix epoch) of the oldest pre-generated key in the key pool\n"
-            "  \"keypoolsize\": xxxx,             (numeric) how many new keys are pre-generated (only counts external keys)\n"
-            "  \"keypoolsize_hd_internal\": xxxx, (numeric) how many new keys are pre-generated for internal use (used for change outputs, only appears if the wallet is using this feature, otherwise external keys are used)\n"
-            "  \"unlocked_until\": ttt,           (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
-            "  \"paytxfee\": x.xxxx,              (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
-            "  \"hdmasterkeyid\": \"<hash160>\"   (string) the Hash160 of the HD master pubkey\n"
-            "  \"referred\": true|false           (boolean) if wallet is referred\n"
-            "  \"referraladdress\": xxxxxx        (string) referral address to use to share with other users\n"
-            "  \"invites\": xxxxxx                (numeric) number of available invites\n"
-            "  \"immature_invites\": xxxxxx       (numeric) number of immature invites\n"
+            "  \"address\": xxxxx,                (string) The wallet's root address. Invite others with it or use your alias.\n"
+            "  \"walletname\": xxxxx,             (string) The wallet db file name\n"
+            "  \"walletversion\": xxxxx,          (numeric) The wallet version\n"
+            "  \"alias\": xxxxx,                  (string, optional) Address alias that can be used as destination in place of your address.\n"
+            "  \"balance\": xxxxxxx,              (numeric) The total confirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
+            "  \"unconfirmed_balance\": xxx,      (numeric) The total unconfirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
+            "  \"immature_balance\": xxxxxx,      (numeric) The total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
+            "  \"txcount\": xxxxxxx,              (numeric) The total number of transactions in the wallet\n"
+            "  \"keypoololdest\": xxxxxx,         (numeric) The timestamp (seconds since Unix epoch) of the oldest pre-generated key in the key pool\n"
+            "  \"keypoolsize\": xxxx,             (numeric) How many new keys are pre-generated (only counts external keys)\n"
+            "  \"keypoolsize_hd_internal\": xxxx, (numeric) How many new keys are pre-generated for internal use (used for change outputs, only appears if the wallet is using this feature, otherwise external keys are used)\n"
+            "  \"unlocked_until\": ttt,           (numeric) The timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
+            "  \"paytxfee\": x.xxxx,              (numeric) The transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
+            "  \"hdmasterkeyid\": \"<hash160>\"   (string) The Hash160 of the HD master pubkey\n"
+            "  \"referred\": true|false           (boolean) If wallet is referred\n"
+            "  \"referraladdress\": xxxxxx        (string) Referral address to use to share with other users\n"
+            "  \"invites\": xxxxxx                (numeric) Number of available invites\n"
+            "  \"immature_invites\": xxxxxx       (numeric) Number of immature invites\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("unlockwallet", "\"parentaddress\"")
-            + HelpExampleCli("unlockwallet", "\"parentaddress\" \"alias\"")
-            + HelpExampleRpc("unlockwallet", "\"parentaddress\"")
-            + HelpExampleRpc("unlockwallet", "\"parentaddress\", \"alias\"")
+            + HelpExampleCli("unlockwallet", "\"inviteraddress\"")
+            + HelpExampleCli("unlockwallet", "\"inviteraddress\" \"alias\"")
+            + HelpExampleRpc("unlockwallet", "\"inviteraddress\"")
+            + HelpExampleRpc("unlockwallet", "\"inviteraddress\", \"alias\"")
         );
     }
 
@@ -5019,13 +5019,13 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     auto dest = LookupDestination(request.params[0].get_str());
     if (!IsValidDestination(dest)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "The parent Address or Alias cannot be found or is invalid.");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "The inviter address or alias cannot be found or is invalid.");
     }
     CMeritAddress parentAddress{request.params[0].get_str()};
 
     uint160 parentAddressUint160;
     if(!GetUint160(dest, parentAddressUint160)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Error decoding the parent address.");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Error decoding the inviter address.");
     }
 
     auto alias = request.params[1].isNull() ? "" : request.params[1].get_str();
@@ -5200,7 +5200,7 @@ static const CRPCCommand commands[] =
     { "generating",         "generate",                 &generate,                 {"nblocks","maxtries"} },
 
     // merit specific commands
-    { "referral",           "unlockwallet",             &unlockwallet,             {"parentaddress", "alias"} },
+    { "referral",           "unlockwallet",             &unlockwallet,             {"inviteraddress", "alias"} },
     { "referral",           "getanv",                   &getanv,                   {} },
     { "wallet",             "inviteaddress",            &inviteaddress,            {"address"} },
     { "wallet",             "listinvites",              &listinvites,              {"addresses"} },

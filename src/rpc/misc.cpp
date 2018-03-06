@@ -869,11 +869,11 @@ UniValue processMempoolReferral(const referral::ReferralTxMemPool::RefIter entry
 
     const auto cached_parent_referral = prefviewdb->GetReferral(referral->parentAddress);
     if (cached_parent_referral) {
-        delta.push_back(Pair("parentrefid", cached_parent_referral->GetHash().GetHex()));
+        delta.push_back(Pair("inviterrefid", cached_parent_referral->GetHash().GetHex()));
     } else {
         const auto parent_referral_entry_it = mempoolReferral.Get(referral->parentAddress);
         if (parent_referral_entry_it) {
-            delta.push_back(Pair("parentrefid", parent_referral_entry_it->GetHash().GetHex()));
+            delta.push_back(Pair("inviterrefid", parent_referral_entry_it->GetHash().GetHex()));
         }
     }
     delta.push_back(Pair("timestamp", entryit->GetTime()));
@@ -901,7 +901,7 @@ UniValue getaddressmempoolreferrals(const JSONRPCRequest& request)
             "  {\n"
             "    \"address\"        (string) The base58check encoded address\n"
             "    \"refid\"          (string) The related txid\n"
-            "    \"parentrefid\"    (string) Parent referral id\n"
+            "    \"inviterrefid\"    (string) inviter referral id\n"
             "    \"timestamp\"      (number) The time the referral entered the mempool (seconds)\n"
             "    \"raw\"            (string) Raw encoded referral object\n"
             "  }\n"
