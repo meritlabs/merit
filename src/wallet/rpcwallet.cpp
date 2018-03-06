@@ -5019,7 +5019,7 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     auto dest = LookupDestination(request.params[0].get_str());
     if (!IsValidDestination(dest)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "The Address or Alias cannot be found or is invalid.");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "The parent Address or Alias cannot be found or is invalid.");
     }
     CMeritAddress parentAddress{request.params[0].get_str()};
 
