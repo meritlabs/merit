@@ -97,14 +97,20 @@ QLabel { color: rgb(40,40,40);  }</string>
            <property name="fieldGrowthPolicy">
             <enum>QFormLayout::FieldsStayAtSizeHint</enum>
            </property>
+           <property name="labelAlignment">
+            <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+           </property>
+           <property name="formAlignment">
+            <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+           </property>
            <property name="horizontalSpacing">
             <number>6</number>
            </property>
            <property name="verticalSpacing">
-            <number>6</number>
+            <number>3</number>
            </property>
            <property name="topMargin">
-            <number>20</number>
+            <number>14</number>
            </property>
            <item row="0" column="0">
             <widget class="QLabel" name="labelSyncDone">
@@ -150,23 +156,10 @@ QLabel { color: rgb(40,40,40);  }</string>
              </property>
             </widget>
            </item>
-           <item row="5" column="0">
-            <widget class="QLabel" name="labelProgressIncrease">
-             <property name="font">
-              <font>
-               <weight>75</weight>
-               <bold>true</bold>
-              </font>
-             </property>
-             <property name="text">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Blocks Per Hour&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-             </property>
-            </widget>
-           </item>
            <item row="5" column="1">
             <widget class="QLabel" name="blocksPerH">
              <property name="text">
-              <string>calculating...</string>
+              <string>Calculating...</string>
              </property>
             </widget>
            </item>
@@ -179,14 +172,27 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="text">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Estimated time left until synced&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Estimated time left&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
             </widget>
            </item>
            <item row="6" column="1">
             <widget class="QLabel" name="expectedTimeLeft">
              <property name="text">
-              <string>calculating...</string>
+              <string>Calculating...</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="labelProgressIncrease">
+             <property name="font">
+              <font>
+               <weight>75</weight>
+               <bold>true</bold>
+              </font>
+             </property>
+             <property name="text">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Blocks Per Hour&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
             </widget>
            </item>
@@ -387,7 +393,7 @@ QLabel { color: rgb(40,40,40);  }</string>
            </property>
           </spacer>
          </item>
-         <item>
+         <item alignment="Qt::AlignHCenter">
           <widget class="QLabel" name="learnMoreLink">
            <property name="text">
             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:8pt; font-style:italic; color:#222e3c;&quot;&gt;Learn more about why Merit is the world’s friendliest digital currency at &lt;/span&gt;&lt;a href=&quot;https://www.merit.me/why-merit/&quot;&gt;&lt;span style=&quot; font-size:8pt; font-style:italic; text-decoration: underline; color:#0000ff;&quot;&gt;Merit.me&lt;/span&gt;&lt;/a&gt;&lt;span style=&quot; font-size:8pt; font-style:italic;&quot;&gt;.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
