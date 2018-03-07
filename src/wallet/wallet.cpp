@@ -328,6 +328,12 @@ void CWallet::DeriveNewChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKe
         throw std::runtime_error(std::string(__func__) + ": Writing HD chain model failed");
 }
 
+// void CWallet::DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKey& secret)
+// {
+//     // this method uses a fixed keypath scheme of m/44'/0'/0'/0/k
+//     CKey key;
+// }
+
 bool CWallet::AddKeyPubKeyWithDB(CWalletDB &walletdb, const CKey& secret, const CPubKey &pubkey)
 {
     AssertLockHeld(cs_wallet); // mapKeyMetadata
@@ -1630,8 +1636,11 @@ CAmount CWallet::GetChange(const CTransaction& tx) const
     return nChange;
 }
 
-CPubKey CWallet::InnerGenerateMasterKey(const CKey& key)
+CPubKey CWallet::GenerateNewHDMasterKey()
 {
+    CKey key;
+    key.MakeNewKey(true);
+
     int64_t nCreationTime = GetTime();
     CKeyMetadata metadata(nCreationTime);
 
@@ -1657,21 +1666,38 @@ CPubKey CWallet::InnerGenerateMasterKey(const CKey& key)
     return pubkey;
 }
 
-CPubKey CWallet::GenerateNewHDMasterKey()
-{
-    CKey key;
-    key.MakeNewKey(true);
-
-    return InnerGenerateMasterKey(key);
-}
-
-CPubKey CWallet::GenerateMasterKeyFromMnemonic(const word_list& mnemonic, const std::string& passphrase)
+CPubKey CWallet::GenerateMasterKeyFromMnemonic(const wordList& mnemonic, const std::string& passphrase)
 {
     CExtKey extkey;
-    uint8_t *seed = mnemonic::mnemonic_to_seed(mnemonic, passphrase);
+    uint8_t *seed = mnemonic::mnemonicToSeed(mnemonic, passphrase);
     extkey.SetMaster(seed, 64);
 
-    return InnerGenerateMasterKey(extkey.key);
+
+    int64_t nCreationTime = GetTime();
+    CKeyMetadata metadata(nCreationTime);
+
+    // calculate the pubkey
+    CPubKey pubkey = extkey.key.GetPubKey();
+    assert(extkey.key.VerifyPubKey(pubkey));
+
+    // set the hd keypath to "m" -> Master, refers the masterkeyid to itself
+    metadata.hdKeypath     = "m";
+    metadata.hdMasterKeyID = pubkey.GetID();
+    metadata.mnemonic = mnemonic;
+    std::copy_n(seed, 64, metadata.seed);
+
+    {
+        LOCK(cs_wallet);
+
+        // mem store the metadata
+        mapKeyMetadata[pubkey.GetID()] = metadata;
+
+        // write the key&metadata to the database
+        if (!AddKeyPubKey(extkey.key, pubkey))
+            throw std::runtime_error(std::string(__func__) + ": AddKeyPubKey failed");
+    }
+
+    return pubkey;
 }
 
 bool CWallet::SetHDMasterKey(const CPubKey& pubkey)
@@ -4769,7 +4795,7 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
         // Create new keyUser and set as default key
         if (!walletInstance->IsHDEnabled()) {
             // generate a new master key
-            
+
             // VERY WIP
             //CPubKey masterPubKey = walletInstance->GenerateNewHDMasterKey();
             CPubKey masterPubKey = walletInstance->GenerateMasterKeyFromMnemonic({"stay", "begin", "acoustic", "train", "crazy", "gesture", "rate", "noodle", "dilemma", "used", "either", "fashion"});

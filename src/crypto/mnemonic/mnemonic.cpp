@@ -5,21 +5,21 @@
 
 namespace mnemonic
 {
-    uint8_t *mnemonic_to_seed(const word_list& mnemonic, const std::string& passphrase)
+    uint8_t *mnemonicToSeed(const wordList& mnemonic, const std::string& passphrase)
     {
-        std::string mnemonic_string = std::accumulate(std::next(mnemonic.begin()), mnemonic.end(), mnemonic[0],
+        std::string mnemonicString = std::accumulate(std::next(mnemonic.begin()), mnemonic.end(), mnemonic[0],
             [](std::string left, std::string right)
             {
                 return left + " " + right;
             });
 
-        std::string salt_string = "mnemonic" + passphrase;
+        std::string saltString = "mnemonic" + passphrase;
 
         uint8_t *seed = new uint8_t[64];
-        const uint8_t *password = reinterpret_cast<const uint8_t*>(mnemonic_string.c_str());
-        const uint8_t *salt = reinterpret_cast<const uint8_t*>(salt_string.c_str());
+        const uint8_t *password = reinterpret_cast<const uint8_t*>(mnemonicString.c_str());
+        const uint8_t *salt = reinterpret_cast<const uint8_t*>(saltString.c_str());
 
-        pkcs5_pbkdf2(password, mnemonic_string.length(), salt, salt_string.length(), seed, 64, 2048);
+        pkcs5_pbkdf2(password, mnemonicString.length(), salt, saltString.length(), seed, 64, 2048);
 
         return seed;
     }

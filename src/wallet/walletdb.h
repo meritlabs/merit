@@ -101,11 +101,15 @@ class CKeyMetadata
 public:
     static const int VERSION_BASIC=1;
     static const int VERSION_WITH_HDDATA=10;
+    static const int VERSION_WITH_MNEMONIC=10;
     static const int CURRENT_VERSION=VERSION_WITH_HDDATA;
+    static const int SEED_LENGTH=64;
     int nVersion;
     int64_t nCreateTime; // 0 means unknown
     std::string hdKeypath; //optional HD/bip32 keypath
     CKeyID hdMasterKeyID; //id of the HD masterkey used to derive this key
+    std::vector<std::string> mnemonic; //optional BIP39 mnemonic
+    uint8_t seed[SEED_LENGTH]; //seed from mnemonic. Necessary in case of passphrase 
 
     CKeyMetadata()
     {
