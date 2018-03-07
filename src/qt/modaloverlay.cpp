@@ -28,6 +28,7 @@ ModalOverlay::ModalOverlay(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::ModalOverlay),
     bestHeaderHeight(0),
+    startCount(0),
     bestHeaderDate(QDateTime()),
     layerIsVisible(false),
     userClosed(false)
@@ -99,10 +100,27 @@ void ModalOverlay::setKnownBestHeight(int count, const QDateTime& blockDate)
     }
 }
 
+void ModalOverlay::setProgressBusy() 
+{
+    if(ui->progressBar->maximum() != 0) {
+        ui->progressBar->setMaximum(0);
+    }
+}
+  
+void ModalOverlay::setProgressActive() 
+{
+    if(ui->progressBar->maximum() != 100) {
+        ui->progressBar->setMaximum(100);
+    }
+}
+
 void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
 {
+    if(startCount == 0) {
+        startCount = count;
+    }
+
     QDateTime currentDate = QDateTime::currentDateTime();
-    setKnownBestHeight(count, blockDate);
 
     //We want to change progress text if importing so the
     //user knows we are in reindexing stage. 
@@ -111,19 +129,34 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
         if(fImporting) {
             ui->labelSyncDone->setText(tr(
                         "<html><head/><body><p><span style=\" color:#384c62;\">"
-                        "Indexing Progress</span></p></body></html>"));
+                        "Reindexing Progress</span></p></body></html>"));
         } else {
             ui->labelSyncDone->setText(tr(
                         "<html><head/><body><p><span style=\" color:#384c62;\">"
                         "Download Progress</span></p></body></html>"));
+            ui->labelNumberOfBlocksLeft->show();
+            ui->labelProgressIncrease->show();
+            ui->labelEstimatedTimeLeft->show();
         }
         prev_importing = fImporting;
     }
 
+    bool done_reindexing = bestHeaderHeight > 0 && count > bestHeaderHeight && fImporting;
+    if(done_reindexing) {
+        startCount = count;
+        setKnownBestHeight(count, blockDate);
+
+        ui->labelNumberOfBlocksLeft->hide();
+        ui->labelProgressIncrease->hide();
+        ui->labelEstimatedTimeLeft->hide();
+        ui->numberOfBlocksLeft->setText("");
+    }
+
 
     // keep a vector of samples of verification progress at height
-    double verificationProgress = bestHeaderHeight == 0 ? 0 : 
-        static_cast<double>(count) / static_cast<double>(bestHeaderHeight);
+    double verificationProgress = bestHeaderHeight - startCount <= 0 ? 0 : 
+        static_cast<double>(count - startCount) /
+        static_cast<double>(bestHeaderHeight - startCount);
 
     qint64 current_millis = currentDate.toMSecsSinceEpoch();
     block_time_samples.push_front(qMakePair(current_millis, count));
@@ -144,6 +177,7 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
             remaining_msecs = (bestHeaderHeight - count) * time_delta / blocks_delta;
 
             // show progress increase per hour
+
             ui->blocksPerH->setText(QString::number(blocks_per_hour)+tr(" (blocks/h)"));
 
             // show expected remaining time
@@ -153,9 +187,27 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
 
     // show the percentage done according to verificationProgress
     if(bestHeaderHeight == 0) {
-        ui->percentageProgress->setText(tr("Connecting..."));
+        setProgressBusy();
+        if(fImporting) {
+            ui->percentageProgress->setText(tr("Reindexing... "));
+        } else {
+            ui->percentageProgress->setText(tr("Connecting..."));
+        }
     } else {
-        ui->percentageProgress->setText(QString::number(verificationProgress*100, 'f', 2)+"%");
+        if(fImporting) {
+            if(done_reindexing) {
+                ui->percentageProgress->setText(tr("Reindexing done, starting block download..."));
+                ui->blocksPerH->setText("");
+                ui->expectedTimeLeft->setText("");
+                setProgressBusy();
+            } else {
+                setProgressActive();
+                ui->percentageProgress->setText(QString::number(verificationProgress*100, 'f', 2)+"%");
+            }
+        } else {
+            setProgressActive();
+            ui->percentageProgress->setText(QString::number(verificationProgress*100, 'f', 2)+"%");
+        }
     }
 
     ui->progressBar->setValue(verificationProgress*100);
@@ -172,10 +224,18 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     // show remaining number of blocks
    const auto blocks_left = bestHeaderHeight - count;
    if (estimateNumHeadersLeft < HEADER_HEIGHT_DELTA_SYNC && hasBestHeader) {
-       ui->numberOfBlocksLeft->setText(tr("%1 out of %2 left...").arg(blocks_left).arg(bestHeaderHeight));
+       if(done_reindexing) {
+           ui->numberOfBlocksLeft->setText("");
+       } else {
+           ui->numberOfBlocksLeft->setText(tr("%1 out of %2 left...").arg(blocks_left).arg(bestHeaderHeight));
+       }
    } else {
        if(fImporting) {
-           ui->numberOfBlocksLeft->setText(tr("%1 out of %2 left...").arg(blocks_left).arg(bestHeaderHeight));
+           if(done_reindexing) {
+               ui->numberOfBlocksLeft->setText("");
+           } else {
+               ui->numberOfBlocksLeft->setText(tr("%1 out of %2 left...").arg(blocks_left).arg(bestHeaderHeight));
+           }
        } else {
            ui->numberOfBlocksLeft->setText(tr("Unknown. Syncing Headers (%1)...").arg(bestHeaderHeight));
        }

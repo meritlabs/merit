@@ -200,6 +200,7 @@ public:
         if(statusString == "Pending" && is_daedalus) {
             const int INVITE_BUTTON_WIDTH = 80;
             QRect rect(addressRect.right() - INVITE_BUTTON_WIDTH - xpad, mainRect.top()+ypad, INVITE_BUTTON_WIDTH, halfheight);
+
             auto button_rect = painter->boundingRect(rect, tr("Send Invite"));
             button_rect.setLeft(button_rect.left() - 10);
             button_rect.setRight(button_rect.right() + 10);
