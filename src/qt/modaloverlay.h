@@ -46,6 +46,9 @@ protected:
     bool event(QEvent* ev);
 
 private:
+    void setProgressBusy();
+    void setProgressActive();
+
     Ui::ModalOverlay *ui;
     int bestHeaderHeight; //best known height (based on the headers)
     int startCount;

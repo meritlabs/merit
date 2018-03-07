@@ -100,6 +100,20 @@ void ModalOverlay::setKnownBestHeight(int count, const QDateTime& blockDate)
     }
 }
 
+void ModalOverlay::setProgressBusy() 
+{
+    if(ui->progressBar->maximum() != 0) {
+        ui->progressBar->setMaximum(0);
+    }
+}
+  
+void ModalOverlay::setProgressActive() 
+{
+    if(ui->progressBar->maximum() != 100) {
+        ui->progressBar->setMaximum(100);
+    }
+}
+
 void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
 {
     if(startCount == 0) {
@@ -107,16 +121,6 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
     }
 
     QDateTime currentDate = QDateTime::currentDateTime();
-    bool done_reindexing = bestHeaderHeight > 0 && count > bestHeaderHeight && fImporting;
-    if(done_reindexing) {
-        startCount = count;
-        setKnownBestHeight(count, blockDate);
-
-        ui->labelNumberOfBlocksLeft->hide();
-        ui->labelProgressIncrease->hide();
-        ui->labelEstimatedTimeLeft->hide();
-        ui->numberOfBlocksLeft->setText("");
-    }
 
     //We want to change progress text if importing so the
     //user knows we are in reindexing stage. 
@@ -135,6 +139,17 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
             ui->labelEstimatedTimeLeft->show();
         }
         prev_importing = fImporting;
+    }
+
+    bool done_reindexing = bestHeaderHeight > 0 && count > bestHeaderHeight && fImporting;
+    if(done_reindexing) {
+        startCount = count;
+        setKnownBestHeight(count, blockDate);
+
+        ui->labelNumberOfBlocksLeft->hide();
+        ui->labelProgressIncrease->hide();
+        ui->labelEstimatedTimeLeft->hide();
+        ui->numberOfBlocksLeft->setText("");
     }
 
 
@@ -172,8 +187,9 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
 
     // show the percentage done according to verificationProgress
     if(bestHeaderHeight == 0) {
+        setProgressBusy();
         if(fImporting) {
-            ui->percentageProgress->setText(tr("Reindexing... ") + QString::number(verificationProgress*100, 'f', 2)+"%");
+            ui->percentageProgress->setText(tr("Reindexing... "));
         } else {
             ui->percentageProgress->setText(tr("Connecting..."));
         }
@@ -183,10 +199,13 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate)
                 ui->percentageProgress->setText(tr("Reindexing done, starting block download..."));
                 ui->blocksPerH->setText("");
                 ui->expectedTimeLeft->setText("");
+                setProgressBusy();
             } else {
+                setProgressActive();
                 ui->percentageProgress->setText(QString::number(verificationProgress*100, 'f', 2)+"%");
             }
         } else {
+            setProgressActive();
             ui->percentageProgress->setText(QString::number(verificationProgress*100, 'f', 2)+"%");
         }
     }
