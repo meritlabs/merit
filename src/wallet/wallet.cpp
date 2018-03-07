@@ -276,7 +276,14 @@ CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb)
     int64_t nCreationTime = GetTime();
     CKeyMetadata metadata(nCreationTime);
 
-    DeriveNewChildKey(walletdb, metadata, secret);
+    if(pmapKeyMetadata[hdChain.masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC)
+    {
+        DeriveNewBIP44ChildKey(walletdb, metadata, secret);
+    }
+    else
+    {
+        DeriveNewChildKey(walletdb, metadata, secret);
+    }
 
     CPubKey pubkey = secret.GetPubKey();
     assert(secret.VerifyPubKey(pubkey));
@@ -328,11 +335,43 @@ void CWallet::DeriveNewChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKe
         throw std::runtime_error(std::string(__func__) + ": Writing HD chain model failed");
 }
 
-// void CWallet::DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKey& secret)
-// {
-//     // this method uses a fixed keypath scheme of m/44'/0'/0'/0/k
-//     CKey key;
-// }
+// TODO: make a more generic method to derive based on a given keypath
+void CWallet::DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKey& secret)
+{
+    // this method uses a fixed keypath scheme of m/44'/0'/0'/0/k
+    // m/44'/1'/0'/0/k for testnet
+    uint8_t *seed = mapKeyMetadata[hdChain.masterKeyID].seed;
+    CExtKey masterKey;             //hd master key  m
+    CExtKey changeKey;             //key at m/44'/0'/0'/0'
+    CExtKey childKey;              //key at m/44'/0'/0'/0/k'
+
+    masterKey.SetMaster(seed, CKeyMetadata::SEED_LENGTH);
+
+    // m/44'
+    masterKey.Derive(changeKey, BIP32_HARDENED_KEY_LIMIT | 44);
+
+    // m/44'/0'
+    bool livenet = Params().NetworkIDString() == CBaseChainParams::MAIN;
+    changeKey.Derive(changeKey, BIP32_HARDENED_KEY_LIMIT | (livenet ? 0 : 1));
+    
+    // m/44'/0'/0'
+    changeKey.Derive(changeKey, BIP32_HARDENED_KEY_LIMIT | 0); // Account hardcoded to 0 for now
+
+    // m/44'/0'/0'/0
+    changeKey.Derive(changeKey, 0);                            // change hardcoded to zero for now
+
+    // derive child key at next index, skip keys already known to the wallet
+    do {
+        changeKey.Derive(childKey, hdChain.nInternalChainCounter);
+        metadata.hdKeypath = (livenet ? "m/44'/0'/0'/0" : "m/44'/1'/0'/0") + std::to_string(hdChain.nInternalChainCounter);
+        hdChain.nInternalChainCounter++;
+    } while (HaveKey(childKey.key.GetPubKey().GetID()));
+    secret = childKey.key;
+    metadata.hdMasterKeyID = hdChain.masterKeyID;
+    // update the chain model in the database
+    if (!walletdb.WriteHDChain(hdChain))
+        throw std::runtime_error(std::string(__func__) + ": Writing HD chain model failed");
+}
 
 bool CWallet::AddKeyPubKeyWithDB(CWalletDB &walletdb, const CKey& secret, const CPubKey &pubkey)
 {
@@ -1684,6 +1723,7 @@ CPubKey CWallet::GenerateMasterKeyFromMnemonic(const wordList& mnemonic, const s
     metadata.hdKeypath     = "m";
     metadata.hdMasterKeyID = pubkey.GetID();
     metadata.mnemonic = mnemonic;
+    metadata.nVersion = CKeyMetadata::VERSION_WITH_MNEMONIC;
     std::copy_n(seed, 64, metadata.seed);
 
     {

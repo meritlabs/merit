@@ -759,6 +759,7 @@ private:
 
     /* HD derive new child key (on internal or external chain) */
     void DeriveNewChildKey(CWalletDB& walletdb, CKeyMetadata& metadata, CKey& secret);
+    void DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKey& secret);
 
     std::set<int64_t> setKeyPool;
     int64_t m_max_keypool_index;

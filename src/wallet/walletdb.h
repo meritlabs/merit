@@ -101,7 +101,7 @@ class CKeyMetadata
 public:
     static const int VERSION_BASIC=1;
     static const int VERSION_WITH_HDDATA=10;
-    static const int VERSION_WITH_MNEMONIC=10;
+    static const int VERSION_WITH_MNEMONIC=11;
     static const int CURRENT_VERSION=VERSION_WITH_HDDATA;
     static const int SEED_LENGTH=64;
     int nVersion;
