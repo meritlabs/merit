@@ -2589,6 +2589,8 @@ bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
     int64_t debitDir = !undo ? -1 : 1;
     int64_t creditDir = !undo ? 1 : -1;
 
+    DebitsAndCredits stage;
+
     //debit senders
     if (!tx.IsCoinBase()) {
         for (const auto& in :  tx.vin) {
@@ -2600,7 +2602,7 @@ bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
             }
 
             const CAmount amount = in_out.nValue * debitDir;
-            debits_and_credits.push_back(std::make_tuple(address.second, address.first, amount));
+            stage.push_back(std::make_tuple(address.second, address.first, amount));
         }
     }
 
@@ -2613,7 +2615,36 @@ bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
         }
 
         const CAmount amount = out.nValue * creditDir;
-        debits_and_credits.push_back(std::make_tuple(address.second, address.first, amount));
+        stage.push_back(std::make_tuple(address.second, address.first, amount));
+    }
+
+    // It is important for invites to be undone in reverse order even
+    // within a transaction. For non invites it doesn't matter so always reverse. 
+    //
+    // The reason it's important to reverse within a transaction is because
+    // the lottery only deletes 0 valued addresses from the end during
+    // disconnect block. If the order isn't properly maintained then 
+    // it's possible a new address is added to the end before the old one is
+    // removed. Example during add
+    // Lottery
+    //          A 1
+    //          B 1 
+    //          C 1
+    // Transaction C -> D
+    //          A 1
+    //          B 1
+    //          D 1
+    //C will get deleted because UpdateConfirmation will first remove C.
+    //If we first dont undo D+1 then DisconnectBlock will do
+    //          A 1
+    //          B 1
+    //          D 0
+    //          C 1
+    //Which is not the original state.
+    if(undo) {
+        debits_and_credits.insert(debits_and_credits.end(), stage.rbegin(), stage.rend());
+    } else {
+        debits_and_credits.insert(debits_and_credits.end(), stage.begin(), stage.end());
     }
 
     return true;
