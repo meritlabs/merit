@@ -4458,7 +4458,7 @@ bool static ConnectTip(CValidationState& state,
 
     const auto checkpoint = chainparams.Checkpoints().mapCheckpoints.find(pindexNew->nHeight);
     if(checkpoint != chainparams.Checkpoints().mapCheckpoints.end()) {
-        if(pthisBlock->GetHash() != checkpoint->second) {
+        if(pthisBlock->GetHash() != checkpoint->second.hash) {
             return state.DoS(
                     50,
                     false,
@@ -4469,7 +4469,7 @@ bool static ConnectTip(CValidationState& state,
         }
  
         //Checkpoints can skip validation. 
-        validate = false;
+        validate = checkpoint->second.validate;
     }
 
     // Apply the block atomically to the chain state.

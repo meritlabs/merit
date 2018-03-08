@@ -34,6 +34,8 @@ using PubKeys = std::vector<CPubKey>;
 
 namespace {
     const char* TIMESTAMP_MESSAGE = "Financial Times 22/Aug/2017 Globalisation in retreat: capital flows decline";
+    const bool VALIDATE = true;
+    const bool DONT_VALIDATE = false;
 }
 
 /**
@@ -212,15 +214,16 @@ public:
 
         checkpointData = CCheckpointData {
             {
-                {49000, uint256S("a133b70798599e3c9edd67def448d2df0ce2326e70aae8035329550650fb93c6")},
+                {49000, {uint256S("a133b70798599e3c9edd67def448d2df0ce2326e70aae8035329550650fb93c6"), VALIDATE}},
                 //==================================================
                 //These checkpoints are to work around an invite lottery bug. The resulting
-                //distribution is still random but the exact payout was different                       
-                {74924, uint256S("05184d173389688471b51ded4a1bbcffe819d976ba7b2b210de1b9dd455b136a")},
-                {83566, uint256S("395e9645213884ab91e1eade234ba78edfcdc5e6ddb9182b7dd61259da6e34f2")},
-                {87887, uint256S("2131c1c464642d73504541dfd24ded42d8942de923345ab309397aba25b91527")},
-                {92208, uint256S("1b865121cc2b7b8c730a46d42faea035646897f208098437dc9284d707955b99")},
-                {96529, uint256S("599f23553592401a61813cfd144e0a75e798fd01c8b4268855b1880d71bc320f")},
+                //distribution is still random but the exact payout was different. These checkpoints
+                //make sure users can continue down the longest chain.
+                {74924, {uint256S("05184d173389688471b51ded4a1bbcffe819d976ba7b2b210de1b9dd455b136a"), DONT_VALIDATE}},
+                {83566, {uint256S("395e9645213884ab91e1eade234ba78edfcdc5e6ddb9182b7dd61259da6e34f2"), DONT_VALIDATE}},
+                {87887, {uint256S("2131c1c464642d73504541dfd24ded42d8942de923345ab309397aba25b91527"), DONT_VALIDATE}},
+                {92208, {uint256S("1b865121cc2b7b8c730a46d42faea035646897f208098437dc9284d707955b99"), DONT_VALIDATE}},
+                {96529, {uint256S("599f23553592401a61813cfd144e0a75e798fd01c8b4268855b1880d71bc320f"), DONT_VALIDATE}},
                 //==================================================
             }};
 
@@ -332,12 +335,6 @@ public:
         fDefaultConsistencyChecks = false;
         fRequireStandard = false;
         fMineBlocksOnDemand = false;
-
-
-        checkpointData = (CCheckpointData){
-            {
-                {0, uint256S("0ba35302cc5c429b42e0e3729628058a6719ff2126fbd8aeea7b5d3a1c4d92e0")},
-            }};
 
         chainTxData = ChainTxData{
             0,
@@ -456,11 +453,6 @@ public:
         fDefaultConsistencyChecks = true;
         fRequireStandard = false;
         fMineBlocksOnDemand = true;
-
-        checkpointData = (CCheckpointData){
-            {
-                {0, uint256S("a0f73c7161105ba136853e99d18a4483b6319620d53adc1d14128c00fdc2d272")},
-            }};
 
         chainTxData = ChainTxData{
             0,
