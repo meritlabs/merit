@@ -1223,7 +1223,6 @@ public:
     bool IsHDEnabled() const;
 
     /* Generates a new HD master key (will not be activated) */
-    CPubKey InnerGenerateMasterKey(const CKey& key);
     CPubKey GenerateNewHDMasterKey();
     CPubKey GenerateMasterKeyFromMnemonic(const wordList& mnemonic, const std::string& passphrase = "");
 

@@ -23,14 +23,4 @@ namespace mnemonic
 
         return seed;
     }
-
-    void print_uint8(const uint8_t* bytes, const int& num)
-    {
-        std::for_each(bytes, bytes + num,
-            [](uint8_t c)
-            {
-                std::cerr << boost::format("%02x") % (int)c;
-            });
-        std::cerr << std::endl;
-    }
 }
