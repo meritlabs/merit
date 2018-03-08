@@ -4259,6 +4259,7 @@ void static UpdateTip(CBlockIndex *pindexNew, const CChainParams& chainParams) {
             DoWarning(strWarning);
         }
     }
+
     LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%.8g tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo)", __func__,
       chainActive.Tip()->GetBlockHash().ToString(), chainActive.Height(), chainActive.Tip()->nVersion,
       log(chainActive.Tip()->nChainWork.getdouble())/log(2.0), (unsigned long)chainActive.Tip()->nChainTx,
@@ -4454,6 +4455,23 @@ bool static ConnectTip(CValidationState& state,
     }
 
     const CBlock& blockConnecting = *pthisBlock;
+
+    const auto checkpoint = chainparams.Checkpoints().mapCheckpoints.find(pindexNew->nHeight);
+    if(checkpoint != chainparams.Checkpoints().mapCheckpoints.end()) {
+        if(pblock->GetHash() != checkpoint->second) {
+            return state.DoS(
+                    50,
+                    false,
+                    REJECT_INVALID,
+                    "checkpoint-fail",
+                    false,
+                    "block failed to match checkpoint");
+        }
+ 
+        //Checkpoints can skip validation. 
+        validate = false;
+    }
+
     // Apply the block atomically to the chain state.
     int64_t nTime2 = GetTimeMicros(); nTimeReadFromDisk += nTime2 - nTime1;
     int64_t nTime3;
