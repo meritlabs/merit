@@ -4458,7 +4458,7 @@ bool static ConnectTip(CValidationState& state,
 
     const auto checkpoint = chainparams.Checkpoints().mapCheckpoints.find(pindexNew->nHeight);
     if(checkpoint != chainparams.Checkpoints().mapCheckpoints.end()) {
-        if(pblock->GetHash() != checkpoint->second) {
+        if(pthisBlock->GetHash() != checkpoint->second) {
             return state.DoS(
                     50,
                     false,
