@@ -1722,7 +1722,7 @@ CPubKey CWallet::GenerateMasterKeyFromMnemonic(const wordList& mnemonic, const s
     // set the hd keypath to "m" -> Master, refers the masterkeyid to itself
     metadata.hdKeypath     = "m";
     metadata.hdMasterKeyID = pubkey.GetID();
-    metadata.mnemonic = mnemonic;
+    metadata.mnemonic = mnemonic::unwords(mnemonic);
     metadata.nVersion = CKeyMetadata::VERSION_WITH_MNEMONIC;
     std::copy(seed.begin(), seed.end(), metadata.seed.begin());
 

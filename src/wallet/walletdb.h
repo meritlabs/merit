@@ -108,7 +108,7 @@ public:
     int64_t nCreateTime; // 0 means unknown
     std::string hdKeypath; //optional HD/bip32 keypath
     CKeyID hdMasterKeyID; //id of the HD masterkey used to derive this key
-    std::vector<std::string> mnemonic; //optional BIP39 mnemonic
+    std::string mnemonic; //optional BIP39 mnemonic
     std::array<uint8_t, SEED_LENGTH> seed; //seed from mnemonic. Necessary in case of passphrase 
 
     CKeyMetadata()
@@ -131,6 +131,10 @@ public:
         {
             READWRITE(hdKeypath);
             READWRITE(hdMasterKeyID);
+            if(this->nVersion >= VERSION_WITH_MNEMONIC)
+            {
+                READWRITE(mnemonic);
+            }
         }
     }
 
@@ -140,6 +144,8 @@ public:
         nCreateTime = 0;
         hdKeypath.clear();
         hdMasterKeyID.SetNull();
+        mnemonic = "";
+        seed.fill(0);
     }
 };
 
