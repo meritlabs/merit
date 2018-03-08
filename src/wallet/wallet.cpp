@@ -9,6 +9,7 @@
 #include "base58.h"
 #include "checkpoints.h"
 #include "chain.h"
+#include "crypto/mnemonic/dictionary.h"
 #include "wallet/coincontrol.h"
 #include "consensus/consensus.h"
 #include "consensus/validation.h"
@@ -276,7 +277,7 @@ CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb)
     int64_t nCreationTime = GetTime();
     CKeyMetadata metadata(nCreationTime);
 
-    if(pmapKeyMetadata[hdChain.masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC)
+    if(mapKeyMetadata[hdChain.masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC)
     {
         DeriveNewBIP44ChildKey(walletdb, metadata, secret);
     }
@@ -363,7 +364,7 @@ void CWallet::DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata
     // derive child key at next index, skip keys already known to the wallet
     do {
         changeKey.Derive(childKey, hdChain.nInternalChainCounter);
-        metadata.hdKeypath = (livenet ? "m/44'/0'/0'/0" : "m/44'/1'/0'/0") + std::to_string(hdChain.nInternalChainCounter);
+        metadata.hdKeypath = (livenet ? "m/44'/0'/0'/0" : "m/44'/1'/0'/0/") + std::to_string(hdChain.nInternalChainCounter);
         hdChain.nInternalChainCounter++;
     } while (HaveKey(childKey.key.GetPubKey().GetID()));
     secret = childKey.key;
@@ -4836,9 +4837,13 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
         if (!walletInstance->IsHDEnabled()) {
             // generate a new master key
 
-            // VERY WIP
-            //CPubKey masterPubKey = walletInstance->GenerateNewHDMasterKey();
-            CPubKey masterPubKey = walletInstance->GenerateMasterKeyFromMnemonic({"stay", "begin", "acoustic", "train", "crazy", "gesture", "rate", "noodle", "dilemma", "used", "either", "fashion"});
+            wordList mnemonic{};
+            for(auto i = 0; i < 12; i++)
+            {
+                mnemonic.push_back(language::en[GetRand(2048)]);
+            }
+
+            CPubKey masterPubKey = walletInstance->GenerateMasterKeyFromMnemonic(mnemonic);
             if (!walletInstance->SetHDMasterKey(masterPubKey))
                 throw std::runtime_error(std::string(__func__) + ": Storing master key failed");
         }

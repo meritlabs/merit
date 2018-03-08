@@ -293,6 +293,8 @@ crypto_libmerit_crypto_a_SOURCES = \
   crypto/hmac_sha256.h \
   crypto/hmac_sha512.cpp \
   crypto/hmac_sha512.h \
+  crypto/mnemonic/dictionary.cpp \
+  crypto/mnemonic/dictionary.h \
   crypto/mnemonic/mnemonic.cpp \
   crypto/mnemonic/mnemonic.h \
   crypto/pkcs5_pbkdf2.cpp \
