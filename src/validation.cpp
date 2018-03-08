@@ -256,7 +256,10 @@ namespace
         }
 
         // Verify checksum
-        if (hashChecksum != verifier.GetHash())
+        // We do copying here to prevent bug on old GCC versions.
+        auto actualHash = verifier.GetHash();
+
+        if (hashChecksum != actualHash)
             return error("%s: Checksum mismatch", __func__);
 
         return true;
