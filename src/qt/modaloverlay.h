@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -38,14 +38,20 @@ public Q_SLOTS:
     void closeClicked();
     bool isLayerVisible() const { return layerIsVisible; }
     void allowHide();
+    void nextSlide();
+    void endSlide();
 
 protected:
     bool eventFilter(QObject * obj, QEvent * ev);
     bool event(QEvent* ev);
 
 private:
+    void setProgressBusy();
+    void setProgressActive();
+
     Ui::ModalOverlay *ui;
     int bestHeaderHeight; //best known height (based on the headers)
+    int startCount;
     QDateTime bestHeaderDate;
     QVector<QPair<qint64, int> > block_time_samples;
     bool layerIsVisible;

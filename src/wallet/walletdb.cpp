@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -303,7 +303,8 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             ssValue >> rtx;
 
             CValidationState state;
-            if (!(referral::CheckReferral(*(rtx.GetReferral()), state)
+            if (!((referral::CheckReferral( *(rtx.GetReferral()), false, state)
+                   || referral::CheckReferral( *(rtx.GetReferral()), true, state))
                         && (rtx.GetHash() == hash)
                         && state.IsValid())) {
                 return false;
@@ -623,10 +624,6 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
 
     for (uint256 hash : wss.vWalletUpgrade)
         WriteTx(pwallet->mapWallet[hash]);
-
-    // Rewrite encrypted wallets of versions 0.4.0 and 0.5.0rc:
-    if (wss.fIsEncrypted && (wss.nFileVersion == 40000 || wss.nFileVersion == 50000))
-        return DB_NEED_REWRITE;
 
     if (wss.nFileVersion < CLIENT_VERSION) // Update
         WriteVersion(CLIENT_VERSION);

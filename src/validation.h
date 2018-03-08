@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -583,7 +583,9 @@ bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool = true);
  */
 CTxDestination LookupDestination(const std::string& address);
 
-const referral::ReferralRef LookupReferral(referral::ReferralId& referral_id);
+referral::ReferralRef LookupReferral(
+        referral::ReferralId& referral_id,
+        bool normalize_alias);
 
 /** When there are blocks in the active chain with missing data, rewind the chainstate and remove them from the block index */
 bool RewindBlockIndex(const CChainParams& params);

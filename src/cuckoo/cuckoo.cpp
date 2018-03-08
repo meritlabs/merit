@@ -1,6 +1,6 @@
 // Cuckoo Cycle, a memory-hard proof-of-work
 // Copyright (c) 2013-2017 John Tromp
-// Copyright (c) 2017-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 // inspired by https://github.com/tromp/cuckoo/commit/65cabf4651a8e572e99714699fbeb669565910af

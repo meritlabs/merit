@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -240,9 +240,11 @@ UniValue validatealias(const JSONRPCRequest& request)
 
     // alias can not be in address format
     bool is_valid = !IsValidDestination(dest);
-    is_valid &= referral::CheckReferralAlias(alias);
+    is_valid &= referral::CheckReferralAliasSafe(alias);
 
-    bool is_vacant = !mempoolReferral.Exists(alias) && !prefviewcache->Exists(alias);
+    // assume and do the new safer rule logic.
+    bool is_vacant =
+        !mempoolReferral.Exists(alias) && !prefviewcache->Exists(alias, true);
 
     ret.push_back(Pair("isvalid", is_valid));
     ret.push_back(Pair("isvacant", is_vacant));
@@ -867,11 +869,11 @@ UniValue processMempoolReferral(const referral::ReferralTxMemPool::RefIter entry
 
     const auto cached_parent_referral = prefviewdb->GetReferral(referral->parentAddress);
     if (cached_parent_referral) {
-        delta.push_back(Pair("parentrefid", cached_parent_referral->GetHash().GetHex()));
+        delta.push_back(Pair("inviterrefid", cached_parent_referral->GetHash().GetHex()));
     } else {
         const auto parent_referral_entry_it = mempoolReferral.Get(referral->parentAddress);
         if (parent_referral_entry_it) {
-            delta.push_back(Pair("parentrefid", parent_referral_entry_it->GetHash().GetHex()));
+            delta.push_back(Pair("inviterrefid", parent_referral_entry_it->GetHash().GetHex()));
         }
     }
     delta.push_back(Pair("timestamp", entryit->GetTime()));
@@ -899,7 +901,7 @@ UniValue getaddressmempoolreferrals(const JSONRPCRequest& request)
             "  {\n"
             "    \"address\"        (string) The base58check encoded address\n"
             "    \"refid\"          (string) The related txid\n"
-            "    \"parentrefid\"    (string) Parent referral id\n"
+            "    \"inviterrefid\"    (string) inviter referral id\n"
             "    \"timestamp\"      (number) The time the referral entered the mempool (seconds)\n"
             "    \"raw\"            (string) Raw encoded referral object\n"
             "  }\n"

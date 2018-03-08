@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -103,6 +103,7 @@ namespace BCLog {
         QT          = (1 << 19),
         LEVELDB     = (1 << 20),
         REFMEMPOOL  = (1 << 21),
+        VALIDATION  = (1 << 22),
         ALL         = ~(uint32_t)0,
     };
 }

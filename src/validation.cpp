@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2016 The Bitcoin Core developers
-// Copyright (c) 2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -404,20 +404,23 @@ bool CheckReferralSignature(const referral::Referral& ref)
 
 bool CheckReferralAliasUnique(
     const referral::ReferralRef& referral_in,
-    const CBlock* block)
+    const CBlock* block,
+    bool normalize_alias)
 {
     if (referral_in->alias.size() == 0) {
         return true;
     }
 
-    bool unique = !prefviewcache->Exists(referral_in->alias);
+    bool unique = !prefviewcache->Exists(referral_in->alias, normalize_alias);
 
     // check block for same aliases if provided
     if (block != nullptr) {
         auto it = std::find_if (
             block->m_vRef.begin(), block->m_vRef.end(),
-            [&referral_in](const referral::ReferralRef& ref) {
-                return ref->alias == referral_in->alias && ref->GetHash() != referral_in->GetHash();
+            [&referral_in, normalize_alias](const referral::ReferralRef& ref) {
+                return 
+                    referral::AliasesEqual(ref->alias, referral_in->alias, normalize_alias) &&
+                    ref->GetHash() != referral_in->GetHash();
             });
 
         unique &= it == block->m_vRef.end();
@@ -728,7 +731,11 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
 
     missingReferrer = false;
 
-    if (!CheckReferral(*referral, state)) {
+    if (!CheckReferral(
+                *referral,
+                chainActive.Height() >= Params().GetConsensus().safer_alias_blockheight,
+                state)) {
+
         return false;
     }
 
@@ -752,7 +759,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
         // check if referral alias is already occupied
         // we allow referrals with non-unique aliases in mempool
         // but only one of them would be accepted to new block
-        if (!CheckReferralAliasUnique(referral, nullptr)) {
+        if (!CheckReferralAliasUnique(referral, nullptr, true)) {
             return state.Invalid(false, REJECT_DUPLICATE, "ref-alias-duplicate");
         }
 
@@ -1054,7 +1061,7 @@ static bool AcceptToMemoryPoolWorker(
 
                 // if confirmed referral's alias is already in blockchain
                 // we have a duplicate
-                if (prefviewcache->Exists(referral->alias)) {
+                if (prefviewcache->Exists(referral->alias, true)) {
                     return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
                 }
 
@@ -2563,18 +2570,6 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
 
     if (view.HaveCoin(out)) fClean = false; // overwriting transaction output
 
-    if (undo.nHeight == 0) {
-        // Missing undo metadata (height and coinbase). Older versions included this
-        // information only in undo records for the last spend of a transactions'
-        // outputs. This implies that it must be present for some other output of the same tx.
-        const Coin& alternate = AccessByTxid(view, out.hash);
-        if (!alternate.IsSpent()) {
-            undo.nHeight = alternate.nHeight;
-            undo.fCoinBase = alternate.fCoinBase;
-        } else {
-            return DISCONNECT_FAILED; // adding output for transaction without known metadata
-        }
-    }
     // The potential_overwrite parameter to AddCoin is only allowed to be false if we know for
     // sure that the coin did not already exist in the cache. As we have queried for that above
     // using HaveCoin, we don't need to guess. When fClean is false, a coin already existed and
@@ -2653,13 +2648,14 @@ bool UpdateANV(const CBlock& block, CCoinsViewCache& view) {
 
 bool IndexReferrals(
         const referral::ReferralRefs ordered_referrals,
-        bool allow_no_parent = false)
+        bool allow_no_parent,
+        bool normalize_alias)
 {
     assert(prefviewdb);
 
     // Update offset and Record referrals into the referral DB
     for (const auto& rtx : ordered_referrals) {
-        if (!prefviewdb->InsertReferral(*rtx, allow_no_parent)) {
+        if (!prefviewdb->InsertReferral(*rtx, allow_no_parent, normalize_alias)) {
             return false;
         }
     }
@@ -2673,7 +2669,7 @@ bool RemoveReferrals(const CBlock& block)
 
     // Update offset and Record referrals into the referral DB
     for (const auto& rtx : block.m_vRef) {
-        if (!prefviewdb->RemoveReferral(*rtx))
+        if (!prefviewcache->RemoveReferral(*rtx))
             return false;
     }
     return true;
@@ -3485,7 +3481,7 @@ static bool ConnectBlock(
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if (!IndexReferrals(block.m_vRef, true)) {
+            if (!IndexReferrals(block.m_vRef, true, false)) {
                 return AbortNode(state, "Failed to write referral index");
             }
 
@@ -3782,7 +3778,11 @@ static bool ConnectBlock(
             }
 
             // is referral alias already occupied?
-            if (!CheckReferralAliasUnique(ref, &block)) {
+            if (!CheckReferralAliasUnique(
+                        ref,
+                        &block,
+                        pindex->nHeight >= chainparams.GetConsensus().safer_alias_blockheight)) {
+
                 return error("ConnectBlock(): Referral %s alias \"%s\" is already occupied", ref->GetHash().GetHex(), ref->alias);
             }
         }
@@ -3930,7 +3930,11 @@ static bool ConnectBlock(
     //The order is important here. We must insert the referrals so that
     //the referral tree is updated to be correct before we debit/credit
     //the ANV to the appropriate addresses.
-    if (!IndexReferrals(ordered_referrals)) {
+    if (!IndexReferrals(
+                ordered_referrals,
+                false,
+                pindex->nHeight >= chainparams.GetConsensus().safer_alias_blockheight)) {
+
         return AbortNode(state, "Failed to write referrals");
     }
 
@@ -5121,13 +5125,6 @@ bool CheckBlock(
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
                                  strprintf("Invite transaction check failed (tx hash %s) %s", invite_tx->GetHash().ToString(), state.GetDebugMessage()));
 
-    // Check referrals
-    for (const auto& ref : block.m_vRef) {
-        if (!CheckReferral(*ref, state)) {
-            return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
-                strprintf("Referral check failed (ref hash %s) %s", ref->GetHash().GetHex(), state.GetDebugMessage()));
-        }
-    }
     unsigned int nSigOps = 0;
     for (const auto& tx : block.vtx) {
         nSigOps += GetLegacySigOpCount(*tx);
@@ -5196,8 +5193,12 @@ CTxDestination LookupDestination(const std::string& address)
         return dest;
     }
 
-    // Get referral by alias from cache
-    auto cached_referral = prefviewdb->GetReferral(address);
+    // Get referral by alias from cache.
+    // He we assume we are in safer mode by giving the blockheight as the safer_alias_blockheight.
+    // We don't do the transpose check here because LookupDestination is used for in the client
+    // code and not valiation
+    auto cached_referral = prefviewdb->GetReferral(address, true);
+
     if (cached_referral) {
         return CMeritAddress{cached_referral->addressType, cached_referral->GetAddress()}.Get();
     }
@@ -5214,17 +5215,20 @@ CTxDestination LookupDestination(const std::string& address)
     return dest;
 }
 
-const referral::ReferralRef LookupReferral(referral::ReferralId& referral_id)
+referral::ReferralRef LookupReferral(
+        referral::ReferralId& referral_id,
+        bool normalize_alias)
 {
-    auto mempool_referral = mempoolReferral.Get(referral_id);
+    //We don't do transpose check here because LookupReferral is used by client
+    //code retrieval not consensus. 
+    auto chain_referral =
+        prefviewdb->GetReferral(referral_id, normalize_alias);
 
-    if (mempool_referral) {
-        return mempool_referral;
+    if (chain_referral) {
+        return MakeReferralRef(*chain_referral);
     }
 
-    auto cached_referral = prefviewdb->GetReferral(referral_id);
-
-    return cached_referral ? MakeReferralRef(*cached_referral) : nullptr;
+    return mempoolReferral.Get(referral_id);
 }
 
 bool IsWitnessCommitment(const CTxOut& out)
@@ -5346,6 +5350,7 @@ static bool ContextualCheckBlock(
     if(!validate) {
         return true;
     }
+
     if (!ValidateContextualDaedalusBlock(block, state, consensusParams, view, pindexPrev)) {
         return false; // state is expected to be set by ValidateDaedalus();
     }
@@ -5366,6 +5371,17 @@ static bool ContextualCheckBlock(
     for (const auto& inv : block.invites) {
         if (!IsFinalTx(*inv, nHeight, nLockTimeCutoff)) {
             return state.DoS(10, false, REJECT_INVALID, "bad-invites-nonfinal", false, "non-final invites");
+        }
+    }
+
+    for (const auto& ref : block.m_vRef) {
+        if (!CheckReferral(
+                    *ref,
+                    nHeight >= consensusParams.safer_alias_blockheight,
+                    state)) {
+
+            //state is set by CheckReferral
+            return false;
         }
     }
 
@@ -6352,7 +6368,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if (!IndexReferrals(block.m_vRef, true)) {
+            if (!IndexReferrals(block.m_vRef, true, false)) {
                 return error("%s: IndexReferrals failed", __func__);
             }
 
