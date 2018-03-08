@@ -213,7 +213,15 @@ public:
         checkpointData = CCheckpointData {
             {
                 {49000, uint256S("a133b70798599e3c9edd67def448d2df0ce2326e70aae8035329550650fb93c6")},
+                //==================================================
+                //These checkpoints are to work around an invite lottery bug. The resulting
+                //distribution is still random but the exact payout was different                       
                 {74924, uint256S("05184d173389688471b51ded4a1bbcffe819d976ba7b2b210de1b9dd455b136a")},
+                {83566, uint256S("395e9645213884ab91e1eade234ba78edfcdc5e6ddb9182b7dd61259da6e34f2")},
+                {87887, uint256S("2131c1c464642d73504541dfd24ded42d8942de923345ab309397aba25b91527")},
+                {92208, uint256S("1b865121cc2b7b8c730a46d42faea035646897f208098437dc9284d707955b99")},
+                {96529, uint256S("599f23553592401a61813cfd144e0a75e798fd01c8b4268855b1880d71bc320f")},
+                //==================================================
             }};
 
         chainTxData = ChainTxData{
