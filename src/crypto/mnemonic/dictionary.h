@@ -22,10 +22,12 @@
 #include <array>
 #include <vector>
 
+namespace language {
+
 /**
  * A valid mnemonic dictionary has exactly this many words.
  */
-static constexpr size_t dictionary_size = 2048;
+static constexpr size_t DICTIONARY_SIZE = 2048;
 
 /**
  * Dictionary definitions for creating mnemonics.
@@ -33,14 +35,12 @@ static constexpr size_t dictionary_size = 2048;
  * This is a POD type, which means the compiler can write it directly
  * to static memory with no run-time overhead.
  */
-typedef std::array<const char*, dictionary_size> dictionary;
+typedef std::array<const char*, DICTIONARY_SIZE> dictionary;
 
 /**
  * A collection of candidate dictionaries for mnemonic validation.
  */
 typedef std::vector<const dictionary*> dictionary_list;
-
-namespace language {
 
 // Individual built-in languages:
 extern const dictionary en;

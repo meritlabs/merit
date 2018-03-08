@@ -109,7 +109,7 @@ public:
     std::string hdKeypath; //optional HD/bip32 keypath
     CKeyID hdMasterKeyID; //id of the HD masterkey used to derive this key
     std::vector<std::string> mnemonic; //optional BIP39 mnemonic
-    uint8_t seed[SEED_LENGTH]; //seed from mnemonic. Necessary in case of passphrase 
+    std::array<uint8_t, SEED_LENGTH> seed; //seed from mnemonic. Necessary in case of passphrase 
 
     CKeyMetadata()
     {
