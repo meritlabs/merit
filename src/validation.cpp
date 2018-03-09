@@ -3492,6 +3492,22 @@ static bool ConnectBlock(
            (*pindex->phashBlock == block.GetHash()));
     int64_t nTimeStart = GetTimeMicros();
 
+    const auto checkpoint = chainparams.Checkpoints().mapCheckpoints.find(pindex->nHeight);
+    if(checkpoint != chainparams.Checkpoints().mapCheckpoints.end()) {
+        if(block.GetHash() != checkpoint->second.hash) {
+            return state.DoS(
+                    50,
+                    false,
+                    REJECT_INVALID,
+                    "checkpoint-fail",
+                    false,
+                    "block failed to match checkpoint");
+        }
+ 
+        //Checkpoints can skip validation. 
+        validate = checkpoint->second.validate;
+    }
+
     // Check it again in case a previous version let a bad block in
     if (!CheckBlock(
                 block,
@@ -4459,22 +4475,6 @@ bool static ConnectTip(CValidationState& state,
 
     const CBlock& blockConnecting = *pthisBlock;
 
-    const auto checkpoint = chainparams.Checkpoints().mapCheckpoints.find(pindexNew->nHeight);
-    if(checkpoint != chainparams.Checkpoints().mapCheckpoints.end()) {
-        if(pthisBlock->GetHash() != checkpoint->second.hash) {
-            return state.DoS(
-                    50,
-                    false,
-                    REJECT_INVALID,
-                    "checkpoint-fail",
-                    false,
-                    "block failed to match checkpoint");
-        }
- 
-        //Checkpoints can skip validation. 
-        validate = checkpoint->second.validate;
-    }
-
     // Apply the block atomically to the chain state.
     int64_t nTime2 = GetTimeMicros(); nTimeReadFromDisk += nTime2 - nTime1;
     int64_t nTime3;
@@ -4484,7 +4484,8 @@ bool static ConnectTip(CValidationState& state,
         debug("ConnectTip block: %s", blockConnecting.GetHash().GetHex());
 
         bool rv = ConnectBlock(
-                blockConnecting, state,
+                blockConnecting,
+                state,
                 pindexNew,
                 view,
                 chainparams,
