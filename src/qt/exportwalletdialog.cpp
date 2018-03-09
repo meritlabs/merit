@@ -53,8 +53,14 @@ void ExportWalletDialog::setQRCodeVisibility()
     {
         ui->lblQRCode->setText("");
     #ifdef USE_QRCODE
+        bool livenet = Params().NetworkIDString() == CBaseChainParams::MAIN;
         QString mnemonic = walletModel->getMnemonic();
-        QImage qrImage = qrutil::encodeQString(mnemonic); // TODO: use the same format as lightwallet
+        QString qrCode = QStringLiteral("1|") +
+            mnemonic +
+            QStringLiteral("|m/44'/") +
+            (livenet ? QStringLiteral("0'") : QStringLiteral("1'")) +
+            QStringLiteral("/0'|false");
+        QImage qrImage = qrutil::encodeQString(qrCode);
 
         QImage qrBackImage = QImage(QR_IMAGE_SIZE, QR_IMAGE_SIZE, QImage::Format_RGB32);
         qrBackImage.fill(0xffffff);

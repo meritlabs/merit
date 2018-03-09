@@ -693,8 +693,8 @@ bool WalletModel::getPrivKey(const CKeyID &address, CKey& vchPrivKeyOut) const
 
 QString WalletModel::getMnemonic() const
 {
-    // TODO: implement once mnemonic lands
-    return QString();
+    assert(wallet);
+    return QString::fromStdString(wallet->GetMnemonic());
 }
 
 // returns a list of COutputs from COutPoints
