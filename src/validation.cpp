@@ -255,11 +255,7 @@ namespace
             return error("%s: Deserialize or I/O error - %s", __func__, e.what());
         }
 
-        // Verify checksum
-        // We do copying here to prevent bug on old GCC versions.
-        auto actualHash = verifier.GetHash();
-
-        if (hashChecksum != actualHash)
+        if (hashChecksum != verifier.GetHash())
             return error("%s: Checksum mismatch", __func__);
 
         return true;
