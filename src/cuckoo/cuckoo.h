@@ -1,6 +1,6 @@
 // Cuckoo Cycle, a memory-hard proof-of-work
 // Copyright (c) 2013-2017 John Tromp
-// Copyright (c) 2017-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 
 #ifndef MERIT_CUCKOO_CUCKOO_H
 #define MERIT_CUCKOO_CUCKOO_H

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -67,7 +67,7 @@ namespace pog
             const InviteLotteryParams& lottery,
             const Consensus::Params& params)
     {
-        debug("Invites used: %d created: %d period: %d used per block: %d", 
+        LogPrint(BCLog::VALIDATION, "Invites used: %d created: %d period: %d used per block: %d",
                 lottery.invites_used,
                 lottery.invites_created,
                 params.daedalus_block_window,

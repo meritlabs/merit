@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -243,6 +243,7 @@ const CLogCategoryDesc LogCategories[] =
     {BCLog::QT, "qt"},
     {BCLog::LEVELDB, "leveldb"},
     {BCLog::REFMEMPOOL, "refmempool"},
+    {BCLog::VALIDATION, "validataion"},
     {BCLog::ALL, "1"},
     {BCLog::ALL, "all"},
 };

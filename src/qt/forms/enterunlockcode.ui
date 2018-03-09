@@ -146,8 +146,14 @@ QLabel { color: rgb(40,40,40);  }</string>
                  <verstretch>0</verstretch>
                 </sizepolicy>
                </property>
+               <property name="minimumSize">
+                <size>
+                 <width>0</width>
+                 <height>0</height>
+                </size>
+               </property>
                <property name="text">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:20pt; font-weight:600; color:#064356;&quot;&gt;Merit&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#5b5b5b;&quot;&gt;Is Invite Only&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:20pt; font-weight:600; color:#384c62;&quot;&gt;Merit&lt;br/&gt;&lt;/span&gt;&lt;span style=&quot; font-size:11pt; font-weight:600; color:#5b5b5b;&quot;&gt;Is Invite Only&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="textFormat">
                 <enum>Qt::RichText</enum>
@@ -193,7 +199,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="toolTip">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The person who invited you is an &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit.&lt;/span&gt; They will be notified when you join.&lt;/p&gt;&lt;p&gt;They will also be entered into a lottery and can win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; as you use the system. You can also become and &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; by inviting others and you too will have a chance to win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; in each block!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The person who invited you is an &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit.&lt;/span&gt; They will be notified when you join.&lt;/p&gt;&lt;p&gt;They will also be entered into a lottery and can win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; as you use the system. You can also become an &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; by inviting others and you too will have a chance to win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; in each block!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="text">
               <string>Enter the Merit Address of the person who invited you.</string>
@@ -211,7 +217,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="toolTip">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The person who invited you is an &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit.&lt;/span&gt; They will be notified when you join.&lt;/p&gt;&lt;p&gt;They will also be entered into a lottery and can win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; as you use the system. You can also become and &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; by inviting others and you too will have a chance to win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; in each block!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The person who invited you is an &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit.&lt;/span&gt; They will be notified when you join.&lt;/p&gt;&lt;p&gt;They will also be entered into a lottery and can win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; as you use the system. You can also become an &lt;span style=&quot; font-weight:600;&quot;&gt;Ambassador&lt;/span&gt; by inviting others and you too will have a chance to win &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; in each block!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="accessibleDescription">
               <string/>
@@ -251,7 +257,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               </font>
              </property>
              <property name="toolTip">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Other users of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; can use your &lt;span style=&quot; font-weight:600;&quot;&gt;Public Alias&lt;/span&gt; instead of an address to send your funds. This alias is &lt;span style=&quot; font-style:italic;&quot;&gt;optional&lt;/span&gt;. An alias cannot be changed for an address once it is chosen.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;The alias must be &lt;span style=&quot; font-weight:600;&quot;&gt;globally unique&lt;/span&gt;, nobody else can use your alias once it is commited to the Merit Blockchain.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;For more information, visit: &lt;a href=&quot;http://merit.me/aliases.html&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;merit.me/aliases.html&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Other users of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; can use your &lt;span style=&quot; font-weight:600;&quot;&gt;Public Alias&lt;/span&gt; instead of an address to send you funds. This alias is &lt;span style=&quot; font-style:italic;&quot;&gt;optional&lt;/span&gt;. An alias cannot be changed for an address once it is chosen.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;The alias must be &lt;span style=&quot; font-weight:600;&quot;&gt;globally unique&lt;/span&gt;, nobody else can use your alias once it is commited to the Merit Blockchain.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;For more information, visit: &lt;a href=&quot;http://merit.me/aliases.html&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;merit.me/aliases.html&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="text">
               <string>Choose an optional Public Alias.</string>
@@ -274,7 +280,7 @@ QLabel { color: rgb(40,40,40);  }</string>
                 </font>
                </property>
                <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Other users of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; can use your &lt;span style=&quot; font-weight:600;&quot;&gt;Public Alias&lt;/span&gt; instead of an address to send your funds. This alias is &lt;span style=&quot; font-style:italic;&quot;&gt;optional&lt;/span&gt;. An alias cannot be changed for an address once it is chosen.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;The alias must be &lt;span style=&quot; font-weight:600;&quot;&gt;globally unique&lt;/span&gt;, nobody else can use your alias once it is commited to the Merit Blockchain.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;For more information, visit: &lt;a href=&quot;http://merit.me/aliases.html&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;merit.me/aliases.html&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Other users of &lt;span style=&quot; font-weight:600;&quot;&gt;Merit&lt;/span&gt; can use your &lt;span style=&quot; font-weight:600;&quot;&gt;Public Alias&lt;/span&gt; instead of an address to send you funds. This alias is &lt;span style=&quot; font-style:italic;&quot;&gt;optional&lt;/span&gt;. An alias cannot be changed for an address once it is chosen.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;The alias must be &lt;span style=&quot; font-weight:600;&quot;&gt;globally unique&lt;/span&gt;, nobody else can use your alias once it is commited to the Merit Blockchain.&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;For more information, visit: &lt;a href=&quot;http://merit.me/aliases.html&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#0000ff;&quot;&gt;merit.me/aliases.html&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                </property>
                <property name="placeholderText">
                 <string>Enter an Alias here (optional)</string>

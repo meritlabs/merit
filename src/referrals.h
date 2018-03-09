@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -86,10 +86,10 @@ public:
     bool Exists(const uint256&) const;
 
     /** Check if referral alias occupied */
-    bool Exists(const std::string&) const;
+    bool Exists( const std::string& alias, bool normalize_alias) const;
 
     /** Remove referral from cache */
-    void RemoveReferral(const Referral&) const;
+    bool RemoveReferral(const Referral&) const;
 
     /** Flush referrals to disk and clear cache */
     void Flush();

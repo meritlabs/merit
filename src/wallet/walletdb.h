@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -101,11 +101,15 @@ class CKeyMetadata
 public:
     static const int VERSION_BASIC=1;
     static const int VERSION_WITH_HDDATA=10;
+    static const int VERSION_WITH_MNEMONIC=11;
     static const int CURRENT_VERSION=VERSION_WITH_HDDATA;
+    static const int SEED_LENGTH=64;
     int nVersion;
     int64_t nCreateTime; // 0 means unknown
     std::string hdKeypath; //optional HD/bip32 keypath
     CKeyID hdMasterKeyID; //id of the HD masterkey used to derive this key
+    std::string mnemonic; //optional BIP39 mnemonic
+    std::array<uint8_t, SEED_LENGTH> seed; //seed from mnemonic. Necessary in case of passphrase 
 
     CKeyMetadata()
     {
@@ -127,6 +131,10 @@ public:
         {
             READWRITE(hdKeypath);
             READWRITE(hdMasterKeyID);
+            if(this->nVersion >= VERSION_WITH_MNEMONIC)
+            {
+                READWRITE(mnemonic);
+            }
         }
     }
 
@@ -136,6 +144,8 @@ public:
         nCreateTime = 0;
         hdKeypath.clear();
         hdMasterKeyID.SetNull();
+        mnemonic = "";
+        seed.fill(0);
     }
 };
 

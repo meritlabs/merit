@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -668,7 +668,14 @@ UniValue dumpwallet(const JSONRPCRequest& request)
             CMeritExtKey b58extkey;
             b58extkey.SetKey(masterKey);
 
-            file << "# extended private masterkey: " << b58extkey.ToString() << "\n\n";
+            file << "# extended private masterkey: " << b58extkey.ToString() << "\n";
+
+            std::string mnemonic = pwallet->mapKeyMetadata[masterKeyID].mnemonic;
+            if(mnemonic.length() > 0)
+            {
+                file << "# mnemonic phrase: " << mnemonic << "\n";
+            }
+            file << "\n";
         }
     }
     for (std::vector<std::pair<int64_t, CKeyID> >::const_iterator it = vKeyBirth.begin(); it != vKeyBirth.end(); it++) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -86,8 +86,15 @@ public:
 
     MaybeReferral GetReferral(const Address&) const;
     MaybeReferral GetReferral(const uint256&) const;
-    MaybeReferral GetReferral(const std::string&) const;
-    MaybeReferral GetReferral(const ReferralId&) const;
+
+    MaybeReferral GetReferral(
+            const std::string&,
+            bool normalize_alias) const;
+
+    MaybeReferral GetReferral(
+            const ReferralId&,
+            bool normalize_alias) const;
+
     MaybeAddressPair GetParentAddress(const Address&) const;
     MaybeAddress GetAddressByPubKey(const CPubKey&) const;
     ChildAddresses GetChildren(const Address&) const;
@@ -97,7 +104,11 @@ public:
     AddressANVs GetAllANVs() const;
     bool OrderReferrals(referral::ReferralRefs& refs);
 
-    bool InsertReferral(const Referral&, bool allow_no_parent = false);
+    bool InsertReferral(
+            const Referral&,
+            bool allow_no_parent,
+            bool normalize_alias);
+
     bool RemoveReferral(const Referral&);
 
     void GetAllRewardableANVs(
@@ -119,7 +130,12 @@ public:
 
     //Daedalus code.
     bool Exists(const Address&) const;
-    bool Exists(const std::string&) const;
+
+    /**
+     * Check if a referral exists by alias.
+     */
+    bool Exists(const std::string& alias, bool normalize_alias) const;
+
     bool IsConfirmed(const Address&) const;
     bool UpdateConfirmation(char address_type, const Address&, CAmount amount);
 

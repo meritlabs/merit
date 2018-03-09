@@ -41,7 +41,7 @@
            </font>
           </property>
           <property name="text">
-           <string>Receive Merit</string>
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Receive Merit&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
           </property>
          </widget>
         </item>
@@ -241,7 +241,7 @@
          </font>
         </property>
         <property name="text">
-         <string>Requested payments history</string>
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#384c62;&quot;&gt;Requested payments history&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
        </widget>
       </item>

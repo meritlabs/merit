@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -8,6 +8,7 @@
 #define MERIT_WALLET_WALLET_H
 
 #include "amount.h"
+#include "crypto/mnemonic/mnemonic.h"
 #include "policy/feerate.h"
 #include "streams.h"
 #include "tinyformat.h"
@@ -758,6 +759,7 @@ private:
 
     /* HD derive new child key (on internal or external chain) */
     void DeriveNewChildKey(CWalletDB& walletdb, CKeyMetadata& metadata, CKey& secret);
+    void DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKey& secret);
 
     std::set<int64_t> setKeyPool;
     int64_t m_max_keypool_index;
@@ -1222,6 +1224,7 @@ public:
 
     /* Generates a new HD master key (will not be activated) */
     CPubKey GenerateNewHDMasterKey();
+    CPubKey GenerateMasterKeyFromMnemonic(const wordList& mnemonic, const std::string& passphrase = "");
 
     /* Set the current HD master key (will reset the chain child index counters)
        Sets the master key's version based on the current wallet version (so the

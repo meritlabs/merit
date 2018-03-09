@@ -1,6 +1,6 @@
 // Cuckoo Cycle, a memory-hard proof-of-work
 // Copyright (c) 2013-2018 John Tromp
-// Copyright (c) 2017-2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 
 #include "mean_cuckoo.h"
 #include "cuckoo.h"

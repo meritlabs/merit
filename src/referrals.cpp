@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Merit Foundation developers
+// Copyright (c) 2017-2018 The Merit Foundation developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -63,19 +63,27 @@ bool ReferralsViewCache::Exists(const Address& address) const
     return false;
 }
 
-bool ReferralsViewCache::Exists(const std::string& alias) const
+bool ReferralsViewCache::Exists(
+        const std::string& alias,
+        bool normalize_alias) const
 {
     if (alias.size() == 0) {
         return false;
     }
 
+    auto maybe_normalized = alias;
+    if(normalize_alias) {
+        NormalizeAlias(maybe_normalized);
+    } 
+
     {
         LOCK(m_cs_cache);
-        if (referrals_index.get<by_alias>().count(alias) > 0) {
+        if (referrals_index.get<by_alias>().count(maybe_normalized) > 0) {
             return true;
         }
     }
-    if (auto ref = m_db->GetReferral(alias)) {
+
+    if (auto ref = m_db->GetReferral(maybe_normalized, normalize_alias)) {
         InsertReferralIntoCache(*ref);
         return true;
     }
@@ -90,10 +98,10 @@ void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
     referrals_index.insert(ref);
 }
 
-void ReferralsViewCache::RemoveReferral(const Referral& ref) const
+bool ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
     referrals_index.erase(ref.GetAddress());
-    m_db->RemoveReferral(ref);
+    return m_db->RemoveReferral(ref);
 }
 
 bool ReferralsViewCache::IsConfirmed(const Address& address) const
