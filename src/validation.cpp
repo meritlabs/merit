@@ -2917,7 +2917,6 @@ static DisconnectResult DisconnectBlock(
         const CBlock& block,
         const CBlockIndex* pindex,
         CCoinsViewCache& view,
-        bool memory_only,
         const Consensus::Params& consensus_params)
 {
     debug("DisconnectBlock: %s", block.GetHash().GetHex());
@@ -2994,40 +2993,39 @@ static DisconnectResult DisconnectBlock(
     fClean &= pblocktree->WriteAddressIndex(addressIndex);
     fClean &= pblocktree->UpdateAddressUnspentIndex(addressUnspentIndex);
 
-    // move best block pointer to prevout block
-    view.SetBestBlock(pindex->pprev->GetBlockHash());
 
-    if (!memory_only) {
 
-        if (block.IsDaedalus()) {
-            if (!UpdateConfirmations(block, invite_debits_and_credits)) {
-                error("DisconnectBlock(): unable to undo confirmations");
-                return DISCONNECT_FAILED;
-            }
-        }
-
-        // The order here is important. The ANV values must be updated
-        // before the tree is manipulated to properly debit and credit the
-        // correct addresses because RemoveReferrals will change referral
-        // tree.
-        if (!UpdateANV(debits_and_credits)) {
-            error("DisconnectBlock(): unable to undo referrals");
-            return DISCONNECT_FAILED;
-        }
-
-        if (!RemoveReferrals(block)){
-            error("DisconnectBlock(): unable to undo referrals");
-            return DISCONNECT_FAILED;
-        }
-
-        if (!UndoLotteryEntrants(
-                    block_undo,
-                    consensus_params.max_lottery_reservoir_size)) {
-
-            error("DisconnectBlock(): unable to undo lottery");
+    if (block.IsDaedalus()) {
+        if (!UpdateConfirmations(block, invite_debits_and_credits)) {
+            error("DisconnectBlock(): unable to undo confirmations");
             return DISCONNECT_FAILED;
         }
     }
+
+    // The order here is important. The ANV values must be updated
+    // before the tree is manipulated to properly debit and credit the
+    // correct addresses because RemoveReferrals will change referral
+    // tree.
+    if (!UpdateANV(debits_and_credits)) {
+        error("DisconnectBlock(): unable to undo referrals");
+        return DISCONNECT_FAILED;
+    }
+
+    if (!RemoveReferrals(block)){
+        error("DisconnectBlock(): unable to undo referrals");
+        return DISCONNECT_FAILED;
+    }
+
+    if (!UndoLotteryEntrants(
+                block_undo,
+                consensus_params.max_lottery_reservoir_size)) {
+
+        error("DisconnectBlock(): unable to undo lottery");
+        return DISCONNECT_FAILED;
+    }
+
+    // move best block pointer to prevout block
+    view.SetBestBlock(pindex->pprev->GetBlockHash());
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
@@ -4324,7 +4322,6 @@ bool static DisconnectTip(CValidationState& state,
                     block,
                     pindexDelete,
                     view,
-                    false,
                     chainparams.GetConsensus()) != DISCONNECT_OK) {
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         }
@@ -6129,7 +6126,6 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
                     block,
                     pindex,
                     coins,
-                    true,
                     chainparams.GetConsensus());
 
             if (res == DISCONNECT_FAILED) {
@@ -6237,7 +6233,6 @@ bool ReplayBlocks(const CChainParams& params, CCoinsView* view)
                     block,
                     pindexOld,
                     cache,
-                    false,
                     params.GetConsensus());
 
             if (res == DISCONNECT_FAILED) {
