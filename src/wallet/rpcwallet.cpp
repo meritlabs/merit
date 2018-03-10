@@ -4216,6 +4216,46 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
     return obj;
 }
 
+UniValue getcommunityinfo(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 0)
+        throw std::runtime_error(
+            "getwalletinfo\n"
+            "Returns an object containing various community state info.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"referralcount\": xxxx,             (numeric) number of confirmed referrals\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getcommunityinfo", "")
+            + HelpExampleRpc("getcommunityinfo", "")
+        );
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    UniValue obj(UniValue::VOBJ);
+
+    if (!pwallet->IsReferred()) {
+        obj.push_back(Pair("referralcount", 0));
+    } else {
+        auto referral = pwallet->GetRootReferral();
+        assert(!referral->GetHash().IsNull());
+
+        auto address = referral->GetAddress();
+        auto children = prefviewdb->GetChildren(address);
+
+        obj.push_back(Pair("referralcount", (int)children.size()));
+    }
+
+    return obj;
+}
+
 UniValue listwallets(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 0)
@@ -5162,6 +5202,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "gettransaction",           &gettransaction,           {"txid","include_watchonly"} },
     { "wallet",             "getunconfirmedbalance",    &getunconfirmedbalance,    {} },
     { "wallet",             "getwalletinfo",            &getwalletinfo,            {} },
+    { "wallet",             "getcommunityinfo",         &getcommunityinfo,         {} },
     { "wallet",             "importmulti",              &importmulti,              {"requests","options"} },
     { "wallet",             "importprivkey",            &importprivkey,            {"privkey","label","rescan"} },
     { "wallet",             "importwallet",             &importwallet,             {"filename"} },
