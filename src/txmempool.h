@@ -68,7 +68,6 @@ struct LockPoints
 class CTxMemPoolEntry : public MemPoolEntry<CTransaction>
 {
 private:
-    CTransactionRef tx;
     CAmount nFee;              //!< Cached to avoid expensive parent-transaction lookups
     bool spendsCoinbase;       //!< keep track of transactions that spend a coinbase
     int64_t sigOpCost;         //!< Total sigop cost
@@ -101,6 +100,7 @@ public:
     int64_t GetModifiedFee() const { return nFee + feeDelta; }
     size_t DynamicMemoryUsage() const { return nUsageSize; }
     const LockPoints& GetLockPoints() const { return lockPoints; }
+    bool IsInvite() const { return GetEntryValue().IsInvite(); }
 
     // Adjusts the descendant state.
     void UpdateDescendantState(int64_t modifySize, CAmount modifyFee, int64_t modifyCount);
@@ -262,21 +262,28 @@ class CompareTxMemPoolEntryByAncestorFee
 public:
     bool operator()(const CTxMemPoolEntry& a, const CTxMemPoolEntry& b) const
     {
-        double aFees = a.GetModFeesWithAncestors();
-        double aSize = a.GetSizeWithAncestors();
+        bool ai = a.IsInvite();
+        bool bi = b.IsInvite();
 
-        double bFees = b.GetModFeesWithAncestors();
-        double bSize = b.GetSizeWithAncestors();
+        if(ai == bi) {
+            double aFees = a.GetModFeesWithAncestors();
+            double aSize = a.GetSizeWithAncestors();
 
-        // Avoid division by rewriting (a/b > c/d) as (a*d > c*b).
-        double f1 = aFees * bSize;
-        double f2 = aSize * bFees;
+            double bFees = b.GetModFeesWithAncestors();
+            double bSize = b.GetSizeWithAncestors();
 
-        if (f1 == f2) {
-            return a.GetEntryValue().GetHash() < b.GetEntryValue().GetHash();
+            // Avoid division by rewriting (a/b > c/d) as (a*d > c*b).
+            double f1 = aFees * bSize;
+            double f2 = aSize * bFees;
+
+            if (f1 == f2) {
+                return a.GetEntryValue().GetHash() < b.GetEntryValue().GetHash();
+            }
+
+            return f1 > f2;
         }
 
-        return f1 > f2;
+        return ai > bi;
     }
 };
 
