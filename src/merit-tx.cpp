@@ -581,6 +581,7 @@ static void MutateTxSign(CMutableTransaction& tx, const std::string& flagStr)
             std::map<std::string, UniValue::VType> types = {
                 {"txid", UniValue::VSTR},
                 {"vout", UniValue::VNUM},
+                {"beaconKey", UniValue::VSTR},
                 {"scriptPubKey", UniValue::VSTR},
             };
             if (!prevOut.checkObject(types))
@@ -622,20 +623,26 @@ static void MutateTxSign(CMutableTransaction& tx, const std::string& flagStr)
                 scriptPubKey.IsPayToWitnessScriptHash()) 
                     && prevOut.exists("redeemScript")) {
 
+                auto beaconDest = DecodeDestination(prevOut["beaconKey"].get_str());
+                CKeyID beaconId;
+                GetUint160(beaconDest, beaconId);
+
                 UniValue v = prevOut["redeemScript"];
-                UniValue z = prevOut["scriptPubKey"];
                 std::vector<unsigned char> rsData(ParseHexUV(v, "redeemScript"));
-                std::vector<unsigned char> scriptPubKeyData(ParseHexUV(z, "scriptPubKey"));
-
                 CScript redeemScript(rsData.begin(), rsData.end());
-                CScript scriptPubKey(scriptPubKeyData.begin(), scriptPubKeyData.end());
 
-                CTxDestination scriptDest;
-                ExtractDestination(scriptPubKey, scriptDest);
-                uint160 scriptAddress;
-                GetUint160(scriptDest, scriptAddress);
+                uint160 mixedAddress;
+                MixAddresses(CScriptID{redeemScript}, beaconId, mixedAddress);
 
-                tempKeystore.AddCScript(redeemScript, scriptAddress);
+                tempKeystore.AddCScript(redeemScript, mixedAddress);
+
+                CTxDestination dest;
+                if(ExtractDestination(scriptPubKey, dest)) {
+                    uint160 address;
+                    if(GetUint160(dest, address)) {
+                        tempKeystore.AddReferralAddressPubKey(address, beaconId);
+                    }
+                }
             }
         }
     }
