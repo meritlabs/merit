@@ -68,11 +68,12 @@ bool AliasesEqual(std::string a, std::string b, bool safe) {
 }
 
 bool CheckReferralAliasSafe(std::string alias) {
+    NormalizeAlias(alias);
+
     if(alias.empty()) {
         return true;
     }
 
-    NormalizeAlias(alias);
     if (!std::regex_match(alias, SAFER_ALIAS_REGEX)) {
         return false;
     }
