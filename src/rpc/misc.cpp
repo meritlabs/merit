@@ -260,7 +260,7 @@ class CWallet;
 CScript _createmultisig_redeemScript(CWallet * const pwallet, const UniValue& params)
 {
     int nRequired = params[0].get_int();
-    const UniValue& keys = params[1].get_array();
+    const UniValue& keys = params[2].get_array();
 
     // Gather public keys
     if (nRequired < 1)
@@ -308,6 +308,7 @@ CScript _createmultisig_redeemScript(CWallet * const pwallet, const UniValue& pa
             throw std::runtime_error(" Invalid public key: "+ks);
         }
     }
+
     CScript result = GetScriptForMultisig(nRequired, pubkeys);
 
     if (result.size() > MAX_SCRIPT_ELEMENT_SIZE)
@@ -325,15 +326,16 @@ UniValue createmultisig(const JSONRPCRequest& request)
     CWallet * const pwallet = nullptr;
 #endif
 
-    if (request.fHelp || request.params.size() < 2 || request.params.size() > 2)
+    if (request.fHelp || request.params.size() < 3 || request.params.size() > 3)
     {
-        std::string msg = "createmultisig nrequired [\"key\",...]\n"
+        std::string msg = "createmultisig nrequired signingaddress [\"key\",...]\n"
             "\nCreates a multi-signature address with n signature of m keys required.\n"
             "It returns a json object with the address and redeemScript.\n"
 
             "\nArguments:\n"
             "1. nrequired      (numeric, required) The number of required signatures out of the n keys or addresses.\n"
-            "2. \"keys\"       (string, required) A json array of keys which are merit addresses or hex-encoded public keys\n"
+            "2. signingaddress (string, required) The address of the public key used to sign the beacon for the multisig address.\n"
+            "3. \"keys\"       (string, required) A json array of keys which are merit addresses or hex-encoded public keys\n"
             "     [\n"
             "       \"key\"    (string) merit address or hex-encoded public key\n"
             "       ,...\n"
@@ -355,12 +357,28 @@ UniValue createmultisig(const JSONRPCRequest& request)
     }
 
     // Construct using pay-to-script-hash:
-    CScript inner = _createmultisig_redeemScript(pwallet, request.params);
-    CScriptID innerID(inner);
+    auto signing_dest = LookupDestination(request.params[1].get_str());
+    auto* signing_key_id = boost::get<CKeyID>(&signing_dest);
+    if(!signing_key_id) {
+        throw std::runtime_error("The beacon signing address must be a valid public key address");
+    }
 
+    CScript redeem_script = _createmultisig_redeemScript(pwallet, request.params);
+
+    //We now mix the singing key and the redeem script addresses together to
+    //get the final destination address
+    CScriptID script_id = redeem_script;
+    uint160 mixed_address;
+    MixAddresses(script_id, *signing_key_id, mixed_address);
+    CScriptID script_address{mixed_address};
+
+    auto output_script = GetScriptForDestination(script_address);
     UniValue result(UniValue::VOBJ);
-    result.push_back(Pair("address", EncodeDestination(innerID)));
-    result.push_back(Pair("redeemScript", HexStr(inner.begin(), inner.end())));
+    result.push_back(Pair("address", EncodeDestination(script_address)));
+    result.push_back(Pair("signingAddress", EncodeDestination(*signing_key_id)));
+    result.push_back(Pair("outputScript", HexStr(output_script)));
+    result.push_back(Pair("redeemScriptAddress", EncodeDestination(script_id)));
+    result.push_back(Pair("redeemScript", HexStr(redeem_script)));
 
     return result;
 }

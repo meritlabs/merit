@@ -88,7 +88,7 @@ static int AppInitRawTx(int argc, char* argv[])
         strUsage += HelpMessageOpt("outscript=VALUE:SCRIPT[:FLAGS]", _("Add raw script output to TX") + ". " +
             _("Optionally add the \"W\" flag to produce a pay-to-witness-script-hash output") + ". " +
             _("Optionally add the \"S\" flag to wrap the output in a pay-to-script-hash."));
-        strUsage += HelpMessageOpt("outmultisig=VALUE:REQUIRED:PUBKEYS:PUBKEY1:PUBKEY2:....[:FLAGS]", _("Add Pay To n-of-m Multi-sig output to TX. n = REQUIRED, m = PUBKEYS") + ". " +
+        strUsage += HelpMessageOpt("outmultisig=VALUE:SIGNINGKEY:REQUIRED:PUBKEYS:PUBKEY1:PUBKEY2:....[:FLAGS]", _("Add Pay To n-of-m Multi-sig output to TX. n = REQUIRED, m = PUBKEYS") + ". " +
             _("Optionally add the \"W\" flag to produce a pay-to-witness-script-hash output") + ". " +
             _("Optionally add the \"S\" flag to wrap the output in a pay-to-script-hash."));
         strUsage += HelpMessageOpt("sign=SIGHASH-FLAGS", _("Add zero or more signatures to transaction") + ". " +
@@ -327,7 +327,7 @@ static void MutateTxAddOutPubKey(CMutableTransaction& tx, const std::string& str
 
 static void MutateTxAddOutMultiSig(CMutableTransaction& tx, const std::string& strInput)
 {
-    // Separate into VALUE:REQUIRED:NUMKEYS:PUBKEY1:PUBKEY2:....[:FLAGS]
+    // Separate into VALUE:SIGNINGKEY:REQUIRED:NUMKEYS:PUBKEY1:PUBKEY2:....[:FLAGS]
     std::vector<std::string> vStrInputParts;
     boost::split(vStrInputParts, strInput, boost::is_any_of(":"));
 
@@ -338,14 +338,23 @@ static void MutateTxAddOutMultiSig(CMutableTransaction& tx, const std::string& s
     // Extract and validate VALUE
     CAmount value = ExtractAndValidateValue(vStrInputParts[0]);
 
+    // Extract SIGNINGKEY
+    CMeritAddress signing_key = vStrInputParts[1];
+    // Get the ID for the script, and then construct a P2SH destination for it.
+    auto signing_dest = signing_key.Get();
+    auto signing_key_id = boost::get<CKeyID>(&signing_dest);
+    if(!signing_key_id) {
+        throw std::runtime_error("SIGNINGKEY is not a public key id");
+    }
+
     // Extract REQUIRED
-    uint32_t required = stoul(vStrInputParts[1]);
+    uint32_t required = stoul(vStrInputParts[2]);
 
     // Extract NUMKEYS
-    uint32_t numkeys = stoul(vStrInputParts[2]);
+    uint32_t numkeys = stoul(vStrInputParts[3]);
 
     // Validate there are the correct number of pubkeys
-    if (vStrInputParts.size() < numkeys + 3)
+    if (vStrInputParts.size() < numkeys + 4)
         throw std::runtime_error("incorrect number of multisig pubkeys");
 
     if (required < 1 || required > 20 || numkeys < 1 || numkeys > 20 || numkeys < required)
@@ -355,7 +364,7 @@ static void MutateTxAddOutMultiSig(CMutableTransaction& tx, const std::string& s
     // extract and validate PUBKEYs
     std::vector<CPubKey> pubkeys;
     for(int pos = 1; pos <= int(numkeys); pos++) {
-        CPubKey pubkey(ParseHex(vStrInputParts[pos + 2]));
+        CPubKey pubkey(ParseHex(vStrInputParts[pos + 3]));
         if (!pubkey.IsFullyValid())
             throw std::runtime_error("invalid TX output pubkey");
         pubkeys.push_back(pubkey);
@@ -364,12 +373,12 @@ static void MutateTxAddOutMultiSig(CMutableTransaction& tx, const std::string& s
     // Extract FLAGS
     bool bSegWit = false;
     bool bScriptHash = false;
-    if (vStrInputParts.size() == numkeys + 4) {
+    if (vStrInputParts.size() == numkeys + 5) {
         std::string flags = vStrInputParts.back();
         bSegWit = (flags.find("W") != std::string::npos);
         bScriptHash = (flags.find("S") != std::string::npos);
     }
-    else if (vStrInputParts.size() > numkeys + 4) {
+    else if (vStrInputParts.size() > numkeys + 5) {
         // Validate that there were no more parameters passed
         throw std::runtime_error("Too many parameters");
     }
@@ -381,8 +390,14 @@ static void MutateTxAddOutMultiSig(CMutableTransaction& tx, const std::string& s
         scriptPubKey = GetScriptForWitness(scriptPubKey);
     }
     if (bScriptHash) {
-        // Get the ID for the script, and then construct a P2SH destination for it.
-        scriptPubKey = GetScriptForDestination(CScriptID(scriptPubKey));
+
+        // We have to mix the script id with the beacon signed key id to get
+        // the correct address.
+        CScriptID script_id = scriptPubKey;
+        uint160 mixed_address;
+        MixAddresses(script_id, *signing_key_id, mixed_address);
+
+        scriptPubKey = GetScriptForDestination(CScriptID(mixed_address));
     }
 
     // construct TxOut, append to transaction output list
