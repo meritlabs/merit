@@ -357,10 +357,12 @@ UniValue createmultisig(const JSONRPCRequest& request)
     }
 
     // Construct using pay-to-script-hash:
-    auto signing_dest = LookupDestination(request.params[1].get_str());
-    auto* signing_key_id = boost::get<CKeyID>(&signing_dest);
+    auto signing_dest = DecodeDestination(request.params[1].get_str());
+    auto signing_key_id = boost::get<CKeyID>(&signing_dest);
     if(!signing_key_id) {
-        throw std::runtime_error("The beacon signing address must be a valid public key address");
+        std::stringstream e;
+        e << "The beacon signing address must be a valid public key address: " << request.params[1].get_str();
+        throw std::runtime_error(e.str());
     }
 
     CScript redeem_script = _createmultisig_redeemScript(pwallet, request.params);
