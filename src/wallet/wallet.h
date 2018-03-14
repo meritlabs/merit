@@ -1224,7 +1224,7 @@ public:
 
     /* Generates a new HD master key (will not be activated) */
     CPubKey GenerateNewHDMasterKey();
-    CPubKey GenerateMasterKeyFromMnemonic(const wordList& mnemonic, const std::string& passphrase = "");
+    CPubKey GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const std::string& passphrase = "");
 
     /* Set the current HD master key (will reset the chain child index counters)
        Sets the master key's version based on the current wallet version (so the

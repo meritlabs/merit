@@ -4171,6 +4171,9 @@ UniValue getmnemonic(const JSONRPCRequest& request)
                 "This wallet does not have a mnemonic recovery phrase.");
 
         obj.push_back(Pair("mnemonic", mnemonic));
+    } else {
+        throw JSONRPCError(RPC_WALLET_NOT_REFERRED,
+            "Error: Wallet is not beaconed. Use referral code to beacon first.");
     }
 
     return obj;

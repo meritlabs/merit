@@ -8,13 +8,13 @@
 #include <numeric>
 #include "crypto/pkcs5_pbkdf2.h"
 
-using wordList = std::vector<std::string>;
+using WordList = std::vector<std::string>;
 namespace mnemonic
 {
     static constexpr size_t SEED_LENGTH = 64;
     static constexpr size_t MNEMONIC_WORD_COUNT = 12;
-    std::array<uint8_t, SEED_LENGTH> mnemonicToSeed(const wordList& mnemonic, const std::string& passphrase = "");
-    std::string unwords(const wordList& phrase);
+    std::array<uint8_t, SEED_LENGTH> mnemonicToSeed(const WordList& mnemonic, const std::string& passphrase = "");
+    std::string unwords(const WordList& phrase);
 }
 
 #endif
