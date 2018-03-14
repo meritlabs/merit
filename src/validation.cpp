@@ -255,7 +255,6 @@ namespace
             return error("%s: Deserialize or I/O error - %s", __func__, e.what());
         }
 
-        // Verify checksum
         if (hashChecksum != verifier.GetHash())
             return error("%s: Checksum mismatch", __func__);
 
@@ -2589,6 +2588,8 @@ bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
     int64_t debitDir = !undo ? -1 : 1;
     int64_t creditDir = !undo ? 1 : -1;
 
+    DebitsAndCredits stage;
+
     //debit senders
     if (!tx.IsCoinBase()) {
         for (const auto& in :  tx.vin) {
@@ -2600,7 +2601,7 @@ bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
             }
 
             const CAmount amount = in_out.nValue * debitDir;
-            debits_and_credits.push_back(std::make_tuple(address.second, address.first, amount));
+            stage.push_back(std::make_tuple(address.second, address.first, amount));
         }
     }
 
@@ -2613,7 +2614,36 @@ bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
         }
 
         const CAmount amount = out.nValue * creditDir;
-        debits_and_credits.push_back(std::make_tuple(address.second, address.first, amount));
+        stage.push_back(std::make_tuple(address.second, address.first, amount));
+    }
+
+    // It is important for invites to be undone in reverse order even
+    // within a transaction. For non invites it doesn't matter so always reverse. 
+    //
+    // The reason it's important to reverse within a transaction is because
+    // the lottery only deletes 0 valued addresses from the end during
+    // disconnect block. If the order isn't properly maintained then 
+    // it's possible a new address is added to the end before the old one is
+    // removed. Example during add
+    // Lottery
+    //          A 1
+    //          B 1 
+    //          C 1
+    // Transaction C -> D
+    //          A 1
+    //          B 1
+    //          D 1
+    //C will get deleted because UpdateConfirmation will first remove C.
+    //If we first dont undo D+1 then DisconnectBlock will do
+    //          A 1
+    //          B 1
+    //          D 0
+    //          C 1
+    //Which is not the original state.
+    if(undo) {
+        debits_and_credits.insert(debits_and_credits.end(), stage.rbegin(), stage.rend());
+    } else {
+        debits_and_credits.insert(debits_and_credits.end(), stage.begin(), stage.end());
     }
 
     return true;
@@ -2883,7 +2913,6 @@ static DisconnectResult DisconnectBlock(
         const CBlock& block,
         const CBlockIndex* pindex,
         CCoinsViewCache& view,
-        bool memory_only,
         const Consensus::Params& consensus_params)
 {
     debug("DisconnectBlock: %s", block.GetHash().GetHex());
@@ -2960,40 +2989,39 @@ static DisconnectResult DisconnectBlock(
     fClean &= pblocktree->WriteAddressIndex(addressIndex);
     fClean &= pblocktree->UpdateAddressUnspentIndex(addressUnspentIndex);
 
-    // move best block pointer to prevout block
-    view.SetBestBlock(pindex->pprev->GetBlockHash());
 
-    if (!memory_only) {
 
-        if (block.IsDaedalus()) {
-            if (!UpdateConfirmations(block, invite_debits_and_credits)) {
-                error("DisconnectBlock(): unable to undo confirmations");
-                return DISCONNECT_FAILED;
-            }
-        }
-
-        // The order here is important. The ANV values must be updated
-        // before the tree is manipulated to properly debit and credit the
-        // correct addresses because RemoveReferrals will change referral
-        // tree.
-        if (!UpdateANV(debits_and_credits)) {
-            error("DisconnectBlock(): unable to undo referrals");
-            return DISCONNECT_FAILED;
-        }
-
-        if (!RemoveReferrals(block)){
-            error("DisconnectBlock(): unable to undo referrals");
-            return DISCONNECT_FAILED;
-        }
-
-        if (!UndoLotteryEntrants(
-                    block_undo,
-                    consensus_params.max_lottery_reservoir_size)) {
-
-            error("DisconnectBlock(): unable to undo lottery");
+    if (block.IsDaedalus()) {
+        if (!UpdateConfirmations(block, invite_debits_and_credits)) {
+            error("DisconnectBlock(): unable to undo confirmations");
             return DISCONNECT_FAILED;
         }
     }
+
+    // The order here is important. The ANV values must be updated
+    // before the tree is manipulated to properly debit and credit the
+    // correct addresses because RemoveReferrals will change referral
+    // tree.
+    if (!UpdateANV(debits_and_credits)) {
+        error("DisconnectBlock(): unable to undo referrals");
+        return DISCONNECT_FAILED;
+    }
+
+    if (!RemoveReferrals(block)){
+        error("DisconnectBlock(): unable to undo referrals");
+        return DISCONNECT_FAILED;
+    }
+
+    if (!UndoLotteryEntrants(
+                block_undo,
+                consensus_params.max_lottery_reservoir_size)) {
+
+        error("DisconnectBlock(): unable to undo lottery");
+        return DISCONNECT_FAILED;
+    }
+
+    // move best block pointer to prevout block
+    view.SetBestBlock(pindex->pprev->GetBlockHash());
 
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
@@ -3457,6 +3485,22 @@ static bool ConnectBlock(
     assert((pindex->phashBlock == nullptr) ||
            (*pindex->phashBlock == block.GetHash()));
     int64_t nTimeStart = GetTimeMicros();
+
+    const auto checkpoint = chainparams.Checkpoints().mapCheckpoints.find(pindex->nHeight);
+    if(checkpoint != chainparams.Checkpoints().mapCheckpoints.end()) {
+        if(block.GetHash() != checkpoint->second.hash) {
+            return state.DoS(
+                    50,
+                    false,
+                    REJECT_INVALID,
+                    "checkpoint-fail",
+                    false,
+                    "block failed to match checkpoint");
+        }
+ 
+        //Checkpoints can skip validation. 
+        validate = checkpoint->second.validate;
+    }
 
     // Check it again in case a previous version let a bad block in
     if (!CheckBlock(
@@ -4228,6 +4272,7 @@ void static UpdateTip(CBlockIndex *pindexNew, const CChainParams& chainParams) {
             DoWarning(strWarning);
         }
     }
+
     LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%.8g tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo)", __func__,
       chainActive.Tip()->GetBlockHash().ToString(), chainActive.Height(), chainActive.Tip()->nVersion,
       log(chainActive.Tip()->nChainWork.getdouble())/log(2.0), (unsigned long)chainActive.Tip()->nChainTx,
@@ -4273,7 +4318,6 @@ bool static DisconnectTip(CValidationState& state,
                     block,
                     pindexDelete,
                     view,
-                    false,
                     chainparams.GetConsensus()) != DISCONNECT_OK) {
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         }
@@ -4423,6 +4467,7 @@ bool static ConnectTip(CValidationState& state,
     }
 
     const CBlock& blockConnecting = *pthisBlock;
+
     // Apply the block atomically to the chain state.
     int64_t nTime2 = GetTimeMicros(); nTimeReadFromDisk += nTime2 - nTime1;
     int64_t nTime3;
@@ -4432,7 +4477,8 @@ bool static ConnectTip(CValidationState& state,
         debug("ConnectTip block: %s", blockConnecting.GetHash().GetHex());
 
         bool rv = ConnectBlock(
-                blockConnecting, state,
+                blockConnecting,
+                state,
                 pindexNew,
                 view,
                 chainparams,
@@ -6076,7 +6122,6 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
                     block,
                     pindex,
                     coins,
-                    true,
                     chainparams.GetConsensus());
 
             if (res == DISCONNECT_FAILED) {
@@ -6184,7 +6229,6 @@ bool ReplayBlocks(const CChainParams& params, CCoinsView* view)
                     block,
                     pindexOld,
                     cache,
-                    false,
                     params.GetConsensus());
 
             if (res == DISCONNECT_FAILED) {

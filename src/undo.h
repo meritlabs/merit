@@ -25,7 +25,7 @@ public:
 
     template <typename Stream>
     void Serialize(Stream& s) const {
-        ::Serialize(s, vprevout);
+        ::Serialize(s, REF(vprevout));
     }
 
     template <typename Stream>

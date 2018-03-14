@@ -26,7 +26,13 @@ struct SeedSpec6 {
     uint16_t port;
 };
 
-typedef std::map<int, uint256> MapCheckpoints;
+struct Checkpoint
+{
+    uint256 hash;
+    bool validate; //For the cases where consensus favors invalid blocks,
+};
+
+typedef std::map<int, Checkpoint> MapCheckpoints;
 
 struct CCheckpointData {
     MapCheckpoints mapCheckpoints;

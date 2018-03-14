@@ -339,6 +339,10 @@ namespace pog
             hash = hasher.GetHash();
         }
 
+        if(requested > 0) {
+            LogPrintf("Selected %d addresses (requested %d) for the invite lottery from a pool of %d\n", addresses.size(), requested, total);
+        }
+
         assert(addresses.size() <= requested);
         return addresses;
     }

@@ -266,13 +266,15 @@ bool ProduceSignature(const BaseSignatureCreator& creator, const CScript& fromPu
     sigdata.scriptSig = PushAll(result);
 
     // Test solution
+    ScriptError serror;
     bool ss =
         solved &&
         VerifyScript(sigdata.scriptSig,
                 fromPubKey,
                 &sigdata.scriptWitness,
                 STANDARD_SCRIPT_VERIFY_FLAGS,
-                creator.Checker());
+                creator.Checker(),
+                &serror);
 
     return ss;
 }

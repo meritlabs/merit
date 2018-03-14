@@ -86,12 +86,19 @@ struct modifiedentry_iter {
 struct CompareModifiedEntry {
     bool operator()(const CTxMemPoolModifiedEntry &a, const CTxMemPoolModifiedEntry &b) const
     {
-        double f1 = (double)a.nModFeesWithAncestors * b.nSizeWithAncestors;
-        double f2 = (double)b.nModFeesWithAncestors * a.nSizeWithAncestors;
-        if (f1 == f2) {
-            return CompareIteratorByHash<CTxMemPool::txiter>()(a.iter, b.iter);
+       
+        bool ai = a.iter->GetSharedEntryValue()->IsInvite();
+        bool bi = b.iter->GetSharedEntryValue()->IsInvite();
+
+        if(ai == bi) {
+            double f1 = (double)a.nModFeesWithAncestors * b.nSizeWithAncestors;
+            double f2 = (double)b.nModFeesWithAncestors * a.nSizeWithAncestors;
+            if (f1 == f2) {
+                return CompareIteratorByHash<CTxMemPool::txiter>()(a.iter, b.iter);
+            }
+            return f1 > f2;
         }
-        return f1 > f2;
+        return ai > bi;
     }
 };
 
