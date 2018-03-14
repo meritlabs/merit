@@ -103,21 +103,18 @@ public:
     static const int VERSION_WITH_HDDATA=10;
     static const int VERSION_WITH_MNEMONIC=11;
     static const int CURRENT_VERSION=VERSION_WITH_HDDATA;
-    static const int SEED_LENGTH=64;
     int nVersion;
     int64_t nCreateTime; // 0 means unknown
     std::string hdKeypath; //optional HD/bip32 keypath
     CKeyID hdMasterKeyID; //id of the HD masterkey used to derive this key
     std::string mnemonic; //optional BIP39 mnemonic
-    std::array<uint8_t, SEED_LENGTH> seed; //seed from mnemonic. Necessary in case of passphrase 
 
     CKeyMetadata()
     {
         SetNull();
     }
-    explicit CKeyMetadata(int64_t nCreateTime_)
+    explicit CKeyMetadata(int64_t nCreateTime_) : CKeyMetadata()
     {
-        SetNull();
         nCreateTime = nCreateTime_;
     }
 
@@ -145,7 +142,6 @@ public:
         hdKeypath.clear();
         hdMasterKeyID.SetNull();
         mnemonic = "";
-        seed.fill(0);
     }
 };
 

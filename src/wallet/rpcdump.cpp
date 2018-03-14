@@ -658,8 +658,7 @@ UniValue dumpwallet(const JSONRPCRequest& request)
 
     // add the base58check encoded extended master if the wallet uses HD 
     CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
-    if (!masterKeyID.IsNull())
-    {
+    if (!masterKeyID.IsNull()) {
         CKey key;
         if (pwallet->GetKey(masterKeyID, key)) {
             CExtKey masterKey;
@@ -670,10 +669,9 @@ UniValue dumpwallet(const JSONRPCRequest& request)
 
             file << "# extended private masterkey: " << b58extkey.ToString() << "\n";
 
-            std::string mnemonic = pwallet->mapKeyMetadata[masterKeyID].mnemonic;
-            if(mnemonic.length() > 0)
-            {
-                file << "# mnemonic phrase: " << mnemonic << "\n";
+            if(pwallet->mapKeyMetadata[masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC) {
+                const auto& metadata = pwallet->mapKeyMetadata[masterKeyID];
+                file << "# mnemonic phrase: " << metadata.mnemonic << "\n";
             }
             file << "\n";
         }

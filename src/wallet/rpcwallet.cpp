@@ -4137,6 +4137,48 @@ UniValue settxfee(const JSONRPCRequest& request)
     return true;
 }
 
+UniValue getmnemonic(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() != 0)
+        throw std::runtime_error(
+            "getmnemonic\n"
+            "Returns an object containing a mnemonic phrase if one exists used to recover your wallet.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"mnemonic\": xxxxx,                  (string) mnemonic phrase used to recover your wallet\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getmnemonic", "")
+            + HelpExampleRpc("getmnemonic", "")
+        );
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    UniValue obj(UniValue::VOBJ);
+
+    CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
+    if (!masterKeyID.IsNull()) {
+        std::string mnemonic = pwallet->mapKeyMetadata[masterKeyID].mnemonic;
+
+        if(mnemonic.length() == 0)
+            throw JSONRPCError(RPC_WALLET_NO_MNEMONIC,
+                "This wallet does not have a mnemonic recovery phrase.");
+
+        obj.push_back(Pair("mnemonic", mnemonic));
+    } else {
+        throw JSONRPCError(RPC_WALLET_NOT_REFERRED,
+            "Error: Wallet is not beaconed. Use referral code to beacon first.");
+    }
+
+    return obj;
+}
+
 UniValue getwalletinfo(const JSONRPCRequest& request)
 {
     CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
@@ -5155,6 +5197,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "getaccount",               &getaccount,               {"address"} },
     { "wallet",             "getaddressesbyaccount",    &getaddressesbyaccount,    {"account"} },
     { "wallet",             "getbalance",               &getbalance,               {"account","minconf","include_watchonly"} },
+    { "wallet",             "getmnemonic",              &getmnemonic,              {} },
     { "wallet",             "getnewaddress",            &getnewaddress,            {"account"} },
     { "wallet",             "getrawchangeaddress",      &getrawchangeaddress,      {} },
     { "wallet",             "getreceivedbyaccount",     &getreceivedbyaccount,     {"account","minconf"} },

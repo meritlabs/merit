@@ -276,12 +276,9 @@ CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb)
     int64_t nCreationTime = GetTime();
     CKeyMetadata metadata(nCreationTime);
 
-    if(mapKeyMetadata[hdChain.masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC)
-    {
+    if(mapKeyMetadata[hdChain.masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC) {
         DeriveNewBIP44ChildKey(walletdb, metadata, secret);
-    }
-    else
-    {
+    } else {
         DeriveNewChildKey(walletdb, metadata, secret);
     }
 
@@ -340,12 +337,13 @@ void CWallet::DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata
 {
     // this method uses a fixed keypath scheme of m/44'/0'/0'/0/k
     // m/44'/1'/0'/0/k for testnet
-    uint8_t *seed = mapKeyMetadata[hdChain.masterKeyID].seed.begin();
+    const auto seed = mnemonic::mnemonicToSeed(mapKeyMetadata[hdChain.masterKeyID].mnemonic);
+
     CExtKey masterKey;             //hd master key  m
     CExtKey changeKey;             //key at m/44'/0'/0'/0'
     CExtKey childKey;              //key at m/44'/0'/0'/0/k'
 
-    masterKey.SetMaster(seed, CKeyMetadata::SEED_LENGTH);
+    masterKey.SetMaster(seed.data(), seed.size());
 
     // m/44'
     masterKey.Derive(changeKey, BIP32_HARDENED_KEY_LIMIT | 44);
@@ -1705,7 +1703,7 @@ CPubKey CWallet::GenerateNewHDMasterKey()
     return pubkey;
 }
 
-CPubKey CWallet::GenerateMasterKeyFromMnemonic(const wordList& mnemonic, const std::string& passphrase)
+CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const std::string& passphrase)
 {
     CExtKey extkey;
     std::array<uint8_t, mnemonic::SEED_LENGTH> seed = mnemonic::mnemonicToSeed(mnemonic, passphrase);
@@ -1724,7 +1722,6 @@ CPubKey CWallet::GenerateMasterKeyFromMnemonic(const wordList& mnemonic, const s
     metadata.hdMasterKeyID = pubkey.GetID();
     metadata.mnemonic = mnemonic::unwords(mnemonic);
     metadata.nVersion = CKeyMetadata::VERSION_WITH_MNEMONIC;
-    std::copy(seed.begin(), seed.end(), metadata.seed.begin());
 
     {
         LOCK(cs_wallet);
@@ -4843,10 +4840,10 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
         if (!walletInstance->IsHDEnabled()) {
             // generate a new master key
 
-            wordList mnemonic{};
-            for(size_t i = 0; i < mnemonic::MNEMONIC_WORD_COUNT; i++)
-            {
-                mnemonic.push_back(language::en[GetRand(language::DICTIONARY_SIZE)]);
+            // TODO: Support multiple languages
+            WordList mnemonic;
+            for(size_t i = 0; i < mnemonic::MNEMONIC_WORD_COUNT; i++) {
+                mnemonic.push_back(language::GetRandomWord(language::en));
             }
 
             CPubKey masterPubKey = walletInstance->GenerateMasterKeyFromMnemonic(mnemonic);

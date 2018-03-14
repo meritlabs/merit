@@ -86,6 +86,7 @@ enum RPCErrorCode
     RPC_WALLET_NOT_FOUND            = -18, //!< Invalid wallet specified
     RPC_WALLET_NOT_SPECIFIED        = -19, //!< No wallet specified (error when there are multiple wallets loaded)
     RPC_WALLET_NOT_REFERRED         = -20, //!< Wallet is not yet unlocked with referrer address
+    RPC_WALLET_NO_MNEMONIC          = -21, //!< Wallet does not have a mnemonic recovery phrase
 
     // Referral engine errors
     RPC_REFERRAL_ERROR               = RPC_VERIFY_ERROR,

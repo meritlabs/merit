@@ -43,8 +43,7 @@ int pkcs5_pbkdf2(const std::string& passphrase,
     if (salt_length > SIZE_MAX - 4)
         return -1;
     asalt_size = salt_length + 4;
-    std::vector<uint8_t> asalt;
-    asalt.resize(asalt_size);
+    std::vector<uint8_t> asalt(asalt_size);
 
     std::copy_n(saltPtr, salt_length, asalt.begin());
     for (count = 1; key_length > 0; count++)
