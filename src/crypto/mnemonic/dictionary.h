@@ -5,6 +5,7 @@
 #define DICTIONARY_H
 
 #include <vector>
+#include <string>
 
 namespace language {
 
