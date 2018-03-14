@@ -7,12 +7,16 @@ namespace mnemonic
 {
     std::array<uint8_t, SEED_LENGTH> mnemonicToSeed(const WordList& mnemonic, const std::string& passphrase)
     {
-        std::string mnemonicString = unwords(mnemonic);
+        return mnemonicToSeed(unwords(mnemonic), passphrase);
+    }
+
+    std::array<uint8_t, SEED_LENGTH> mnemonicToSeed(const std::string& mnemonic, const std::string& passphrase)
+    {
         std::string salt = "mnemonic" + passphrase;
 
         std::array<uint8_t, SEED_LENGTH> seed;
 
-        pkcs5_pbkdf2(mnemonicString, salt, seed.begin(), SEED_LENGTH, 2048);
+        pkcs5_pbkdf2(mnemonic, salt, seed.begin(), SEED_LENGTH, 2048);
 
         return seed;
     }

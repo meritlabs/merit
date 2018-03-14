@@ -672,7 +672,6 @@ UniValue dumpwallet(const JSONRPCRequest& request)
             if(pwallet->mapKeyMetadata[masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC) {
                 const auto& metadata = pwallet->mapKeyMetadata[masterKeyID];
                 file << "# mnemonic phrase: " << metadata.mnemonic << "\n";
-                file << "# seed: " << HexStr(metadata.seed) << "\n";
             }
             file << "\n";
         }

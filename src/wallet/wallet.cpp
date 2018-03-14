@@ -337,14 +337,13 @@ void CWallet::DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata
 {
     // this method uses a fixed keypath scheme of m/44'/0'/0'/0/k
     // m/44'/1'/0'/0/k for testnet
-    const auto& seed = mapKeyMetadata[hdChain.masterKeyID].seed;
-    assert(seed != std::vector<uint8_t>(seed.size(), 0));
+    const auto seed = mnemonic::mnemonicToSeed(mapKeyMetadata[hdChain.masterKeyID].mnemonic);
 
     CExtKey masterKey;             //hd master key  m
     CExtKey changeKey;             //key at m/44'/0'/0'/0'
     CExtKey childKey;              //key at m/44'/0'/0'/0/k'
 
-    masterKey.SetMaster(seed.data(), CKeyMetadata::SEED_LENGTH);
+    masterKey.SetMaster(seed.data(), seed.size());
 
     // m/44'
     masterKey.Derive(changeKey, BIP32_HARDENED_KEY_LIMIT | 44);
@@ -1723,7 +1722,6 @@ CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const s
     metadata.hdMasterKeyID = pubkey.GetID();
     metadata.mnemonic = mnemonic::unwords(mnemonic);
     metadata.nVersion = CKeyMetadata::VERSION_WITH_MNEMONIC;
-    std::copy(seed.begin(), seed.end(), metadata.seed.begin());
 
     {
         LOCK(cs_wallet);
