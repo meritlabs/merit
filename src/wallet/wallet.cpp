@@ -4838,7 +4838,7 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
             // TODO: Support multiple languages
             WordList mnemonic;
             for(size_t i = 0; i < mnemonic::MNEMONIC_WORD_COUNT; i++) {
-                mnemonic.push_back(language::en[GetRand(language::DICTIONARY_SIZE)]);
+                mnemonic.push_back(language::GetRandomWord(language::en));
             }
 
             CPubKey masterPubKey = walletInstance->GenerateMasterKeyFromMnemonic(mnemonic);
