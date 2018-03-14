@@ -101,19 +101,20 @@ class CKeyMetadata
 public:
     static const int VERSION_BASIC=1;
     static const int VERSION_WITH_HDDATA=10;
+    static const int VERSION_WITH_MNEMONIC=11;
     static const int CURRENT_VERSION=VERSION_WITH_HDDATA;
     int nVersion;
     int64_t nCreateTime; // 0 means unknown
     std::string hdKeypath; //optional HD/bip32 keypath
     CKeyID hdMasterKeyID; //id of the HD masterkey used to derive this key
+    std::string mnemonic; //optional BIP39 mnemonic
 
     CKeyMetadata()
     {
         SetNull();
     }
-    explicit CKeyMetadata(int64_t nCreateTime_)
+    explicit CKeyMetadata(int64_t nCreateTime_) : CKeyMetadata()
     {
-        SetNull();
         nCreateTime = nCreateTime_;
     }
 
@@ -127,6 +128,10 @@ public:
         {
             READWRITE(hdKeypath);
             READWRITE(hdMasterKeyID);
+            if(this->nVersion >= VERSION_WITH_MNEMONIC)
+            {
+                READWRITE(mnemonic);
+            }
         }
     }
 
@@ -136,6 +141,7 @@ public:
         nCreateTime = 0;
         hdKeypath.clear();
         hdMasterKeyID.SetNull();
+        mnemonic = "";
     }
 };
 

@@ -8,6 +8,7 @@
 #define MERIT_WALLET_WALLET_H
 
 #include "amount.h"
+#include "crypto/mnemonic/mnemonic.h"
 #include "policy/feerate.h"
 #include "streams.h"
 #include "tinyformat.h"
@@ -758,6 +759,7 @@ private:
 
     /* HD derive new child key (on internal or external chain) */
     void DeriveNewChildKey(CWalletDB& walletdb, CKeyMetadata& metadata, CKey& secret);
+    void DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKey& secret);
 
     std::set<int64_t> setKeyPool;
     int64_t m_max_keypool_index;
@@ -1222,6 +1224,7 @@ public:
 
     /* Generates a new HD master key (will not be activated) */
     CPubKey GenerateNewHDMasterKey();
+    CPubKey GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const std::string& passphrase = "");
 
     /* Set the current HD master key (will reset the chain child index counters)
        Sets the master key's version based on the current wallet version (so the
