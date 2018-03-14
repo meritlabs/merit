@@ -694,6 +694,7 @@ static void MutateTxSign(CMutableTransaction& tx, const std::string& flagStr)
 
         UpdateTransaction(mergedTx, i, sigdata);
 
+        ScriptError serror;
         if (!VerifyScript(
                     txin.scriptSig,
                     prevPubKey,
@@ -704,7 +705,8 @@ static void MutateTxSign(CMutableTransaction& tx, const std::string& flagStr)
                         i,
                         amount,
                         spendHeight,
-                        coin.nHeight))) {
+                        coin.nHeight),
+                    &serror)) {
             fComplete = false;
         }
     }

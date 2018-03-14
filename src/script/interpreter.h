@@ -302,7 +302,7 @@ bool VerifyScript(
         const CScriptWitness* witness,
         unsigned int flags,
         const BaseSignatureChecker& checker,
-        ScriptError* serror = nullptr);
+        ScriptError* serror);
 
 size_t CountWitnessSigOps(
         const CScript& scriptSig,
