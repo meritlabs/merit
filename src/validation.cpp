@@ -406,10 +406,6 @@ bool CheckReferralAliasUnique(
     const CBlock* block,
     bool normalize_alias)
 {
-    if (referral_in->alias.size() == 0) {
-        return true;
-    }
-
     bool unique = !prefviewcache->IsConfirmed(referral_in->alias, normalize_alias);
 
     // check block for same aliases if provided
