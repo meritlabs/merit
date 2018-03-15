@@ -410,9 +410,7 @@ bool CheckReferralAliasUnique(
         return true;
     }
 
-    bool unique = 
-        !prefviewcache->Exists(referral_in->alias, normalize_alias) ||
-        !prefviewcache->IsConfirmed(referral_in->alias, normalize_alias);
+    bool unique = !prefviewcache->IsConfirmed(referral_in->alias, normalize_alias);
 
     // check block for same aliases if provided
     if (unique && block != nullptr) {
