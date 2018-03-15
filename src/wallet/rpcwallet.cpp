@@ -4261,6 +4261,57 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
     return obj;
 }
 
+UniValue getcommunityinfo(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() > 1)
+        throw std::runtime_error(
+            "getwalletinfo ( \"address\" )\n"
+            "Returns an object containing various community state info.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"referralcount\": xxxx,             (numeric) number of confirmed referrals\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getcommunityinfo", "")
+            + HelpExampleRpc("getcommunityinfo", "")
+        );
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    UniValue obj(UniValue::VOBJ);
+
+    uint160 address;
+    if (!request.params[0].isNull()) {
+        CTxDestination dest = LookupDestination(request.params[0].get_str());
+        CMeritAddress maddress(dest);
+        if (!maddress.IsValid() || !maddress.GetUint160()) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,
+                std::string("Invalid Merit address: ") + request.params[0].get_str());
+        }
+        address = *maddress.GetUint160();
+    } else if (!pwallet->IsReferred()) {
+        obj.push_back(Pair("referralcount", 0));
+        return obj;
+    } else {
+      auto referral = pwallet->GetRootReferral();
+      assert(!referral->GetHash().IsNull());
+      address = referral->GetAddress();
+    }
+
+
+    auto children = prefviewdb->GetChildren(address);
+
+    obj.push_back(Pair("referralcount", (int)children.size()));
+
+    return obj;
+}
+
 UniValue listwallets(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 0)
@@ -5208,6 +5259,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "gettransaction",           &gettransaction,           {"txid","include_watchonly"} },
     { "wallet",             "getunconfirmedbalance",    &getunconfirmedbalance,    {} },
     { "wallet",             "getwalletinfo",            &getwalletinfo,            {} },
+    { "wallet",             "getcommunityinfo",         &getcommunityinfo,         {} },
     { "wallet",             "importmulti",              &importmulti,              {"requests","options"} },
     { "wallet",             "importprivkey",            &importprivkey,            {"privkey","label","rescan"} },
     { "wallet",             "importwallet",             &importwallet,             {"filename"} },
