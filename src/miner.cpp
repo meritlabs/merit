@@ -31,7 +31,6 @@
 #include "validationinterface.h"
 
 #include <algorithm>
-#include <chrono>
 #include <boost/thread.hpp>
 #include <limits>
 #include <queue>
@@ -969,15 +968,17 @@ void MinerWorker(int thread_id, MinerContext& ctx)
         //
         // Search
         //
-        int64_t nStart = GetTime();
+        int64_t nStart = GetTimeMillis();
+        auto nonces_checked = 0;
         arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
         uint256 hash;
         std::set<uint32_t> cycle;
 
-        auto start = std::chrono::system_clock::now();
-
         while (ctx.alive) {
             // Check if something found
+            auto attempt_start = GetTimeMillis();
+            nonces_checked++;
+
             if (cuckoo::FindProofOfWorkAdvanced(
                         pblock->GetHash(),
                         pblock->nBits,
@@ -988,16 +989,13 @@ void MinerWorker(int thread_id, MinerContext& ctx)
                 // Found a solution
                 pblock->sCycle = cycle;
 
-                auto end = std::chrono::system_clock::now();
-                std::chrono::duration<double> elapsed = end - start;
-
                 auto cycleHash = SerializeHash(cycle);
 
                 LogPrintf("%d: MeritMiner:\n", thread_id);
                 LogPrintf(
                         "\n\n\nproof-of-work found within %8.3f seconds \n"
                         "\tblock hash: %s\n\tnonce: %d\n\tcycle hash: %s\n\ttarget: %s\n\n\n",
-                    elapsed.count(),
+                    static_cast<double>(GetTimeMillis() - attempt_start) / 1e3,
                     pblock->GetHash().GetHex(),
                     pblock->nNonce,
                     cycleHash.GetHex(),
@@ -1029,7 +1027,7 @@ void MinerWorker(int thread_id, MinerContext& ctx)
             }
 
             if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast &&
-                    GetTime() - nStart > ctx.chainparams.MininBlockStaleTime()) {
+                    (GetTimeMillis() - nStart) / 1e3 > ctx.chainparams.MininBlockStaleTime()) {
                 break;
             }
 
@@ -1056,6 +1054,16 @@ void MinerWorker(int thread_id, MinerContext& ctx)
                 pblock->nNonce += ctx.nonces_per_thread * (ctx.threads_number - 1);
             }
         }
+
+        auto elapsed = (GetTimeMillis() - nStart) / 1e3;
+        auto current_hashpower = (nonces_checked - start_nonce + 1) / elapsed;
+
+        if (g_connman->hashpower > .0) {
+            g_connman->hashpower = (g_connman->hashpower + current_hashpower) / 2;
+        } else {
+            g_connman->hashpower = current_hashpower;
+        }
+
     }
 
     LogPrintf("MeritMiner pool #%d terminated\n", thread_id);

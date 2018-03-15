@@ -2212,6 +2212,7 @@ CConnman::CConnman(uint64_t nSeed0In, uint64_t nSeed1In) : nSeed0(nSeed0In), nSe
     semOutbound = nullptr;
     semAddnode = nullptr;
     flagInterruptMsgProc = false;
+    hashpower = .0;
 
     Options connOptions;
     Init(connOptions);

@@ -129,6 +129,8 @@ public:
         CONNECTIONS_ALL = (CONNECTIONS_IN | CONNECTIONS_OUT),
     };
 
+    std::atomic<double> hashpower;
+
     struct Options
     {
         ServiceFlags nLocalServices = NODE_NONE;

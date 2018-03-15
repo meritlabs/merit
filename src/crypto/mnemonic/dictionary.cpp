@@ -2,10 +2,40 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include "crypto/mnemonic/dictionary.h"
-#include "random.h"
+
+#include <openssl/rand.h>
 
 namespace language
 {
+
+// next three functinos are copypasted from random.h
+// as including it's not int libcrypto library
+[[noreturn]] static void RandFailure()
+{
+    std::abort();
+}
+
+void GetRandBytes(unsigned char* buf, int num)
+{
+    if (RAND_bytes(buf, num) != 1) {
+        RandFailure();
+    }
+}
+
+uint64_t GetRand(uint64_t nMax)
+{
+    if (nMax == 0)
+        return 0;
+
+    // The range of the random source must be a multiple of the modulus
+    // to give every possible output value an equal possibility
+    uint64_t nRange = (std::numeric_limits<uint64_t>::max() / nMax) * nMax;
+    uint64_t nRand = 0;
+    do {
+        GetRandBytes((unsigned char*)&nRand, sizeof(nRand));
+    } while (nRand >= nRange);
+    return (nRand % nMax);
+}
 
 const std::string& GetRandomWord(const Dictionary& dict)
 {
