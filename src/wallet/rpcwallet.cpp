@@ -4243,11 +4243,13 @@ UniValue getcommunityinfo(const JSONRPCRequest& request)
 
     uint160 address;
     if (!request.params[0].isNull()) {
-        CMeritAddress dest(request.params[0].get_str());
-        if (!dest.IsValid() || !dest.GetUint160()) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Merit address: ") + request.params[0].get_str());
+        CTxDestination dest = LookupDestination(request.params[0].get_str());
+        CMeritAddress maddress(dest);
+        if (!maddress.IsValid() || !maddress.GetUint160()) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,
+                std::string("Invalid Merit address: ") + request.params[0].get_str());
         }
-        address = *dest.GetUint160();
+        address = *maddress.GetUint160();
     } else if (!pwallet->IsReferred()) {
         obj.push_back(Pair("referralcount", 0));
         return obj;
