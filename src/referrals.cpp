@@ -111,4 +111,11 @@ bool ReferralsViewCache::IsConfirmed(const Address& address) const
     return m_db->IsConfirmed(address);
 }
 
+bool ReferralsViewCache::IsConfirmed(const std::string& alias, bool normalize_alias) const
+{
+    assert(m_db);
+    //TODO: Have an in memory cache. For now just passthrough.
+    return m_db->IsConfirmed(alias, normalize_alias);
+}
+
 }

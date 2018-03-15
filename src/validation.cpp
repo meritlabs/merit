@@ -406,19 +406,20 @@ bool CheckReferralAliasUnique(
     const CBlock* block,
     bool normalize_alias)
 {
-    if (referral_in->alias.size() == 0) {
-        return true;
+    auto maybe_normalized = referral_in->alias;
+    if (normalize_alias) {
+        referral::NormalizeAlias(maybe_normalized);
     }
 
-    bool unique = !prefviewcache->Exists(referral_in->alias, normalize_alias);
+    bool unique = !prefviewcache->IsConfirmed(maybe_normalized, false);
 
     // check block for same aliases if provided
-    if (block != nullptr) {
+    if (unique && maybe_normalized.size() > 0 && block != nullptr) {
         auto it = std::find_if (
             block->m_vRef.begin(), block->m_vRef.end(),
-            [&referral_in, normalize_alias](const referral::ReferralRef& ref) {
+            [&referral_in, &maybe_normalized, normalize_alias](const referral::ReferralRef& ref) {
                 return 
-                    referral::AliasesEqual(ref->alias, referral_in->alias, normalize_alias) &&
+                    referral::AliasesEqual(ref->alias, maybe_normalized, normalize_alias) &&
                     ref->GetHash() != referral_in->GetHash();
             });
 
