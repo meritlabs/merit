@@ -4223,9 +4223,9 @@ UniValue getcommunityinfo(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() != 0)
+    if (request.fHelp || request.params.size() > 1)
         throw std::runtime_error(
-            "getwalletinfo\n"
+            "getwalletinfo ( \"address\" )\n"
             "Returns an object containing various community state info.\n"
             "\nResult:\n"
             "{\n"
@@ -4241,17 +4241,26 @@ UniValue getcommunityinfo(const JSONRPCRequest& request)
 
     UniValue obj(UniValue::VOBJ);
 
-    if (!pwallet->IsReferred()) {
+    uint160 address;
+    if (!request.params[0].isNull()) {
+        CMeritAddress dest(request.params[0].get_str());
+        if (!dest.IsValid() || !dest.GetUint160()) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid Merit address: ") + request.params[0].get_str());
+        }
+        address = *dest.GetUint160();
+    } else if (!pwallet->IsReferred()) {
         obj.push_back(Pair("referralcount", 0));
+        return obj;
     } else {
-        auto referral = pwallet->GetRootReferral();
-        assert(!referral->GetHash().IsNull());
-
-        auto address = referral->GetAddress();
-        auto children = prefviewdb->GetChildren(address);
-
-        obj.push_back(Pair("referralcount", (int)children.size()));
+      auto referral = pwallet->GetRootReferral();
+      assert(!referral->GetHash().IsNull());
+      address = referral->GetAddress();
     }
+
+
+    auto children = prefviewdb->GetChildren(address);
+
+    obj.push_back(Pair("referralcount", (int)children.size()));
 
     return obj;
 }
