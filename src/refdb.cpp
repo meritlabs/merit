@@ -100,7 +100,7 @@ namespace referral
             NormalizeAlias(maybe_normalized);
         }
 
-        if (maybe_normalized.size() == 0 || maybe_normalized.size() > MAX_ALIAS_LENGTH) {
+        if (maybe_normalized.empty() || maybe_normalized.size() > MAX_ALIAS_LENGTH) {
             return {};
         }
 
