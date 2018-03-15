@@ -112,13 +112,15 @@ QT_FORMS_UI = \
   qt/forms/sendcoinsdialog.ui \
   qt/forms/sendcoinsentry.ui \
   qt/forms/signverifymessagedialog.ui \
-  qt/forms/transactiondescdialog.ui
+  qt/forms/transactiondescdialog.ui \
+  qt/forms/faststart.ui
 
 QT_MOC_CPP = \
   qt/moc_addressbookpage.cpp \
   qt/moc_addresstablemodel.cpp \
   qt/moc_askpassphrasedialog.cpp \
   qt/moc_bantablemodel.cpp \
+  qt/moc_faststart.cpp \
   qt/moc_meritaddressvalidator.cpp \
   qt/moc_meritamountfield.cpp \
   qt/moc_meritgui.cpp \
@@ -190,6 +192,7 @@ MERIT_QT_H = \
   qt/addresstablemodel.h \
   qt/askpassphrasedialog.h \
   qt/bantablemodel.h \
+  qt/faststart.h \
   qt/meritaddressvalidator.h \
   qt/meritamountfield.h \
   qt/meritgui.h \
@@ -307,6 +310,7 @@ RES_ICONS = \
 
 MERIT_QT_BASE_CPP = \
   qt/bantablemodel.cpp \
+  qt/faststart.cpp \
   qt/meritaddressvalidator.cpp \
   qt/meritamountfield.cpp \
   qt/meritgui.cpp \
