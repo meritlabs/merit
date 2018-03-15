@@ -96,6 +96,9 @@ public:
 
     /** Check if an address is confirmed */
     bool IsConfirmed(const Address&) const;
+
+    /** Check if an address is confirmed */
+    bool IsConfirmed(const std::string& alias, bool normalize_alias) const;
 };
 
 } // namespace referral

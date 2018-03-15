@@ -410,10 +410,12 @@ bool CheckReferralAliasUnique(
         return true;
     }
 
-    bool unique = !prefviewcache->Exists(referral_in->alias, normalize_alias);
+    bool unique = 
+        !prefviewcache->Exists(referral_in->alias, normalize_alias) ||
+        !prefviewcache->IsConfirmed(referral_in->alias, normalize_alias);
 
     // check block for same aliases if provided
-    if (block != nullptr) {
+    if (unique && block != nullptr) {
         auto it = std::find_if (
             block->m_vRef.begin(), block->m_vRef.end(),
             [&referral_in, normalize_alias](const referral::ReferralRef& ref) {

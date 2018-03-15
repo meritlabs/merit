@@ -934,6 +934,16 @@ namespace referral
         return confirmation.second > 0;
     }
 
+    bool ReferralsViewDB::IsConfirmed(const std::string& alias, bool normalize_alias) const
+    {
+        if(alias.empty()) {
+            return false;
+        }
+
+        auto ref = GetReferral(alias, normalize_alias);
+        return ref ? IsConfirmed(ref->GetAddress()) : false;
+    }
+
     using AddressPairs = std::vector<AddressPair>;
 
     bool ReferralsViewDB::ConfirmAllPreDaedalusAddresses()
