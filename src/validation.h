@@ -532,6 +532,11 @@ bool GetAddressUnspent(
         bool invite,
         std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
 
+bool GetAddressUnspentCoinsAndInvites(
+        uint160 addressHash,
+        unsigned int type,
+        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
+
 /** Initializes the script-execution cache */
 void InitScriptExecutionCache();
 
