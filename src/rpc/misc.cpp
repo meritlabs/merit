@@ -1005,6 +1005,7 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
     std::sort(unspentOutputs.begin(), unspentOutputs.end(), heightSort);
 
     UniValue utxos(UniValue::VARR);
+    utxos.reserve(unspentOutputs.size());
 
     for (std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> >::const_iterator it=unspentOutputs.begin(); it!=unspentOutputs.end(); it++) {
         UniValue output(UniValue::VOBJ);
