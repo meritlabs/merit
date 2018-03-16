@@ -1575,26 +1575,6 @@ bool GetAddressUnspent(
     return true;
 }
 
-bool GetAddressUnspentCoinsAndInvites(
-        uint160 addressHash,
-        unsigned int type,
-        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs)
-{
-    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentCoins;
-    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentInvites;
-
-    if (!pblocktree->ReadAddressUnspentIndex(addressHash, type, false, unspentCoins))
-        return error("unable to get coin txids for address");
-    if (!pblocktree->ReadAddressUnspentIndex(addressHash, type, true, unspentInvites))
-        return error("unable to get invite txids for address");
-
-    unspentOutputs.reserve( unspentCoins.size() + unspentInvites.size() );
-    unspentOutputs.insert( unspentOutputs.end(), unspentCoins.begin(), unspentCoins.end() );
-    unspentOutputs.insert( unspentOutputs.end(), unspentInvites.begin(), unspentInvites.end() );
-
-    return true;
-}
-
 /** Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock */
 bool GetTransaction(
         const uint256 &hash,

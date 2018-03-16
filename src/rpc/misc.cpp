@@ -1038,80 +1038,6 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
     }
 }
 
-UniValue getaddressutxoswithinvites(const JSONRPCRequest& request)
-{
-    if (request.fHelp || request.params.size() != 1)
-        throw std::runtime_error(
-            "getaddressutxoswithinvites\n"
-            "\nReturns all unspent outputs for an address (requires addressindex to be enabled).\n"
-            "\nArguments:\n"
-            "{\n"
-            "  \"addresses\"\n"
-            "    [\n"
-            "      \"address\"  (string) The base58check encoded address\n"
-            "      ,...\n"
-            "    ]\n"
-            "}\n"
-            "\nResult\n"
-            "[\n"
-            "  {\n"
-            "    \"address\"  (string) The address base58check encoded\n"
-            "    \"txid\"  (string) The output txid\n"
-            "    \"height\"  (number) The block height\n"
-            "    \"outputIndex\"  (number) The output index\n"
-            "    \"script\"  (strin) The script hex encoded\n"
-            "    \"satoshis\"  (number) The number of satoshis of the output\n"
-            "    \"isCoinbase\"  (boolean) If transaction is a coinbase\n"
-            "    \"isInvite\"  (boolean) If transaction is an invite\n"
-            "  }\n"
-            "]\n"
-            "\nExamples:\n"
-            + HelpExampleCli("getaddressutxoswithinvites", "'{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}'")
-            + HelpExampleRpc("getaddressutxoswithinvites", "{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}")
-            );
-
-    bool includeChainInfo = false;
-    bool request_invites = false;
-
-    std::vector<AddressPair> addresses;
-
-    if (!getAddressesFromParams(request.params, addresses)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
-    }
-
-    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
-
-    for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
-        if (!GetAddressUnspentCoinsAndInvites((*it).first, (*it).second, unspentOutputs)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
-        }
-    }
-
-    std::sort(unspentOutputs.begin(), unspentOutputs.end(), heightSort);
-
-    UniValue utxos(UniValue::VARR);
-
-    for (std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> >::const_iterator it=unspentOutputs.begin(); it!=unspentOutputs.end(); it++) {
-        UniValue output(UniValue::VOBJ);
-        std::string address;
-        if (!getAddressFromIndex(it->first.type, it->first.hashBytes, address)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unknown address type");
-        }
-
-        output.push_back(Pair("address", address));
-        output.push_back(Pair("txid", it->first.txhash.GetHex()));
-        output.push_back(Pair("outputIndex", (int)it->first.index));
-        output.push_back(Pair("script", HexStr(it->second.script)));
-        output.push_back(Pair("satoshis", it->second.satoshis));
-        output.push_back(Pair("height", it->second.blockHeight));
-        output.push_back(Pair("isCoinbase", it->first.isCoinbase));
-        output.push_back(Pair("isInvite", it->first.isInvite));
-        utxos.push_back(output);
-    }
-
-    return utxos;
-}
-
 UniValue getaddressdeltas(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1 || !request.params[0].isObject())
@@ -1759,7 +1685,6 @@ static const CRPCCommand commands[] =
     { "addressindex",       "getaddressmempool",            &getaddressmempool,          {} },
     { "addressindex",       "getaddressmempoolreferrals",   &getaddressmempoolreferrals, {} },
     { "addressindex",       "getaddressutxos",              &getaddressutxos,            {} },
-    { "addressindex",       "getaddressutxoswithinvites",   &getaddressutxoswithinvites, {} },
     { "addressindex",       "getaddressdeltas",             &getaddressdeltas,           {} },
     { "addressindex",       "getaddresstxids",              &getaddresstxids,            {} },
     { "addressindex",       "getaddressreferrals",          &getaddressreferrals,        {} },
