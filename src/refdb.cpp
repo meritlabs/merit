@@ -857,6 +857,7 @@ namespace referral
                     confirmation)) {
             confirmation.first = total_confirmations;
             confirmation.second = amount;
+            updated_amount = confirmation.second;
 
             //We have a new confirmed address so add it to the end of the invite lottery
             //and index it.
@@ -873,6 +874,7 @@ namespace referral
             }
         } else {
             confirmation.second += amount;
+            updated_amount = confirmation.second;
 
             //We delete the last confirmation only if amount of invites reaches
             //0 and it is the last confirmation in the array. This is to handle
