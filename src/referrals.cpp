@@ -74,7 +74,7 @@ bool ReferralsViewCache::Exists(
     auto maybe_normalized = alias;
     if(normalize_alias) {
         NormalizeAlias(maybe_normalized);
-    } 
+    }
 
     {
         LOCK(m_cs_cache);
@@ -93,7 +93,12 @@ bool ReferralsViewCache::Exists(
 void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
-    assert(ref.alias.size() == 0 || referrals_index.get<by_alias>().count(ref.alias) == 0);
+    // check that referral alias is not in cache or it's unconfirmed
+    assert(
+        ref.alias.size() == 0 ||
+        referrals_index.get<by_alias>().count(ref.alias) == 0 ||
+        !IsConfirmed(ref.alias, false)
+        );
 
     referrals_index.insert(ref);
 }
