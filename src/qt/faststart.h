@@ -7,6 +7,13 @@ namespace Ui {
 class FastStart;
 }
 
+struct SnapshotInfo
+{
+    std::string url;
+    size_t position;
+    size_t size;
+};
+
 class FastStart : public QDialog
 {
     Q_OBJECT
@@ -21,6 +28,7 @@ public Q_SLOTS:
 
 private:
     Ui::FastStart *ui;
+    std::string data_dir;
 };
 
 #endif // FASTSTART_H

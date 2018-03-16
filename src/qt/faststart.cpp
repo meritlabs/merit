@@ -1,5 +1,6 @@
 #include "faststart.h"
 #include "ui_faststart.h"
+#include "util.h"
 
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
@@ -15,6 +16,8 @@ FastStart::FastStart(QWidget *parent) :
     ui(new Ui::FastStart)
 {
     ui->setupUi(this);
+
+    data_dir = gArgs.GetArg("-datadir", GetDefaultDataDir());
 
     //start slideshow
     QTimer::singleShot(1000 * SLIDE_TRANSITION_SECONDS, this, SLOT(endSlide()));
