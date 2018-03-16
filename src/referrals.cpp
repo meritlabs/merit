@@ -93,6 +93,14 @@ bool ReferralsViewCache::Exists(
 void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
+
+    if (
+        !(ref.alias.size() == 0 ||
+        referrals_index.get<by_alias>().count(ref.alias) == 0 ||
+        !IsConfirmed(ref.alias, false))
+    ) {
+        printf("\talias is already in the cache or confirmed: %s", ref.alias.c_str());
+    }
     // check that referral alias is not in cache or it's unconfirmed
     assert(
         ref.alias.size() == 0 ||
@@ -108,6 +116,26 @@ bool ReferralsViewCache::RemoveReferral(const Referral& ref) const
     referrals_index.erase(ref.GetAddress());
     return m_db->RemoveReferral(ref);
 }
+
+bool ReferralsViewCache::UpdateConfirmation(char address_type, const Address& address, CAmount amount)
+{
+    assert(m_db);
+    CAmount updated_amount;
+    //TODO: Have an in memory cache. For now just passthrough.
+    auto success = m_db->UpdateConfirmation(address_type, address, amount, updated_amount);
+
+    if (!success) {
+        return false;
+    }
+
+    // if referral was unconfirmed, remove it from the cache
+    if (updated_amount == 0) {
+        referrals_index.erase(address);
+    }
+
+    return true;
+}
+
 
 bool ReferralsViewCache::IsConfirmed(const Address& address) const
 {

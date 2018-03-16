@@ -94,6 +94,9 @@ public:
     /** Flush referrals to disk and clear cache */
     void Flush();
 
+    /** Update number of confirmations for referral */
+    bool UpdateConfirmation(char address_type, const Address& address, CAmount amount);
+
     /** Check if an address is confirmed */
     bool IsConfirmed(const Address&) const;
 

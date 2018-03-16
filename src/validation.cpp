@@ -2715,7 +2715,7 @@ bool UpdateConfirmations(const CBlock& block, const DebitsAndCredits debits_and_
         const auto& address = std::get<1>(entry);
         const CAmount amount = std::get<2>(entry);
 
-        if (!prefviewdb->UpdateConfirmation(type, address, amount)) {
+        if (!prefviewcache->UpdateConfirmation(type, address, amount)) {
             return false;
         }
     }

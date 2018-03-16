@@ -51,7 +51,7 @@ namespace referral
             public:
                 ReferralIdVisitor(
                         const ReferralsViewDB *db_in,
-                        bool normalize_alias_in) : 
+                        bool normalize_alias_in) :
                     db{db_in},
                     normalize_alias{normalize_alias_in} {}
 
@@ -146,7 +146,7 @@ namespace referral
     bool ReferralsViewDB::InsertReferral(
             const Referral& referral,
             bool allow_no_parent,
-            bool normalize_alias) 
+            bool normalize_alias)
     {
         debug("Inserting referral %s parent %s",
                 CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
@@ -845,7 +845,8 @@ namespace referral
     bool ReferralsViewDB::UpdateConfirmation(
             char address_type,
             const Address& address,
-            CAmount amount)
+            CAmount amount,
+            CAmount &updated_amount)
     {
         uint64_t total_confirmations = 0;
         m_db.Read(DB_CONFIRMATION_TOTAL, total_confirmations);
@@ -910,7 +911,7 @@ namespace referral
     }
 
     bool ReferralsViewDB::Exists(
-            const std::string& alias, 
+            const std::string& alias,
             bool normalize_alias) const
     {
         auto maybe_normalized = alias;
@@ -982,9 +983,10 @@ namespace referral
                 return a.second < b.second;
                 });
 
+        CAmount dummy;
         for(const auto& addr : addresses) {
             debug("\tConfirming %s address", CMeritAddress{addr.first, addr.second}.ToString());
-            if (!UpdateConfirmation(addr.first, addr.second, 1)) {
+            if (!UpdateConfirmation(addr.first, addr.second, 1, dummy)) {
                 return false;
             }
         }
