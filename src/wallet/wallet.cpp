@@ -1737,6 +1737,13 @@ CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const s
     return pubkey;
 }
 
+std::string CWallet::GetMnemonic()
+{
+    if(mapKeyMetadata[hdChain.masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC)
+        return mapKeyMetadata[hdChain.masterKeyID].mnemonic;
+    return "";
+}
+
 bool CWallet::SetHDMasterKey(const CPubKey& pubkey)
 {
     LOCK(cs_wallet);
