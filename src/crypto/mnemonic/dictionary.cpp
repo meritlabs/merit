@@ -2,15 +2,9 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #include "crypto/mnemonic/dictionary.h"
-#include "random.h"
 
 namespace language
 {
-
-const std::string& GetRandomWord(const Dictionary& dict)
-{
-    return dict[GetRand(dict.size())];
-}
 
 Dictionary en = {
   "abandon",
