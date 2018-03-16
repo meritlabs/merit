@@ -279,11 +279,6 @@ static inline bool json_isspace(int ch)
     // not reached
 }
 
-void UniValue::reserve(unsigned int size)
-{
-    values.reserve(size);
-}
-
 extern const UniValue NullUniValue;
 
 const UniValue& find_value( const UniValue& obj, const std::string& name);
