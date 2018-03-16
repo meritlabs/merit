@@ -58,7 +58,7 @@
       <string>QR Code</string>
      </property>
      <property name="text">
-      <string>QR Code Hidden</string>
+      <string>Click to reveal your QR Code.</string>
      </property>
      <property name="textFormat">
       <enum>Qt::PlainText</enum>
@@ -93,13 +93,6 @@
       <widget class="QPushButton" name="pushButtonCancel">
        <property name="text">
         <string>Cancel</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="pushButtonShow">
-       <property name="text">
-        <string>Show QR Code</string>
        </property>
       </widget>
      </item>

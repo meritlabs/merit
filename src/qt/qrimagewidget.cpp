@@ -30,7 +30,18 @@ QImage QRImageWidget::exportImage()
 
 void QRImageWidget::mousePressEvent(QMouseEvent *event)
 {
-    if(event->button() == Qt::LeftButton && pixmap())
+    leftClicked = event->button() == Qt::LeftButton;
+}
+
+void QRImageWidget::mouseReleaseEvent(QMouseEvent *event)
+{
+    leftClicked = false;
+    Q_EMIT clicked();
+}
+
+void QRImageWidget::mouseMoveEvent(QMouseEvent *event)
+{
+    if(leftClicked && pixmap())
     {
         event->accept();
         QMimeData *mimeData = new QMimeData;
@@ -40,7 +51,7 @@ void QRImageWidget::mousePressEvent(QMouseEvent *event)
         drag->setMimeData(mimeData);
         drag->exec();
     } else {
-        QLabel::mousePressEvent(event);
+        QLabel::mouseMoveEvent(event);
     }
 }
 

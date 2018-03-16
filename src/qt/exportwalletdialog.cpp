@@ -22,12 +22,11 @@ ExportWalletDialog::ExportWalletDialog(QWidget *parent, WalletModel *model) :
     ui->setupUi(this);
 
 #ifndef USE_QRCODE
-    ui->pushButtonShow->setVisible(false);
     ui->lblQRCode->setVisible(false);
 #endif
 
     connect(ui->pushButtonCancel, SIGNAL(clicked()), this, SLOT(onCancelClicked()));
-    connect(ui->pushButtonShow, SIGNAL(clicked()), this, SLOT(onShowClicked()));
+    connect(ui->lblQRCode, SIGNAL(clicked()), this, SLOT(onShowClicked()));
 }
 
 ExportWalletDialog::~ExportWalletDialog()
@@ -44,7 +43,6 @@ void ExportWalletDialog::onShowClicked()
 {
     qrCodeIsVisible = !qrCodeIsVisible;
     setQRCodeVisibility();
-    updateShowButtonText();
 }
 
 void ExportWalletDialog::setQRCodeVisibility()
@@ -75,18 +73,6 @@ void ExportWalletDialog::setQRCodeVisibility()
     else
     {
         ui->lblQRCode->setPixmap(QPixmap());
-        ui->lblQRCode->setText(tr("QR Code Hidden"));
-    }
-}
-
-void ExportWalletDialog::updateShowButtonText()
-{
-    if(qrCodeIsVisible)
-    {
-        ui->pushButtonShow->setText(tr("Hide QR Code"));
-    }
-    else
-    {
-        ui->pushButtonShow->setText(tr("Show QR Code"));
+        ui->lblQRCode->setText(tr("Click to reveal your QR Code."));
     }
 }

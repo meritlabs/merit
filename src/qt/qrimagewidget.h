@@ -18,16 +18,22 @@ public:
     explicit QRImageWidget(QWidget *parent = 0);
     QImage exportImage();
 
+Q_SIGNALS:
+    void clicked();
+
 public Q_SLOTS:
     void saveImage();
     void copyImage();
 
 protected:
     virtual void mousePressEvent(QMouseEvent *event);
+    virtual void mouseMoveEvent(QMouseEvent *event);
+    virtual void mouseReleaseEvent(QMouseEvent *event);
     virtual void contextMenuEvent(QContextMenuEvent *event);
 
 private:
     QMenu *contextMenu;
+    bool leftClicked = false;
 };
 
 #endif

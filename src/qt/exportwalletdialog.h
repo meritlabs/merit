@@ -27,7 +27,6 @@ private:
     bool qrCodeIsVisible = false;
 
     void setQRCodeVisibility();
-    void updateShowButtonText();
 };
 
 #endif
