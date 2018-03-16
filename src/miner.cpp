@@ -902,17 +902,19 @@ static bool ProcessBlockFound(const CBlock* pblock, const CChainParams& chainpar
 
 struct MinerContext {
     std::atomic<bool>& alive;
+    int pow_threads;
     int threads_number;
     int nonces_per_thread;
     const CChainParams& chainparams;
     std::shared_ptr<CReserveScript>& coinbase_script;
-    ctpl::thread_pool& pool;
 };
 
 void MinerWorker(int thread_id, MinerContext& ctx)
 {
     auto start_nonce = thread_id * ctx.nonces_per_thread;
     unsigned int nExtraNonce = 0;
+
+    ctpl::thread_pool pool(ctx.pow_threads);
 
     while (ctx.alive) {
         if (ctx.chainparams.MiningRequiresPeers()) {
@@ -985,7 +987,7 @@ void MinerWorker(int thread_id, MinerContext& ctx)
                         pblock->nEdgeBits,
                         cycle,
                         ctx.chainparams.GetConsensus(),
-                        ctx.pool)) {
+                        pool)) {
                 // Found a solution
                 pblock->sCycle = cycle;
 
@@ -1066,6 +1068,8 @@ void MinerWorker(int thread_id, MinerContext& ctx)
 
     }
 
+    pool.stop(true);
+
     LogPrintf("MeritMiner pool #%d terminated\n", thread_id);
 }
 
@@ -1089,12 +1093,6 @@ void static MeritMiner(
 
     using pool_ptr = std::unique_ptr<ctpl::thread_pool>;
     ctpl::thread_pool parallel_pool(bucket_threads);
-    std::vector<pool_ptr> cuckoo_pools;
-
-    for (int i = 0; i < bucket_threads; i++) {
-        cuckoo_pools.push_back(pool_ptr(new ctpl::thread_pool(pow_threads)));
-    }
-
     std::atomic<bool> alive{true};
 
     try {
@@ -1112,11 +1110,11 @@ void static MeritMiner(
         for (int t = 0; t < bucket_threads; t++) {
             MinerContext ctx{
                 alive,
+                pow_threads,
                 bucket_threads,
                 bucket_size,
                 chainparams,
-                coinbase_script,
-                *(cuckoo_pools.at(t))
+                coinbase_script
             };
 
             parallel_pool.push(MinerWorker, ctx);
@@ -1128,9 +1126,6 @@ void static MeritMiner(
     } catch (const boost::thread_interrupted&) {
         LogPrintf("MeritMiner terminated\n");
         alive = false;
-        for (int i = 0; i < bucket_threads; i++) {
-            cuckoo_pools.at(i)->stop(true);
-        }
         throw;
     } catch (const std::runtime_error& e) {
         LogPrintf("MeritMiner runtime error: %s\n", e.what());
