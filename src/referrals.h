@@ -47,9 +47,6 @@ struct by_address {
 };
 struct by_hash {
 };
-struct by_alias {
-};
-
 
 using ReferralIndex = multi_index_container<
     Referral,
@@ -60,9 +57,9 @@ using ReferralIndex = multi_index_container<
         // use non-unique here to support empty tags.
         // otherwise it won't add such referrals to index
         // uniqueness is provided by validation
-        hashed_non_unique<tag<by_hash>, const_mem_fun<Referral, const uint256&, &Referral::GetHash>, SaltedHasher<256>>,
-        // stored by tag
-        hashed_unique<tag<by_alias>, member<Referral, const std::string, &Referral::alias>>>>;
+        hashed_non_unique<tag<by_hash>, const_mem_fun<Referral, const uint256&, &Referral::GetHash>, SaltedHasher<256>>>>;
+
+using AliasIndex = std::unordered_map<std::string, Address>;
 
 class ReferralsViewCache
 {
@@ -70,6 +67,7 @@ private:
     mutable CCriticalSection m_cs_cache;
     ReferralsViewDB* m_db;
     mutable ReferralIndex referrals_index;
+    mutable AliasIndex alias_index;
 
     void InsertReferralIntoCache(const Referral&) const;
 
