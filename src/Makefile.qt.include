@@ -368,7 +368,8 @@ MERIT_QT_WALLET_CPP = \
   qt/walletframe.cpp \
   qt/walletmodel.cpp \
   qt/walletmodeltransaction.cpp \
-  qt/walletview.cpp
+  qt/walletview.cpp \
+  qt/qrutil.cpp
 
 MERIT_QT_CPP = $(MERIT_QT_BASE_CPP)
 if TARGET_WINDOWS
