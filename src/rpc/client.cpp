@@ -127,6 +127,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "pruneblockchain", 0, "height" },
     { "keypoolrefill", 0, "newsize" },
     { "getrawmempool", 0, "verbose" },
+    { "getrawrefmempool", 0, "verbose" },
     { "estimatefee", 0, "nblocks" },
     { "estimatesmartfee", 0, "nblocks" },
     { "estimaterawfee", 0, "nblocks" },

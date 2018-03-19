@@ -520,6 +520,21 @@ std::string EntryDescriptionString()
            "       ... ]\n";
 }
 
+std::string RefEntryDescriptionString()
+{
+    return "    \"size\" : n,             (numeric) virtual transaction size as defined in BIP 141. This is different from actual serialized size for witness transactions as witness data is discounted.\n"
+           "    \"time\" : n,             (numeric) local time transaction entered pool in seconds since 1 Jan 1970 GMT\n"
+           "    \"height\" : n,           (numeric) block height when transaction entered pool\n"
+           "    \"descendantcount\" : n,  (numeric) number of in-mempool descendant transactions (including this one)\n"
+           "    \"refid\" :           s,  (string)  referral id as hex\n"
+           "    \"version\" :         n,  (numeric) version of the referral\n"
+           "    \"address\" :         s,  (string)  address that was beaconed.\n"
+           "    \"alias\" :           s,  (string)  alias of the address\n"
+           "    \"parentAddress\" :   s,  (string)  address of the inviter.\n"
+           "    \"pubkey\" :          s,  (string)  public key of the beaconed address.\n"
+           "    \"signature\" :       s,  (string)  signature signed with the private key.\n"
+           "    \"signedAddress\" :   s,  (string)  address the beacon was signed with. Usually it's the address beaconed.\n";
+}
 void entryToJSON(UniValue &info, const CTxMemPoolEntry &e)
 {
     AssertLockHeld(mempool.cs);
@@ -581,6 +596,42 @@ UniValue mempoolToJSON(bool fVerbose)
     }
 }
 
+void entryToJSON(UniValue &info, const referral::RefMemPoolEntry &e)
+{
+    AssertLockHeld(mempoolReferral.cs);
+    RefToUniv(e.GetEntryValue(), uint256(), info, true, RPCSerializationFlags());
+    info.push_back(Pair("time", e.GetTime()));
+    info.push_back(Pair("height", (int)e.GetHeight()));
+    info.push_back(Pair("descendantcount", e.GetCountWithDescendants()));
+}
+
+UniValue refmempoolToJSON(bool fVerbose)
+{
+    if (fVerbose)
+    {
+        LOCK(mempoolReferral.cs);
+        UniValue o(UniValue::VOBJ);
+        for (const auto& e : mempoolReferral.mapRTx) {
+            const uint256& hash = e.GetEntryValue().GetHash();
+            UniValue info(UniValue::VOBJ);
+            entryToJSON(info, e);
+            o.push_back(Pair(hash.ToString(), info));
+        }
+
+        return o;
+    }
+    else
+    {
+        const auto referrals = mempoolReferral.GetReferrals();
+        UniValue a(UniValue::VARR);
+        for (const auto& e : mempoolReferral.mapRTx) {
+            const uint256& hash = e.GetEntryValue().GetHash();
+            a.push_back(hash.ToString());
+        }
+        return a;
+    }
+}
+
 UniValue getrawmempool(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() > 1)
@@ -611,6 +662,38 @@ UniValue getrawmempool(const JSONRPCRequest& request)
         fVerbose = request.params[0].get_bool();
 
     return mempoolToJSON(fVerbose);
+}
+
+UniValue getrawrefmempool(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() > 1)
+        throw std::runtime_error(
+            "getrawrefmempool ( verbose )\n"
+            "\nReturns all referral ids in memory pool as a json array of string transaction ids.\n"
+            "\nHint: use getmempoolentry to fetch a specific transaction from the mempool.\n"
+            "\nArguments:\n"
+            "1. verbose (boolean, optional, default=false) True for a json object, false for array of transaction ids\n"
+            "\nResult: (for verbose = false):\n"
+            "[                     (json array of string)\n"
+            "  \"refid\"     (string) The transaction id\n"
+            "  ,...\n"
+            "]\n"
+            "\nResult: (for verbose = true):\n"
+            "{                           (json object)\n"
+            "  \"refid\" : {       (json object)\n"
+            + RefEntryDescriptionString()
+            + "  }, ...\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getrawrefmempool", "true")
+            + HelpExampleRpc("getrawrefmempool", "true")
+        );
+
+    bool fVerbose = false;
+    if (!request.params[0].isNull())
+        fVerbose = request.params[0].get_bool();
+
+    return refmempoolToJSON(fVerbose);
 }
 
 UniValue getmempoolancestors(const JSONRPCRequest& request)
@@ -1830,6 +1913,7 @@ static const CRPCCommand commands[] =
     { "blockchain",         "getmempoolinfo",         &getmempoolinfo,         {} },
     { "blockchain",         "getrefmempoolinfo",      &getrefmempoolinfo,      {} },
     { "blockchain",         "getrawmempool",          &getrawmempool,          {"verbose"} },
+    { "blockchain",         "getrawrefmempool",       &getrawrefmempool,       {"verbose"} },
     { "blockchain",         "relaymempool",           &relaymempool,           {} },
     { "blockchain",         "requestmempool",         &requestmempool,         {} },
     { "blockchain",         "gettxout",               &gettxout,               {"txid","n","include_mempool"} },
