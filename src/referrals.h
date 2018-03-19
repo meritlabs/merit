@@ -70,6 +70,7 @@ private:
     mutable AliasIndex alias_index;
 
     void InsertReferralIntoCache(const Referral&) const;
+    void RemoveAliasFromCache(const Referral&) const;
 
 public:
     ReferralsViewCache(ReferralsViewDB*);

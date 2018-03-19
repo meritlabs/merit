@@ -106,7 +106,7 @@ namespace referral
 
         Address address;
         if (m_db.Read(std::make_pair(DB_ALIAS, maybe_normalized), address)) {
-            return GetReferral(address);
+            return IsConfirmed(address) ? GetReferral(address) : MaybeReferral{};
         }
 
         return {};
@@ -938,8 +938,8 @@ namespace referral
 
     bool ReferralsViewDB::IsConfirmed(const std::string& alias, bool normalize_alias) const
     {
-        const auto ref = GetReferral(alias, normalize_alias);
-        return ref ? IsConfirmed(ref->GetAddress()) : false;
+        auto ref = GetReferral(alias, normalize_alias);
+        return ref ? true : false;
     }
 
     using AddressPairs = std::vector<AddressPair>;

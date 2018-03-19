@@ -98,9 +98,19 @@ void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
     referrals_index.insert(ref);
 }
 
+void ReferralsViewCache::RemoveAliasFromCache(const Referral& ref) const {
+    auto normalized_alias = ref.alias;
+    NormalizeAlias(normalized_alias);
+    if(alias_index.erase(normalized_alias) == 0) {
+        alias_index.erase(ref.alias);
+    }
+}
+
 bool ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
     referrals_index.erase(ref.GetAddress());
+    RemoveAliasFromCache(ref);
+   
     return m_db->RemoveReferral(ref);
 }
 
@@ -120,9 +130,7 @@ bool ReferralsViewCache::UpdateConfirmation(char address_type, const Address& ad
             return false;
         }
 
-        auto alias = ref->alias;
-        NormalizeAlias(alias);
-        alias_index.erase(alias);
+        RemoveAliasFromCache(*ref);
     }
 
     return true;
