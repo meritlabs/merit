@@ -2,6 +2,7 @@
 #define FASTSTART_H
 
 #include <QDialog>
+#include <QtNetwork>
 
 namespace Ui {
 class FastStart;
@@ -9,9 +10,9 @@ class FastStart;
 
 struct SnapshotInfo
 {
-    std::string url;
-    size_t position;
-    size_t size;
+    QString url;
+    quint64 pos = 0;
+    quint64 size = 0;
 };
 
 class FastStart : public QDialog
@@ -22,13 +23,31 @@ public:
     explicit FastStart(QWidget *parent = 0);
     ~FastStart();
 
+    static bool DoDownloadSnapshot();
+
 public Q_SLOTS:
     void nextSlide();
     void endSlide();
 
+    void SnapshotUrlDownloaded(QNetworkReply* reply);
+
+    void SnapshotProgress(qint64 received, qint64 total);
+    void SnapshotFinished();
+    void SnapshotReadyRead();
+
+private:
+    void FigureOutSnapshotAndDownload();
+    void DownloadSnapshotUrl();
+    void DownloadSnapshot();
+
 private:
     Ui::FastStart *ui;
-    std::string data_dir;
+    QString data_dir;
+    SnapshotInfo snapshot;
+    QNetworkAccessManager info_manager;
+    QNetworkAccessManager snapshot_manager;
+    QNetworkReply* snapshot_download;
+    QFile snapshot_output;
 };
 
 #endif // FASTSTART_H
