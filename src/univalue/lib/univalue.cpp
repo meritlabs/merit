@@ -356,7 +356,7 @@ const UniValue& UniValue::get_array() const
     return *this;
 }
 
-void UniValue::reserve(unsigned int size)
+void UniValue::reserve(size_t size)
 {
     values.reserve(size);
 }

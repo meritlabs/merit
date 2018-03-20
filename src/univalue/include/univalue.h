@@ -159,7 +159,7 @@ public:
     }
     friend const UniValue& find_value( const UniValue& obj, const std::string& name);
 
-    void reserve(unsigned int size);
+    void reserve(size_t size);
 };
 
 //
