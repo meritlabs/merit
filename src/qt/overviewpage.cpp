@@ -153,6 +153,20 @@ public:
         QAbstractItemDelegate{parent}, unit{MeritUnits::MRT},
         platformStyle{_platformStyle}, invite_balance{_invite_balance}, is_daedalus{_is_daedalus}
     {}
+    const int xpad = 8;
+    const int ypad = 10;
+    const int INVITE_BUTTON_WIDTH = 80;
+
+    inline QRect AddressRect(const QRect& mainRect, int height) const
+    {
+        return QRect(mainRect.left() + xpad, mainRect.top()+ypad, mainRect.width() - 2*xpad, height);
+    }
+
+    inline QRect InviteRect(const QRect& mainRect, int height) const
+    {
+        QRect addressRect = AddressRect(mainRect, height);
+        return QRect(addressRect.right() - INVITE_BUTTON_WIDTH - xpad, mainRect.top()+ypad, INVITE_BUTTON_WIDTH, height);
+    }
 
     inline void paint(QPainter *painter, const QStyleOptionViewItem &option,
                       const QModelIndex &index ) const
@@ -161,11 +175,9 @@ public:
         painter->setRenderHint(QPainter::Antialiasing);
 
         QRect mainRect = option.rect;
-        int xpad = 8;
-        int ypad = 10;
         int halfheight = (mainRect.height() - 2*ypad)/2;
 
-        QRect addressRect(mainRect.left() + xpad, mainRect.top()+ypad, mainRect.width() - 2*xpad, halfheight);
+        QRect addressRect = AddressRect(mainRect, halfheight);
         QRect timestampRect(mainRect.left() + xpad, mainRect.top()+ypad+halfheight, mainRect.width() - xpad, halfheight);
         QLine line(mainRect.left() + xpad, mainRect.bottom(), mainRect.right() - xpad, mainRect.bottom());
 
@@ -198,8 +210,7 @@ public:
         QString statusString = index.data(ReferralListModel::StatusRole).toString();
 
         if(statusString == "Pending" && is_daedalus) {
-            const int INVITE_BUTTON_WIDTH = 80;
-            QRect rect(addressRect.right() - INVITE_BUTTON_WIDTH - xpad, mainRect.top()+ypad, INVITE_BUTTON_WIDTH, halfheight);
+            QRect rect = InviteRect(mainRect, halfheight);
 
             auto button_rect = painter->boundingRect(rect, tr("Send Invite"));
             button_rect.setLeft(button_rect.left() - 10);
@@ -232,6 +243,17 @@ public:
     inline QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
     {
         return QSize(DECORATION_SIZE, DECORATION_SIZE);
+    }
+
+    inline bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option, const QModelIndex &index)
+    {
+        if (event->type() != QEvent::MouseButtonPress
+              && event->type() != QEvent::MouseButtonRelease) {
+            std::cerr << "not a mousepress event" << std::endl;
+            return true;
+        }
+        std::cerr << "mousepress event" << std::endl;
+        return true;
     }
 
     int unit;
