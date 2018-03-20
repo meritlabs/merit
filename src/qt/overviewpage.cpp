@@ -165,7 +165,34 @@ public:
     inline QRect InviteRect(const QRect& mainRect, int height) const
     {
         QRect addressRect = AddressRect(mainRect, height);
-        return QRect(addressRect.right() - INVITE_BUTTON_WIDTH - xpad, mainRect.top()+ypad, INVITE_BUTTON_WIDTH, height);
+        return QRect(addressRect.right() - 2*(INVITE_BUTTON_WIDTH + xpad), mainRect.top()+ypad, INVITE_BUTTON_WIDTH, height);
+    }
+
+    inline QRect RejectRect(const QRect& mainRect, int height) const
+    {
+        QRect addressRect = AddressRect(mainRect, height);
+        return QRect(addressRect.right() - INVITE_BUTTON_WIDTH, mainRect.top()+ypad, INVITE_BUTTON_WIDTH, height);
+    }
+
+    inline void DrawButton(QPainter *painter, const QRect& rect, const QString& text, const QColor& color) const
+    {
+        auto button_rect = painter->boundingRect(rect, text);
+        button_rect.setLeft(button_rect.left() - 10);
+        button_rect.setRight(button_rect.right() + 10);
+        button_rect.setTop(button_rect.top() - 2);
+        button_rect.setBottom(button_rect.bottom() + 2);
+
+        QPen pen;
+        pen.setColor(color);
+        painter->setPen(pen);
+
+        QPainterPath path;
+        path.addRoundedRect(button_rect, 10, 10);
+        painter->fillPath(path, color);
+        painter->drawPath(path);
+
+        painter->setPen(Qt::white);
+        painter->drawText(button_rect, Qt::AlignCenter|Qt::AlignVCenter, text);
     }
 
     inline void paint(QPainter *painter, const QStyleOptionViewItem &option,
@@ -210,27 +237,12 @@ public:
         QString statusString = index.data(ReferralListModel::StatusRole).toString();
 
         if(statusString == "Pending" && is_daedalus) {
-            QRect rect = InviteRect(mainRect, halfheight);
-
-            auto button_rect = painter->boundingRect(rect, tr("Send Invite"));
-            button_rect.setLeft(button_rect.left() - 10);
-            button_rect.setRight(button_rect.right() + 10);
-            button_rect.setTop(button_rect.top() - 2);
-            button_rect.setBottom(button_rect.bottom() + 2);
+            QRect inviteRect = InviteRect(mainRect, halfheight);
+            QRect rejectRect = RejectRect(mainRect, halfheight);
 
             QColor merit_blue = invite_balance > 0 ? QColor{0, 176, 220} : QColor{128, 128, 128};
-
-            QPen pen;
-            pen.setColor(merit_blue);
-            painter->setPen(pen);
-
-            QPainterPath path;
-            path.addRoundedRect(button_rect, 10, 10);
-            painter->fillPath(path, merit_blue);
-            painter->drawPath(path);
-
-            painter->setPen(Qt::white);
-            painter->drawText(button_rect, Qt::AlignCenter|Qt::AlignVCenter, tr("Send Invite"));
+            DrawButton(painter, inviteRect, tr("Send Invite"), merit_blue);
+            DrawButton(painter, rejectRect, tr("Reject"), Qt::red);
         }
 
 
@@ -247,13 +259,28 @@ public:
 
     inline bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option, const QModelIndex &index)
     {
+        QString statusString = index.data(ReferralListModel::StatusRole).toString();
+        if(statusString != "Pending")
+            return true;
+
         if (event->type() != QEvent::MouseButtonPress
               && event->type() != QEvent::MouseButtonRelease) {
-            std::cerr << "not a mousepress event" << std::endl;
             return true;
         }
         std::cerr << "mousepress event" << std::endl;
-        return true;
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        auto inviteBox = InviteRect(option.rect, (option.rect.height() - 2*ypad)/2);
+        auto rejectBox = RejectRect(option.rect, (option.rect.height() - 2*ypad)/2);
+
+        if(inviteBox.contains(mouseEvent->pos())) {
+            std::cerr << "invite clicked" << std::endl;
+            return true;
+        }
+        if(rejectBox.contains(mouseEvent->pos())) {
+            std::cerr << "reject clicked" << std::endl;
+            return true;
+        }
+        return false;
     }
 
     int unit;
