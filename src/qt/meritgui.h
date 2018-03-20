@@ -32,6 +32,7 @@ class WalletModel;
 class HelpMessageDialog;
 class ModalOverlay;
 class EnterUnlockCode;
+class ExportWalletDialog;
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -111,6 +112,7 @@ private:
     QAction *toggleHideAction;
     QAction *encryptWalletAction;
     QAction *backupWalletAction;
+    QAction *exportWalletQRAction;
     QAction *changePassphraseAction;
     QAction *aboutQtAction;
     QAction *openRPCConsoleAction;
@@ -127,6 +129,7 @@ private:
     HelpMessageDialog *helpMessageDialog;
     ModalOverlay *modalOverlay;
     EnterUnlockCode *enterUnlockCode;
+    ExportWalletDialog *exportWalletDialog;
 
     /** Keep track of previous number of blocks, to detect progress */
     int prevBlocks;
@@ -176,6 +179,7 @@ public Q_SLOTS:
     /** Set number of blocks and last block date shown in the UI */
     void setNumBlocks(int count, const QDateTime& blockDate, double nVerificationProgress, bool headers);
     void setMiningEnabled(bool enabled);
+    void showExportWallet();
 
     /** Notify the user of an event from the core network or transaction handling code.
        @param[in] title     the message box / notification title

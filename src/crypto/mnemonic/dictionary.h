@@ -11,7 +11,6 @@ namespace language {
 
 using Dictionary = std::vector<std::string>;
 extern Dictionary en;
-const std::string& GetRandomWord(const Dictionary&);
 
 } // namespace language
 

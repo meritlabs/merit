@@ -1737,6 +1737,13 @@ CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const s
     return pubkey;
 }
 
+std::string CWallet::GetMnemonic()
+{
+    if(mapKeyMetadata[hdChain.masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC)
+        return mapKeyMetadata[hdChain.masterKeyID].mnemonic;
+    return "";
+}
+
 bool CWallet::SetHDMasterKey(const CPubKey& pubkey)
 {
     LOCK(cs_wallet);
@@ -4836,7 +4843,7 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
             // TODO: Support multiple languages
             WordList mnemonic;
             for(size_t i = 0; i < mnemonic::MNEMONIC_WORD_COUNT; i++) {
-                mnemonic.push_back(language::GetRandomWord(language::en));
+                mnemonic.push_back(language::en[GetRand(language::en.size())]);
             }
 
             CPubKey masterPubKey = walletInstance->GenerateMasterKeyFromMnemonic(mnemonic);

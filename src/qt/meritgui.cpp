@@ -14,6 +14,7 @@
 #include "guiconstants.h"
 #include "guiutil.h"
 #include "enterunlockcode.h"
+#include "exportwalletdialog.h"
 #include "miner.h"
 #include "modaloverlay.h"
 #include "networkstyle.h"
@@ -114,6 +115,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
     toggleHideAction(nullptr),
     encryptWalletAction(nullptr),
     backupWalletAction(nullptr),
+    exportWalletQRAction(nullptr),
     changePassphraseAction(nullptr),
     aboutQtAction(nullptr),
     openRPCConsoleAction(nullptr),
@@ -369,6 +371,10 @@ void MeritGUI::createActions()
     encryptWalletAction->setCheckable(true);
     backupWalletAction = new QAction(platformStyle->TextColorIcon(":/icons/filesave"), tr("&Backup Wallet..."), this);
     backupWalletAction->setStatusTip(tr("Backup wallet to another location"));
+#ifdef USE_QRCODE
+    exportWalletQRAction = new QAction(platformStyle->TextColorIcon(":/icons/filesave"), tr("&Export Wallet..."), this);
+    exportWalletQRAction->setStatusTip(tr("Export wallet to another device"));
+#endif
     changePassphraseAction = new QAction(platformStyle->TextColorIcon(":/icons/key"), tr("&Change Passphrase..."), this);
     changePassphraseAction->setStatusTip(tr("Change the passphrase used for wallet encryption"));
     signMessageAction = new QAction(platformStyle->TextColorIcon(":/icons/edit"), tr("Sign &message..."), this);
@@ -422,6 +428,9 @@ void MeritGUI::createActions()
         connect(openAction, SIGNAL(triggered()), this, SLOT(openClicked()));
         connect(startMiningAction, SIGNAL(triggered()), this, SLOT(startMiningClicked()));
         connect(stopMiningAction, SIGNAL(triggered()), this, SLOT(stopMiningClicked()));
+        #ifdef USE_QRCODE
+            connect(exportWalletQRAction, SIGNAL(triggered()), this, SLOT(showExportWallet()));
+        #endif
     }
 #endif // ENABLE_WALLET
 
@@ -445,6 +454,9 @@ void MeritGUI::createMenuBar()
     {
         file->addAction(openAction);
         file->addAction(backupWalletAction);
+        #ifdef USE_QRCODE
+            file->addAction(exportWalletQRAction);
+        #endif
         file->addAction(signMessageAction);
         file->addAction(verifyMessageAction);
         file->addSeparator();
@@ -571,6 +583,10 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *_walletModel)
     walletModel = _walletModel;
     assert(walletModel);
 
+    #ifdef USE_QRCODE
+        exportWalletDialog = new ExportWalletDialog(this, walletModel);
+    #endif
+
     isReferred = walletModel->IsReferred();
     setWalletActionsEnabled(true, isReferred);
     connect(walletModel, SIGNAL(isConfirmedChanged(bool)), this, SLOT(setMiningEnabled(bool)));
@@ -634,6 +650,9 @@ void MeritGUI::setWalletActionsEnabled(bool enabled, bool isReferred)
     usedSendingAddressesAction->setEnabled(enabled && isReferred);
     usedReceivingAddressesAction->setEnabled(enabled);
     openAction->setEnabled(enabled);
+    #ifdef USE_QRCODE
+        exportWalletQRAction->setEnabled(enabled);
+    #endif
 }
 
 void MeritGUI::createTrayIcon(const NetworkStyle *networkStyle)
@@ -732,6 +751,13 @@ void MeritGUI::showDebugWindowActivateConsole()
 void MeritGUI::showHelpMessageClicked()
 {
     helpMessageDialog->show();
+}
+
+void MeritGUI::showExportWallet()
+{
+    #ifdef USE_QRCODE
+        exportWalletDialog->show();
+    #endif
 }
 
 #ifdef ENABLE_WALLET
