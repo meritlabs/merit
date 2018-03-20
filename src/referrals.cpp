@@ -67,24 +67,26 @@ bool ReferralsViewCache::Exists(
         const std::string& alias,
         bool normalize_alias) const
 {
+    auto maybe_normalized = alias;
+    if(normalize_alias) {
+        NormalizeAlias(maybe_normalized);
+    }
+
     if (alias.size() == 0) {
         return false;
     }
 
-    auto maybe_normalized = alias;
-    if(normalize_alias) {
-        NormalizeAlias(maybe_normalized);
-    } 
-
     {
         LOCK(m_cs_cache);
-        if (referrals_index.get<by_alias>().count(maybe_normalized) > 0) {
+        if (alias_index.count(maybe_normalized) > 0) {
             return true;
         }
     }
 
     if (auto ref = m_db->GetReferral(maybe_normalized, normalize_alias)) {
-        InsertReferralIntoCache(*ref);
+        LOCK(m_cs_cache);
+        referrals_index.insert(*ref);
+        alias_index[maybe_normalized] = ref->GetAddress();
         return true;
     }
     return false;
@@ -93,16 +95,47 @@ bool ReferralsViewCache::Exists(
 void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
-    assert(ref.alias.size() == 0 || referrals_index.get<by_alias>().count(ref.alias) == 0);
-
     referrals_index.insert(ref);
+}
+
+void ReferralsViewCache::RemoveAliasFromCache(const Referral& ref) const {
+    auto normalized_alias = ref.alias;
+    NormalizeAlias(normalized_alias);
+    if(alias_index.erase(normalized_alias) == 0) {
+        alias_index.erase(ref.alias);
+    }
 }
 
 bool ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
     referrals_index.erase(ref.GetAddress());
+    RemoveAliasFromCache(ref);
+   
     return m_db->RemoveReferral(ref);
 }
+
+bool ReferralsViewCache::UpdateConfirmation(char address_type, const Address& address, CAmount amount)
+{
+    assert(m_db);
+    CAmount updated_amount;
+    //TODO: Have an in memory cache. For now just passthrough.
+    if (!m_db->UpdateConfirmation(address_type, address, amount, updated_amount)) {
+        return false;
+    }
+
+    // if referral was unconfirmed, remove it from the cache
+    if (updated_amount == 0) {
+        auto ref = GetReferral(address);
+        if(!ref) {
+            return false;
+        }
+
+        RemoveAliasFromCache(*ref);
+    }
+
+    return true;
+}
+
 
 bool ReferralsViewCache::IsConfirmed(const Address& address) const
 {

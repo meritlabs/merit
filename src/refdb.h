@@ -138,7 +138,7 @@ public:
 
     bool IsConfirmed(const Address&) const;
     bool IsConfirmed(const std::string& alias, bool normalize_alias) const;
-    bool UpdateConfirmation(char address_type, const Address&, CAmount amount);
+    bool UpdateConfirmation(char address_type, const Address&, CAmount amount, CAmount &updated_amount);
 
     bool ConfirmAllPreDaedalusAddresses();
     bool AreAllPreDaedalusAddressesConfirmed() const;

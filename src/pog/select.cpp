@@ -326,6 +326,8 @@ namespace pog
 
             if(!IsValidAmbassadorDestination(sampled->address_type)) {
                 n++;
+            } else if(sampled->invites == 0) {
+                n++;
             } else if(sampled->invites > max_outstanding_invites) {
                 n++;
             } else if(sampled->address == genesis_address) {

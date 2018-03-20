@@ -211,7 +211,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
         throw std::runtime_error(std::string(__func__) + ": the alias doesn't pass validation");
     }
 
-    if (prefviewcache->Exists(alias, true)) {
+    if (prefviewcache->IsConfirmed(alias, true)) {
         throw std::runtime_error(std::string(__func__) + ": provided alias is already occupied");
     }
 
@@ -351,7 +351,7 @@ void CWallet::DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata
     // m/44'/0'
     bool livenet = Params().NetworkIDString() == CBaseChainParams::MAIN;
     changeKey.Derive(changeKey, BIP32_HARDENED_KEY_LIMIT | (livenet ? 0 : 1));
-    
+
     // m/44'/0'/0'
     changeKey.Derive(changeKey, BIP32_HARDENED_KEY_LIMIT | 0); // Account hardcoded to 0 for now
 

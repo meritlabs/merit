@@ -51,7 +51,7 @@ namespace referral
             public:
                 ReferralIdVisitor(
                         const ReferralsViewDB *db_in,
-                        bool normalize_alias_in) : 
+                        bool normalize_alias_in) :
                     db{db_in},
                     normalize_alias{normalize_alias_in} {}
 
@@ -106,7 +106,7 @@ namespace referral
 
         Address address;
         if (m_db.Read(std::make_pair(DB_ALIAS, maybe_normalized), address)) {
-            return GetReferral(address);
+            return IsConfirmed(address) ? GetReferral(address) : MaybeReferral{};
         }
 
         return {};
@@ -146,7 +146,7 @@ namespace referral
     bool ReferralsViewDB::InsertReferral(
             const Referral& referral,
             bool allow_no_parent,
-            bool normalize_alias) 
+            bool normalize_alias)
     {
         debug("Inserting referral %s parent %s",
                 CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
@@ -845,7 +845,8 @@ namespace referral
     bool ReferralsViewDB::UpdateConfirmation(
             char address_type,
             const Address& address,
-            CAmount amount)
+            CAmount amount,
+            CAmount &updated_amount)
     {
         uint64_t total_confirmations = 0;
         m_db.Read(DB_CONFIRMATION_TOTAL, total_confirmations);
@@ -856,6 +857,7 @@ namespace referral
                     confirmation)) {
             confirmation.first = total_confirmations;
             confirmation.second = amount;
+            updated_amount = confirmation.second;
 
             //We have a new confirmed address so add it to the end of the invite lottery
             //and index it.
@@ -872,6 +874,7 @@ namespace referral
             }
         } else {
             confirmation.second += amount;
+            updated_amount = confirmation.second;
 
             //We delete the last confirmation only if amount of invites reaches
             //0 and it is the last confirmation in the array. This is to handle
@@ -910,7 +913,7 @@ namespace referral
     }
 
     bool ReferralsViewDB::Exists(
-            const std::string& alias, 
+            const std::string& alias,
             bool normalize_alias) const
     {
         auto maybe_normalized = alias;
@@ -935,8 +938,8 @@ namespace referral
 
     bool ReferralsViewDB::IsConfirmed(const std::string& alias, bool normalize_alias) const
     {
-        const auto ref = GetReferral(alias, normalize_alias);
-        return ref ? IsConfirmed(ref->GetAddress()) : false;
+        auto ref = GetReferral(alias, normalize_alias);
+        return ref ? true : false;
     }
 
     using AddressPairs = std::vector<AddressPair>;
@@ -982,9 +985,10 @@ namespace referral
                 return a.second < b.second;
                 });
 
+        CAmount dummy;
         for(const auto& addr : addresses) {
             debug("\tConfirming %s address", CMeritAddress{addr.first, addr.second}.ToString());
-            if (!UpdateConfirmation(addr.first, addr.second, 1)) {
+            if (!UpdateConfirmation(addr.first, addr.second, 1, dummy)) {
                 return false;
             }
         }
