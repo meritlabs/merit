@@ -417,7 +417,7 @@ bool CheckReferralAliasUnique(
         auto it = std::find_if (
             block->m_vRef.begin(), block->m_vRef.end(),
             [&referral_in, normalize_alias](const referral::ReferralRef& ref) {
-                return 
+                return
                     referral::AliasesEqual(ref->alias, referral_in->alias, normalize_alias) &&
                     ref->GetHash() != referral_in->GetHash();
             });
@@ -2618,16 +2618,16 @@ bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
     }
 
     // It is important for invites to be undone in reverse order even
-    // within a transaction. For non invites it doesn't matter so always reverse. 
+    // within a transaction. For non invites it doesn't matter so always reverse.
     //
     // The reason it's important to reverse within a transaction is because
     // the lottery only deletes 0 valued addresses from the end during
-    // disconnect block. If the order isn't properly maintained then 
+    // disconnect block. If the order isn't properly maintained then
     // it's possible a new address is added to the end before the old one is
     // removed. Example during add
     // Lottery
     //          A 1
-    //          B 1 
+    //          B 1
     //          C 1
     // Transaction C -> D
     //          A 1
@@ -3497,8 +3497,8 @@ static bool ConnectBlock(
                     false,
                     "block failed to match checkpoint");
         }
- 
-        //Checkpoints can skip validation. 
+
+        //Checkpoints can skip validation.
         validate = checkpoint->second.validate;
     }
 
@@ -5266,7 +5266,7 @@ referral::ReferralRef LookupReferral(
         bool normalize_alias)
 {
     //We don't do transpose check here because LookupReferral is used by client
-    //code retrieval not consensus. 
+    //code retrieval not consensus.
     auto chain_referral =
         prefviewdb->GetReferral(referral_id, normalize_alias);
 
