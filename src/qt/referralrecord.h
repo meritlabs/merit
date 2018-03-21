@@ -57,6 +57,10 @@ public:
      */
     void UpdateStatus(const referral::ReferralRef&);
 
+    /** Set status to declined to filter record from view
+     */
+    void DeclineRecord();
+
     /** Return whether a status update is needed.
      */
     bool StatusUpdateNeeded() const { return true; } // TODO: implement this. Otherwise we always replae cache data

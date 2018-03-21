@@ -450,6 +450,8 @@ void OverviewPage::handleDeclineClicked(const QModelIndex &index)
 
         QMessageBox::critical(this, title, text);
     }
+
+    UpdateNetworkView();
 }
 
 void OverviewPage::handleOutOfSyncWarningClicks()

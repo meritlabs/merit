@@ -47,9 +47,12 @@ void ReferralListPriv::Refresh()
             if(DisplayReferral(addresses, wallet, ref)) {
                 auto rec = DecomposeReferral(entry);
                 rec.UpdateStatus(ref);
+
+                if(wallet->ReferralIsIgnored(ref->GetHash()))
+                    rec.DeclineRecord();
+
                 cachedWallet.append(rec);
                 addresses.insert(ref->GetAddress());
-                std::cerr << "referral from mempool: " << ref->GetHash().ToString() << "\n";
             }
         }
 
@@ -58,9 +61,12 @@ void ReferralListPriv::Refresh()
             if(DisplayReferral(addresses, wallet, ref)) {
                 auto rec = DecomposeReferral(entry.second);
                 rec.UpdateStatus(ref);
+
+                if(wallet->ReferralIsIgnored(ref->GetHash()))
+                    rec.DeclineRecord();
+
                 cachedWallet.append(rec);
                 addresses.insert(ref->GetAddress());
-                std::cerr << "referral from disk: " << ref->GetHash().ToString() << "\n";
             }
         }
     }

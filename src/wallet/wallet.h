@@ -868,6 +868,7 @@ public:
 
     WalletTxMap mapWallet;
     WalletReferralsMap mapWalletRTx;
+    std::set<uint256> ignoredReferrals;
 
     std::list<CAccountingEntry> laccentries;
 
@@ -1019,7 +1020,8 @@ public:
     bool AddToWallet(const referral::ReferralTx& rtxIn, bool fFlushOnClose=true);
     bool LoadToWallet(const CWalletTx& wtxIn);
     bool LoadToWallet(const referral::ReferralTx& rtxIn);
-    bool IgnoreReferral(const uint256& hashIn, bool fFlushOnClose=true);
+    bool IgnoreReferral(const uint256& hashIn);
+    bool ReferralIsIgnored(const uint256& hashIn);
     void TransactionAddedToMempool(const CTransactionRef& tx) override;
     void ReferralAddedToMempool(const referral::ReferralRef& pref) override;
     void BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) override;
