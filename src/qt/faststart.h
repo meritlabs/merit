@@ -3,6 +3,7 @@
 
 #include <QDialog>
 #include <QtNetwork>
+#include <QSettings>
 
 namespace Ui {
 class FastStart;
@@ -10,6 +11,7 @@ class FastStart;
 
 struct SnapshotInfo
 {
+    enum State {GETINFO=0, DOWNLOAD, EXTRACT, DONE} state = GETINFO;
     QString url;
     quint64 pos = 0;
     quint64 size = 0;
@@ -20,7 +22,7 @@ class FastStart : public QDialog
     Q_OBJECT
 
 public:
-    explicit FastStart(QWidget *parent = 0);
+    explicit FastStart(const QString& data_dir, QWidget *parent = 0);
     ~FastStart();
 
     static bool DoDownloadSnapshot();
@@ -39,6 +41,7 @@ private:
     void FigureOutSnapshotAndDownload();
     void DownloadSnapshotUrl();
     void DownloadSnapshot();
+    void ExtractSnapshot();
 
 private:
     Ui::FastStart *ui;
@@ -48,6 +51,8 @@ private:
     QNetworkAccessManager snapshot_manager;
     QNetworkReply* snapshot_download;
     QFile snapshot_output;
+    QTime download_time;
+    QSettings settings;
 };
 
 #endif // FASTSTART_H
