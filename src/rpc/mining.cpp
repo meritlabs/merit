@@ -548,7 +548,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     }
 
     // Update block
-    static CBlockIndex* pindexPrev = chainActive.Tip();
+    static CBlockIndex* pindexPrev;
     static int64_t nStart;
     static std::unique_ptr<CBlockTemplate> pblocktemplate;
 
@@ -575,8 +575,11 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
 #ifdef ENABLE_WALLET
         const auto pwallet = GetWalletForJSONRPCRequest(request);
         // check that wallet is alredy referred or has unlock transaction
-        if (coinbase_script.empty() && (pwallet->IsReferred() || !pwallet->mapWalletRTx.empty())) {
-            LogPrintf("building block for wallet\n");
+        if (coinbase_script.empty()) {
+            if (!pwallet->IsReferred() && pwallet->mapWalletRTx.empty()) {
+                throw JSONRPCError(RPC_OUT_OF_MEMORY, "Wallet is not unlocked");
+            }
+
             std::shared_ptr<CReserveScript> wallet_script;
             pwallet->GetScriptForMining(wallet_script);
             pblocktemplate = BlockAssembler(Params()).CreateNewBlock(wallet_script->reserveScript);
@@ -584,8 +587,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
         }
 #endif
 
-        if (!pblocktemplate && !coinbase_script.empty()) {
-            LogPrintf("building block for pubkey\n");
+        if (!coinbase_script.empty()) {
             pblocktemplate = BlockAssembler(Params()).CreateNewBlock(coinbase_script);
         }
 
