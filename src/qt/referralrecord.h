@@ -29,10 +29,10 @@ public:
     };
 
     ReferralRecord():
-        hash{}, date{0}, address{}, alias{},status{Pending} {}
+        hash{}, date{0}, address{}, alias{}, status{Pending}, isIgnored(false) {}
 
-    ReferralRecord(uint256 _hash, qint64 _date, std::string _address, std::string _alias = ""):
-        hash{_hash}, date{_date}, address{_address}, alias{_alias},status{Pending} {}
+    ReferralRecord(uint256 _hash, qint64 _date, std::string _address, std::string _alias = "", bool ignored = false):
+        hash{_hash}, date{_date}, address{_address}, alias{_alias}, status{Pending}, isIgnored(ignored) {}
 
     /** @name Immutable referral attributes
       @{*/
@@ -45,6 +45,8 @@ public:
 
     /** Status: can change with block chain update */
     Status status;
+
+    bool isIgnored;
 
     /** Whether the referral parentAddress is a watch-only address */
     bool involvesWatchAddress;

@@ -239,6 +239,7 @@ class ReferralTx : public CMerkleTx {
 private:
     const CWallet* m_pWallet;
     bool m_isUnlock;
+    bool m_isIgnored = false;
 
 public:
     ReferralRef m_pReferral;
@@ -267,6 +268,16 @@ public:
         return m_isUnlock;
     }
 
+    bool IsIgnored() const
+    {
+        return m_isIgnored;
+    }
+
+    void SetIgnored(bool ignore)
+    {
+        m_isIgnored = ignore;
+    }
+
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -274,6 +285,7 @@ public:
         READWRITE(*(CMerkleTx*)this);
         READWRITE(m_pReferral);
         READWRITE(m_isUnlock);
+        READWRITE(m_isIgnored);
     }
 
     bool RelayWalletTransaction(CConnman* connman);
@@ -1008,6 +1020,7 @@ public:
     bool AddToWallet(const referral::ReferralTx& rtxIn, bool fFlushOnClose=true);
     bool LoadToWallet(const CWalletTx& wtxIn);
     bool LoadToWallet(const referral::ReferralTx& rtxIn);
+    bool IgnoreReferral(const uint256& hashIn, bool fFlushOnClose=true);
     void TransactionAddedToMempool(const CTransactionRef& tx) override;
     void ReferralAddedToMempool(const referral::ReferralRef& pref) override;
     void BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) override;

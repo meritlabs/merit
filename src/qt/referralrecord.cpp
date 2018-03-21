@@ -53,12 +53,12 @@ bool ShowReferral(const referral::ReferralRef& ref)
     return ref->addressType == 1;
 }
 
-ReferralRecord DecomposeReferral(const referral::ReferralRef ref, uint64_t time_received)
+ReferralRecord DecomposeReferral(const referral::ReferralRef ref, uint64_t time_received, bool ignored)
 {
     assert(ref);
 
     const CMeritAddress meritAddress{ref->addressType, ref->GetAddress()};
-    return ReferralRecord{ref->GetHash(), static_cast<qint64>(time_received), meritAddress.ToString(), ref->alias};
+    return ReferralRecord{ref->GetHash(), static_cast<qint64>(time_received), meritAddress.ToString(), ref->alias, ignored};
 }
 
 /*
@@ -66,11 +66,11 @@ ReferralRecord DecomposeReferral(const referral::ReferralRef ref, uint64_t time_
  */
 ReferralRecord DecomposeReferral(const referral::ReferralTx &rtx)
 {
-    return DecomposeReferral(rtx.GetReferral(), rtx.nTimeReceived);
+    return DecomposeReferral(rtx.GetReferral(), rtx.nTimeReceived, rtx.IsIgnored());
 }
 
 ReferralRecord DecomposeReferral(const referral::RefMemPoolEntry &e)
 {
-    return DecomposeReferral(e.GetSharedEntryValue(), static_cast<qint64>(e.GetTime()));
+    return DecomposeReferral(e.GetSharedEntryValue(), static_cast<qint64>(e.GetTime()), false);
 }
 
