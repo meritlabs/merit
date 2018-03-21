@@ -165,13 +165,13 @@ public:
     inline QRect InviteRect(const QRect& mainRect, int height) const
     {
         QRect addressRect = AddressRect(mainRect, height);
-        return QRect(addressRect.right() - 2*(INVITE_BUTTON_WIDTH + XPAD), mainRect.top()+YPAD, INVITE_BUTTON_WIDTH, height);
+        return QRect(addressRect.right() - INVITE_BUTTON_WIDTH, mainRect.top()+YPAD, INVITE_BUTTON_WIDTH, height);
     }
 
     inline QRect DeclineRect(const QRect& mainRect, int height) const
     {
         QRect addressRect = AddressRect(mainRect, height);
-        return QRect(addressRect.right() - INVITE_BUTTON_WIDTH, mainRect.top()+YPAD, INVITE_BUTTON_WIDTH, height);
+        return QRect(addressRect.right() - 2*INVITE_BUTTON_WIDTH - XPAD, mainRect.top()+YPAD, INVITE_BUTTON_WIDTH, height);
     }
 
     inline void DrawButton(QPainter *painter, const QRect& rect, const QString& text, const QColor& color) const
@@ -242,7 +242,7 @@ public:
 
             QColor merit_blue = invite_balance > 0 ? QColor{0, 176, 220} : QColor{128, 128, 128};
             DrawButton(painter, inviteRect, tr("Send Invite"), merit_blue);
-            DrawButton(painter, declineRect, tr("Decline"), Qt::red);
+            DrawButton(painter, declineRect, tr("Decline"), Qt::gray);
         }
 
 
