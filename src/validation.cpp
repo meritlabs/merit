@@ -5715,7 +5715,9 @@ bool ProcessNewBlock(
     return true;
 }
 
-bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW, bool fCheckMerkleRoot)
+bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
+                       const CBlock& block, CBlockIndex* pindexPrev,
+                       bool fCheckPOW, bool fCheckMerkleRoot)
 {
     debug("TestValidity: %s", block.GetHash().GetHex());
     AssertLockHeld(cs_main);

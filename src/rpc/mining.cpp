@@ -351,9 +351,9 @@ std::string gbt_vb_name(const Consensus::DeploymentPos pos) {
 
 UniValue getblocktemplate(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() > 1)
+    if (request.fHelp || request.params.size() > 2)
         throw std::runtime_error(
-            "getblocktemplate ( TemplateRequest )\n"
+            "getblocktemplate ( TemplateRequest ) pubkey\n"
             "\nIf the request parameters include a 'mode' key, that is used to explicitly select between the default 'template' request or a 'proposal'.\n"
             "It returns data needed to construct a block to work on.\n"
             "Wallet is required to generate valid coinbase that can take part in lottery.\n"
@@ -377,6 +377,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             "           ,...\n"
             "       ]\n"
             "     }\n"
+            "2. pubkey         (string, optional) Hex encoded pubkey for coinbase payout\n"
             "\n"
 
             "\nResult:\n"
@@ -436,22 +437,19 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     UniValue lpval = NullUniValue;
     std::set<std::string> setClientRules;
     int64_t nMaxVersionPreVB = -1;
-    if (!request.params[0].isNull())
-    {
+    if (!request.params[0].isNull()) {
         const UniValue& oparam = request.params[0].get_obj();
         const UniValue& modeval = find_value(oparam, "mode");
-        if (modeval.isStr())
+        if (modeval.isStr()) {
             strMode = modeval.get_str();
-        else if (modeval.isNull())
-        {
+        } else if (modeval.isNull()) {
             /* Do nothing */
-        }
-        else
+        } else {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mode");
+        }
         lpval = find_value(oparam, "longpollid");
 
-        if (strMode == "proposal")
-        {
+        if (strMode == "proposal") {
             const UniValue& dataval = find_value(oparam, "data");
             if (!dataval.isStr())
                 throw JSONRPCError(RPC_TYPE_ERROR, "Missing data String key for proposal");
@@ -509,23 +507,19 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
 
     static unsigned int nTransactionsUpdatedLast;
 
-    if (!lpval.isNull())
-    {
+    if (!lpval.isNull()) {
         // Wait to respond until either the best block changes, OR a minute has passed and there are more transactions
         uint256 hashWatchedChain;
         boost::system_time checktxtime;
         unsigned int nTransactionsUpdatedLastLP;
 
-        if (lpval.isStr())
-        {
+        if (lpval.isStr()) {
             // Format: <hashBestChain><nTransactionsUpdatedLast>
             std::string lpstr = lpval.get_str();
 
             hashWatchedChain.SetHex(lpstr.substr(0, 64));
             nTransactionsUpdatedLastLP = atoi64(lpstr.substr(64));
-        }
-        else
-        {
+        } else {
             // NOTE: Spec does not specify behaviour for non-string longpollid, but this makes testing easier
             hashWatchedChain = chainActive.Tip()->GetBlockHash();
             nTransactionsUpdatedLastLP = nTransactionsUpdatedLast;
@@ -537,10 +531,8 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             checktxtime = boost::get_system_time() + boost::posix_time::minutes(1);
 
             boost::unique_lock<boost::mutex> lock(csBestBlock);
-            while (chainActive.Tip()->GetBlockHash() == hashWatchedChain && IsRPCRunning())
-            {
-                if (!cvBlockChange.timed_wait(lock, checktxtime))
-                {
+            while (chainActive.Tip()->GetBlockHash() == hashWatchedChain && IsRPCRunning()) {
+                if (!cvBlockChange.timed_wait(lock, checktxtime)) {
                     // Timeout: Check transactions for update
                     if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLastLP)
                         break;
@@ -559,8 +551,17 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     static CBlockIndex* pindexPrev = chainActive.Tip();
     static int64_t nStart;
     static std::unique_ptr<CBlockTemplate> pblocktemplate;
-    if (pindexPrev != chainActive.Tip() || (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 5))
-    {
+
+    CScript coinbase_script;
+
+    // TODO: use coinbase address as coinbase payout address
+    // and make clients to update coinbase tx
+    if (request.params.size() == 2 && !request.params[1].isNull()) {
+        auto pubkey = CPubKey{ParseHex(request.params[1].get_str())};
+        coinbase_script = CScript() << ToByteVector(pubkey) << OP_CHECKSIG;
+    }
+
+    if (pindexPrev != chainActive.Tip() || (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 5)) {
         // Clear pindexPrev so future calls make a new block, despite any failures from here on
         pindexPrev = nullptr;
 
@@ -574,23 +575,24 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
 #ifdef ENABLE_WALLET
         const auto pwallet = GetWalletForJSONRPCRequest(request);
         // check that wallet is alredy referred or has unlock transaction
-        if (!pwallet->IsReferred() && pwallet->mapWalletRTx.empty()) {
-            CScript script_dummy = CScript() << OP_TRUE;
-            pblocktemplate = BlockAssembler(Params()).CreateNewBlock(script_dummy);
-        } else {
-            std::shared_ptr<CReserveScript> coinbase_script;
-            pwallet->GetScriptForMining(coinbase_script);
-            pblocktemplate = BlockAssembler(Params()).CreateNewBlock(coinbase_script->reserveScript);
-            std::dynamic_pointer_cast<CReserveKey>(coinbase_script)->ReturnKey();
+        if (coinbase_script.empty() && (pwallet->IsReferred() || !pwallet->mapWalletRTx.empty())) {
+            LogPrintf("building block for wallet\n");
+            std::shared_ptr<CReserveScript> wallet_script;
+            pwallet->GetScriptForMining(wallet_script);
+            pblocktemplate = BlockAssembler(Params()).CreateNewBlock(wallet_script->reserveScript);
+            std::dynamic_pointer_cast<CReserveKey>(wallet_script)->ReturnKey();
         }
-#else
-        CScript script_dummy = CScript() << OP_TRUE;
-        pblocktemplate = BlockAssembler(Params()).CreateNewBlock(script_dummy);
 #endif
+
+        if (!pblocktemplate && !coinbase_script.empty()) {
+            LogPrintf("building block for pubkey\n");
+            pblocktemplate = BlockAssembler(Params()).CreateNewBlock(coinbase_script);
+        }
+
         if (!pblocktemplate)
             throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
 
-         pindexPrev = pindexPrevNew;
+        pindexPrev = pindexPrevNew;
     }
     CBlock* pblock = &pblocktemplate->block; // pointer for convenience
     const Consensus::Params& consensusParams = Params().GetConsensus();
@@ -642,9 +644,6 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
         uint256 txHash = tx.GetHash();
         setTxIndex[txHash] = i++;
 
-        if (tx.IsCoinBase())
-            continue;
-
         UniValue entry(UniValue::VOBJ);
 
         entry.push_back(Pair("data", EncodeHexTx(tx)));
@@ -675,8 +674,6 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     for (const auto& it : pblock->m_vRef) {
         const referral::Referral& referral = *it;
         ref_parents[referral.GetAddress()] = referral.GetHash();
-
-        debug("%s::%s", HexStr(referral.GetAddress()), HexStr(referral.parentAddress));
 
         UniValue entry(UniValue::VOBJ);
 
@@ -725,6 +722,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     result.push_back(Pair("weightlimit", static_cast<int64_t>(MAX_BLOCK_WEIGHT)));
     result.push_back(Pair("curtime", pblock->GetBlockTime()));
     result.push_back(Pair("bits", strprintf("%08x", pblock->nBits)));
+    result.push_back(Pair("edgebits", pblock->nEdgeBits));
     result.push_back(Pair("height", static_cast<int64_t>(pindexPrev->nHeight+1)));
 
     if (!pblocktemplate->vchCoinbaseCommitment.empty()) {
@@ -1078,7 +1076,7 @@ static const CRPCCommand commands[] =
     { "mining",             "getnetworkhashps",       &getnetworkhashps,       {"nblocks","height"} },
     { "mining",             "getmininginfo",          &getmininginfo,          {} },
     { "mining",             "prioritisetransaction",  &prioritisetransaction,  {"txid","dummy","fee_delta"} },
-    { "mining",             "getblocktemplate",       &getblocktemplate,       {"template_request"} },
+    { "mining",             "getblocktemplate",       &getblocktemplate,       {"template_request", "pubkey"} },
     { "mining",             "submitblock",            &submitblock,            {"hexdata","dummy"} },
     { "mining",             "setmining",              &setmining,              {"mine","mineproclimit"} },
     { "mining",             "getmining",              &getmining,              {} },

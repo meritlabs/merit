@@ -86,7 +86,7 @@ struct modifiedentry_iter {
 struct CompareModifiedEntry {
     bool operator()(const CTxMemPoolModifiedEntry &a, const CTxMemPoolModifiedEntry &b) const
     {
-       
+
         bool ai = a.iter->GetSharedEntryValue()->IsInvite();
         bool bi = b.iter->GetSharedEntryValue()->IsInvite();
 
