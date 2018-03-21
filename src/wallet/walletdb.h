@@ -257,6 +257,9 @@ public:
     //! Write referral
     bool WriteReferralTx(const referral::ReferralTx& rtx);
 
+    //! Write Ignored Referrals
+    bool WriteIgnoredReferrals(const std::set<uint256>& ignored);
+
 private:
     CDB batch;
     CWalletDBWrapper& m_dbw;

@@ -31,12 +31,8 @@ public:
     ReferralRecord():
         hash{}, date{0}, address{}, alias{}, status{Pending} {}
 
-    ReferralRecord(uint256 _hash, qint64 _date, std::string _address, std::string _alias = "", bool ignored = false):
-        hash{_hash}, date{_date}, address{_address}, alias{_alias}, status{Pending}
-    {
-        if(ignored)
-          status = Declined;
-    }
+    ReferralRecord(uint256 _hash, qint64 _date, std::string _address, std::string _alias = ""):
+        hash{_hash}, date{_date}, address{_address}, alias{_alias}, status{Pending} {}
 
     /** @name Immutable referral attributes
       @{*/

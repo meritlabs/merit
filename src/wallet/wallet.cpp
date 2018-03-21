@@ -1216,13 +1216,23 @@ bool CWallet::IgnoreReferral(const uint256& hashIn)
 {
     LOCK(cs_wallet);
     ignoredReferrals.insert(hashIn);
-    return true;
+    CWalletDB walletdb(*dbw);
+    return walletdb.WriteIgnoredReferrals(ignoredReferrals);
 }
 
 bool CWallet::ReferralIsIgnored(const uint256& hashIn)
 {
     LOCK(cs_wallet);
     return ignoredReferrals.count(hashIn) > 0;
+}
+
+bool CWallet::SetIgnoredReferrals(const std::set<uint256>& ignored)
+{
+    LOCK(cs_wallet);
+    for(auto ref : ignored) {
+        ignoredReferrals.insert(ref);
+    }
+    return true;
 }
 
 /**

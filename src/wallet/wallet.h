@@ -239,7 +239,6 @@ class ReferralTx : public CMerkleTx {
 private:
     const CWallet* m_pWallet;
     bool m_isUnlock;
-    bool m_isIgnored = false;
 
 public:
     ReferralRef m_pReferral;
@@ -266,16 +265,6 @@ public:
     bool IsUnlockTx() const
     {
         return m_isUnlock;
-    }
-
-    bool IsIgnored() const
-    {
-        return m_isIgnored;
-    }
-
-    void SetIgnored(bool ignore)
-    {
-        m_isIgnored = ignore;
     }
 
     ADD_SERIALIZE_METHODS;
@@ -1022,6 +1011,7 @@ public:
     bool LoadToWallet(const referral::ReferralTx& rtxIn);
     bool IgnoreReferral(const uint256& hashIn);
     bool ReferralIsIgnored(const uint256& hashIn);
+    bool SetIgnoredReferrals(const std::set<uint256>& ignored);
     void TransactionAddedToMempool(const CTransactionRef& tx) override;
     void ReferralAddedToMempool(const referral::ReferralRef& pref) override;
     void BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex *pindex, const std::vector<CTransactionRef>& vtxConflicted) override;

@@ -57,11 +57,11 @@ public:
     // QVariant headerData(int section, Qt::Orientation orientation, int role) const;
 
     enum RoleIndex {
-        // includes alias if availabl
-        AddressRole,
+        // includes alias if available
         AliasRole,
         DateRole,
         HashRole,
+        AddressRole, // index 3 ; same as Qt::ToolTipRole
         StatusRole
     };
 

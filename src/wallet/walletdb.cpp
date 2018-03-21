@@ -525,6 +525,17 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
                 return false;
             }
         }
+        else if (strType == "ignoredreferrals")
+        {
+            std::set<uint256> ignored;
+            ssValue >> ignored;
+            if(!pwallet->SetIgnoredReferrals(ignored))
+            {
+                strErr = "Error reading wallet database: SetIgnoredReferrals failed";
+                return false;
+            }
+
+        }
     } catch (...)
     {
         return false;
@@ -880,4 +891,9 @@ bool CWalletDB::WriteVersion(int nVersion)
 bool CWalletDB::WriteReferralTx(const referral::ReferralTx& rtx)
 {
     return WriteIC(std::make_pair(std::string("rtx"), rtx.GetHash()), rtx);
+}
+
+bool CWalletDB::WriteIgnoredReferrals(const std::set<uint256>& ignored)
+{
+    return WriteIC(std::string("ignoredreferrals"), ignored);
 }
