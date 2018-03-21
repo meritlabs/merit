@@ -161,16 +161,8 @@ FastStart::FastStart(const QString& data_dir,  QWidget *parent) :
     ui{new Ui::FastStart}
 {
     ui->setupUi(this);
-    ui->overviewSlides->setCurrentIndex(0);
 
-    connect(
-            &info_manager, SIGNAL(finished(QNetworkReply*)),
-            this, SLOT(SnapshotUrlDownloaded(QNetworkReply*)));
-
-    FigureOutSnapshotAndDownload();
-
-    //start slideshow
-    QTimer::singleShot(1000 * SLIDE_TRANSITION_SECONDS, this, SLOT(endSlide()));
+    Start();
 }
 
 FastStart::~FastStart()
@@ -178,16 +170,52 @@ FastStart::~FastStart()
     snapshot_output.close();
     delete ui;
 }
+void FastStart::ShowDownload()
+{
+    ui->stack->setCurrentIndex(1);
+    connect(
+            &info_manager, SIGNAL(finished(QNetworkReply*)),
+            this, SLOT(SnapshotUrlDownloaded(QNetworkReply*)));
 
-void FastStart::FigureOutSnapshotAndDownload() 
+    //start slideshow
+    ui->overviewSlides->setCurrentIndex(0);
+    QTimer::singleShot(1000 * SLIDE_TRANSITION_SECONDS, this, SLOT(endSlide()));
+}
+
+void FastStart::ShowChoice()
+{
+    ui->stack->setCurrentIndex(0);
+    connect(ui->snapshotButton, SIGNAL(clicked()), this, SLOT(SnapshotChoiceClicked()));
+    connect(ui->peersButton, SIGNAL(clicked()), this, SLOT(PeersChoiceClicked()));
+}
+
+void FastStart::SnapshotChoiceClicked()
+{
+    settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::GETINFO));
+    ShowDownload();
+    DownloadSnapshotUrl();
+}
+
+void FastStart::PeersChoiceClicked()
+{
+    settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::DONE));
+    accept();
+}
+
+void FastStart::Start() 
 {
     ui->progressBar->setMaximum(0);
     snapshot.state = static_cast<SnapshotInfo::State>(settings.value(
-            "snapshotstate", static_cast<int>(SnapshotInfo::GETINFO)).toInt());
+            "snapshotstate", static_cast<int>(SnapshotInfo::CHOICE)).toInt());
     snapshot.url = settings.value("snapshoturl", "").toString();
     snapshot.size = settings.value("snapshotsize", qulonglong{0}).toULongLong();
 
+    if(snapshot.state != SnapshotInfo::CHOICE) {
+        ShowDownload();
+    }
+
     switch(snapshot.state) {
+        case SnapshotInfo::CHOICE: ShowChoice(); break;
         case SnapshotInfo::GETINFO: DownloadSnapshotUrl(); break;
         case SnapshotInfo::DOWNLOAD: DownloadSnapshot(); break;
         case SnapshotInfo::EXTRACT: ExtractSnapshot(); break;

@@ -620,9 +620,6 @@ int main(int argc, char *argv[])
     if (!Intro::pickDataDirectory())
         return EXIT_SUCCESS;
 
-    if (!FastStart::DoDownloadSnapshot())
-        return EXIT_SUCCESS;
-
     /// 6. Determine availability of data directory and parse merit.conf
     /// - Do not call GetDataDir(true) before this step finishes
     if (!fs::is_directory(GetDataDir(false)))
@@ -652,6 +649,7 @@ int main(int argc, char *argv[])
         QMessageBox::critical(0, QObject::tr(PACKAGE_NAME), QObject::tr("Error: %1").arg(e.what()));
         return EXIT_FAILURE;
     }
+
 #ifdef ENABLE_WALLET
     // Parse URIs on command line -- this can affect Params()
     PaymentServer::ipcParseCommandLine(argc, argv);
@@ -663,6 +661,9 @@ int main(int argc, char *argv[])
     QApplication::setApplicationName(networkStyle->getAppName());
     // Re-initialize translations after changing application name (language in network-specific settings can be different)
     initTranslations(qtTranslatorBase, qtTranslator, translatorBase, translator);
+
+    if (!FastStart::DoDownloadSnapshot())
+        return EXIT_SUCCESS;
 
 #ifdef ENABLE_WALLET
     /// 8. URI IPC sending

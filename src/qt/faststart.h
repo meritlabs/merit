@@ -11,7 +11,7 @@ class FastStart;
 
 struct SnapshotInfo
 {
-    enum State {GETINFO=0, DOWNLOAD, EXTRACT, DONE} state = GETINFO;
+    enum State {CHOICE=0, GETINFO, DOWNLOAD, EXTRACT, DONE} state = CHOICE;
     QString url;
     quint64 pos = 0;
     quint64 size = 0;
@@ -36,9 +36,13 @@ public Q_SLOTS:
     void SnapshotProgress(qint64 received, qint64 total);
     void SnapshotFinished();
     void SnapshotReadyRead();
+    void SnapshotChoiceClicked();
+    void PeersChoiceClicked();
 
 private:
-    void FigureOutSnapshotAndDownload();
+    void Start();
+    void ShowDownload();
+    void ShowChoice();
     void DownloadSnapshotUrl();
     void DownloadSnapshot();
     void ExtractSnapshot();
