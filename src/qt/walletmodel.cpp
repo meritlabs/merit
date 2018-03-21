@@ -529,6 +529,11 @@ bool WalletModel::SendInviteTo(const std::string& address, int amount)
     return tx != nullptr;
 }
 
+bool WalletModel::DeclineInviteTo(const std::string& address, int amount)
+{
+    return true;
+}
+
 bool WalletModel::setWalletEncrypted(bool encrypted, const SecureString &passphrase)
 {
     if(encrypted)

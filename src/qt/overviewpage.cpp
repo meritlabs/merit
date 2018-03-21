@@ -153,25 +153,25 @@ public:
         QAbstractItemDelegate{parent}, unit{MeritUnits::MRT},
         platformStyle{_platformStyle}, invite_balance{_invite_balance}, is_daedalus{_is_daedalus}
     {}
-    const int xpad = 8;
-    const int ypad = 10;
+    const int XPAD = 8;
+    const int YPAD = 10;
     const int INVITE_BUTTON_WIDTH = 80;
 
     inline QRect AddressRect(const QRect& mainRect, int height) const
     {
-        return QRect(mainRect.left() + xpad, mainRect.top()+ypad, mainRect.width() - 2*xpad, height);
+        return QRect(mainRect.left() + XPAD, mainRect.top()+YPAD, mainRect.width() - 2*XPAD, height);
     }
 
     inline QRect InviteRect(const QRect& mainRect, int height) const
     {
         QRect addressRect = AddressRect(mainRect, height);
-        return QRect(addressRect.right() - 2*(INVITE_BUTTON_WIDTH + xpad), mainRect.top()+ypad, INVITE_BUTTON_WIDTH, height);
+        return QRect(addressRect.right() - 2*(INVITE_BUTTON_WIDTH + XPAD), mainRect.top()+YPAD, INVITE_BUTTON_WIDTH, height);
     }
 
-    inline QRect RejectRect(const QRect& mainRect, int height) const
+    inline QRect DeclineRect(const QRect& mainRect, int height) const
     {
         QRect addressRect = AddressRect(mainRect, height);
-        return QRect(addressRect.right() - INVITE_BUTTON_WIDTH, mainRect.top()+ypad, INVITE_BUTTON_WIDTH, height);
+        return QRect(addressRect.right() - INVITE_BUTTON_WIDTH, mainRect.top()+YPAD, INVITE_BUTTON_WIDTH, height);
     }
 
     inline void DrawButton(QPainter *painter, const QRect& rect, const QString& text, const QColor& color) const
@@ -202,11 +202,11 @@ public:
         painter->setRenderHint(QPainter::Antialiasing);
 
         QRect mainRect = option.rect;
-        int halfheight = (mainRect.height() - 2*ypad)/2;
+        int halfheight = (mainRect.height() - 2*YPAD)/2;
 
         QRect addressRect = AddressRect(mainRect, halfheight);
-        QRect timestampRect(mainRect.left() + xpad, mainRect.top()+ypad+halfheight, mainRect.width() - xpad, halfheight);
-        QLine line(mainRect.left() + xpad, mainRect.bottom(), mainRect.right() - xpad, mainRect.bottom());
+        QRect timestampRect(mainRect.left() + XPAD, mainRect.top()+YPAD+halfheight, mainRect.width() - XPAD, halfheight);
+        QLine line(mainRect.left() + XPAD, mainRect.bottom(), mainRect.right() - XPAD, mainRect.bottom());
 
         QVariant value = index.data(Qt::ForegroundRole);
         QColor foreground = option.palette.color(QPalette::Text);
@@ -238,11 +238,11 @@ public:
 
         if(statusString == "Pending" && is_daedalus) {
             QRect inviteRect = InviteRect(mainRect, halfheight);
-            QRect rejectRect = RejectRect(mainRect, halfheight);
+            QRect declineRect = DeclineRect(mainRect, halfheight);
 
             QColor merit_blue = invite_balance > 0 ? QColor{0, 176, 220} : QColor{128, 128, 128};
             DrawButton(painter, inviteRect, tr("Send Invite"), merit_blue);
-            DrawButton(painter, rejectRect, tr("Reject"), Qt::red);
+            DrawButton(painter, declineRect, tr("Decline"), Qt::red);
         }
 
 
@@ -263,21 +263,20 @@ public:
         if(statusString != "Pending")
             return true;
 
-        if (event->type() != QEvent::MouseButtonPress
-              && event->type() != QEvent::MouseButtonRelease) {
+        if (event->type() != QEvent::MouseButtonRelease) {
             return true;
         }
-        std::cerr << "mousepress event" << std::endl;
+
         QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-        auto inviteBox = InviteRect(option.rect, (option.rect.height() - 2*ypad)/2);
-        auto rejectBox = RejectRect(option.rect, (option.rect.height() - 2*ypad)/2);
+        auto inviteBox = InviteRect(option.rect, (option.rect.height() - 2*YPAD)/2);
+        auto declineBox = DeclineRect(option.rect, (option.rect.height() - 2*YPAD)/2);
 
         if(inviteBox.contains(mouseEvent->pos())) {
-            std::cerr << "invite clicked" << std::endl;
+            Q_EMIT invite(index);
             return true;
         }
-        if(rejectBox.contains(mouseEvent->pos())) {
-            std::cerr << "reject clicked" << std::endl;
+        if(declineBox.contains(mouseEvent->pos())) {
+            Q_EMIT decline(index);
             return true;
         }
         return false;
@@ -287,6 +286,10 @@ public:
     const PlatformStyle *platformStyle;
     const CAmount& invite_balance;
     const bool& is_daedalus;
+
+Q_SIGNALS:
+    void invite(QModelIndex);
+    void decline(QModelIndex);
 
 };
 #include "overviewpage.moc"
@@ -332,7 +335,8 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     ui->listApprovedRequests->setAttribute(Qt::WA_MacShowFocusRect, false);
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
-    connect(ui->listPendingRequests, SIGNAL(clicked(QModelIndex)), this, SLOT(handleReferralClicked(QModelIndex)));
+    connect(referraldelegate, SIGNAL(invite(QModelIndex)), this, SLOT(handleInviteClicked(QModelIndex)));
+    connect(referraldelegate, SIGNAL(decline(QModelIndex)), this, SLOT(handleDeclineClicked(QModelIndex)));
 
     // start with displaying the "out of sync" warnings
     showOutOfSyncWarning(true);
@@ -350,7 +354,7 @@ void OverviewPage::handleTransactionClicked(const QModelIndex &index)
         Q_EMIT transactionClicked(txFilter->mapToSource(index));
 }
 
-void OverviewPage::handleReferralClicked(const QModelIndex &index)
+void OverviewPage::handleInviteClicked(const QModelIndex &index)
 {
     if(!walletModel) {
         return;
@@ -396,6 +400,52 @@ void OverviewPage::handleReferralClicked(const QModelIndex &index)
         QString text = aliasString.isEmpty() ?
             tr("There was an error inviting") + " " + addressString:
             tr("There was an error inviting") + " " + aliasString + " " + tr("with the address") + " " + addressString;
+
+        QMessageBox::critical(this, title, text);
+    }
+}
+
+void OverviewPage::handleDeclineClicked(const QModelIndex &index)
+{
+    if(!walletModel) {
+        return;
+    }
+
+    QString statusString = index.data(ReferralListModel::StatusRole).toString();
+    if(statusString != "Pending") {
+        return;
+    }
+
+    QString addressString = index.data(ReferralListModel::AddressRole).toString();
+    QString aliasString = index.data(ReferralListModel::AliasRole).toString();
+
+    QString title = aliasString.isEmpty() ?
+        tr("Decline Invite") + " " + addressString :
+        tr("Decline Invite") + " " + aliasString;
+
+    QString text = aliasString.isEmpty() ?
+        tr("Do you want to decline an invite request from") + " " + addressString + "?":
+        tr("Do you want to decline an invite request from") + " @" + aliasString + " " + tr("with the address") + " " + addressString + "?";
+    
+    QMessageBox msgBox{QMessageBox::Question,
+                        title, text,
+                        QMessageBox::Yes | QMessageBox::No,
+                        this};
+    msgBox.setStyleSheet(QString("QMessageBox { background-color: white; }"));
+    auto ret = msgBox.exec();
+    if(ret != QMessageBox::Yes) {
+        return;
+    }
+
+    auto success = walletModel->DeclineInviteTo(addressString.toStdString());
+    if(!success) {
+        QString title = aliasString.isEmpty() ?
+            tr("Error Declining Invite") + " " + addressString :
+            tr("Error Declining Invite") + " " + aliasString;
+
+        QString text = aliasString.isEmpty() ?
+            tr("There was an error declining the invite request from") + " " + addressString:
+            tr("There was an error declining the invite request from") + " " + aliasString + " " + tr("with the address") + " " + addressString;
 
         QMessageBox::critical(this, title, text);
     }

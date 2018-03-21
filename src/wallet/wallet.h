@@ -285,7 +285,6 @@ public:
         READWRITE(*(CMerkleTx*)this);
         READWRITE(m_pReferral);
         READWRITE(m_isUnlock);
-        READWRITE(m_isIgnored);
     }
 
     bool RelayWalletTransaction(CConnman* connman);
