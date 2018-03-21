@@ -437,7 +437,8 @@ void OverviewPage::handleDeclineClicked(const QModelIndex &index)
         return;
     }
 
-    auto success = walletModel->DeclineInviteTo(addressString.toStdString());
+    QString hashString = index.data(ReferralListModel::HashRole).toString();
+    auto success = walletModel->DeclineInviteTo(hashString.toStdString());
     if(!success) {
         QString title = aliasString.isEmpty() ?
             tr("Error Declining Invite") + " " + addressString :

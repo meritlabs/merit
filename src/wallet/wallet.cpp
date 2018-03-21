@@ -1220,6 +1220,7 @@ bool CWallet::IgnoreReferral(const uint256& hashIn, bool fFlushOnClose)
 
     auto ret = mapWalletRTx.find(hashIn);
     if(ret == mapWalletRTx.end()) {
+        std::cerr << "could not find referral with hash " << hashIn.ToString() << std::endl;
         return false;
     }
     referral::ReferralTx& rtx = ret->second;
@@ -1230,6 +1231,7 @@ bool CWallet::IgnoreReferral(const uint256& hashIn, bool fFlushOnClose)
             hashIn.ToString());
 
     if (!walletdb.WriteReferralTx(rtx)) {
+        std::cerr << "could not write to ye old db" << std::endl;
         return false;
     }
 

@@ -49,6 +49,7 @@ void ReferralListPriv::Refresh()
                 rec.UpdateStatus(ref);
                 cachedWallet.append(rec);
                 addresses.insert(ref->GetAddress());
+                std::cerr << "referral from mempool: " << ref->GetHash().ToString() << "\n";
             }
         }
 
@@ -59,6 +60,7 @@ void ReferralListPriv::Refresh()
                 rec.UpdateStatus(ref);
                 cachedWallet.append(rec);
                 addresses.insert(ref->GetAddress());
+                std::cerr << "referral from disk: " << ref->GetHash().ToString() << "\n";
             }
         }
     }
@@ -140,6 +142,8 @@ QVariant ReferralListModel::data(const QModelIndex &index, int role) const
             return record->StatusString();
         case DateRole:
             return QDateTime::fromTime_t(static_cast<uint>(record->date));
+        case HashRole:
+            return QString::fromStdString(record->hash.ToString());
         }
     }
     return QVariant();

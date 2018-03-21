@@ -61,6 +61,7 @@ public:
         AddressRole,
         AliasRole,
         DateRole,
+        HashRole,
         StatusRole
     };
 

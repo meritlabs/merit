@@ -154,7 +154,7 @@ public:
     bool AddressConfirmed(const CMeritAddress& address) const;
     bool Daedalus() const;
     bool SendInviteTo(const std::string& address, int amount = 1);
-    bool DeclineInviteTo(const std::string& address, int amount = 1);
+    bool DeclineInviteTo(const std::string& address);
 
     // Check address for validity
     bool validateAddress(const QString &address);
