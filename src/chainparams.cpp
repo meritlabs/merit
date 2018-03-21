@@ -128,6 +128,8 @@ public:
     CMainParams()
     {
         strNetworkID = "main";
+        snapshot_url = "https://mempko.com/merit/current";
+
         consensus.nBlocksToMaturity = 100;
         consensus.initial_block_reward = 20_merit;
         consensus.nSubsidyHalvingInterval = 2102400;

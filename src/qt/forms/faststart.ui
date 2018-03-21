@@ -93,9 +93,9 @@
     <widget class="QLabel" name="label_3">
      <property name="geometry">
       <rect>
-       <x>30</x>
+       <x>10</x>
        <y>0</y>
-       <width>539</width>
+       <width>581</width>
        <height>71</height>
       </rect>
      </property>
@@ -109,7 +109,7 @@
     <widget class="QPushButton" name="snapshotButton">
      <property name="geometry">
       <rect>
-       <x>50</x>
+       <x>70</x>
        <y>200</y>
        <width>181</width>
        <height>191</height>
@@ -141,7 +141,7 @@
     <widget class="QLabel" name="label_4">
      <property name="geometry">
       <rect>
-       <x>50</x>
+       <x>70</x>
        <y>70</y>
        <width>181</width>
        <height>61</height>
@@ -179,7 +179,7 @@
     <widget class="QLabel" name="label_6">
      <property name="geometry">
       <rect>
-       <x>50</x>
+       <x>70</x>
        <y>120</y>
        <width>181</width>
        <height>81</height>

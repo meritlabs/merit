@@ -1,6 +1,7 @@
 #include "faststart.h"
 #include "ui_faststart.h"
 #include "util.h"
+#include "chainparams.h"
 
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
@@ -219,7 +220,7 @@ void FastStart::Start()
         case SnapshotInfo::GETINFO: DownloadSnapshotUrl(); break;
         case SnapshotInfo::DOWNLOAD: DownloadSnapshot(); break;
         case SnapshotInfo::EXTRACT: ExtractSnapshot(); break;
-        case SnapshotInfo::DONE: accept(); break;                                    
+        default: accept();
     }
 }
 
@@ -227,7 +228,15 @@ void FastStart::DownloadSnapshotUrl()
 {
     settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::GETINFO));
 
-    auto url_url = QString::fromStdString(gArgs.GetArg("-snapshoturl", DEFAULT_URL_URL));
+    auto snapshot_url = Params().SnapshotUrl();
+    auto url_url = QString::fromStdString(gArgs.GetArg("-snapshoturl", snapshot_url));
+
+    //Don't do any download if the snapshot url is not defined.
+    if(url_url.isEmpty()) {
+        settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::DONE));
+        accept();
+        return;
+    }
 
     QNetworkRequest request{url_url};
     info_manager.get(request);

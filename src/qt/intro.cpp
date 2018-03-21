@@ -121,7 +121,7 @@ Intro::Intro(QWidget *parent) :
     signalled(false)
 {
     ui->setupUi(this);
-    ui->storageLabel->setText(ui->storageLabel->text().arg(tr(PACKAGE_NAME)));
+    ui->storageLabel->setText(ui->storageLabel->text());
 
     uint64_t pruneTarget = std::max<int64_t>(0, gArgs.GetArg("-prune", 0));
     requiredSpace = BLOCK_CHAIN_SIZE;
