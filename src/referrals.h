@@ -60,6 +60,7 @@ using ReferralIndex = multi_index_container<
         hashed_non_unique<tag<by_hash>, const_mem_fun<Referral, const uint256&, &Referral::GetHash>, SaltedHasher<256>>>>;
 
 using AliasIndex = std::unordered_map<std::string, Address>;
+using ConfirmationsIndex = std::unordered_map<Address, uint32_t>;
 
 class ReferralsViewCache
 {
@@ -68,6 +69,7 @@ private:
     ReferralsViewDB* m_db;
     mutable ReferralIndex referrals_index;
     mutable AliasIndex alias_index;
+    mutable ConfirmationsIndex confirmations_index;
 
     void InsertReferralIntoCache(const Referral&) const;
     void RemoveAliasFromCache(const Referral&) const;
@@ -77,6 +79,9 @@ public:
 
     /** Get referral by address */
     MaybeReferral GetReferral(const Address&) const;
+
+    /** Get referral by alias */
+    MaybeReferral GetReferral(const std::string& alias, bool normalize_alias) const;
 
     /** Check if referral exists by beaconed address */
     bool Exists(const Address&) const;

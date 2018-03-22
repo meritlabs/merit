@@ -5206,7 +5206,7 @@ bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool)
 // invites
 bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempool)
 {
-    bool confirmed = prefviewdb->IsConfirmed(addr);
+    bool confirmed = prefviewcache->IsConfirmed(addr);
 
     if (confirmed) {
         return true;
@@ -5230,7 +5230,7 @@ bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool)
 
 CTxDestination LookupDestination(const std::string& address)
 {
-    assert(prefviewdb);
+    assert(prefviewcache);
 
     auto dest = DecodeDestination(address);
 
@@ -5244,7 +5244,7 @@ CTxDestination LookupDestination(const std::string& address)
     // He we assume we are in safer mode by giving the blockheight as the safer_alias_blockheight.
     // We don't do the transpose check here because LookupDestination is used for in the client
     // code and not valiation
-    auto cached_referral = prefviewdb->GetReferral(address, true);
+    auto cached_referral = prefviewcache->GetReferral(address, true);
 
     if (cached_referral) {
         return CMeritAddress{cached_referral->addressType, cached_referral->GetAddress()}.Get();
@@ -5268,8 +5268,7 @@ referral::ReferralRef LookupReferral(
 {
     //We don't do transpose check here because LookupReferral is used by client
     //code retrieval not consensus.
-    auto chain_referral =
-        prefviewdb->GetReferral(referral_id, normalize_alias);
+    auto chain_referral = prefviewdb->GetReferral(referral_id, normalize_alias);
 
     if (chain_referral) {
         return MakeReferralRef(*chain_referral);
@@ -6409,7 +6408,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
     try {
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
 
-        if (!prefviewdb->Exists(block.m_vRef[0]->GetAddress())) {
+        if (!prefviewcache->Exists(block.m_vRef[0]->GetAddress())) {
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
