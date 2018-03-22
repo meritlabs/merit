@@ -289,7 +289,7 @@ namespace
     bool ShouldValidate(bool sample)
     {
         const int sample_count = gArgs.GetArg("-validationsamplecount", DEFAULT_VALIDATE_SAMPLE_COUNT);
-        return !sample || sample_count <= 0 || (rand() % sample_count) == 0;
+        return !sample || sample_count <= 0 || GetRand(sample_count) == 0;
     }
 
 } // namespace
@@ -5932,7 +5932,7 @@ CBlockIndex * InsertBlockIndex(uint256 hash)
 
 bool static LoadBlockIndexDB(const CChainParams& chainparams)
 {
-    if (!pblocktree->LoadBlockIndexGuts(chainparams.GetConsensus(), InsertBlockIndex, true))
+    if (!pblocktree->LoadBlockIndexGuts(chainparams.GetConsensus(), InsertBlockIndex))
         return false;
 
     boost::this_thread::interruption_point();
