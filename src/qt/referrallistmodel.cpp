@@ -49,7 +49,7 @@ void ReferralListPriv::Refresh()
                 rec.UpdateStatus(ref);
 
                 if(wallet->ReferralIsIgnored(ref->GetHash()))
-                    rec.DeclineRecord();
+                    rec.IgnoreRecord();
 
                 cachedWallet.append(rec);
                 addresses.insert(ref->GetAddress());
@@ -63,7 +63,7 @@ void ReferralListPriv::Refresh()
                 rec.UpdateStatus(ref);
 
                 if(wallet->ReferralIsIgnored(ref->GetHash()))
-                    rec.DeclineRecord();
+                    rec.IgnoreRecord();
 
                 cachedWallet.append(rec);
                 addresses.insert(ref->GetAddress());

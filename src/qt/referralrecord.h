@@ -25,7 +25,7 @@ public:
     enum Status {
         Pending,    // referral which needs an inviteTx to confirm
         Confirmed,  // referral which has been confirmed
-        Declined,   // user refused to confirm this referral
+        Ignored,   // user refused to confirm this referral
     };
 
     ReferralRecord():
@@ -55,7 +55,7 @@ public:
 
     /** Set status to declined to filter record from view
      */
-    void DeclineRecord();
+    void IgnoreRecord();
 
     /** Return whether a status update is needed.
      */

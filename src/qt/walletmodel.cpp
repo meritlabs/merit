@@ -529,7 +529,7 @@ bool WalletModel::SendInviteTo(const std::string& address, int amount)
     return tx != nullptr;
 }
 
-bool WalletModel::DeclineInviteTo(const std::string& hashString)
+bool WalletModel::IgnoreInviteTo(const std::string& hashString)
 {
     assert(wallet);
     uint256 hash;

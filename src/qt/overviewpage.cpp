@@ -155,7 +155,7 @@ public:
     {}
     const int XPAD = 8;
     const int YPAD = 10;
-    const int INVITE_BUTTON_WIDTH = 80;
+    const int INVITE_BUTTON_WIDTH = 64;
 
     inline QRect AddressRect(const QRect& mainRect, int height) const
     {
@@ -168,7 +168,7 @@ public:
         return QRect(addressRect.right() - INVITE_BUTTON_WIDTH, mainRect.top()+YPAD, INVITE_BUTTON_WIDTH, height);
     }
 
-    inline QRect DeclineRect(const QRect& mainRect, int height) const
+    inline QRect IgnoreRect(const QRect& mainRect, int height) const
     {
         QRect addressRect = AddressRect(mainRect, height);
         return QRect(addressRect.right() - 2*INVITE_BUTTON_WIDTH - XPAD, mainRect.top()+YPAD, INVITE_BUTTON_WIDTH, height);
@@ -238,11 +238,11 @@ public:
 
         if(statusString == "Pending" && is_daedalus) {
             QRect inviteRect = InviteRect(mainRect, halfheight);
-            QRect declineRect = DeclineRect(mainRect, halfheight);
+            QRect ignoreRect = IgnoreRect(mainRect, halfheight);
 
             QColor merit_blue = invite_balance > 0 ? QColor{0, 176, 220} : QColor{128, 128, 128};
-            DrawButton(painter, inviteRect, tr("Send Invite"), merit_blue);
-            DrawButton(painter, declineRect, tr("Decline"), Qt::gray);
+            DrawButton(painter, inviteRect, tr("Accept"), merit_blue);
+            DrawButton(painter, ignoreRect, tr("Ignore"), Qt::gray);
         }
 
 
@@ -269,14 +269,14 @@ public:
 
         QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
         auto inviteBox = InviteRect(option.rect, (option.rect.height() - 2*YPAD)/2);
-        auto declineBox = DeclineRect(option.rect, (option.rect.height() - 2*YPAD)/2);
+        auto ignoreBox = IgnoreRect(option.rect, (option.rect.height() - 2*YPAD)/2);
 
         if(inviteBox.contains(mouseEvent->pos())) {
             Q_EMIT invite(index);
             return true;
         }
-        if(declineBox.contains(mouseEvent->pos())) {
-            Q_EMIT decline(index);
+        if(ignoreBox.contains(mouseEvent->pos())) {
+            Q_EMIT ignore(index);
             return true;
         }
         return false;
@@ -289,7 +289,7 @@ public:
 
 Q_SIGNALS:
     void invite(QModelIndex);
-    void decline(QModelIndex);
+    void ignore(QModelIndex);
 
 };
 #include "overviewpage.moc"
@@ -336,7 +336,7 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
     connect(referraldelegate, SIGNAL(invite(QModelIndex)), this, SLOT(handleInviteClicked(QModelIndex)));
-    connect(referraldelegate, SIGNAL(decline(QModelIndex)), this, SLOT(handleDeclineClicked(QModelIndex)));
+    connect(referraldelegate, SIGNAL(ignore(QModelIndex)), this, SLOT(handleIgnoreClicked(QModelIndex)));
 
     // start with displaying the "out of sync" warnings
     showOutOfSyncWarning(true);
@@ -405,7 +405,7 @@ void OverviewPage::handleInviteClicked(const QModelIndex &index)
     }
 }
 
-void OverviewPage::handleDeclineClicked(const QModelIndex &index)
+void OverviewPage::handleIgnoreClicked(const QModelIndex &index)
 {
     if(!walletModel) {
         return;
@@ -420,12 +420,12 @@ void OverviewPage::handleDeclineClicked(const QModelIndex &index)
     QString aliasString = index.data(ReferralListModel::AliasRole).toString();
 
     QString title = aliasString.isEmpty() ?
-        tr("Decline Invite") + " " + addressString :
-        tr("Decline Invite") + " " + aliasString;
+        tr("Ignore Invite") + " " + addressString :
+        tr("Ignore Invite") + " " + aliasString;
 
     QString text = aliasString.isEmpty() ?
-        tr("Do you want to decline an invite request from") + " " + addressString + "?":
-        tr("Do you want to decline an invite request from") + " @" + aliasString + " " + tr("with the address") + " " + addressString + "?";
+        tr("Do you want to ignore an invite request from") + " " + addressString + "?":
+        tr("Do you want to ignore an invite request from") + " @" + aliasString + " " + tr("with the address") + " " + addressString + "?";
     
     QMessageBox msgBox{QMessageBox::Question,
                         title, text,
@@ -438,15 +438,15 @@ void OverviewPage::handleDeclineClicked(const QModelIndex &index)
     }
 
     QString hashString = index.data(ReferralListModel::HashRole).toString();
-    auto success = walletModel->DeclineInviteTo(hashString.toStdString());
+    auto success = walletModel->IgnoreInviteTo(hashString.toStdString());
     if(!success) {
         QString title = aliasString.isEmpty() ?
-            tr("Error Declining Invite") + " " + addressString :
-            tr("Error Declining Invite") + " " + aliasString;
+            tr("Error Ignoring Invite") + " " + addressString :
+            tr("Error Ignoring Invite") + " " + aliasString;
 
         QString text = aliasString.isEmpty() ?
-            tr("There was an error declining the invite request from") + " " + addressString:
-            tr("There was an error declining the invite request from") + " " + aliasString + " " + tr("with the address") + " " + addressString;
+            tr("There was an error ignoring the invite request from") + " " + addressString:
+            tr("There was an error ignoring the invite request from") + " " + aliasString + " " + tr("with the address") + " " + addressString;
 
         QMessageBox::critical(this, title, text);
     }
