@@ -1015,11 +1015,6 @@ namespace referral
 
     MaybeConfirmedAddress ReferralsViewDB::GetConfirmation(uint64_t idx) const
     {
-        auto total = GetTotalConfirmations();
-        if (idx >= total) {
-            return MaybeConfirmedAddress{};
-        }
-
         ConfirmationVal val;
         if (!m_db.Read(std::make_pair(DB_CONFIRMATION_IDX, idx), val)) {
             return MaybeConfirmedAddress{};
