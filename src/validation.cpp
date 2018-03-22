@@ -417,9 +417,9 @@ bool CheckReferralAliasUnique(
     if (unique && maybe_normalized.size() > 0 && block != nullptr) {
         auto it = std::find_if (
             block->m_vRef.begin(), block->m_vRef.end(),
-            [&referral_in, normalize_alias](const referral::ReferralRef& ref) {
+            [&referral_in, &maybe_normalized, normalize_alias](const referral::ReferralRef& ref) {
                 return
-                    referral::AliasesEqual(ref->alias, referral_in->alias, normalize_alias) &&
+                    referral::AliasesEqual(ref->alias, maybe_normalized, normalize_alias) &&
                     ref->GetHash() != referral_in->GetHash();
             });
 

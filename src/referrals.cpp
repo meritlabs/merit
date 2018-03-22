@@ -45,13 +45,16 @@ MaybeReferral ReferralsViewCache::GetReferral(const std::string& alias, bool nor
 
     {
         LOCK(m_cs_cache);
-        if (alias_index.count(maybe_normalized)) {
-            const auto address = alias_index[maybe_normalized];
-            return GetReferral(address);
+        auto it = alias_index.find(maybe_normalized);
+
+        if (it != alias_index.end()) {
+            return GetReferral(it->second);
         }
     }
 
     if (auto ref = m_db->GetReferral(maybe_normalized, false)) {
+        LOCK(m_cs_cache);
+        alias_index[maybe_normalized] = ref->GetAddress();
         InsertReferralIntoCache(*ref);
         return ref;
     }
@@ -112,6 +115,7 @@ bool ReferralsViewCache::Exists(const std::string& alias, bool normalize_alias) 
 
     if (auto ref = m_db->GetReferral(maybe_normalized, false)) {
         LOCK(m_cs_cache);
+        alias_index[maybe_normalized] = ref->GetAddress();
         InsertReferralIntoCache(*ref);
 
         return true;
@@ -124,14 +128,15 @@ void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
     referrals_index.insert(ref);
-
-    if (ref.alias.size()) {
-        alias_index[ref.alias] = ref.GetAddress();
-    }
 }
 
 void ReferralsViewCache::RemoveAliasFromCache(const Referral& ref) const {
-    alias_index.erase(ref.alias);
+    auto normalized_alias = ref.alias;
+    NormalizeAlias(normalized_alias);
+
+    if (alias_index.erase(normalized_alias) == 0) {
+        alias_index.erase(ref.alias);
+    }
 }
 
 bool ReferralsViewCache::RemoveReferral(const Referral& ref) const
@@ -171,8 +176,10 @@ bool ReferralsViewCache::IsConfirmed(const Address& address) const
 {
     assert(m_db);
 
-    if (confirmations_index.count(address)) {
-        return confirmations_index[address];
+    auto it = confirmations_index.find(address);
+
+    if (it != confirmations_index.end()) {
+        return it->second > 0;
     }
 
     return m_db->IsConfirmed(address);
@@ -188,8 +195,10 @@ bool ReferralsViewCache::IsConfirmed(const std::string& alias, bool normalize_al
         NormalizeAlias(normalized_alias);
     }
 
-    if (alias_index.count(normalized_alias)) {
-        return IsConfirmed(alias_index[normalized_alias]);
+    auto it = alias_index.find(normalized_alias);
+
+    if (it != alias_index.end()) {
+        return IsConfirmed(it->second);
     }
 
     return m_db->IsConfirmed(normalized_alias, false);

@@ -166,15 +166,6 @@ UniValue validateaddress(const JSONRPCRequest& request)
     CTxDestination dest = LookupDestination(intput_id);
     bool isValid = IsValidDestination(dest);
 
-    // lookup mempool with an alias in case dest is not found in the system
-    if (!isValid) {
-        const auto mempool_referral = mempoolReferral.Get(intput_id);
-
-        if (mempool_referral) {
-            dest = DecodeDestination(mempool_referral->GetAddress().ToString());
-        }
-    }
-
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("isvalid", isValid));
     if (isValid)
