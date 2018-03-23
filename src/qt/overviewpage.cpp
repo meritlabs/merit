@@ -403,6 +403,8 @@ void OverviewPage::handleInviteClicked(const QModelIndex &index)
 
         QMessageBox::critical(this, title, text);
     }
+    UpdateNetworkView();
+    UpdateInviteRequestView();
 }
 
 void OverviewPage::handleIgnoreClicked(const QModelIndex &index)
@@ -452,6 +454,7 @@ void OverviewPage::handleIgnoreClicked(const QModelIndex &index)
     }
 
     UpdateNetworkView();
+    UpdateInviteRequestView();
 }
 
 void OverviewPage::handleOutOfSyncWarningClicks()
@@ -725,6 +728,7 @@ void OverviewPage::UpdateInviteRequestView()
         ui->listPendingRequests->setMinimumHeight(
                 std::min(5, pendingRequestsFilter->rowCount()) * (DECORATION_SIZE + 2));
         ui->listPendingRequests->show();
+        ui->listPendingRequests->adjustSize();
     } else { 
         ui->listPendingRequests->hide();
         ui->noPendingInvitesLabel->show();
