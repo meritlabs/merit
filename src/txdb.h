@@ -155,8 +155,7 @@ public:
     bool ReadFlag(const std::string &name, bool &fValue);
     bool LoadBlockIndexGuts(
             const Consensus::Params& consensusParams,
-            std::function<CBlockIndex*(const uint256&)> insertBlockIndex,
-            bool sample);
+            std::function<CBlockIndex*(const uint256&)> insertBlockIndex);
 
     // Referrals
     bool ReadReferralIndex(const uint256 &txid, CDiskTxPos &pos);

@@ -289,7 +289,7 @@ namespace
     bool ShouldValidate(bool sample)
     {
         const int sample_count = gArgs.GetArg("-validationsamplecount", DEFAULT_VALIDATE_SAMPLE_COUNT);
-        return !sample || sample_count <= 0 || (rand() % sample_count) == 0;
+        return !sample || sample_count <= 0 || GetRand(sample_count) == 0;
     }
 
 } // namespace
@@ -406,19 +406,20 @@ bool CheckReferralAliasUnique(
     const CBlock* block,
     bool normalize_alias)
 {
-    if (referral_in->alias.size() == 0) {
-        return true;
+    auto maybe_normalized = referral_in->alias;
+    if (normalize_alias) {
+        referral::NormalizeAlias(maybe_normalized);
     }
 
-    bool unique = !prefviewcache->Exists(referral_in->alias, normalize_alias);
+    bool unique = !prefviewcache->IsConfirmed(maybe_normalized, false);
 
     // check block for same aliases if provided
-    if (block != nullptr) {
+    if (unique && maybe_normalized.size() > 0 && block != nullptr) {
         auto it = std::find_if (
             block->m_vRef.begin(), block->m_vRef.end(),
-            [&referral_in, normalize_alias](const referral::ReferralRef& ref) {
+            [&referral_in, &maybe_normalized, normalize_alias](const referral::ReferralRef& ref) {
                 return
-                    referral::AliasesEqual(ref->alias, referral_in->alias, normalize_alias) &&
+                    referral::AliasesEqual(ref->alias, maybe_normalized, normalize_alias) &&
                     ref->GetHash() != referral_in->GetHash();
             });
 
@@ -1060,7 +1061,7 @@ static bool AcceptToMemoryPoolWorker(
 
                 // if confirmed referral's alias is already in blockchain
                 // we have a duplicate
-                if (prefviewcache->Exists(referral->alias, true)) {
+                if (prefviewcache->IsConfirmed(referral->alias, true)) {
                     return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
                 }
 
@@ -1921,6 +1922,7 @@ bool RewardInvites(
         CBlockIndex* pindexPrev,
         const uint256& previous_block_hash,
         CCoinsViewCache& view,
+        const DebitsAndCredits &debits_and_credits,
         const Consensus::Params& params,
         CValidationState& state,
         pog::InviteRewards& rewards)
@@ -1946,11 +1948,38 @@ bool RewardInvites(
         return true;
     }
 
+    std::set<referral::Address> unconfirmed_invites;
+    std::map<referral::Address, CAmount> in_block_amounts;
+
+    for (const auto& dc: debits_and_credits) {
+        const auto& address = std::get<1>(dc);
+        auto amount = std::get<2>(dc);
+        const auto it = in_block_amounts.find(address);
+
+        if (it != in_block_amounts.end()) {
+            amount += it->second;
+        }
+
+        in_block_amounts[address] = amount;
+    }
+
+    for (const auto& amt: in_block_amounts) {
+        if (auto confirmation = prefviewcache->GetConfirmation(amt.first)) {
+            if (-amt.second == confirmation->invites) {
+                LogPrintf("\t\t%s: Referral with address \"%s\" is going to be unconfirmed. Skip it in invites lottery\n",
+                        __func__,
+                        CMeritAddress{confirmation->address_type, confirmation->address}.ToString());
+                unconfirmed_invites.insert(amt.first);
+            }
+        }
+    }
+
     const auto winners = pog::SelectConfirmedAddresses(
             *prefviewdb,
             previous_block_hash,
             params.genesis_address,
             total_winners,
+            unconfirmed_invites,
             params.daedalus_max_outstanding_invites_per_address);
 
     assert(winners.size() <= static_cast<size_t>(total_winners));
@@ -2581,9 +2610,7 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
 using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 
-using DebitsAndCredits = std::vector<std::tuple<char, referral::Address, CAmount>>;
-
-bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransaction& tx, CCoinsViewCache& view, bool undo = false)
+bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransaction& tx, CCoinsViewCache& view, bool undo)
 {
     int64_t debitDir = !undo ? -1 : 1;
     int64_t creditDir = !undo ? 1 : -1;
@@ -2714,7 +2741,7 @@ bool UpdateConfirmations(const CBlock& block, const DebitsAndCredits debits_and_
         const auto& address = std::get<1>(entry);
         const CAmount amount = std::get<2>(entry);
 
-        if (!prefviewdb->UpdateConfirmation(type, address, amount)) {
+        if (!prefviewcache->UpdateConfirmation(type, address, amount)) {
             return false;
         }
     }
@@ -3910,6 +3937,7 @@ static bool ConnectBlock(
                         pindex->pprev,
                         hashPrevBlock,
                         view,
+                        invite_debits_and_credits,
                         chainparams.GetConsensus(),
                         state,
                         invite_rewards)) {
@@ -5205,13 +5233,14 @@ bool CheckAddressBeaconed(const CMeritAddress& addr, bool checkMempool)
 // invites
 bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempool)
 {
-    bool confirmed = prefviewdb->IsConfirmed(addr);
+    bool confirmed = prefviewcache->IsConfirmed(addr);
 
     if (confirmed) {
         return true;
     }
 
     // check mempool for confirmation invite transaction
+    // TODO: add more precise check here as address can be unconfirmed in a block
     std::vector<AddressPair> addresses{std::make_pair(addr, addr_type)};
     std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
 
@@ -5227,9 +5256,34 @@ bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool)
     return maybe_hash ? CheckAddressConfirmed(*maybe_hash, addr.GetType(), checkMempool) : false;
 }
 
+bool CheckAliasUnconfirmed(const referral::Address& address)
+{
+    const auto referral = prefviewcache->GetReferral(address);
+
+    if (!referral) {
+        return false;
+    }
+
+    const auto referral_by_alias = prefviewcache->GetReferral(referral->alias, true);
+
+    // if we got no referral by alias means referral was unconfirmed
+    // but alias is not occupied yet
+    if (!referral_by_alias) {
+        return false;
+    }
+
+    // check alias is confirmed but points to other address
+    auto confirmed = prefviewcache->IsConfirmed(referral->alias, true);
+    auto leapfrogged = referral_by_alias->GetAddress() != referral->GetAddress();
+
+    // assume alias for the given address was unconfirmed if
+    // it is confirmed but points to other address
+    return confirmed && leapfrogged;
+}
+
 CTxDestination LookupDestination(const std::string& address)
 {
-    assert(prefviewdb);
+    assert(prefviewcache);
 
     auto dest = DecodeDestination(address);
 
@@ -5243,13 +5297,13 @@ CTxDestination LookupDestination(const std::string& address)
     // He we assume we are in safer mode by giving the blockheight as the safer_alias_blockheight.
     // We don't do the transpose check here because LookupDestination is used for in the client
     // code and not valiation
-    auto cached_referral = prefviewdb->GetReferral(address, true);
+    auto cached_referral = prefviewcache->GetReferral(address, true);
 
     if (cached_referral) {
         return CMeritAddress{cached_referral->addressType, cached_referral->GetAddress()}.Get();
     }
 
-    // Get referral by alias from cache
+    // Get referral by alias from mempool
     auto mempool_referral = mempoolReferral.Get(address);
     if (mempool_referral) {
         return CMeritAddress{mempool_referral->addressType, mempool_referral->GetAddress()}.Get();
@@ -5267,8 +5321,7 @@ referral::ReferralRef LookupReferral(
 {
     //We don't do transpose check here because LookupReferral is used by client
     //code retrieval not consensus.
-    auto chain_referral =
-        prefviewdb->GetReferral(referral_id, normalize_alias);
+    auto chain_referral = prefviewdb->GetReferral(referral_id, normalize_alias);
 
     if (chain_referral) {
         return MakeReferralRef(*chain_referral);
@@ -5933,7 +5986,7 @@ CBlockIndex * InsertBlockIndex(uint256 hash)
 
 bool static LoadBlockIndexDB(const CChainParams& chainparams)
 {
-    if (!pblocktree->LoadBlockIndexGuts(chainparams.GetConsensus(), InsertBlockIndex, true))
+    if (!pblocktree->LoadBlockIndexGuts(chainparams.GetConsensus(), InsertBlockIndex))
         return false;
 
     boost::this_thread::interruption_point();
@@ -6410,7 +6463,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
     try {
         CBlock &block = const_cast<CBlock&>(chainparams.GenesisBlock());
 
-        if (!prefviewdb->Exists(block.m_vRef[0]->GetAddress())) {
+        if (!prefviewcache->Exists(block.m_vRef[0]->GetAddress())) {
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.

@@ -8,11 +8,11 @@
 #include "hash.h"
 #include "amount.h"
 #include "pog/anv.h"
-#include <boost/multiprecision/cpp_dec_float.hpp> 
+#include <boost/multiprecision/cpp_dec_float.hpp>
 
 #include <map>
 
-namespace pog 
+namespace pog
 {
     using InvertedAnvs = referral::AddressANVs;
     using WalletToAnv = std::map<referral::Address, referral::AddressANV>;
@@ -47,6 +47,7 @@ namespace pog
             uint256 hash,
             const uint160& genesis_address,
             size_t n,
+            std::set<referral::Address> &unconfirmed_invites,
             int max_outstanding_invites);
 
     /**

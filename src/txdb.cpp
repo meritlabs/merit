@@ -438,8 +438,7 @@ bool CBlockTreeDB::ReadFlag(const std::string &name, bool &fValue) {
 
 bool CBlockTreeDB::LoadBlockIndexGuts(
         const Consensus::Params& consensusParams,
-        std::function<CBlockIndex*(const uint256&)> insertBlockIndex,
-        bool sample)
+        std::function<CBlockIndex*(const uint256&)> insertBlockIndex)
 {
     std::unique_ptr<CDBIterator> pcursor(NewIterator());
 
@@ -469,14 +468,12 @@ bool CBlockTreeDB::LoadBlockIndexGuts(
                 pindexNew->nTx            = diskindex.nTx;
                 pindexNew->sCycle       = diskindex.sCycle;
 
-                const bool verify = !sample || (rand() % VERIFY_SAMPLE_COUNT) == 0;
-                if (verify && 
-                        !cuckoo::VerifyProofOfWork(
-                            pindexNew->GetBlockHash(),
-                            pindexNew->nBits,
-                            pindexNew->nEdgeBits,
-                            pindexNew->sCycle,
-                            consensusParams)) {
+                if (!cuckoo::VerifyProofOfWork(
+                        pindexNew->GetBlockHash(),
+                        pindexNew->nBits,
+                        pindexNew->nEdgeBits,
+                        pindexNew->sCycle,
+                        consensusParams)) {
                     return error("%s: CheckProofOfWork failed: %s", __func__, pindexNew->ToString());
                 }
 

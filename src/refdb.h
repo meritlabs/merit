@@ -137,12 +137,14 @@ public:
     bool Exists(const std::string& alias, bool normalize_alias) const;
 
     bool IsConfirmed(const Address&) const;
-    bool UpdateConfirmation(char address_type, const Address&, CAmount amount);
+    bool IsConfirmed(const std::string& alias, bool normalize_alias) const;
+    bool UpdateConfirmation(char address_type, const Address&, CAmount amount, CAmount &updated_amount);
 
     bool ConfirmAllPreDaedalusAddresses();
     bool AreAllPreDaedalusAddressesConfirmed() const;
     uint64_t GetTotalConfirmations() const;
     MaybeConfirmedAddress GetConfirmation(uint64_t idx) const;
+    MaybeConfirmedAddress GetConfirmation(char address_type, const Address& address) const;
 
 
 private:
