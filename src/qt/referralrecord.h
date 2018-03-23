@@ -25,14 +25,14 @@ public:
     enum Status {
         Pending,    // referral which needs an inviteTx to confirm
         Confirmed,  // referral which has been confirmed
-        Declined,   // user refused to confirm this referral
+        Ignored,   // user refused to confirm this referral
     };
 
     ReferralRecord():
-        hash{}, date{0}, address{}, alias{},status{Pending} {}
+        hash{}, date{0}, address{}, alias{}, status{Pending} {}
 
     ReferralRecord(uint256 _hash, qint64 _date, std::string _address, std::string _alias = ""):
-        hash{_hash}, date{_date}, address{_address}, alias{_alias},status{Pending} {}
+        hash{_hash}, date{_date}, address{_address}, alias{_alias}, status{Pending} {}
 
     /** @name Immutable referral attributes
       @{*/
@@ -52,6 +52,10 @@ public:
     /** Update status from core wallet tx.
      */
     void UpdateStatus(const referral::ReferralRef&);
+
+    /** Set status to declined to filter record from view
+     */
+    void IgnoreRecord();
 
     /** Return whether a status update is needed.
      */
