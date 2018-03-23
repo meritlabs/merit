@@ -153,6 +153,47 @@ public:
         QAbstractItemDelegate{parent}, unit{MeritUnits::MRT},
         platformStyle{_platformStyle}, invite_balance{_invite_balance}, is_daedalus{_is_daedalus}
     {}
+    const int XPAD = 8;
+    const int YPAD = 10;
+    const int INVITE_BUTTON_WIDTH = 64;
+
+    inline QRect AddressRect(const QRect& mainRect, int height) const
+    {
+        return QRect(mainRect.left() + XPAD, mainRect.top()+YPAD, mainRect.width() - 2*XPAD, height);
+    }
+
+    inline QRect InviteRect(const QRect& mainRect, int height) const
+    {
+        QRect addressRect = AddressRect(mainRect, height);
+        return QRect(addressRect.right() - INVITE_BUTTON_WIDTH, mainRect.top()+YPAD, INVITE_BUTTON_WIDTH, height);
+    }
+
+    inline QRect IgnoreRect(const QRect& mainRect, int height) const
+    {
+        QRect addressRect = AddressRect(mainRect, height);
+        return QRect(addressRect.right() - 2*INVITE_BUTTON_WIDTH - XPAD, mainRect.top()+YPAD, INVITE_BUTTON_WIDTH, height);
+    }
+
+    inline void DrawButton(QPainter *painter, const QRect& rect, const QString& text, const QColor& color) const
+    {
+        auto button_rect = painter->boundingRect(rect, text);
+        button_rect.setLeft(button_rect.left() - 10);
+        button_rect.setRight(button_rect.right() + 10);
+        button_rect.setTop(button_rect.top() - 2);
+        button_rect.setBottom(button_rect.bottom() + 2);
+
+        QPen pen;
+        pen.setColor(color);
+        painter->setPen(pen);
+
+        QPainterPath path;
+        path.addRoundedRect(button_rect, 10, 10);
+        painter->fillPath(path, color);
+        painter->drawPath(path);
+
+        painter->setPen(Qt::white);
+        painter->drawText(button_rect, Qt::AlignCenter|Qt::AlignVCenter, text);
+    }
 
     inline void paint(QPainter *painter, const QStyleOptionViewItem &option,
                       const QModelIndex &index ) const
@@ -161,13 +202,11 @@ public:
         painter->setRenderHint(QPainter::Antialiasing);
 
         QRect mainRect = option.rect;
-        int xpad = 8;
-        int ypad = 10;
-        int halfheight = (mainRect.height() - 2*ypad)/2;
+        int halfheight = (mainRect.height() - 2*YPAD)/2;
 
-        QRect addressRect(mainRect.left() + xpad, mainRect.top()+ypad, mainRect.width() - 2*xpad, halfheight);
-        QRect timestampRect(mainRect.left() + xpad, mainRect.top()+ypad+halfheight, mainRect.width() - xpad, halfheight);
-        QLine line(mainRect.left() + xpad, mainRect.bottom(), mainRect.right() - xpad, mainRect.bottom());
+        QRect addressRect = AddressRect(mainRect, halfheight);
+        QRect timestampRect(mainRect.left() + XPAD, mainRect.top()+YPAD+halfheight, mainRect.width() - XPAD, halfheight);
+        QLine line(mainRect.left() + XPAD, mainRect.bottom(), mainRect.right() - XPAD, mainRect.bottom());
 
         QVariant value = index.data(Qt::ForegroundRole);
         QColor foreground = option.palette.color(QPalette::Text);
@@ -198,28 +237,12 @@ public:
         QString statusString = index.data(ReferralListModel::StatusRole).toString();
 
         if(statusString == "Pending" && is_daedalus) {
-            const int INVITE_BUTTON_WIDTH = 80;
-            QRect rect(addressRect.right() - INVITE_BUTTON_WIDTH - xpad, mainRect.top()+ypad, INVITE_BUTTON_WIDTH, halfheight);
-
-            auto button_rect = painter->boundingRect(rect, tr("Send Invite"));
-            button_rect.setLeft(button_rect.left() - 10);
-            button_rect.setRight(button_rect.right() + 10);
-            button_rect.setTop(button_rect.top() - 2);
-            button_rect.setBottom(button_rect.bottom() + 2);
+            QRect inviteRect = InviteRect(mainRect, halfheight);
+            QRect ignoreRect = IgnoreRect(mainRect, halfheight);
 
             QColor merit_blue = invite_balance > 0 ? QColor{0, 176, 220} : QColor{128, 128, 128};
-
-            QPen pen;
-            pen.setColor(merit_blue);
-            painter->setPen(pen);
-
-            QPainterPath path;
-            path.addRoundedRect(button_rect, 10, 10);
-            painter->fillPath(path, merit_blue);
-            painter->drawPath(path);
-
-            painter->setPen(Qt::white);
-            painter->drawText(button_rect, Qt::AlignCenter|Qt::AlignVCenter, tr("Send Invite"));
+            DrawButton(painter, inviteRect, tr("Accept"), merit_blue);
+            DrawButton(painter, ignoreRect, tr("Ignore"), Qt::gray);
         }
 
 
@@ -234,10 +257,39 @@ public:
         return QSize(DECORATION_SIZE, DECORATION_SIZE);
     }
 
+    inline bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option, const QModelIndex &index)
+    {
+        QString statusString = index.data(ReferralListModel::StatusRole).toString();
+        if(statusString != "Pending")
+            return true;
+
+        if (event->type() != QEvent::MouseButtonRelease) {
+            return true;
+        }
+
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        auto inviteBox = InviteRect(option.rect, (option.rect.height() - 2*YPAD)/2);
+        auto ignoreBox = IgnoreRect(option.rect, (option.rect.height() - 2*YPAD)/2);
+
+        if(inviteBox.contains(mouseEvent->pos())) {
+            Q_EMIT invite(index);
+            return true;
+        }
+        if(ignoreBox.contains(mouseEvent->pos())) {
+            Q_EMIT ignore(index);
+            return true;
+        }
+        return false;
+    }
+
     int unit;
     const PlatformStyle *platformStyle;
     const CAmount& invite_balance;
     const bool& is_daedalus;
+
+Q_SIGNALS:
+    void invite(QModelIndex);
+    void ignore(QModelIndex);
 
 };
 #include "overviewpage.moc"
@@ -283,7 +335,8 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     ui->listApprovedRequests->setAttribute(Qt::WA_MacShowFocusRect, false);
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
-    connect(ui->listPendingRequests, SIGNAL(clicked(QModelIndex)), this, SLOT(handleReferralClicked(QModelIndex)));
+    connect(referraldelegate, SIGNAL(invite(QModelIndex)), this, SLOT(handleInviteClicked(QModelIndex)));
+    connect(referraldelegate, SIGNAL(ignore(QModelIndex)), this, SLOT(handleIgnoreClicked(QModelIndex)));
 
     // start with displaying the "out of sync" warnings
     showOutOfSyncWarning(true);
@@ -301,7 +354,7 @@ void OverviewPage::handleTransactionClicked(const QModelIndex &index)
         Q_EMIT transactionClicked(txFilter->mapToSource(index));
 }
 
-void OverviewPage::handleReferralClicked(const QModelIndex &index)
+void OverviewPage::handleInviteClicked(const QModelIndex &index)
 {
     if(!walletModel) {
         return;
@@ -350,6 +403,58 @@ void OverviewPage::handleReferralClicked(const QModelIndex &index)
 
         QMessageBox::critical(this, title, text);
     }
+    UpdateNetworkView();
+    UpdateInviteRequestView();
+}
+
+void OverviewPage::handleIgnoreClicked(const QModelIndex &index)
+{
+    if(!walletModel) {
+        return;
+    }
+
+    QString statusString = index.data(ReferralListModel::StatusRole).toString();
+    if(statusString != "Pending") {
+        return;
+    }
+
+    QString addressString = index.data(ReferralListModel::AddressRole).toString();
+    QString aliasString = index.data(ReferralListModel::AliasRole).toString();
+
+    QString title = aliasString.isEmpty() ?
+        tr("Ignore Invite") + " " + addressString :
+        tr("Ignore Invite") + " " + aliasString;
+
+    QString text = aliasString.isEmpty() ?
+        tr("Do you want to ignore an invite request from") + " " + addressString + "?":
+        tr("Do you want to ignore an invite request from") + " @" + aliasString + " " + tr("with the address") + " " + addressString + "?";
+    
+    QMessageBox msgBox{QMessageBox::Question,
+                        title, text,
+                        QMessageBox::Yes | QMessageBox::No,
+                        this};
+    msgBox.setStyleSheet(QString("QMessageBox { background-color: white; }"));
+    auto ret = msgBox.exec();
+    if(ret != QMessageBox::Yes) {
+        return;
+    }
+
+    QString hashString = index.data(ReferralListModel::HashRole).toString();
+    auto success = walletModel->IgnoreInviteTo(hashString.toStdString());
+    if(!success) {
+        QString title = aliasString.isEmpty() ?
+            tr("Error Ignoring Invite") + " " + addressString :
+            tr("Error Ignoring Invite") + " " + aliasString;
+
+        QString text = aliasString.isEmpty() ?
+            tr("There was an error ignoring the invite request from") + " " + addressString:
+            tr("There was an error ignoring the invite request from") + " " + aliasString + " " + tr("with the address") + " " + addressString;
+
+        QMessageBox::critical(this, title, text);
+    }
+
+    UpdateNetworkView();
+    UpdateInviteRequestView();
 }
 
 void OverviewPage::handleOutOfSyncWarningClicks()
@@ -623,6 +728,7 @@ void OverviewPage::UpdateInviteRequestView()
         ui->listPendingRequests->setMinimumHeight(
                 std::min(5, pendingRequestsFilter->rowCount()) * (DECORATION_SIZE + 2));
         ui->listPendingRequests->show();
+        ui->listPendingRequests->adjustSize();
     } else { 
         ui->listPendingRequests->hide();
         ui->noPendingInvitesLabel->show();
