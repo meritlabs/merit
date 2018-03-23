@@ -60,7 +60,7 @@ using ReferralIndex = multi_index_container<
         hashed_non_unique<tag<by_hash>, const_mem_fun<Referral, const uint256&, &Referral::GetHash>, SaltedHasher<256>>>>;
 
 using AliasIndex = std::unordered_map<std::string, Address>;
-using ConfirmationsIndex = std::unordered_map<Address, uint32_t>;
+using ConfirmationsIndex = std::unordered_map<Address, int>;
 
 class ReferralsViewCache
 {
@@ -106,6 +106,9 @@ public:
 
     /** Check if an address is confirmed */
     bool IsConfirmed(const std::string& alias, bool normalize_alias) const;
+
+    // Get address confirmations
+    MaybeConfirmedAddress GetConfirmation(const Address& address) const;
 };
 
 } // namespace referral

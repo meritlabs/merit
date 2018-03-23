@@ -181,28 +181,20 @@ UniValue validateaddress(const JSONRPCRequest& request)
         ret.pushKV("addresstype", address.GetTypeStr());
 
         if (isBeaconed) {
-            const auto referral = prefviewcache->GetReferral(*(address.GetUint160()));
             std::string alias = "";
             auto in_mempool = false;
+            auto address160 = *(address.GetUint160());
 
             // check if we have referral with the given address
-            if (referral) {
+            if (const auto referral = prefviewcache->GetReferral(address160)) {
                 if (referral->alias.size() > 0) {
-                    // if referral has an alias check if was not occupied by somebody else
+                    // if referral has an alias, check if was not occupied by somebody else
                     // in case of this one was unconfirmed at some point.
-                    // in this case do not show alias
-                    const auto referral_by_alias = prefviewcache->GetReferral(referral->alias, false);
-                    assert(referral_by_alias);
-
-                    if (referral_by_alias->GetAddress() == referral->GetAddress()) {
-                        alias = referral_by_alias->alias;
-                    }
+                    alias = strprintf("%s%s", referral->alias, CheckAliasUnconfirmed(address160) ? " (stale)" : "");
                 }
             } else {
-                const auto mempool_referral = mempoolReferral.Get(*(address.GetUint160()));
-
                 // if referral is in mempool, show it's alias
-                if (mempool_referral) {
+                if (const auto mempool_referral = mempoolReferral.Get(address160)) {
                     alias = mempool_referral->alias;
                     in_mempool = true;
                 }

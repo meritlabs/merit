@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "pog/select.h"
+#include "base58.h"
 #include "clientversion.h"
 #include <algorithm>
 #include <iterator>
@@ -303,6 +304,7 @@ namespace pog
             uint256 hash,
             const uint160& genesis_address,
             size_t n,
+            std::set<referral::Address> &unconfirmed_invites,
             int max_outstanding_invites)
     {
         assert(n > 0);
@@ -324,13 +326,15 @@ namespace pog
                 return {};
             }
 
-            if(!IsValidAmbassadorDestination(sampled->address_type)) {
+            if (!IsValidAmbassadorDestination(sampled->address_type)) {
                 n++;
-            } else if(sampled->invites == 0) {
+            } else if (sampled->invites == 0) {
                 n++;
-            } else if(sampled->invites > max_outstanding_invites) {
+            } else if (sampled->invites > max_outstanding_invites) {
                 n++;
-            } else if(sampled->address == genesis_address) {
+            } else if (sampled->address == genesis_address) {
+                n++;
+            } else if (unconfirmed_invites.count(sampled->address)) {
                 n++;
             } else {
                 addresses.push_back(*sampled);

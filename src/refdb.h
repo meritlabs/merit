@@ -144,6 +144,7 @@ public:
     bool AreAllPreDaedalusAddressesConfirmed() const;
     uint64_t GetTotalConfirmations() const;
     MaybeConfirmedAddress GetConfirmation(uint64_t idx) const;
+    MaybeConfirmedAddress GetConfirmation(char address_type, const Address& address) const;
 
 
 private:

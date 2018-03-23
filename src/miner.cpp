@@ -275,12 +275,19 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
         assert(pcoinsTip);
 
+        DebitsAndCredits debits_and_credits;
         pog::InviteRewards invites;
+
+        for (const auto& invite: pblock->invites) {
+            GetDebitsAndCredits(debits_and_credits, *invite, *pcoinsTip);
+        }
+
         RewardInvites(
                 nHeight,
                 pindexPrev,
                 previousBlockHash,
                 *pcoinsTip,
+                debits_and_credits,
                 chain_params,
                 state,
                 invites);

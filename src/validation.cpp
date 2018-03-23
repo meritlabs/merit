@@ -1922,6 +1922,7 @@ bool RewardInvites(
         CBlockIndex* pindexPrev,
         const uint256& previous_block_hash,
         CCoinsViewCache& view,
+        const DebitsAndCredits &debits_and_credits,
         const Consensus::Params& params,
         CValidationState& state,
         pog::InviteRewards& rewards)
@@ -1947,11 +1948,38 @@ bool RewardInvites(
         return true;
     }
 
+    std::set<referral::Address> unconfirmed_invites;
+    std::map<referral::Address, CAmount> in_block_amounts;
+
+    for (const auto& dc: debits_and_credits) {
+        const auto& address = std::get<1>(dc);
+        auto amount = std::get<2>(dc);
+        const auto it = in_block_amounts.find(address);
+
+        if (it != in_block_amounts.end()) {
+            amount += it->second;
+        }
+
+        in_block_amounts[address] = amount;
+    }
+
+    for (const auto& amt: in_block_amounts) {
+        if (auto confirmation = prefviewcache->GetConfirmation(amt.first)) {
+            if (-amt.second == confirmation->invites) {
+                LogPrintf("\t\t%s: Referral with address \"%s\" is going to be unconfirmed. Skip it in invites lottery\n",
+                        __func__,
+                        CMeritAddress{confirmation->address_type, confirmation->address}.ToString());
+                unconfirmed_invites.insert(amt.first);
+            }
+        }
+    }
+
     const auto winners = pog::SelectConfirmedAddresses(
             *prefviewdb,
             previous_block_hash,
             params.genesis_address,
             total_winners,
+            unconfirmed_invites,
             params.daedalus_max_outstanding_invites_per_address);
 
     assert(winners.size() <= static_cast<size_t>(total_winners));
@@ -2582,9 +2610,7 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
 using TxnPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 using RefPositions = std::vector<std::pair<uint256, CDiskTxPos> >;
 
-using DebitsAndCredits = std::vector<std::tuple<char, referral::Address, CAmount>>;
-
-bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransaction& tx, CCoinsViewCache& view, bool undo = false)
+bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransaction& tx, CCoinsViewCache& view, bool undo)
 {
     int64_t debitDir = !undo ? -1 : 1;
     int64_t creditDir = !undo ? 1 : -1;
@@ -3911,6 +3937,7 @@ static bool ConnectBlock(
                         pindex->pprev,
                         hashPrevBlock,
                         view,
+                        invite_debits_and_credits,
                         chainparams.GetConsensus(),
                         state,
                         invite_rewards)) {
@@ -5213,6 +5240,7 @@ bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempoo
     }
 
     // check mempool for confirmation invite transaction
+    // TODO: add more precise check here as address can be unconfirmed in a block
     std::vector<AddressPair> addresses{std::make_pair(addr, addr_type)};
     std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
 
@@ -5226,6 +5254,31 @@ bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool)
 {
     const auto maybe_hash = addr.GetUint160();
     return maybe_hash ? CheckAddressConfirmed(*maybe_hash, addr.GetType(), checkMempool) : false;
+}
+
+bool CheckAliasUnconfirmed(const referral::Address& address)
+{
+    const auto referral = prefviewcache->GetReferral(address);
+
+    if (!referral) {
+        return false;
+    }
+
+    const auto referral_by_alias = prefviewcache->GetReferral(referral->alias, true);
+
+    // if we got no referral by alias means referral was unconfirmed
+    // but alias is not occupied yet
+    if (!referral_by_alias) {
+        return false;
+    }
+
+    // check alias is confirmed but points to other address
+    auto confirmed = prefviewcache->IsConfirmed(referral->alias, true);
+    auto leapfrogged = referral_by_alias->GetAddress() != referral->GetAddress();
+
+    // assume alias for the given address was unconfirmed if
+    // it is confirmed but points to other address
+    return confirmed && leapfrogged;
 }
 
 CTxDestination LookupDestination(const std::string& address)

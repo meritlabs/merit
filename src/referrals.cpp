@@ -204,4 +204,22 @@ bool ReferralsViewCache::IsConfirmed(const std::string& alias, bool normalize_al
     return m_db->IsConfirmed(normalized_alias, false);
 }
 
+MaybeConfirmedAddress ReferralsViewCache::GetConfirmation(const Address& address) const
+{
+    const auto ref = GetReferral(address);
+
+    if (!ref) {
+        return MaybeConfirmedAddress{};
+    }
+
+    auto it = confirmations_index.find(address);
+
+    if (it != confirmations_index.end()) {
+        return MaybeConfirmedAddress{{ref->addressType, address, it->second}};
+    }
+
+    return m_db->GetConfirmation(ref->addressType, address);
+}
+
+
 }
