@@ -278,8 +278,10 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         DebitsAndCredits debits_and_credits;
         pog::InviteRewards invites;
 
-        for (const auto& invite: pblock->invites) {
-            GetDebitsAndCredits(debits_and_credits, *invite, *pcoinsTip);
+        auto it = pblock->invites.begin();
+        // skip coinbase invite
+        while (++it != pblock->invites.end()) {
+            GetDebitsAndCredits(debits_and_credits, **it, *pcoinsTip);
         }
 
         RewardInvites(
