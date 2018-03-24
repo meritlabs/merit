@@ -26,6 +26,7 @@ public:
     ~FastStart();
 
     static bool DoDownloadSnapshot();
+    bool Failed() const { return failed;}
 
 public Q_SLOTS:
     void nextSlide();
@@ -38,6 +39,7 @@ public Q_SLOTS:
     void SnapshotReadyRead();
     void SnapshotChoiceClicked();
     void PeersChoiceClicked();
+    void TryAgain();
 
 private:
     void Start();
@@ -48,6 +50,7 @@ private:
     void ExtractSnapshot();
 
 private:
+    bool failed;
     Ui::FastStart *ui;
     QString data_dir;
     SnapshotInfo snapshot;
