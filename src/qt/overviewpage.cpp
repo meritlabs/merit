@@ -19,9 +19,10 @@
 #include "walletmodel.h"
 
 #include <QAbstractItemDelegate>
-#include <QPropertyAnimation>
 #include <QGraphicsDropShadowEffect>
+#include <QMouseEvent>
 #include <QPainter>
+#include <QPropertyAnimation>
 #include <QTimer>
 
 namespace
