@@ -5,7 +5,7 @@ $(package)_file_name=$(package)-$($(package)_version).tar.gz
 $(package)_sha256_hash=ed2dbd6954792b2c054ccf8ec4b330a54b85904a80cef477a1c74643ddafa0ce
 
 define $(package)_config_cmds
-	camke -DCMAKE_INSTALL_PREFIX=$(build_prefix)
+	cmake -DCMAKE_INSTALL_PREFIX=$(build_prefix)
 endef
 
 define $(package)_build_cmds
