@@ -1212,6 +1212,29 @@ bool CWallet::LoadToWallet(const referral::ReferralTx& rtxIn)
     return true;
 }
 
+bool CWallet::IgnoreReferral(const uint256& hashIn)
+{
+    LOCK(cs_wallet);
+    ignoredReferrals.insert(hashIn);
+    CWalletDB walletdb(*dbw);
+    return walletdb.WriteIgnoredReferrals(ignoredReferrals);
+}
+
+bool CWallet::ReferralIsIgnored(const uint256& hashIn)
+{
+    LOCK(cs_wallet);
+    return ignoredReferrals.count(hashIn) > 0;
+}
+
+bool CWallet::SetIgnoredReferrals(const std::set<uint256>& ignored)
+{
+    LOCK(cs_wallet);
+    for(auto ref : ignored) {
+        ignoredReferrals.insert(ref);
+    }
+    return true;
+}
+
 /**
  * Add a transaction to the wallet, or update it.  pIndex and posInBlock should
  * be set when the transaction was known to be included in a block.  When
