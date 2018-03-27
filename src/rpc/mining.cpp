@@ -351,9 +351,9 @@ std::string gbt_vb_name(const Consensus::DeploymentPos pos) {
 
 UniValue getblocktemplate(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() > 2)
+    if (request.fHelp || request.params.size() > 1)
         throw std::runtime_error(
-            "getblocktemplate ( TemplateRequest ) pubkey\n"
+            "getblocktemplate ( TemplateRequest )\n"
             "\nIf the request parameters include a 'mode' key, that is used to explicitly select between the default 'template' request or a 'proposal'.\n"
             "It returns data needed to construct a block to work on.\n"
             "Wallet is required to generate valid coinbase that can take part in lottery.\n"
@@ -377,7 +377,6 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             "           ,...\n"
             "       ]\n"
             "     }\n"
-            "2. pubkey         (string, optional) Hex encoded pubkey for coinbase payout\n"
             "\n"
 
             "\nResult:\n"
@@ -528,7 +527,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
         // Release the wallet and main lock while waiting
         LEAVE_CRITICAL_SECTION(cs_main);
         {
-            checktxtime = boost::get_system_time() + boost::posix_time::minutes(1);
+            checktxtime = boost::get_system_time() + boost::posix_time::seconds(Params().MininBlockStaleTime());
 
             boost::unique_lock<boost::mutex> lock(csBestBlock);
             while (chainActive.Tip()->GetBlockHash() == hashWatchedChain && IsRPCRunning()) {
@@ -536,7 +535,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
                     // Timeout: Check transactions for update
                     if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLastLP)
                         break;
-                    checktxtime += boost::posix_time::seconds(10);
+                    checktxtime += boost::posix_time::seconds(5);
                 }
             }
         }
@@ -551,15 +550,8 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     static CBlockIndex* pindexPrev;
     static int64_t nStart;
     static std::unique_ptr<CBlockTemplate> pblocktemplate;
+    const Consensus::Params& consensusParams = Params().GetConsensus();
 
-    CScript coinbase_script;
-
-    // TODO: use coinbase address as coinbase payout address
-    // and make clients to update coinbase tx
-    if (request.params.size() == 2 && !request.params[1].isNull()) {
-        auto pubkey = CPubKey{ParseHex(request.params[1].get_str())};
-        coinbase_script = CScript() << ToByteVector(pubkey) << OP_CHECKSIG;
-    }
 
     if (pindexPrev != chainActive.Tip() || (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 5)) {
         // Clear pindexPrev so future calls make a new block, despite any failures from here on
@@ -570,26 +562,12 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
         nStart = GetTime();
         CBlockIndex* pindexPrevNew = chainActive.Tip();
 
+        // create dummy script that sends rewards to the genesis block.
+        // it MUST be updated on the miners side!
+        auto coinbase_script = CScript() << OP_HASH160 << ToByteVector(consensusParams.genesis_address) << OP_EQUAL;
+
         // Create new block
-
-#ifdef ENABLE_WALLET
-        const auto pwallet = GetWalletForJSONRPCRequest(request);
-        // check that wallet is alredy referred or has unlock transaction
-        if (coinbase_script.empty()) {
-            if (!pwallet->IsReferred() && pwallet->mapWalletRTx.empty()) {
-                throw JSONRPCError(RPC_OUT_OF_MEMORY, "Wallet is not unlocked");
-            }
-
-            std::shared_ptr<CReserveScript> wallet_script;
-            pwallet->GetScriptForMining(wallet_script);
-            pblocktemplate = BlockAssembler(Params()).CreateNewBlock(wallet_script->reserveScript);
-            std::dynamic_pointer_cast<CReserveKey>(wallet_script)->ReturnKey();
-        }
-#endif
-
-        if (!coinbase_script.empty()) {
-            pblocktemplate = BlockAssembler(Params()).CreateNewBlock(coinbase_script);
-        }
+        pblocktemplate = BlockAssembler(Params()).CreateNewBlock(coinbase_script);
 
         if (!pblocktemplate)
             throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
@@ -597,7 +575,6 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
         pindexPrev = pindexPrevNew;
     }
     CBlock* pblock = &pblocktemplate->block; // pointer for convenience
-    const Consensus::Params& consensusParams = Params().GetConsensus();
 
     // Update nTime
     UpdateTime(pblock, consensusParams, pindexPrev);
@@ -773,12 +750,9 @@ UniValue submitblock(const JSONRPCRequest& request)
 
     std::shared_ptr<CBlock> blockptr = std::make_shared<CBlock>();
     CBlock& block = *blockptr;
+
     if (!DecodeHexBlk(block, request.params[0].get_str())) {
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Block decode failed");
-    }
-
-    if (block.vtx.empty() || !block.vtx[0]->IsCoinBase()) {
-        throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Block does not start with a coinbase");
     }
 
     if (block.vtx.empty() || !block.vtx[0]->IsCoinBase()) {
@@ -1078,7 +1052,7 @@ static const CRPCCommand commands[] =
     { "mining",             "getnetworkhashps",       &getnetworkhashps,       {"nblocks","height"} },
     { "mining",             "getmininginfo",          &getmininginfo,          {} },
     { "mining",             "prioritisetransaction",  &prioritisetransaction,  {"txid","dummy","fee_delta"} },
-    { "mining",             "getblocktemplate",       &getblocktemplate,       {"template_request", "pubkey"} },
+    { "mining",             "getblocktemplate",       &getblocktemplate,       {"template_request"} },
     { "mining",             "submitblock",            &submitblock,            {"hexdata","dummy"} },
     { "mining",             "setmining",              &setmining,              {"mine","mineproclimit"} },
     { "mining",             "getmining",              &getmining,              {} },
