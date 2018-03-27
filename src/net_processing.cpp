@@ -732,7 +732,7 @@ void EraseOrphansFor(NodeId peer)
     {
         auto it = mapOrphanReferrals.begin();
         while(it != mapOrphanReferrals.end()) {
-            auto maybe_erase = it++; 
+            auto maybe_erase = it++;
             if (maybe_erase->second.fromPeer == peer) {
                 nErased += EraseOrphanReferral(maybe_erase->second.ref->GetHash());
             }
@@ -1315,7 +1315,7 @@ inline void static SendBlockTransactions(const CBlock& block, const BlockTransac
         if (req.m_transaction_indices[i] >= block.vtx.size()) {
             LOCK(cs_main);
             Misbehaving(pfrom->GetId(), 100);
-            LogPrintf("Peer %d sent us a getblocktxn with out-of-bounds tx indices", pfrom->GetId());
+            LogPrintf("Peer %d sent us a getblocktxn with out-of-bounds tx indices\n", pfrom->GetId());
             return;
         }
         resp.txn[i] = block.vtx[req.m_transaction_indices[i]];
@@ -3269,8 +3269,8 @@ bool SendMessages(CNode* pto, CConnman& connman, const std::atomic<bool>& interr
         // and not importing or reindexing.
         if((connman.GetLocalServices() & NODE_BLOOM)
                 && !state.asked_mempool
-                && !fReindex 
-                && !fImporting 
+                && !fReindex
+                && !fImporting
                 && !IsInitialBlockDownload()) {
             state.asked_mempool = true;
             LogPrintf("Asking node %d for mempool\n", pto->GetId());

@@ -275,12 +275,21 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
         assert(pcoinsTip);
 
+        DebitsAndCredits debits_and_credits;
         pog::InviteRewards invites;
+
+        auto it = pblock->invites.begin();
+        // skip coinbase invite
+        while (++it != pblock->invites.end()) {
+            GetDebitsAndCredits(debits_and_credits, **it, *pcoinsTip);
+        }
+
         RewardInvites(
                 nHeight,
                 pindexPrev,
                 previousBlockHash,
                 *pcoinsTip,
+                debits_and_credits,
                 chain_params,
                 state,
                 invites);

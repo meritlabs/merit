@@ -250,6 +250,8 @@ static const uint64_t MIN_DISK_SPACE_FOR_BLOCK_FILES = 550 * 1024 * 1024;
 using ConfirmationSet = std::set<uint160>;
 using AddressPair = std::pair<uint160, char>;
 
+using DebitsAndCredits = std::vector<std::tuple<char, referral::Address, CAmount>>;
+
 /**
  * Process an incoming block. This only returns after the best known valid
  * block is made active. Note that it does not, however, guarantee that the
@@ -362,6 +364,7 @@ bool RewardInvites(
         CBlockIndex* pindexPrev,
         const uint256& previous_block_hash,
         CCoinsViewCache& view,
+        const DebitsAndCredits& debits_and_credits,
         const Consensus::Params& params,
         CValidationState& state,
         pog::InviteRewards& rewards);
@@ -375,6 +378,15 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
  * Include invites into the coinbase invite transaction.
  */
 void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& tx);
+
+/**
+ * Extract spent and received amount in the transaction
+ */
+bool GetDebitsAndCredits(
+        DebitsAndCredits& debits_and_credits,
+        const CTransaction& tx,
+        CCoinsViewCache& view,
+        bool undo = false);
 
 /** Guess verification progress (as a fraction between 0.0=genesis and 1.0=current tip). */
 double GuessVerificationProgress(const ChainTxData& data, CBlockIndex* pindex);
@@ -580,6 +592,8 @@ bool CheckAddressConfirmed(const uint160&, char addr_type, bool checkMempool = t
 /** Check that an address is valid and ready to use */
 bool CheckAddressConfirmed(const CMeritAddress& addr, bool checkMempool = true);
 
+/** Check that an alias was unconfirmed for a given address */
+bool CheckAliasUnconfirmed(const referral::Address& address);
 /**
  * Try to decide if the address is an alias or an address.
  * If it is an alias, lookup the address.
