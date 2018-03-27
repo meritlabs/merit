@@ -47,6 +47,10 @@ void ReferralListPriv::Refresh()
             if(DisplayReferral(addresses, wallet, ref)) {
                 auto rec = DecomposeReferral(entry);
                 rec.UpdateStatus(ref);
+
+                if(wallet->ReferralIsIgnored(ref->GetHash()))
+                    rec.IgnoreRecord();
+
                 cachedWallet.append(rec);
                 addresses.insert(ref->GetAddress());
             }
@@ -57,6 +61,10 @@ void ReferralListPriv::Refresh()
             if(DisplayReferral(addresses, wallet, ref)) {
                 auto rec = DecomposeReferral(entry.second);
                 rec.UpdateStatus(ref);
+
+                if(wallet->ReferralIsIgnored(ref->GetHash()))
+                    rec.IgnoreRecord();
+
                 cachedWallet.append(rec);
                 addresses.insert(ref->GetAddress());
             }
@@ -140,6 +148,8 @@ QVariant ReferralListModel::data(const QModelIndex &index, int role) const
             return record->StatusString();
         case DateRole:
             return QDateTime::fromTime_t(static_cast<uint>(record->date));
+        case HashRole:
+            return QString::fromStdString(record->hash.ToString());
         }
     }
     return QVariant();

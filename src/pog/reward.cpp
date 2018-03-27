@@ -67,7 +67,7 @@ namespace pog
             const InviteLotteryParams& lottery,
             const Consensus::Params& params)
     {
-        LogPrint(BCLog::VALIDATION, "Invites used: %d created: %d period: %d used per block: %d",
+        LogPrint(BCLog::VALIDATION, "Invites used: %d created: %d period: %d used per block: %d\n",
                 lottery.invites_used,
                 lottery.invites_created,
                 params.daedalus_block_window,
@@ -91,14 +91,14 @@ namespace pog
 
         /**
          * If no invites are generated that means that the amount used fell
-         * under 1 per block during that period. Therefore replace at least 
+         * under 1 per block during that period. Therefore replace at least
          * the invites used during the period in this block plus at least 1
          * ever ten minutes of that period under the assumption that some invites
          * will leak to users who forget about them or abandon merit. To prevent
          * starvation we need to be able to always generate some merit over the period.
          */
         if(lottery.invites_created == 0) {
-            return lottery.invites_used + 
+            return lottery.invites_used +
                 (params.daedalus_block_window / params.daedalus_min_one_invite_for_every_x_blocks);
         }
 

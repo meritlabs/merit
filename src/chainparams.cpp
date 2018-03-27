@@ -182,7 +182,7 @@ public:
         pchMessageStart[3] = 0xd9;
         nDefaultPort = 8445;
         nPruneAfterHeight = 100000;
-        nMiningBlockStaleTime = 60;
+        nMiningBlockStaleTime = 35;
 
         base58Prefixes[PUBKEY_ADDRESS] = AddressPrefix(1, 50);
         base58Prefixes[SCRIPT_ADDRESS] = AddressPrefix(1, 63);
@@ -316,7 +316,7 @@ public:
         pchMessageStart[3] = 0x07;
         nDefaultPort = 18445;
         nPruneAfterHeight = 1000;
-        nMiningBlockStaleTime = 60;
+        nMiningBlockStaleTime = 35;
 
         base58Prefixes[PUBKEY_ADDRESS] = AddressPrefix(1, 110);
         base58Prefixes[SCRIPT_ADDRESS] = AddressPrefix(1, 125);
@@ -437,7 +437,7 @@ public:
         pchMessageStart[3] = 0xda;
         nDefaultPort = 18556;
         nPruneAfterHeight = 1000;
-        nMiningBlockStaleTime = 60;
+        nMiningBlockStaleTime = 35;
 
         base58Prefixes[PUBKEY_ADDRESS] = AddressPrefix(1, 110);
         base58Prefixes[SCRIPT_ADDRESS] = AddressPrefix(1, 125);

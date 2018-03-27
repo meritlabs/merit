@@ -24,6 +24,10 @@ void ReferralRecord::UpdateStatus(const referral::ReferralRef& ref)
     }
 }
 
+void ReferralRecord::IgnoreRecord() {
+    status = Status::Ignored;
+}
+
 // temporary
 QString ReferralRecord::DisplayString() const
 {
@@ -41,8 +45,8 @@ QString ReferralRecord::StatusString() const
         return QString::fromStdString("Pending");
     case Status::Confirmed:
         return QString::fromStdString("Confirmed");
-    case Status::Declined:
-        return QString::fromStdString("Declined");
+    case Status::Ignored:
+        return QString::fromStdString("Ignored");
     }
     return "";
 }
