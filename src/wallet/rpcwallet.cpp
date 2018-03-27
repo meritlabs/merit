@@ -4223,9 +4223,16 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
 
     UniValue obj(UniValue::VOBJ);
 
+    auto referral = pwallet->GetRootReferral();
+    std::string alias = "";
+
+    if (referral) {
+        alias = strprintf("%s%s", pwallet->GetAlias(), CheckAliasUnconfirmed(referral->GetAddress()) ? " (stale)" : "");
+    }
+
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
-    obj.push_back(Pair("alias", pwallet->GetAlias()));
+    obj.push_back(Pair("alias", alias));
     obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
     obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
     obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
@@ -4246,7 +4253,6 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
         obj.push_back(Pair("referred", false));
     } else {
         obj.push_back(Pair("referred", true));
-        auto referral = pwallet->GetRootReferral();
         assert(!referral->GetHash().IsNull());
 
         auto address = referral->GetAddress();
