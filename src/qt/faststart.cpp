@@ -16,12 +16,19 @@ namespace
 {
     const int SLIDE_TRANSITION_SECONDS = 15;
     const int ERROR_WAIT = 10 * 1000; //Wait 5 seconds to quit if there was an error
+
     const char* ERROR_DOWNLOADING_SNAPSHOT = "There was an error downloading the snapshot";
+    const char* ERROR_EXTRACTING_SNAPSHOT = "There was an error extracting the snapshot";
     const char* ERROR_GETTING_INFO = "There was an error figuring out which snapshot to download.";
+    const char* ERROR_VALIDATING_SNAPSHOT = "There was an error validating the snapshot";
+    const char* EXTRACTING_SNAPSHOT = "Extracting the Snapshot...";
     const char* FIGURING_OUT = "Figuring out the latest snapshot";
     const char* UNABLE_TO_OPEN_SNAPSHOT = "Unable to open the snapshot file";
-    const char* EXTRACTING_SNAPSHOT = "Extracting the Snapshot...";
-    const char* ERROR_EXTRACTING_SNAPSHOT = "There was an error extracting the snapshot";
+    const char* VALIDATING_SNAPSHOT = "Validating the Snapshot...";
+}
+
+QString SnapshotZip(QString data_dir) {
+    return data_dir + "/snapshot.zip";
 }
 
 QString StatusText(QString status)
@@ -38,6 +45,20 @@ QString ErrorText(QString status)
         QString{"<html><head/><body><p align=\"center\"><span style=\" color:red;\">"} +
         status +
         QString{"</span></p></body></html>"};
+}
+
+QString SnapshotChecksum(const QString &file)
+{
+    QFile f{file};
+    if (!f.open(QFile::ReadOnly)) {
+        return {};
+    }
+
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    if (!hash.addData(&f)) {
+        return {};
+    }
+    return hash.result().toHex();
 }
 
 int CopyData(struct archive *ar, struct archive *aw)
@@ -230,6 +251,7 @@ void FastStart::Start()
     switch(snapshot.state) {
         case SnapshotInfo::CHOICE: ShowChoice(); break;
         case SnapshotInfo::DOWNLOAD: DownloadSnapshotUrl(); break;
+        case SnapshotInfo::VALIDATE: ValidateSnapshot(); break;
         case SnapshotInfo::EXTRACT: ExtractSnapshot(); break;
         default: accept();
     }
@@ -289,7 +311,8 @@ void FastStart::DownloadSnapshot()
     QUrl url = snapshot.url;
     ui->statusLabel->setText(StatusText(tr("Downloading:") + " " + url.toString()));
 
-    QString file_name = data_dir + "/snapshot.zip";
+    auto file_name = SnapshotZip(data_dir);
+
     snapshot_output.setFileName(file_name);
     if(!snapshot_output.open(QIODevice::ReadWrite)) {
         ui->statusLabel->setText(ErrorText(tr(UNABLE_TO_OPEN_SNAPSHOT)));
@@ -322,7 +345,7 @@ void FastStart::DownloadSnapshot()
         connect(snapshot_download, SIGNAL(readyRead()),
                 SLOT(SnapshotReadyRead()));
     } else {
-        ExtractSnapshot();
+        ValidateSnapshot();
     }
 }
 
@@ -378,16 +401,32 @@ void FastStart::SnapshotFinished()
         ui->statusLabel->setText(ErrorText(tr(ERROR_DOWNLOADING_SNAPSHOT)));
         QTimer::singleShot(ERROR_WAIT, this, SLOT(TryAgain()));
     } else {
-        ExtractSnapshot();
+        ValidateSnapshot();
     }
 
     snapshot_download->deleteLater();
 }
 
+void FastStart::ValidateSnapshot()
+{
+    settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::VALIDATE));
+    ui->progressBar->setMaximum(0);
+    ui->statusLabel->setText(StatusText(tr(VALIDATING_SNAPSHOT)));
+
+    const auto checksum = SnapshotChecksum(SnapshotZip(data_dir));
+    if(checksum.toLower() != snapshot.sha.toLower()) {
+        ui->statusLabel->setText(ErrorText(tr(ERROR_VALIDATING_SNAPSHOT)));
+        snapshot_output.remove();
+        QTimer::singleShot(ERROR_WAIT, this, SLOT(TryAgain()));
+        return;
+    }
+
+    ExtractSnapshot();
+}
+
 void FastStart::ExtractSnapshot()
 {
     settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::EXTRACT));
-
     ui->progressBar->setMaximum(0);
     ui->statusLabel->setText(StatusText(tr(EXTRACTING_SNAPSHOT)));
     QString dest = data_dir + "/";
