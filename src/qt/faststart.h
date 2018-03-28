@@ -11,8 +11,9 @@ class FastStart;
 
 struct SnapshotInfo
 {
-    enum State {CHOICE=0, GETINFO, DOWNLOAD, EXTRACT, DONE} state = CHOICE;
+    enum State {CHOICE=0, DOWNLOAD, EXTRACT, DONE} state = CHOICE;
     QString url;
+    QString sha;
     quint64 pos = 0;
     quint64 size = 0;
 };

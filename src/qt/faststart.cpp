@@ -16,7 +16,12 @@ namespace
 {
     const int SLIDE_TRANSITION_SECONDS = 15;
     const int ERROR_WAIT = 10 * 1000; //Wait 5 seconds to quit if there was an error
-    const std::string DEFAULT_URL_URL = "https://mempko.com/merit/current";
+    const char* ERROR_DOWNLOADING_SNAPSHOT = "There was an error downloading the snapshot";
+    const char* ERROR_GETTING_INFO = "There was an error figuring out which snapshot to download.";
+    const char* FIGURING_OUT = "Figuring out the latest snapshot";
+    const char* UNABLE_TO_OPEN_SNAPSHOT = "Unable to open the snapshot file";
+    const char* EXTRACTING_SNAPSHOT = "Extracting the Snapshot...";
+    const char* ERROR_EXTRACTING_SNAPSHOT = "There was an error extracting the snapshot";
 }
 
 QString StatusText(QString status)
@@ -198,7 +203,7 @@ void FastStart::ShowChoice()
 
 void FastStart::SnapshotChoiceClicked()
 {
-    settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::GETINFO));
+    settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::DOWNLOAD));
     ShowDownload();
     DownloadSnapshotUrl();
 }
@@ -215,6 +220,7 @@ void FastStart::Start()
     snapshot.state = static_cast<SnapshotInfo::State>(settings.value(
             "snapshotstate", static_cast<int>(SnapshotInfo::CHOICE)).toInt());
     snapshot.url = settings.value("snapshoturl", "").toString();
+    snapshot.sha = settings.value("snapshotsha", "").toString();
     snapshot.size = settings.value("snapshotsize", qulonglong{0}).toULongLong();
 
     if(snapshot.state != SnapshotInfo::CHOICE) {
@@ -223,8 +229,7 @@ void FastStart::Start()
 
     switch(snapshot.state) {
         case SnapshotInfo::CHOICE: ShowChoice(); break;
-        case SnapshotInfo::GETINFO: DownloadSnapshotUrl(); break;
-        case SnapshotInfo::DOWNLOAD: DownloadSnapshot(); break;
+        case SnapshotInfo::DOWNLOAD: DownloadSnapshotUrl(); break;
         case SnapshotInfo::EXTRACT: ExtractSnapshot(); break;
         default: accept();
     }
@@ -232,9 +237,8 @@ void FastStart::Start()
 
 void FastStart::DownloadSnapshotUrl() 
 {
-    settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::GETINFO));
-    ui->statusLabel->setText(
-            StatusText(tr("Figuring out the latest snapshot")));
+    settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::DOWNLOAD));
+    ui->statusLabel->setText(StatusText(tr(FIGURING_OUT)));
 
     auto snapshot_url = Params().SnapshotUrl();
     auto url_url = QString::fromStdString(gArgs.GetArg("-snapshoturl", snapshot_url));
@@ -253,18 +257,26 @@ void FastStart::DownloadSnapshotUrl()
 void FastStart::SnapshotUrlDownloaded(QNetworkReply* reply) 
 {
     if(reply->error()) {
-        ui->statusLabel->setText(
-                ErrorText(tr("There was an error figuring out which snapshot to download."))); 
+        ui->statusLabel->setText(ErrorText(tr(ERROR_GETTING_INFO))); 
         QTimer::singleShot(ERROR_WAIT, this, SLOT(TryAgain()));
     } else {
-        auto url = QString::fromStdString(reply->readAll().toStdString()).trimmed();
-        if(url.isEmpty()) {
-            ui->statusLabel->setText(
-                    ErrorText(tr("There was an error figuring out which snapshot to download."))); 
+        auto url_and_sha = QString::fromStdString(reply->readAll().toStdString()).trimmed().split(' ');
+        if(url_and_sha.size() != 2) {
+            ui->statusLabel->setText(ErrorText(tr(ERROR_GETTING_INFO))); 
             QTimer::singleShot(ERROR_WAIT, this, SLOT(TryAgain()));
         } else {
-            snapshot.url = url;
-            DownloadSnapshot();
+            auto url = url_and_sha.value(0).trimmed();
+            auto sha = url_and_sha.value(1).trimmed();
+            if(url.isEmpty() || sha.isEmpty()) {
+                ui->statusLabel->setText(ErrorText(tr(ERROR_GETTING_INFO))); 
+                QTimer::singleShot(ERROR_WAIT, this, SLOT(TryAgain()));
+            } else {
+                snapshot.url = url;
+                snapshot.sha = sha;
+                settings.setValue("snapshoturl", snapshot.url);
+                settings.setValue("snapshotsha", snapshot.sha);
+                DownloadSnapshot();
+            }
         }
     }
     reply->deleteLater();
@@ -280,7 +292,7 @@ void FastStart::DownloadSnapshot()
     QString file_name = data_dir + "/snapshot.zip";
     snapshot_output.setFileName(file_name);
     if(!snapshot_output.open(QIODevice::ReadWrite)) {
-        ui->statusLabel->setText(StatusText(tr("Unable to open the snapshot file")));
+        ui->statusLabel->setText(ErrorText(tr(UNABLE_TO_OPEN_SNAPSHOT)));
         QTimer::singleShot(ERROR_WAIT, this, SLOT(TryAgain()));
         return;
     }
@@ -342,7 +354,6 @@ void FastStart::SnapshotProgress(qint64 received, qint64 size)
     ui->progressBar->setMaximum(size);
     ui->progressBar->setValue(received);
 
-    settings.setValue("snapshoturl", snapshot.url);
     settings.setValue("snapshotsize", snapshot.size);
 
     const double elapsed = download_time.elapsed();
@@ -364,7 +375,7 @@ void FastStart::SnapshotFinished()
     snapshot_output.close();
 
     if(snapshot_download->error()) {
-        ui->statusLabel->setText(ErrorText(tr("There was an error downloading the snapshot")));
+        ui->statusLabel->setText(ErrorText(tr(ERROR_DOWNLOADING_SNAPSHOT)));
         QTimer::singleShot(ERROR_WAIT, this, SLOT(TryAgain()));
     } else {
         ExtractSnapshot();
@@ -378,12 +389,12 @@ void FastStart::ExtractSnapshot()
     settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::EXTRACT));
 
     ui->progressBar->setMaximum(0);
-    ui->statusLabel->setText(StatusText(tr("Extracting the Snapshot...")));
+    ui->statusLabel->setText(StatusText(tr(EXTRACTING_SNAPSHOT)));
     QString dest = data_dir + "/";
     QString snapshot_path = dest + "snapshot.zip";
     if(!ExtractArchive(ui->statusLabel, snapshot_path.toStdString(), dest.toStdString())) {
-        ui->statusLabel->setText(ErrorText(tr("There was an error extracting the snapshot")));
-        settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::GETINFO));
+        ui->statusLabel->setText(ErrorText(tr(ERROR_EXTRACTING_SNAPSHOT)));
+        settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::DOWNLOAD));
         snapshot_output.remove();
         QTimer::singleShot(ERROR_WAIT, this, SLOT(TryAgain()));
         return;
