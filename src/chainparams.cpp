@@ -128,7 +128,7 @@ public:
     CMainParams()
     {
         strNetworkID = "main";
-        snapshot_url = "https://merit-snapshot.firebaseapp.com/mainnet/current";
+        snapshot_url = "https://snapshot.merit.me/mainnet/current";
         consensus.nBlocksToMaturity = 100;
         consensus.initial_block_reward = 20_merit;
         consensus.nSubsidyHalvingInterval = 2102400;

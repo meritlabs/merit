@@ -100,7 +100,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:14pt; font-weight:600; color:#384c62;&quot;&gt;How do you want to download the Blockchain?&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:14pt; font-weight:600; color:#384c62;&quot;&gt;How you want to download&lt;br/&gt;the Merit Blockchain?&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
      <property name="margin">
       <number>0</number>
@@ -110,45 +110,45 @@
      <property name="geometry">
       <rect>
        <x>70</x>
-       <y>200</y>
+       <y>80</y>
        <width>181</width>
        <height>191</height>
       </rect>
      </property>
      <property name="styleSheet">
-      <string notr="true">font: 14pt &quot;Sans Serif&quot;; color: rgb(32, 103, 209);</string>
+      <string notr="true">font: 11pt &quot;Sans Serif&quot;; color: rgb(32, 103, 209);</string>
      </property>
      <property name="text">
-      <string>Snapshot+Peers</string>
+      <string>Snapshot+Community</string>
      </property>
     </widget>
     <widget class="QPushButton" name="peersButton">
      <property name="geometry">
       <rect>
        <x>350</x>
-       <y>200</y>
+       <y>80</y>
        <width>181</width>
        <height>191</height>
       </rect>
      </property>
      <property name="styleSheet">
-      <string notr="true">font: 14pt &quot;Sans Serif&quot;; color: rgb(32, 103, 209);</string>
+      <string notr="true">font: 11pt &quot;Sans Serif&quot;; color: rgb(32, 103, 209);</string>
      </property>
      <property name="text">
-      <string>Only Peers</string>
+      <string>From Community</string>
      </property>
     </widget>
     <widget class="QLabel" name="label_4">
      <property name="geometry">
       <rect>
        <x>70</x>
-       <y>70</y>
+       <y>290</y>
        <width>181</width>
-       <height>61</height>
+       <height>51</height>
       </rect>
      </property>
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#384c62;&quot;&gt;Download a Snapshot and then catch up using Decentralized Peers.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#384c62;&quot;&gt;Download a snapshot and then catch up using the Community Peers&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
@@ -161,13 +161,13 @@
      <property name="geometry">
       <rect>
        <x>350</x>
-       <y>70</y>
+       <y>290</y>
        <width>181</width>
-       <height>61</height>
+       <height>41</height>
       </rect>
      </property>
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#384c62;&quot;&gt;Download from the beggining using only Decentralized Peers.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#384c62;&quot;&gt;Download only from the Community Peers&lt;br/&gt;&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
@@ -180,13 +180,13 @@
      <property name="geometry">
       <rect>
        <x>70</x>
-       <y>120</y>
+       <y>360</y>
        <width>181</width>
-       <height>81</height>
+       <height>41</height>
       </rect>
      </property>
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-weight:600; color:#384c62;&quot;&gt;This is the fastest option.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-weight:600; color:#384c62;&quot;&gt;This is the fastest option&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
@@ -199,13 +199,13 @@
      <property name="geometry">
       <rect>
        <x>350</x>
-       <y>120</y>
+       <y>360</y>
        <width>181</width>
-       <height>81</height>
+       <height>41</height>
       </rect>
      </property>
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-weight:600; color:#384c62;&quot;&gt;This is the slowest option.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-weight:600; color:#384c62;&quot;&gt;This is the slowest option&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
@@ -419,7 +419,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#2067d1;&quot;&gt;HANG TIGHT&lt;br/&gt;&lt;/span&gt;&lt;br/&gt;&lt;span style=&quot; text-decoration: underline; color:#000000;&quot;&gt;Before you can unlock your wallet, &lt;/span&gt;&lt;span style=&quot; color:#000000;&quot;&gt;this application&lt;br/&gt;has to finish syncing with other peers on the network.&lt;br/&gt;Merit is a decentralized network that is powered&lt;br/&gt;by people like you&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#2067d1;&quot;&gt;HANG TIGHT&lt;br/&gt;&lt;/span&gt;&lt;br/&gt;&lt;span style=&quot; text-decoration: underline; color:#000000;&quot;&gt;Before you can unlock your wallet, &lt;/span&gt;&lt;span style=&quot; color:#000000;&quot;&gt;this application&lt;br/&gt;has to finish syncing with other peers on the network.&lt;br/&gt;Merit is a decentralized network that is powered&lt;br/&gt;by people like you.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </property>
        <property name="textFormat">
         <enum>Qt::RichText</enum>
@@ -430,11 +430,6 @@
       </widget>
      </widget>
     </widget>
-    <zorder>overviewSlides</zorder>
-    <zorder>verticalLayoutWidget</zorder>
-    <zorder>layoutWidget</zorder>
-    <zorder>verticalLayoutWidget</zorder>
-    <zorder>overviewSlides</zorder>
    </widget>
   </widget>
   <zorder>stack</zorder>
