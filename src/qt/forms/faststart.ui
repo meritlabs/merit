@@ -13,6 +13,9 @@
   <property name="windowTitle">
    <string>Dialog</string>
   </property>
+  <property name="styleSheet">
+   <string notr="true"/>
+  </property>
   <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
@@ -86,8 +89,12 @@
      <height>421</height>
     </rect>
    </property>
+   <property name="styleSheet">
+    <string notr="true">
+</string>
+   </property>
    <property name="currentIndex">
-    <number>0</number>
+    <number>1</number>
    </property>
    <widget class="QWidget" name="choicePage">
     <widget class="QLabel" name="label_3">
@@ -109,9 +116,9 @@
     <widget class="QPushButton" name="snapshotButton">
      <property name="geometry">
       <rect>
-       <x>70</x>
+       <x>50</x>
        <y>80</y>
-       <width>181</width>
+       <width>221</width>
        <height>191</height>
       </rect>
      </property>
@@ -121,21 +128,36 @@
      <property name="text">
       <string>QuickStart</string>
      </property>
+     <property name="default">
+      <bool>true</bool>
+     </property>
     </widget>
     <widget class="QPushButton" name="peersButton">
      <property name="geometry">
       <rect>
-       <x>350</x>
+       <x>330</x>
        <y>80</y>
-       <width>181</width>
+       <width>221</width>
        <height>191</height>
       </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>Sans Serif</family>
+       <pointsize>11</pointsize>
+       <weight>50</weight>
+       <italic>false</italic>
+       <bold>false</bold>
+      </font>
      </property>
      <property name="styleSheet">
       <string notr="true">font: 11pt &quot;Sans Serif&quot;; color: rgb(32, 103, 209);</string>
      </property>
      <property name="text">
       <string>Standard</string>
+     </property>
+     <property name="flat">
+      <bool>false</bool>
      </property>
     </widget>
     <widget class="QLabel" name="label_4">
@@ -191,7 +213,7 @@
       <item>
        <widget class="QLabel" name="label_2">
         <property name="text">
-         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#384c62;&quot;&gt;A Snapshot of the blockchain is being downloaded&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#384c62;&quot;&gt;from the Merit Foundation&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#384c62;&quot;&gt;A Snapshot of the blockchain is being downloaded&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#384c62;&quot;&gt;from the Merit Foundation!&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
         <property name="margin">
          <number>20</number>
