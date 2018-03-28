@@ -59,7 +59,7 @@ void NormalizeAlias(std::string& alias)
 }
 
 bool AliasesEqual(std::string a, std::string b, bool safe) {
-    if(safe) {
+    if (safe) {
         NormalizeAlias(a);
         NormalizeAlias(b);
     }

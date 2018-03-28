@@ -529,6 +529,14 @@ bool WalletModel::SendInviteTo(const std::string& address, int amount)
     return tx != nullptr;
 }
 
+bool WalletModel::IgnoreInviteTo(const std::string& hashString)
+{
+    assert(wallet);
+    uint256 hash;
+    hash.SetHex(hashString);
+    return wallet->IgnoreReferral(hash);
+}
+
 bool WalletModel::setWalletEncrypted(bool encrypted, const SecureString &passphrase)
 {
     if(encrypted)
@@ -689,6 +697,12 @@ bool WalletModel::IsSpendable(const CTxDestination& dest) const
 bool WalletModel::getPrivKey(const CKeyID &address, CKey& vchPrivKeyOut) const
 {
     return wallet->GetKey(address, vchPrivKeyOut);
+}
+
+QString WalletModel::getMnemonic() const
+{
+    assert(wallet);
+    return QString::fromStdString(wallet->GetMnemonic());
 }
 
 // returns a list of COutputs from COutPoints

@@ -33,6 +33,7 @@ class CWallet;
 class uint256;
 
 QT_BEGIN_NAMESPACE
+class QString;
 class QTimer;
 QT_END_NAMESPACE
 
@@ -153,6 +154,7 @@ public:
     bool AddressConfirmed(const CMeritAddress& address) const;
     bool Daedalus() const;
     bool SendInviteTo(const std::string& address, int amount = 1);
+    bool IgnoreInviteTo(const std::string& address);
 
     // Check address for validity
     bool validateAddress(const QString &address);
@@ -209,6 +211,7 @@ public:
     bool IsSpendable(const CTxDestination& dest) const;
     bool getPrivKey(const CKeyID &address, CKey& vchPrivKeyOut) const;
     void getOutputs(const std::vector<COutPoint>& vOutpoints, std::vector<COutput>& vOutputs);
+    QString getMnemonic() const;
     bool isSpent(const COutPoint& outpoint) const;
     void listCoins(std::map<QString, std::vector<COutput> >& mapCoins) const;
 

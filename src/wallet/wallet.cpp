@@ -211,7 +211,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, co
         throw std::runtime_error(std::string(__func__) + ": the alias doesn't pass validation");
     }
 
-    if (prefviewcache->Exists(alias, true)) {
+    if (prefviewcache->IsConfirmed(alias, true)) {
         throw std::runtime_error(std::string(__func__) + ": provided alias is already occupied");
     }
 
@@ -351,7 +351,7 @@ void CWallet::DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata
     // m/44'/0'
     bool livenet = Params().NetworkIDString() == CBaseChainParams::MAIN;
     changeKey.Derive(changeKey, BIP32_HARDENED_KEY_LIMIT | (livenet ? 0 : 1));
-    
+
     // m/44'/0'/0'
     changeKey.Derive(changeKey, BIP32_HARDENED_KEY_LIMIT | 0); // Account hardcoded to 0 for now
 
@@ -1212,6 +1212,29 @@ bool CWallet::LoadToWallet(const referral::ReferralTx& rtxIn)
     return true;
 }
 
+bool CWallet::IgnoreReferral(const uint256& hashIn)
+{
+    LOCK(cs_wallet);
+    ignoredReferrals.insert(hashIn);
+    CWalletDB walletdb(*dbw);
+    return walletdb.WriteIgnoredReferrals(ignoredReferrals);
+}
+
+bool CWallet::ReferralIsIgnored(const uint256& hashIn)
+{
+    LOCK(cs_wallet);
+    return ignoredReferrals.count(hashIn) > 0;
+}
+
+bool CWallet::SetIgnoredReferrals(const std::set<uint256>& ignored)
+{
+    LOCK(cs_wallet);
+    for(auto ref : ignored) {
+        ignoredReferrals.insert(ref);
+    }
+    return true;
+}
+
 /**
  * Add a transaction to the wallet, or update it.  pIndex and posInBlock should
  * be set when the transaction was known to be included in a block.  When
@@ -1735,6 +1758,13 @@ CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const s
     }
 
     return pubkey;
+}
+
+std::string CWallet::GetMnemonic()
+{
+    if(mapKeyMetadata[hdChain.masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC)
+        return mapKeyMetadata[hdChain.masterKeyID].mnemonic;
+    return "";
 }
 
 bool CWallet::SetHDMasterKey(const CPubKey& pubkey)
@@ -4836,7 +4866,7 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
             // TODO: Support multiple languages
             WordList mnemonic;
             for(size_t i = 0; i < mnemonic::MNEMONIC_WORD_COUNT; i++) {
-                mnemonic.push_back(language::GetRandomWord(language::en));
+                mnemonic.push_back(language::en[GetRand(language::en.size())]);
             }
 
             CPubKey masterPubKey = walletInstance->GenerateMasterKeyFromMnemonic(mnemonic);

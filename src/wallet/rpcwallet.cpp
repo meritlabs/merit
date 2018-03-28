@@ -4223,9 +4223,16 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
 
     UniValue obj(UniValue::VOBJ);
 
+    auto referral = pwallet->GetRootReferral();
+    std::string alias = "";
+
+    if (referral) {
+        alias = strprintf("%s%s", pwallet->GetAlias(), CheckAliasUnconfirmed(referral->GetAddress()) ? " (stale)" : "");
+    }
+
     obj.push_back(Pair("walletname", pwallet->GetName()));
     obj.push_back(Pair("walletversion", pwallet->GetVersion()));
-    obj.push_back(Pair("alias", pwallet->GetAlias()));
+    obj.push_back(Pair("alias", alias));
     obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
     obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance())));
     obj.push_back(Pair("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance())));
@@ -4246,7 +4253,6 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
         obj.push_back(Pair("referred", false));
     } else {
         obj.push_back(Pair("referred", true));
-        auto referral = pwallet->GetRootReferral();
         assert(!referral->GetHash().IsNull());
 
         auto address = referral->GetAddress();
@@ -4257,6 +4263,57 @@ UniValue getwalletinfo(const JSONRPCRequest& request)
 
     obj.push_back(Pair("invites", pwallet->GetBalance(true)));
     obj.push_back(Pair("immature_invites", pwallet->GetImmatureBalance(true)));
+
+    return obj;
+}
+
+UniValue getcommunityinfo(const JSONRPCRequest& request)
+{
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() > 1)
+        throw std::runtime_error(
+            "getwalletinfo ( \"address\" )\n"
+            "Returns an object containing various community state info.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"referralcount\": xxxx,             (numeric) number of confirmed referrals\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getcommunityinfo", "")
+            + HelpExampleRpc("getcommunityinfo", "")
+        );
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+    UniValue obj(UniValue::VOBJ);
+
+    uint160 address;
+    if (!request.params[0].isNull()) {
+        CTxDestination dest = LookupDestination(request.params[0].get_str());
+        CMeritAddress maddress(dest);
+        if (!maddress.IsValid() || !maddress.GetUint160()) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,
+                std::string("Invalid Merit address: ") + request.params[0].get_str());
+        }
+        address = *maddress.GetUint160();
+    } else if (!pwallet->IsReferred()) {
+        obj.push_back(Pair("referralcount", 0));
+        return obj;
+    } else {
+      auto referral = pwallet->GetRootReferral();
+      assert(!referral->GetHash().IsNull());
+      address = referral->GetAddress();
+    }
+
+
+    auto children = prefviewdb->GetChildren(address);
+
+    obj.push_back(Pair("referralcount", (int)children.size()));
 
     return obj;
 }
@@ -5208,6 +5265,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "gettransaction",           &gettransaction,           {"txid","include_watchonly"} },
     { "wallet",             "getunconfirmedbalance",    &getunconfirmedbalance,    {} },
     { "wallet",             "getwalletinfo",            &getwalletinfo,            {} },
+    { "wallet",             "getcommunityinfo",         &getcommunityinfo,         {} },
     { "wallet",             "importmulti",              &importmulti,              {"requests","options"} },
     { "wallet",             "importprivkey",            &importprivkey,            {"privkey","label","rescan"} },
     { "wallet",             "importwallet",             &importwallet,             {"filename"} },
