@@ -119,7 +119,7 @@
       <string notr="true">font: 11pt &quot;Sans Serif&quot;; color: rgb(32, 103, 209);</string>
      </property>
      <property name="text">
-      <string>Snapshot+Community</string>
+      <string>QuickStart</string>
      </property>
     </widget>
     <widget class="QPushButton" name="peersButton">
@@ -148,7 +148,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#384c62;&quot;&gt;Download a snapshot and then catch up using the Community Peers&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#384c62;&quot;&gt;Download a snapshot of the blockchain, and then get the most recent transactions from Community Peers&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
