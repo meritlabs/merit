@@ -976,7 +976,7 @@ UniValue setmining(const JSONRPCRequest& request)
             "See the getmining call for the current setting.\n"
             "\nArguments:\n"
             "1. mine                (boolean, required) Set to true to turn on mining, off to turn off.\n"
-            "2. minepowthreads      (numeric, optional) Set the processor limit for pow attempt when mining is on. Can be -1 for unlimited.\n"
+            "2. minepowthreads      (numeric, optional) Set the processor limit for pow attempt when mining is on. Should be power of 2.\n"
             "3. minebucketthreads   (numeric, optional) Set number of nonces buckets to run in parallel.\n"
             "4. minebucketsize      (numeric, optional) Set number of nonces in on bucket.\n"
             "\nExamples:\n"
