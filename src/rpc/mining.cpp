@@ -996,7 +996,7 @@ UniValue setmining(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 4)
         throw std::runtime_error(
-            "setmining mine ( minepowthreads ) ( minebucketsize ) ( minebucketthreads ) \n"
+            "setmining mine ( minepowthreads ) ( minebucketthreads ) ( minebucketsize ) \n"
             "\nSet 'mine' true or false to turn generation on or off.\n"
             "Generation is limited to 'minepowthreads' threads per pow attempt, -1 is unlimited.\n"
             "If 'minebucketsize' is more than 1, then it runs buckets of nonces in parallel.\n"
@@ -1046,8 +1046,8 @@ UniValue setmining(const JSONRPCRequest& request)
 
     gArgs.ForceSetArg("-mine", (mine ? "1" : "0"));
     gArgs.ForceSetArg("-minepowthreads", itostr(pow_threads));
-    gArgs.ForceSetArg("-minebucketsize", itostr(bucket_size));
     gArgs.ForceSetArg("-minebucketthreads", itostr(bucket_threads));
+    gArgs.ForceSetArg("-minebucketsize", itostr(bucket_size));
 
     GenerateMerit(mine, pow_threads, bucket_size, bucket_threads, Params());
 

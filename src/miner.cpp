@@ -55,6 +55,8 @@ uint64_t nLastBlockWeight = 0;
 extern std::unique_ptr<CConnman> g_connman;
 extern CCoinsViewCache *pcoinsTip;
 
+const int MAX_NONCE = 0xfffff;
+
 int64_t UpdateTime(
         CBlockHeader* pblock,
         const Consensus::Params& consensusParams,
@@ -942,7 +944,7 @@ void MinerWorker(int thread_id, MinerContext& ctx)
                 if (!fvNodesEmpty && !IsInitialBlockDownload())
                     break;
 
-                g_connman->StopMiningStats();
+                g_connman->ResetMiningStats();
                 MilliSleep(1000);
             } while (ctx.alive);
         }
@@ -1009,7 +1011,7 @@ void MinerWorker(int thread_id, MinerContext& ctx)
                 LogPrintf(
                         "\n\n\nproof-of-work found within %8.3f seconds \n"
                         "\tblock hash: %s\n\tnonce: %d\n\tcycle hash: %s\n\ttarget: %s\n\n\n",
-                    static_cast<double>(GetTimeMillis() - attempt_start) / 1e3,
+                    static_cast<double>(GetTimeMillis() - nStart) / 1e3,
                     pblock->GetHash().GetHex(),
                     pblock->nNonce,
                     cycleHash.GetHex(),
@@ -1036,7 +1038,7 @@ void MinerWorker(int thread_id, MinerContext& ctx)
                 break;
             }
 
-            if (pblock->nNonce >= 0xfffff) {
+            if (pblock->nNonce >= MAX_NONCE) {
                 break;
             }
 
@@ -1076,8 +1078,6 @@ void MinerWorker(int thread_id, MinerContext& ctx)
 
     pool.stop(true);
 
-    g_connman->StopMiningStats();
-
     LogPrintf("MeritMiner pool #%d terminated\n", thread_id);
 }
 
@@ -1095,8 +1095,8 @@ void static MeritMiner(
         bucket_threads = 1;
     }
 
-    if (bucket_threads == 1) {
-        bucket_size = std::numeric_limits<int>::max();
+    if (bucket_size == 0) {
+        bucket_size = MAX_NONCE / bucket_threads;
     }
 
     using pool_ptr = std::unique_ptr<ctpl::thread_pool>;
@@ -1133,7 +1133,6 @@ void static MeritMiner(
         }
     } catch (const boost::thread_interrupted&) {
         LogPrintf("MeritMiner terminated\n");
-
         alive = false;
 
         throw;
@@ -1149,8 +1148,8 @@ void GenerateMerit(bool mine, int pow_threads, int bucket_size, int bucket_threa
     static boost::thread* minerThread = nullptr;
 
     if (pow_threads < 0) {
-        pow_threads = GetNumCores();
-        bucket_threads = 1;
+        pow_threads = std::thread::hardware_concurrency() / 2;
+        bucket_threads = 2;
     }
 
     if (minerThread != nullptr) {
@@ -1159,8 +1158,10 @@ void GenerateMerit(bool mine, int pow_threads, int bucket_size, int bucket_threa
         minerThread = nullptr;
     }
 
-    if (pow_threads == 0 || !mine)
+    if (pow_threads == 0 || bucket_threads == 0 || !mine) {
+        g_connman->ResetMiningStats();
         return;
+    }
 
     std::shared_ptr<CReserveScript> coinbase_script;
     GetMainSignals().ScriptForMining(coinbase_script);

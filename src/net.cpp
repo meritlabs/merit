@@ -356,12 +356,12 @@ void CConnman::InitMiningStats()
     }
 
     mining.active = true;
-    mining.start_time = GetTime();
-    mining.end_time = GetTime();
+    mining.start_time = GetTimeMillis();
+    mining.end_time = GetTimeMillis();
     mining.nonces_done = 0;
 }
 
-void CConnman::StopMiningStats()
+void CConnman::ResetMiningStats()
 {
     mining.active = false;
     mining.start_time = 0;
@@ -373,7 +373,7 @@ int CConnman::AddCheckedNonces(int nonces)
 {
     if (mining.active) {
         mining.nonces_done += nonces;
-        mining.end_time = GetTime();
+        mining.end_time = GetTimeMillis();
     }
 
     return mining.nonces_done;
@@ -385,7 +385,7 @@ double CConnman::GetHashPower()
         return .0;
     }
 
-    double seconds_ellapsed = mining.end_time - mining.start_time;
+    double seconds_ellapsed = (mining.end_time - mining.start_time) / 1e3;
     double hashpower = seconds_ellapsed ? mining.nonces_done / seconds_ellapsed : 0;
 
     return hashpower;

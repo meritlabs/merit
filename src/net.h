@@ -177,7 +177,7 @@ public:
 
     // mining info helpers
     void InitMiningStats();
-    void StopMiningStats();
+    void ResetMiningStats();
     int AddCheckedNonces(int nonces);
     double GetHashPower();
 
