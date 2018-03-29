@@ -117,7 +117,6 @@ struct CSerializedNetMsg
     std::string command;
 };
 
-
 class CConnman
 {
 public:
@@ -128,8 +127,6 @@ public:
         CONNECTIONS_OUT = (1U << 1),
         CONNECTIONS_ALL = (CONNECTIONS_IN | CONNECTIONS_OUT),
     };
-
-    std::atomic<double> hashpower;
 
     struct Options
     {
@@ -177,6 +174,12 @@ public:
     void SetNetworkActive(bool active);
     bool OpenNetworkConnection(const CAddress& addrConnect, bool fCountFailure, CSemaphoreGrant *grantOutbound = nullptr, const char *strDest = nullptr, bool fOneShot = false, bool fFeeler = false, bool fAddnode = false);
     bool CheckIncomingNonce(uint64_t nonce);
+
+    // mining info helpers
+    void InitMiningStats();
+    void StopMiningStats();
+    int AddCheckedNonces(int nonces);
+    double GetHashPower();
 
     bool ForNode(NodeId id, std::function<bool(CNode* pnode)> func);
 
@@ -305,6 +308,15 @@ private:
 
         ListenSocket(SOCKET socket_, bool whitelisted_) : socket(socket_), whitelisted(whitelisted_) {}
     };
+
+    struct MiningInfo {
+        bool active = false;
+        std::atomic<int64_t> start_time{0};
+        std::atomic<int64_t> end_time{0};
+        std::atomic<int> nonces_done{0};
+    };
+
+    MiningInfo mining;
 
     bool BindListenPort(const CService &bindAddr, std::string& strError, bool fWhitelisted = false);
     bool Bind(const CService &addr, unsigned int flags);

@@ -941,9 +941,12 @@ void MinerWorker(int thread_id, MinerContext& ctx)
 
                 if (!fvNodesEmpty && !IsInitialBlockDownload())
                     break;
+
+                g_connman->StopMiningStats();
                 MilliSleep(1000);
             } while (ctx.alive);
         }
+        g_connman->InitMiningStats();
 
         //
         // Create new block
@@ -1066,18 +1069,14 @@ void MinerWorker(int thread_id, MinerContext& ctx)
             }
         }
 
-        auto elapsed = (GetTimeMillis() - nStart) / 1e3;
-        auto current_hashpower = (nonces_checked - start_nonce + 1) / elapsed;
-
-        if (g_connman->hashpower > .0) {
-            g_connman->hashpower = (g_connman->hashpower + current_hashpower) / 2;
-        } else {
-            g_connman->hashpower = current_hashpower;
+        if (ctx.alive) {
+            g_connman->AddCheckedNonces(nonces_checked);
         }
-
     }
 
     pool.stop(true);
+
+    g_connman->StopMiningStats();
 
     LogPrintf("MeritMiner pool #%d terminated\n", thread_id);
 }
@@ -1134,7 +1133,9 @@ void static MeritMiner(
         }
     } catch (const boost::thread_interrupted&) {
         LogPrintf("MeritMiner terminated\n");
+
         alive = false;
+
         throw;
     } catch (const std::runtime_error& e) {
         LogPrintf("MeritMiner runtime error: %s\n", e.what());

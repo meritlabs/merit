@@ -280,7 +280,7 @@ UniValue getmininginfo(const JSONRPCRequest& request)
     obj.push_back(Pair("minebucketthreads",  gArgs.GetArg("-minebucketthreads", DEFAULT_MINING_BUCKET_THREADS)));
     obj.push_back(Pair("errors",             GetWarnings("statusbar")));
     obj.push_back(Pair("networkhashps",      getnetworkhashps(request)));
-    obj.push_back(Pair("nodehashps",         g_connman->hashpower));
+    obj.push_back(Pair("nodehashps",         g_connman->GetHashPower()));
     obj.push_back(Pair("pooledtx",           (uint64_t)mempool.size()));
     obj.push_back(Pair("pooledref",          (uint64_t)mempoolReferral.Size()));
     obj.push_back(Pair("chain",              Params().NetworkIDString()));

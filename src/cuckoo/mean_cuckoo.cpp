@@ -12,6 +12,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <pthread.h>
+#include <string.h>
 #include <sys/time.h>
 #include <thread>
 #include <unistd.h>
