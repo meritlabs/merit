@@ -392,6 +392,13 @@ void OverviewPage::handleInviteClicked(const QModelIndex &index)
         return;
     }
 
+    WalletModel::UnlockContext ctx{walletModel->requestUnlock()};
+
+    //cancelled or wrong password, currently no way to know which.
+    if(!ctx.isValid()) {
+        return;
+    }
+
     auto success = walletModel->SendInviteTo(addressString.toStdString());
     if(!success) {
         QString title = aliasString.isEmpty() ?
