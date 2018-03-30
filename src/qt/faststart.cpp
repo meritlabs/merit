@@ -170,7 +170,9 @@ bool FastStart::DoDownloadSnapshot()
     const auto data_dir = QString::fromStdString(gArgs.GetArg("-datadir", GetDefaultDataDir().string()));
     const auto state = settings.value("snapshotstate", 0).toInt();
 
-    if(state == SnapshotInfo::DONE || QFile::exists(data_dir + "/wallet.dat")) {
+    auto force = gArgs.GetBoolArg("-faststart", false);
+
+    if(!force && (state == SnapshotInfo::DONE || QFile::exists(data_dir + "/wallet.dat"))) {
         settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::DONE));
         return true;
     }
