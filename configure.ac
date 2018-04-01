@@ -997,7 +997,7 @@ else
     MERIT_QT_CHECK([AC_CHECK_HEADER([qrencode.h],, have_qrencode=no)])
   fi
   if test x$merit_enable_qt != xno; then
-    MERIT_QT_CHECK([AC_CHECK_LIB([libarchive], [main],[ARCHIVE_LIBS=-larchive], [have_libarchive=no])])
+    MERIT_QT_CHECK([AC_CHECK_LIB([archive], [main],[ARCHIVE_LIBS=-larchive], [have_libarchive=no])])
     MERIT_QT_CHECK([AC_CHECK_HEADER([archive.h],, have_libarchive=no)])
     MERIT_QT_CHECK([AC_CHECK_HEADER([archive_entry.h],, have_libarchive=no)])
   fi
