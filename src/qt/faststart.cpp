@@ -9,6 +9,7 @@
 #include <QStringList>
 #include <QProgressBar>
 #include <QUrl>
+#include <QDir>
 #include <archive.h>
 #include <archive_entry.h>
 
@@ -29,6 +30,11 @@ namespace
 
 QString SnapshotZip(QString data_dir) {
     return data_dir + "/snapshot.zip";
+}
+
+bool StartFresh(QString data_dir) {
+    QDir data{data_dir};
+    return data.count() <= 2; //includes . and .. entries
 }
 
 QString StatusText(QString status)
@@ -168,11 +174,17 @@ bool FastStart::DoDownloadSnapshot()
 {
     QSettings settings;
     const auto data_dir = QString::fromStdString(gArgs.GetArg("-datadir", GetDefaultDataDir().string()));
-    const auto state = settings.value("snapshotstate", 0).toInt();
-
     if (gArgs.GetBoolArg("-faststart", false)) {
         settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::CHOICE));
     }
+
+    auto state = settings.value("snapshotstate", 0).toInt();
+
+    if(state == SnapshotInfo::DONE && StartFresh(data_dir)) {
+        settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::CHOICE));
+    }
+
+    state = settings.value("snapshotstate", 0).toInt();
 
     if(state == SnapshotInfo::DONE || QFile::exists(data_dir + "/wallet.dat")) {
         return true;
