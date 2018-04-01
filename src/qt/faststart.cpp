@@ -175,7 +175,6 @@ bool FastStart::DoDownloadSnapshot()
     }
 
     if(state == SnapshotInfo::DONE || QFile::exists(data_dir + "/wallet.dat")) {
-        settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::DONE));
         return true;
     }
 
