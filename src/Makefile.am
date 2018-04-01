@@ -18,7 +18,7 @@ else
 LIBUNIVALUE = $(UNIVALUE_LIBS)
 endif
 
-MERIT_INCLUDES=-I$(builddir) -I$(builddir)/obj $(BDB_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS) $(ARCHIVE_CFLAGS)
+MERIT_INCLUDES=-I$(builddir) -I$(builddir)/obj $(BDB_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
 
 MERIT_INCLUDES += -I$(srcdir)/secp256k1/include
 MERIT_INCLUDES += $(UNIVALUE_CFLAGS)
@@ -30,7 +30,6 @@ LIBMERIT_CLI=libmerit_cli.a
 LIBMERIT_UTIL=libmerit_util.a
 LIBMERIT_CRYPTO=crypto/libmerit_crypto.a
 LIBMERITQT=qt/libmeritqt.a
-LIBARCHIVE=-larchive
 LIBSECP256K1=secp256k1/libsecp256k1.la
 
 if ENABLE_ZMQ
