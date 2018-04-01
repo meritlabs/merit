@@ -933,7 +933,7 @@ if test x$use_pkgconfig = xyes; then
         MERIT_QT_CHECK([PKG_CHECK_MODULES([QR], [libqrencode], [have_qrencode=yes], [have_qrencode=no])])
       fi
       if test x$merit_enable_qt != xno; then
-        MERIT_QT_CHECK([PKG_CHECK_MODULES([QR], [libarchive], [have_libarchive=yes], [have_libarchive=no])])
+        MERIT_QT_CHECK([PKG_CHECK_MODULES([ARCHIVE], [libarchive], [have_libarchive=yes], [have_libarchive=no])])
       fi
       if test x$build_merit_utils$build_meritd$merit_enable_qt$use_tests != xnononono; then
         PKG_CHECK_MODULES([EVENT], [libevent],, [AC_MSG_ERROR(libevent not found.)])
