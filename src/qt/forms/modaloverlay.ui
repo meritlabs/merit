@@ -368,7 +368,7 @@ QLabel { color: rgb(40,40,40);  }</string>
               </rect>
              </property>
              <property name="text">
-              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#2067d1;&quot;&gt;HANG TIGHT&lt;br/&gt;&lt;/span&gt;&lt;br/&gt;&lt;span style=&quot; text-decoration: underline; color:#000000;&quot;&gt;Before you can unlock your wallet, &lt;/span&gt;&lt;span style=&quot; color:#000000;&quot;&gt;this application&lt;br/&gt;has to finish syncing with other peers on the network.&lt;br/&gt;Merit is a decentralized network that is powered&lt;br/&gt;by people like you&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:12pt; font-weight:600; color:#2067d1;&quot;&gt;HANG TIGHT&lt;br/&gt;&lt;/span&gt;&lt;br/&gt;&lt;span style=&quot; text-decoration: underline; color:#000000;&quot;&gt;Before you can unlock your wallet, &lt;/span&gt;&lt;span style=&quot; color:#000000;&quot;&gt;this application&lt;br/&gt;has to finish syncing with other peers on the network.&lt;br/&gt;Merit is a decentralized network that is powered&lt;br/&gt;by people like you.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="textFormat">
               <enum>Qt::RichText</enum>

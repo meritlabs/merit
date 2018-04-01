@@ -19,9 +19,10 @@
 #include "walletmodel.h"
 
 #include <QAbstractItemDelegate>
-#include <QPropertyAnimation>
 #include <QGraphicsDropShadowEffect>
+#include <QMouseEvent>
 #include <QPainter>
+#include <QPropertyAnimation>
 #include <QTimer>
 
 namespace
@@ -388,6 +389,13 @@ void OverviewPage::handleInviteClicked(const QModelIndex &index)
     msgBox.setStyleSheet(QString("QMessageBox { background-color: white; }"));
     auto ret = msgBox.exec();
     if(ret != QMessageBox::Yes) {
+        return;
+    }
+
+    WalletModel::UnlockContext ctx{walletModel->requestUnlock()};
+
+    //cancelled or wrong password, currently no way to know which.
+    if(!ctx.isValid()) {
         return;
     }
 

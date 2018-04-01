@@ -15,6 +15,7 @@
 #include "guiconstants.h"
 #include "guiutil.h"
 #include "intro.h"
+#include "faststart.h"
 #include "networkstyle.h"
 #include "optionsmodel.h"
 #include "platformstyle.h"
@@ -648,6 +649,7 @@ int main(int argc, char *argv[])
         QMessageBox::critical(0, QObject::tr(PACKAGE_NAME), QObject::tr("Error: %1").arg(e.what()));
         return EXIT_FAILURE;
     }
+
 #ifdef ENABLE_WALLET
     // Parse URIs on command line -- this can affect Params()
     PaymentServer::ipcParseCommandLine(argc, argv);
@@ -659,6 +661,9 @@ int main(int argc, char *argv[])
     QApplication::setApplicationName(networkStyle->getAppName());
     // Re-initialize translations after changing application name (language in network-specific settings can be different)
     initTranslations(qtTranslatorBase, qtTranslator, translatorBase, translator);
+
+    if (!FastStart::DoDownloadSnapshot())
+        return EXIT_SUCCESS;
 
 #ifdef ENABLE_WALLET
     /// 8. URI IPC sending
