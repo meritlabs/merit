@@ -48,6 +48,7 @@ script:
     - cd merit-$HOST
     - ./configure $MERIT_CONFIG_ALL $MERIT_CONFIG
     - cd src && make obj/build.h && cd ..
+    - pwd
     - make $MAKEJOBS $GOAL
 after_script:
     - echo $TRAVIS_COMMIT_RANGE
