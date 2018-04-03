@@ -45,10 +45,9 @@ script:
     - export TRAVIS_COMMIT_LOG=`git log --format=fuller -1`
     - OUTDIR=$BASE_OUTDIR/$TRAVIS_PULL_REQUEST/$TRAVIS_JOB_NUMBER-$HOST
     - MERIT_CONFIG_ALL="--disable-dependency-tracking --prefix=$TRAVIS_BUILD_DIR/depends/$HOST --bindir=$OUTDIR/bin --libdir=$OUTDIR/lib"
-    - cd merit-$HOST
+    - ./autogen.sh
     - ./configure $MERIT_CONFIG_ALL $MERIT_CONFIG
     - cd src && make obj/build.h && cd ..
-    - pwd
     - make $MAKEJOBS $GOAL
 after_script:
     - echo $TRAVIS_COMMIT_RANGE
