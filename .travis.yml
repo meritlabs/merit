@@ -1,8 +1,9 @@
 sudo: required
 dist: trusty
 os: linux
-language: generic
+language: minimal
 cache:
+  ccache: true
   directories:
   - depends/built
   - depends/sdk-sources
