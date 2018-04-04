@@ -876,7 +876,7 @@ public:
     const CWalletTx* GetWalletTx(const uint256& hash) const;
 
     // Sets the referral address to unlock the wallet and sends referral tx to the network
-    referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string alias = "");
+    referral::ReferralRef Unlock(const referral::Address& parentAddress, std::string alias = "");
 
     bool AliasExists(const std::string& alias) const;
     bool AddressBeaconed(const CMeritAddress& address) const;
@@ -1269,25 +1269,25 @@ public:
             const referral::Address& addr,
             const CPubKey& signPubKey,
             const referral::Address& parentAddress,
-            const std::string alias = "",
+            std::string alias = "",
             CKey key = CKey{});
 
     referral::ReferralRef GenerateNewReferral(
             const CScriptID& id,
             const referral::Address& parentAddress,
             const CPubKey& signPubKey,
-            const std::string alias = "");
+            std::string alias = "");
 
     referral::ReferralRef GenerateNewReferral(
             const CParamScriptID& id,
             const referral::Address& parentAddress,
             const CPubKey& signPubKey,
-            const std::string alias = "");
+            std::string alias = "");
 
     referral::ReferralRef GenerateNewReferral(
             const CPubKey& pubkey,
             const referral::Address& parentAddress,
-            const std::string alias = "",
+            std::string alias = "",
             CKey key = CKey{});
 
     CTransactionRef SendInviteTo(const CScript& scriptPubKey, int amount = 1);
