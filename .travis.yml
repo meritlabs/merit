@@ -47,3 +47,6 @@ script:
     - cd src && make obj/build.h && cd ..
     - make $MAKEJOBS
     - make install DESTDIR=$PWD/dist
+after_script:
+    - echo $TRAVIS_COMMIT_RANGE
+    - echo $TRAVIS_COMMIT_LOG
