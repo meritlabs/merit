@@ -209,6 +209,7 @@ FastStart::FastStart(const QString& data_dir,  QWidget *parent) :
     ui{new Ui::FastStart}
 {
     ui->setupUi(this);
+    this->setWindowTitle(tr("Merit"));
 
     Start();
 }
@@ -453,6 +454,7 @@ void FastStart::ExtractSnapshot()
         QTimer::singleShot(ERROR_WAIT, this, SLOT(TryAgain()));
         return;
     }
+    snapshot_output.remove();
     settings.setValue("snapshotstate", static_cast<int>(SnapshotInfo::DONE));
     QTimer::singleShot(ERROR_WAIT, this, SLOT(accept()));
 }
