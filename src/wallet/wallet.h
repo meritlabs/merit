@@ -1247,8 +1247,7 @@ public:
     std::string GetAlias() const
     {
         auto ref = GetRootReferral();
-
-        return ref != nullptr ? ref->alias : "";
+        return ref != nullptr ? ref->GetAlias() : "";
     }
 
     std::string GetUnlockCode() const
