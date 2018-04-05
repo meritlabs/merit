@@ -16,7 +16,11 @@ Then install [Homebrew](https://brew.sh).
 Dependencies
 ----------------------
 
-    brew install automake berkeley-db4 libtool boost --c++11 miniupnpc openssl pkg-config protobuf python3 qt libevent qrencode libarchive
+    brew install automake berkeley-db4 libtool boost --c++11 miniupnpc openssl pkg-config protobuf python3 libevent
+
+If you want to build with Merit-Qt GUI app, you need additional liblaries:
+
+    brew install qt qrencode libarchive
 
 If you want to build the disk image with `make deploy` (.dmg / optional), you need RSVG
 
@@ -34,9 +38,8 @@ Build Merit Core
 
 2.  Build merit-core:
 
-    Configure and build the headless merit binaries as well as the GUI (if Qt is found).
-
-    You can disable the GUI build by passing `--without-gui` to configure.
+    Configure and build the headless merit binaries.
+    To build with Merit-Qt GUI app pass `--with-gui` to configure, it will use Qt5 by default; pass `--with-gui=qt4` to build with Qt4
 
         ./autogen.sh
         ./configure
