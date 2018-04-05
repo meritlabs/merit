@@ -744,7 +744,7 @@ fi
 MERIT_QT_INIT
 
 dnl sets $merit_enable_qt, $merit_enable_qt_test, $merit_enable_qt_dbus
-MERIT_QT_CONFIGURE([$use_pkgconfig], [no])
+MERIT_QT_CONFIGURE([$use_pkgconfig], [qt5])
 
 if test x$build_merit_utils$build_meritd$merit_enable_qt$use_tests$use_bench = xnonononono; then
     use_boost=no
