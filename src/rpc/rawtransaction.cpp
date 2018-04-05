@@ -266,7 +266,7 @@ UniValue getrawtransaction(const JSONRPCRequest& request)
     }
 
     bool complete_search = false;
-    if(!request.params[2].isBool()) {
+    if(!request.params[2].isNull() && request.params[2].isBool()) {
         complete_search = request.params[2].isTrue();
     }
 
