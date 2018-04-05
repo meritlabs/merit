@@ -43,7 +43,7 @@ Build Merit Core
 
         ./autogen.sh
         ./configure
-        make
+        cd src && make obj/build.h && cd .. && make
 
 3.  It is recommended to build and run the unit tests:
 

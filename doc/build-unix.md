@@ -20,7 +20,7 @@ To Build
 ```bash
 ./autogen.sh
 ./configure
-make
+cd src && make obj/build.h && cd .. && make
 make install # optional
 ```
 
