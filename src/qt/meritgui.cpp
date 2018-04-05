@@ -372,8 +372,10 @@ void MeritGUI::createActions()
     backupWalletAction = new QAction(platformStyle->TextColorIcon(":/icons/filesave"), tr("&Backup Wallet..."), this);
     backupWalletAction->setStatusTip(tr("Backup wallet to another location"));
 #ifdef USE_QRCODE
-    exportWalletQRAction = new QAction(platformStyle->TextColorIcon(":/icons/filesave"), tr("&Export Wallet..."), this);
-    exportWalletQRAction->setStatusTip(tr("Export wallet to another device"));
+    if(hasMnemonic) {
+        exportWalletQRAction = new QAction(platformStyle->TextColorIcon(":/icons/filesave"), tr("&Export Wallet..."), this);
+        exportWalletQRAction->setStatusTip(tr("Export wallet to another device"));
+    }
 #endif
     changePassphraseAction = new QAction(platformStyle->TextColorIcon(":/icons/key"), tr("&Change Passphrase..."), this);
     changePassphraseAction->setStatusTip(tr("Change the passphrase used for wallet encryption"));
@@ -583,8 +585,10 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *_walletModel)
     walletModel = _walletModel;
     assert(walletModel);
 
+    hasMnemonic = walletModel->hasMnemonic();
     #ifdef USE_QRCODE
-        exportWalletDialog = new ExportWalletDialog(this, walletModel);
+        if(hasMnemonic)
+            exportWalletDialog = new ExportWalletDialog(this, walletModel);
     #endif
 
     isReferred = walletModel->IsReferred();
@@ -651,6 +655,7 @@ void MeritGUI::setWalletActionsEnabled(bool enabled, bool isReferred)
     usedReceivingAddressesAction->setEnabled(enabled);
     openAction->setEnabled(enabled);
     #ifdef USE_QRCODE
+    if(hasMnemonic)
         exportWalletQRAction->setEnabled(enabled);
     #endif
 }
@@ -756,6 +761,7 @@ void MeritGUI::showHelpMessageClicked()
 void MeritGUI::showExportWallet()
 {
     #ifdef USE_QRCODE
+    if(hasMnemonic)
         exportWalletDialog->show();
     #endif
 }

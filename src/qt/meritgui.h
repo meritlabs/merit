@@ -136,6 +136,7 @@ private:
     int spinnerFrame;
 
     bool isReferred = false;
+    bool hasMnemonic = false;
 
     const PlatformStyle *platformStyle;
 
