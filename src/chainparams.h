@@ -83,6 +83,7 @@ public:
     int MininBlockStaleTime() const { return nMiningBlockStaleTime; }
     /** Return the BIP70 network string (main, test or regtest) */
     std::string NetworkIDString() const { return strNetworkID; }
+    std::string SnapshotUrl() const { return snapshot_url;}
     const std::vector<CDNSSeedData>& DNSSeeds() const { return vSeeds; }
     const std::vector<unsigned char>& Base58Prefix(Base58Type type) const { return base58Prefixes[type]; }
     const std::vector<SeedSpec6>& FixedSeeds() const { return vFixedSeeds; }
@@ -110,6 +111,7 @@ protected:
     CCheckpointData checkpointData;
     ChainTxData chainTxData;
     uint32_t nMiningBlockStaleTime;
+    std::string snapshot_url;
 };
 
 /**

@@ -187,7 +187,7 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
     return &(it->second);
 }
 
-referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, const std::string alias)
+referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, std::string alias)
 {
     // check wallet is not unlocked yet
     if (IsReferred()) {
@@ -1802,7 +1802,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const referral::Address& address,
         const CPubKey& signPubKey,
         const referral::Address& parentAddress,
-        const std::string alias,
+        std::string alias,
         CKey key)
 {
     if (!signPubKey.IsValid()) {
@@ -1814,6 +1814,8 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         Daedalus() ?
         referral::Referral::INVITE_VERSION :
         referral::Referral::CURRENT_VERSION;
+
+    referral::CleanupAlias(alias);
 
     // generate referral for given public key
     auto referral =
