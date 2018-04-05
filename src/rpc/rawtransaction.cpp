@@ -175,7 +175,7 @@ UniValue getrawtransaction(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
         throw std::runtime_error(
-            "getrawtransaction \"txid\" ( verbose )\n"
+            "getrawtransaction \"txid\" ( verbose completecheck)\n"
 
             "\nNOTE: By default this function only works for mempool transactions. If the -txindex option is\n"
             "enabled, it also works for blockchain transactions.\n"
@@ -187,7 +187,8 @@ UniValue getrawtransaction(const JSONRPCRequest& request)
 
             "\nArguments:\n"
             "1. \"txid\"      (string, required) The transaction id\n"
-            "2. verbose       (bool, optional, default=false) If false, return a string, otherwise return a json object\n"
+            "2. verbose       (bool, optional, default=false) If false, return a string, otherwise return a json object.\n"
+            "3. completecheck (bool, optional, default=false) Do a more exhaustive search (slower).\n"
 
             "\nResult (if verbose is not set or set to false):\n"
             "\"data\"      (string) The serialized, hex-encoded data for 'txid'\n"
@@ -240,7 +241,8 @@ UniValue getrawtransaction(const JSONRPCRequest& request)
             "\nExamples:\n"
             + HelpExampleCli("getrawtransaction", "\"mytxid\"")
             + HelpExampleCli("getrawtransaction", "\"mytxid\" true")
-            + HelpExampleRpc("getrawtransaction", "\"mytxid\", true")
+            + HelpExampleRpc("getrawtransaction", "\"mytxid\" true")
+            + HelpExampleRpc("getrawtransaction", "\"mytxid\" true true")
         );
 
     uint256 hash = ParseHashV(request.params[0], "parameter 1");
@@ -263,6 +265,11 @@ UniValue getrawtransaction(const JSONRPCRequest& request)
         }
     }
 
+    bool complete_search = false;
+    if(!request.params[2].isBool()) {
+        complete_search = request.params[2].isTrue();
+    }
+
     CTransactionRef tx;
 
     uint256 hashBlock;
@@ -272,7 +279,7 @@ UniValue getrawtransaction(const JSONRPCRequest& request)
 
     {
         LOCK(cs_main);
-        if (!GetTransaction(hash, tx, Params().GetConsensus(), hashBlock, true))
+        if (!GetTransaction(hash, tx, Params().GetConsensus(), hashBlock, complete_search))
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
 
         BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
