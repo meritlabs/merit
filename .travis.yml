@@ -1,7 +1,7 @@
 sudo: required
 dist: xenial
 os: linux
-language: general
+language: minimal
 env:
   global:
     - MAKEJOBS=-j3
@@ -47,6 +47,7 @@ script:
 #    - cd src && make obj/build.h && cd ..
 #    - make $MAKEJOBS
 #    - make install DESTDIR=$PWD/dist
+    - echo "Build!"
 after_script:
     - echo $TRAVIS_COMMIT_RANGE
     - echo $TRAVIS_COMMIT_LOG
