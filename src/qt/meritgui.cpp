@@ -587,6 +587,7 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *_walletModel)
     #ifdef USE_QRCODE
         if(hasMnemonic)
             exportWalletDialog = new ExportWalletDialog(this, walletModel);
+        exportWalletQRAction->setVisible(hasMnemonic);
     #endif
 
     isReferred = walletModel->IsReferred();
