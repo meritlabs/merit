@@ -156,6 +156,7 @@ UniValue generateBlocks(
                     pblock->nEdgeBits,
                     cycle,
                     consensusParams,
+                    nThreads,
                     pool)) {
 
             ++pblock->nNonce;

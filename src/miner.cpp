@@ -918,14 +918,13 @@ struct MinerContext {
     int nonces_per_thread;
     const CChainParams& chainparams;
     std::shared_ptr<CReserveScript>& coinbase_script;
+    ctpl::thread_pool& pool;
 };
 
 void MinerWorker(int thread_id, MinerContext& ctx)
 {
     auto start_nonce = thread_id * ctx.nonces_per_thread;
     unsigned int nExtraNonce = 0;
-
-    ctpl::thread_pool pool(ctx.pow_threads);
 
     while (ctx.alive) {
         if (ctx.chainparams.MiningRequiresPeers()) {
@@ -1001,7 +1000,8 @@ void MinerWorker(int thread_id, MinerContext& ctx)
                         pblock->nEdgeBits,
                         cycle,
                         ctx.chainparams.GetConsensus(),
-                        pool)) {
+                        ctx.pow_threads,
+                        ctx.pool)) {
                 // Found a solution
                 pblock->sCycle = cycle;
 
@@ -1076,8 +1076,6 @@ void MinerWorker(int thread_id, MinerContext& ctx)
         }
     }
 
-    pool.stop(true);
-
     LogPrintf("MeritMiner pool #%d terminated\n", thread_id);
 }
 
@@ -1099,8 +1097,7 @@ void static MeritMiner(
         bucket_size = MAX_NONCE / bucket_threads;
     }
 
-    using pool_ptr = std::unique_ptr<ctpl::thread_pool>;
-    ctpl::thread_pool parallel_pool(bucket_threads);
+    ctpl::thread_pool pool(bucket_threads + bucket_threads * pow_threads);
     std::atomic<bool> alive{true};
 
     try {
@@ -1122,10 +1119,11 @@ void static MeritMiner(
                 bucket_threads,
                 bucket_size,
                 chainparams,
-                coinbase_script
+                coinbase_script,
+                pool
             };
 
-            parallel_pool.push(MinerWorker, ctx);
+            pool.push(MinerWorker, ctx);
         }
 
         while (true) {
@@ -1134,11 +1132,14 @@ void static MeritMiner(
     } catch (const boost::thread_interrupted&) {
         LogPrintf("MeritMiner terminated\n");
         alive = false;
+        pool.stop();
 
         throw;
     } catch (const std::runtime_error& e) {
         LogPrintf("MeritMiner runtime error: %s\n", e.what());
         gArgs.ForceSetArg("-mine", 0);
+        pool.stop();
+
         return;
     }
 }
