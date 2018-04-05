@@ -1586,8 +1586,6 @@ bool GetTransaction(
 {
     CBlockIndex *pindexSlow = nullptr;
 
-    LOCK(cs_main);
-
     CTransactionRef ptx = mempool.get(hash);
     if (ptx)
     {
@@ -1596,7 +1594,14 @@ bool GetTransaction(
     }
 
     CDiskTxPos postx;
-    if (pblocktree->ReadTxIndex(hash, postx)) {
+
+    bool found = false;
+    {
+        LOCK(cs_main);
+        found = pblocktree->ReadTxIndex(hash, postx);
+    }
+
+    if (found) {
         CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
         if (file.IsNull())
             return error("%s: OpenBlockFile failed", __func__);
@@ -1622,6 +1627,7 @@ bool GetTransaction(
     }
 
     if (pindexSlow) {
+        LOCK(cs_main);
         CBlock block;
         if (ReadBlockFromDisk(block, pindexSlow, consensusParams, false)) {
             std::vector<CTransactionRef> vtx;
@@ -1645,8 +1651,6 @@ bool GetTransaction(
 /** Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock */
 bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock)
 {
-    LOCK(cs_main);
-
     referral::ReferralRef mempoolref = mempoolReferral.Get(hash);
     if (mempoolref) {
         refOut = mempoolref;
@@ -1654,7 +1658,13 @@ bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &ha
     }
 
     CDiskTxPos posref;
-    if (pblocktree->ReadReferralIndex(hash, posref)) {
+    bool found = false;
+    {
+        LOCK(cs_main);
+        found = pblocktree->ReadReferralIndex(hash, posref);
+    }
+
+    if (found) {
         CAutoFile file(OpenBlockFile(posref, true), SER_DISK, CLIENT_VERSION);
         if (file.IsNull())
             return error("%s: OpenBlockFile failed", __func__);
