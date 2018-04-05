@@ -1621,13 +1621,13 @@ bool GetTransaction(
     }
 
     if (fAllowSlow) { // use coin database to locate block that contains transaction, and scan it
+        LOCK(cs_main);
         const Coin& coin = AccessByTxid(*pcoinsTip, hash);
         //if (!coin.IsSpent()) pindexSlow = chainActive[coin.nHeight];
         pindexSlow = chainActive[coin.nHeight];
     }
 
     if (pindexSlow) {
-        LOCK(cs_main);
         CBlock block;
         if (ReadBlockFromDisk(block, pindexSlow, consensusParams, false)) {
             std::vector<CTransactionRef> vtx;
