@@ -36,7 +36,8 @@ bool FindProofOfWorkAdvanced(
         uint8_t edgeBits,
         std::set<uint32_t>& cycle,
         const Consensus::Params& params,
-        ctpl::thread_pool&);
+        size_t nThreads,
+        ctpl::thread_pool& pool);
 }
 
 #endif // MERIT_CUCKOO_MINER_H

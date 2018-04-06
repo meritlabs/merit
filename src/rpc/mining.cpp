@@ -156,6 +156,7 @@ UniValue generateBlocks(
                     pblock->nEdgeBits,
                     cycle,
                     consensusParams,
+                    nThreads,
                     pool)) {
 
             ++pblock->nNonce;
@@ -251,6 +252,7 @@ UniValue getmininginfo(const JSONRPCRequest& request)
             "  \"mining\": true|false       (boolean) If the mining is on or off (see getmining or setmining calls)\n"
             "  \"mineproclimit\": n         (numeric) The processor limit for mining. -1 if no generation. (see getmining or setmining calls)\n"
             "  \"networkhashps\": nnn,      (numeric) The network hashes per second\n"
+            "  \"nodehashps\": nnn,         (numeric) Local node hashes per second\n"
             "  \"pooledtx\": n              (numeric) The size of the mempool\n"
             "  \"pooledref\": n             (numeric) The size of the referrals mempool\n"
             "  \"chain\": \"xxxx\",         (string) current network name as defined in BIP70 (main, test, regtest)\n"
@@ -279,6 +281,7 @@ UniValue getmininginfo(const JSONRPCRequest& request)
     obj.push_back(Pair("minebucketthreads",  gArgs.GetArg("-minebucketthreads", DEFAULT_MINING_BUCKET_THREADS)));
     obj.push_back(Pair("errors",             GetWarnings("statusbar")));
     obj.push_back(Pair("networkhashps",      getnetworkhashps(request)));
+    obj.push_back(Pair("nodehashps",         g_connman->GetHashPower()));
     obj.push_back(Pair("pooledtx",           (uint64_t)mempool.size()));
     obj.push_back(Pair("pooledref",          (uint64_t)mempoolReferral.Size()));
     obj.push_back(Pair("chain",              Params().NetworkIDString()));
@@ -421,7 +424,8 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             "  \"sizelimit\" : n,                  (numeric) limit of block size\n"
             "  \"weightlimit\" : n,                (numeric) limit of block weight\n"
             "  \"curtime\" : ttt,                  (numeric) current timestamp in seconds since epoch (Jan 1 1970 GMT)\n"
-            "  \"bits\" : \"xxxxxxxx\",              (string) compressed target of next block\n"
+            "  \"bits\" : \"xxxxxxxx\",            (string) compressed target of next block\n"
+            "  \"edgebits\" : \"xx\",              (string) edge bits as hex string\n"
             "  \"height\" : n                      (numeric) The height of the next block\n"
             "}\n"
 
@@ -676,8 +680,6 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
         const referral::Referral& referral = *it;
         ref_parents[referral.GetAddress()] = referral.GetHash();
 
-        debug("%s::%s", HexStr(referral.GetAddress()), HexStr(referral.parentAddress));
-
         UniValue entry(UniValue::VOBJ);
 
         entry.push_back(Pair("data", EncodeHexRef(referral)));
@@ -725,6 +727,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     result.push_back(Pair("weightlimit", static_cast<int64_t>(MAX_BLOCK_WEIGHT)));
     result.push_back(Pair("curtime", pblock->GetBlockTime()));
     result.push_back(Pair("bits", strprintf("%08x", pblock->nBits)));
+    result.push_back(Pair("edgebits", pblock->nEdgeBits));
     result.push_back(Pair("height", static_cast<int64_t>(pindexPrev->nHeight+1)));
 
     if (!pblocktemplate->vchCoinbaseCommitment.empty()) {
@@ -994,7 +997,7 @@ UniValue setmining(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 4)
         throw std::runtime_error(
-            "setmining mine ( minepowthreads ) ( minebucketsize ) ( minebucketthreads ) \n"
+            "setmining mine ( minepowthreads ) ( minebucketthreads ) ( minebucketsize ) \n"
             "\nSet 'mine' true or false to turn generation on or off.\n"
             "Generation is limited to 'minepowthreads' threads per pow attempt, -1 is unlimited.\n"
             "If 'minebucketsize' is more than 1, then it runs buckets of nonces in parallel.\n"
@@ -1044,8 +1047,8 @@ UniValue setmining(const JSONRPCRequest& request)
 
     gArgs.ForceSetArg("-mine", (mine ? "1" : "0"));
     gArgs.ForceSetArg("-minepowthreads", itostr(pow_threads));
-    gArgs.ForceSetArg("-minebucketsize", itostr(bucket_size));
     gArgs.ForceSetArg("-minebucketthreads", itostr(bucket_threads));
+    gArgs.ForceSetArg("-minebucketsize", itostr(bucket_size));
 
     GenerateMerit(mine, pow_threads, bucket_size, bucket_threads, Params());
 
