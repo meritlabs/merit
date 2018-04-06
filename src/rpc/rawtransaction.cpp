@@ -241,6 +241,7 @@ UniValue getrawtransaction(const JSONRPCRequest& request)
             "\nExamples:\n"
             + HelpExampleCli("getrawtransaction", "\"mytxid\"")
             + HelpExampleCli("getrawtransaction", "\"mytxid\" true")
+            + HelpExampleCli("getrawtransaction", "\"mytxid\" 1 1")
             + HelpExampleRpc("getrawtransaction", "\"mytxid\" true")
             + HelpExampleRpc("getrawtransaction", "\"mytxid\" true true")
         );
@@ -251,23 +252,24 @@ UniValue getrawtransaction(const JSONRPCRequest& request)
     bool fVerbose = false;
     if (!request.params[1].isNull()) {
         if (request.params[1].isNum()) {
-            if (request.params[1].get_int() != 0) {
-                fVerbose = true;
-            }
-        }
-        else if(request.params[1].isBool()) {
-            if(request.params[1].isTrue()) {
-                fVerbose = true;
-            }
-        }
-        else {
-            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid type provided. Verbose parameter must be a boolean.");
+            fVerbose = request.params[1].get_int() > 0;
+        } else if(request.params[1].isBool()) {
+            fVerbose = request.params[1].get_bool();
+        } else {
+            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid type provided. Verbose parameter must be a number or a boolean.");
         }
     }
 
     bool complete_search = false;
-    if(!request.params[2].isNull() && request.params[2].isBool()) {
-        complete_search = request.params[2].isTrue();
+
+    if (!request.params[2].isNull()) {
+        if (request.params[2].isNum()) {
+            complete_search = request.params[2].get_int() > 0;
+        } else if(request.params[2].isBool()) {
+            complete_search = request.params[2].get_bool();
+        } else {
+            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid type provided. completecheck parameter must be a number or a boolean.");
+        }
     }
 
     CTransactionRef tx;
