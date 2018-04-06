@@ -329,11 +329,13 @@ void OnRPCStopped()
 
 void OnPRCMiningStarted()
 {
+    uiInterface.MiningStarted.connect();
     LogPrint(BCLog::RPC, "RPC Mining started.\n");
 }
 
 void OnPRCMiningStopped()
 {
+    uiInterface.MiningStopped.connec();
     LogPrint(BCLog::RPC, "RPC Mining stopped.\n");
 }
 
