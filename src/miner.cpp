@@ -947,7 +947,10 @@ void MinerWorker(int thread_id, MinerContext& ctx)
                 MilliSleep(1000);
             } while (ctx.alive);
         }
-        g_connman->InitMiningStats();
+
+        if(g_connman) {
+            g_connman->InitMiningStats();
+        }
 
         //
         // Create new block
@@ -1033,7 +1036,7 @@ void MinerWorker(int thread_id, MinerContext& ctx)
             }
 
             // Regtest mode doesn't require peers
-            if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0 &&
+            if ((!g_connman || g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0) &&
                     ctx.chainparams.MiningRequiresPeers()) {
                 break;
             }
@@ -1071,7 +1074,7 @@ void MinerWorker(int thread_id, MinerContext& ctx)
             }
         }
 
-        if (ctx.alive) {
+        if (ctx.alive && g_connman) {
             g_connman->AddCheckedNonces(nonces_checked);
         }
     }
@@ -1160,7 +1163,9 @@ void GenerateMerit(bool mine, int pow_threads, int bucket_size, int bucket_threa
     }
 
     if (pow_threads == 0 || bucket_threads == 0 || !mine) {
-        g_connman->ResetMiningStats();
+        if(g_connman) {
+            g_connman->ResetMiningStats();
+        }
         return;
     }
 
