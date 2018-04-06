@@ -583,8 +583,11 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *_walletModel)
     walletModel = _walletModel;
     assert(walletModel);
 
+    hasMnemonic = walletModel->hasMnemonic();
     #ifdef USE_QRCODE
-        exportWalletDialog = new ExportWalletDialog(this, walletModel);
+        if(hasMnemonic)
+            exportWalletDialog = new ExportWalletDialog(this, walletModel);
+        exportWalletQRAction->setVisible(hasMnemonic);
     #endif
 
     isReferred = walletModel->IsReferred();
@@ -651,7 +654,7 @@ void MeritGUI::setWalletActionsEnabled(bool enabled, bool isReferred)
     usedReceivingAddressesAction->setEnabled(enabled);
     openAction->setEnabled(enabled);
     #ifdef USE_QRCODE
-        exportWalletQRAction->setEnabled(enabled);
+        exportWalletQRAction->setEnabled(enabled && hasMnemonic);
     #endif
 }
 
@@ -756,6 +759,7 @@ void MeritGUI::showHelpMessageClicked()
 void MeritGUI::showExportWallet()
 {
     #ifdef USE_QRCODE
+    if(hasMnemonic)
         exportWalletDialog->show();
     #endif
 }

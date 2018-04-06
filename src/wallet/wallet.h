@@ -1218,6 +1218,7 @@ public:
     void postInitProcess(CScheduler& scheduler);
 
     bool BackupWallet(const std::string& strDest);
+    bool HasMnemonic();
     std::string GetMnemonic();
 
     /* Set the HD chain model (chain child index counters) */
@@ -1247,8 +1248,7 @@ public:
     std::string GetAlias() const
     {
         auto ref = GetRootReferral();
-
-        return ref != nullptr ? ref->alias : "";
+        return ref != nullptr ? ref->GetAlias() : "";
     }
 
     std::string GetUnlockCode() const

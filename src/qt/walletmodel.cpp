@@ -699,6 +699,12 @@ bool WalletModel::getPrivKey(const CKeyID &address, CKey& vchPrivKeyOut) const
     return wallet->GetKey(address, vchPrivKeyOut);
 }
 
+bool WalletModel::hasMnemonic() const
+{
+    assert(wallet);
+    return wallet->HasMnemonic();
+}
+
 QString WalletModel::getMnemonic() const
 {
     assert(wallet);

@@ -106,6 +106,8 @@ public:
         return address;
     }
 
+    std::string GetAlias() const;
+
     /**
      * Get the total transaction size in bytes, including witness data.
      * "Total Size" defined in BIP141 and BIP144.
@@ -180,6 +182,8 @@ public:
     {
         Unserialize(s);
     }
+
+    std::string GetAlias() const;
 
     /**
      * Compute the hash of this MutableReferral. This is computed on the
