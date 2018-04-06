@@ -1879,7 +1879,7 @@ bool UpdateInviteLotteryParams(
                             prev,
                             params,
                             block_inv_is_in,
-                            true)) {
+                            false)) {
                     return false;
                 }
 
