@@ -327,6 +327,16 @@ void OnRPCStopped()
     LogPrint(BCLog::RPC, "RPC stopped.\n");
 }
 
+void OnPRCMiningStarted()
+{
+    LogPrint(BCLog::RPC, "RPC Mining started.\n");
+}
+
+void OnPRCMiningStopped()
+{
+    LogPrint(BCLog::RPC, "RPC Mining stopped.\n");
+}
+
 std::string HelpMessage(HelpMessageMode mode)
 {
     const auto defaultBaseParams = CreateBaseChainParams(CBaseChainParams::MAIN);
@@ -743,6 +753,8 @@ bool AppInitServers(boost::thread_group& threadGroup)
 {
     RPCServer::OnStarted(&OnRPCStarted);
     RPCServer::OnStopped(&OnRPCStopped);
+    RPCServer::OnMiningStarted(&OnPRCMiningStarted);
+    RPCServer::OnMiningStopped(&OnPRCMiningStopped);
     if (!InitHTTPServer())
         return false;
     if (!StartRPC())

@@ -26,6 +26,8 @@ namespace RPCServer
 {
     void OnStarted(std::function<void ()> slot);
     void OnStopped(std::function<void ()> slot);
+    void OnMiningStarted(std::function<void ()> slot);
+    void OnMiningStopped(std::function<void ()> slot);
 }
 
 /** Wrapper for UniValue::VType, which includes typeAny:
@@ -190,6 +192,8 @@ extern std::string HelpExampleRpc(const std::string& methodname, const std::stri
 bool StartRPC();
 void InterruptRPC();
 void StopRPC();
+void StartMining();
+void StopMining();
 std::string JSONRPCExecBatch(const UniValue& vReq);
 
 // Retrieves any serialization flags requested in command line argument
