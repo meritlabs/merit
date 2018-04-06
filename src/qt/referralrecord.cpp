@@ -57,12 +57,12 @@ bool ShowReferral(const referral::ReferralRef& ref)
     return ref->addressType == 1;
 }
 
-ReferralRecord DecomposeReferral(const referral::ReferralRef ref, uint64_t time_received)
+ReferralRecord DecomposeReferral(const referral::ReferralRef& ref, uint64_t time_received)
 {
     assert(ref);
 
     const CMeritAddress meritAddress{ref->addressType, ref->GetAddress()};
-    return ReferralRecord{ref->GetHash(), static_cast<qint64>(time_received), meritAddress.ToString(), ref->alias};
+    return ReferralRecord{ref->GetHash(), static_cast<qint64>(time_received), meritAddress.ToString(), ref->GetAlias()};
 }
 
 /*

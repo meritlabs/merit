@@ -85,7 +85,7 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
                 }
                 const auto maybe_referral = prefviewcache->GetReferral(spentInfo.addressHash);
                 if (maybe_referral) {
-                    in.pushKV("alias", maybe_referral->alias);
+                    in.pushKV("alias", maybe_referral->GetAlias());
                 }
             } else {
                 debug("could not fetch spent info");

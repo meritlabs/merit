@@ -153,6 +153,13 @@ uint256 Referral::ComputeHash() const
     return SerializeHash(*this, SER_GETHASH);
 }
 
+std::string MutableReferral::GetAlias() const
+{
+    auto clean_alias = alias;
+    CleanupAlias(clean_alias);
+    return clean_alias;
+}
+
 Referral::Referral(const MutableReferral &ref) :
     version{ref.version},
     parentAddress{ref.parentAddress},
@@ -176,6 +183,13 @@ Referral::Referral(MutableReferral &&ref) :
 unsigned int Referral::GetTotalSize() const
 {
     return ::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION);
+}
+
+std::string Referral::GetAlias() const
+{
+    auto clean_alias = alias;
+    CleanupAlias(clean_alias);
+    return clean_alias;
 }
 
 std::string Referral::ToString() const
