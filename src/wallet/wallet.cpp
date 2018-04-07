@@ -4871,10 +4871,9 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
             // generate a new master key
 
             // TODO: Support multiple languages
-            WordList mnemonic;
-            for(size_t i = 0; i < mnemonic::MNEMONIC_WORD_COUNT; i++) {
-                mnemonic.push_back(language::en[GetRand(language::en.size())]);
-            }
+            std::vector<uint8_t> entropy(mnemonic::ENTROPY_BYTES);
+            GetStrongRandBytes(entropy.data(), mnemonic::ENTROPY_BYTES);
+            WordList mnemonic = mnemonic::entropy2Mnemonic(entropy, language::en);
 
             CPubKey masterPubKey = walletInstance->GenerateMasterKeyFromMnemonic(mnemonic);
             if (!walletInstance->SetHDMasterKey(masterPubKey))
