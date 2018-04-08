@@ -43,11 +43,10 @@ before_script:
     - cd depends && make $MAKEJOBS HOST=$HOST $DEP_OPTS && cd ..
 script:
     - ./autogen.sh
-#    - CFLAGS=-fPIC CXXFLAGS=-fPIC CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure --prefix=/ --with-gui=qt5 --with-pic
-#    - cd src && make obj/build.h && cd ..
-#    - make $MAKEJOBS
-#    - make install DESTDIR=$PWD/dist
-    - echo "Build!" && exit 0
+    - CFLAGS=-fPIC CXXFLAGS=-fPIC CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure --prefix=/ --with-gui=qt5 --with-pic
+    - cd src && make obj/build.h && cd ..
+    - make $MAKEJOBS
+    - make install DESTDIR=$PWD/dist
 after_script:
     - echo $TRAVIS_COMMIT_RANGE
     - echo $TRAVIS_COMMIT_LOG
