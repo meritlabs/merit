@@ -45,7 +45,7 @@ Build Merit Core
         ./configure
         cd src && make obj/build.h && cd .. && make
 
-3.  It is recommended to build and run the unit tests:
+3.  It is recommended to build and run the unit tests (requires the QT GUI installation setps above):
 
         make check
 
@@ -60,6 +60,7 @@ Merit Core is now available at `./src/meritd`
 
 Before running, it's recommended you create an RPC configuration file.
 
+    mkdir -p "/Users/${USER}/Library/Application Support/Merit/merit.conf" # create the merit directory
     echo -e "rpcuser=meritrpc\nrpcpassword=$(xxd -l 16 -p /dev/urandom)" > "/Users/${USER}/Library/Application Support/Merit/merit.conf"
 
     chmod 600 "/Users/${USER}/Library/Application Support/Merit/merit.conf"
