@@ -337,7 +337,7 @@ void CWallet::DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata
 {
     // this method uses a fixed keypath scheme of m/44'/0'/0'/0/k
     // m/44'/1'/0'/0/k for testnet
-    const auto seed = mnemonic::mnemonicToSeed(mapKeyMetadata[hdChain.masterKeyID].mnemonic);
+    const auto seed = mnemonic::MnemonicToSeed(mapKeyMetadata[hdChain.masterKeyID].mnemonic);
 
     CExtKey masterKey;             //hd master key  m
     CExtKey changeKey;             //key at m/44'/0'/0'/0'
@@ -1729,7 +1729,7 @@ CPubKey CWallet::GenerateNewHDMasterKey()
 CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const std::string& passphrase)
 {
     CExtKey extkey;
-    std::array<uint8_t, mnemonic::SEED_LENGTH> seed = mnemonic::mnemonicToSeed(mnemonic, passphrase);
+    std::array<uint8_t, mnemonic::SEED_LENGTH> seed = mnemonic::MnemonicToSeed(mnemonic, passphrase);
     extkey.SetMaster(seed.begin(), mnemonic::SEED_LENGTH);
 
 
@@ -1743,7 +1743,7 @@ CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const s
     // set the hd keypath to "m" -> Master, refers the masterkeyid to itself
     metadata.hdKeypath     = "m";
     metadata.hdMasterKeyID = pubkey.GetID();
-    metadata.mnemonic = mnemonic::unwords(mnemonic);
+    metadata.mnemonic = mnemonic::Unwords(mnemonic);
     metadata.nVersion = CKeyMetadata::VERSION_WITH_MNEMONIC;
 
     {
@@ -4873,7 +4873,7 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
             // TODO: Support multiple languages
             std::vector<uint8_t> entropy(mnemonic::ENTROPY_BYTES);
             GetStrongRandBytes(entropy.data(), mnemonic::ENTROPY_BYTES);
-            WordList mnemonic = mnemonic::entropy2Mnemonic(entropy, language::en);
+            WordList mnemonic = mnemonic::Entropy2Mnemonic(entropy, language::en);
 
             CPubKey masterPubKey = walletInstance->GenerateMasterKeyFromMnemonic(mnemonic);
             if (!walletInstance->SetHDMasterKey(masterPubKey))
