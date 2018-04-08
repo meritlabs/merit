@@ -130,7 +130,7 @@ Once you have Merit up-and-running, you'll probably want to start and monitor th
 
 1. Create the service definition
   a. `touch /etc/systemd/system/meritd.service`
-  b. `chmod 077 /etc/systemd/system/meritd.service`
+  b. `chmod 0766 /etc/systemd/system/meritd.service`
   c. `vi /etc/systemd/system/meritd.service`
 ```bash
 [Unit]
@@ -139,9 +139,13 @@ After=network.target syslog.target
 
 [Service]
 Type=simple
-WorkingDirecotry=/root/merit
+WorkingDirectory=/root/merit
+User=root
 ExecStart=/root/merit/src/meritd
 Restart=on-failure
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=meritd
 
 [Install]
 WantedBy=multi-user.target
