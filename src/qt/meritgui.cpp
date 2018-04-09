@@ -1089,7 +1089,7 @@ void MeritGUI::incomingTransaction(const QString& date, int unit, const CAmount&
     QString msg = tr("Date: %1\n").arg(date);
 
     if (type.contains("invite")) {
-        msg += tr("Amount: %1\n").arg(MeritUnits::formatWithUnit(MeritUnits::Unit::INV, 1, true));
+        msg += tr("Amount: %1\n").arg(MeritUnits::formatWithUnit(MeritUnits::Unit::INV, amount, true));
     } else {
         msg += tr("Amount: %1\n").arg(MeritUnits::formatWithUnit(unit, amount, true));
     }
