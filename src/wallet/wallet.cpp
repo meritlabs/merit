@@ -2821,6 +2821,7 @@ void CWallet::AvailableCoins(
 {
     vCoins.clear();
 
+    AddressAmountMap address_amounts;
     {
         LOCK2(cs_main, cs_wallet);
 
@@ -2837,7 +2838,9 @@ void CWallet::AvailableCoins(
             if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0 && !invite)
                 continue;
 
-            if (pcoin->IsInvite() != invite)
+            const bool is_invite = pcoin->IsInvite();
+
+            if (is_invite != invite)
                 continue;
 
             int nDepth = pcoin->GetDepthInMainChain();
@@ -2890,7 +2893,11 @@ void CWallet::AvailableCoins(
                 continue;
 
             for (unsigned int i = 0; i < pcoin->tx->vout.size(); i++) {
-                if (pcoin->tx->vout[i].nValue < nMinimumAmount || pcoin->tx->vout[i].nValue > nMaximumAmount)
+                const auto& txout = pcoin->tx->vout[i];
+                const auto amount = txout.nValue;
+
+
+                if (amount < nMinimumAmount || amount > nMaximumAmount)
                     continue;
 
                 if (coinControl && coinControl->HasSelected() && !coinControl->fAllowOtherInputs && !coinControl->IsSelected(COutPoint((*it).first, i)))
@@ -2902,11 +2909,24 @@ void CWallet::AvailableCoins(
                 if (IsSpent(wtxid, i))
                     continue;
 
-                isminetype mine = IsMine(pcoin->tx->vout[i]);
+                isminetype mine = IsMine(txout);
 
                 if (mine == ISMINE_NO) {
                     continue;
                 }
+
+                // aggregate counts for invites per address. We
+                // will need to remove coins later that fewer than 2
+                // invites.
+                if(is_invite) {
+                    const auto address = ExtractAddress(txout);
+                    if (address.second == 0) {
+                        continue;
+                    }
+
+                    address_amounts[address.first] += amount;
+                }
+
 
                 bool fSpendableIn = ((mine & ISMINE_SPENDABLE) != ISMINE_NO) || (coinControl && coinControl->fAllowWatchOnly && (mine & ISMINE_WATCH_SOLVABLE) != ISMINE_NO);
                 bool fSolvableIn = (mine & (ISMINE_SPENDABLE | ISMINE_WATCH_SOLVABLE)) != ISMINE_NO;
@@ -2915,7 +2935,7 @@ void CWallet::AvailableCoins(
 
                 // Checks the sum amount of all UTXO's.
                 if (nMinimumSumAmount != MAX_MONEY) {
-                    nTotal += pcoin->tx->vout[i].nValue;
+                    nTotal += amount;
 
                     if (nTotal >= nMinimumSumAmount) {
                         return;
@@ -2927,6 +2947,20 @@ void CWallet::AvailableCoins(
                     return;
                 }
             }
+        }
+
+        if (invite) {
+            vCoins.erase(std::remove_if(vCoins.begin(), vCoins.end(), 
+                        [&address_amounts](const COutput& coin) {
+                            const auto& txout = coin.tx->tx->vout[coin.i];
+
+                            const auto address = ExtractAddress(txout);
+                            assert(address.second != 0);
+
+                            const auto amount = address_amounts[address.first];
+
+                            return amount < 2;
+                        }), vCoins.end());
         }
     }
 }
