@@ -1070,6 +1070,11 @@ static bool AcceptToMemoryPoolWorker(
                     auto it = mempoolReferral.Find(referral->alias);
                     while (it.first != it.second) {
                         const auto duplicate_referral = it.first->GetSharedEntryValue();
+                        it.first++;
+
+                        if (referral->GetHash() == duplicate_referral->GetHash()) {
+                            continue;
+                        }
 
                         std::vector<AddressPair> addresses{{duplicate_referral->GetAddress(), duplicate_referral->addressType}};
                         std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
@@ -1085,8 +1090,6 @@ static bool AcceptToMemoryPoolWorker(
                                 return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
                             }
                         }
-
-                        it.first++;
                     }
                 }
             }
