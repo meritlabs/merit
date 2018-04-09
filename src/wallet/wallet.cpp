@@ -2308,7 +2308,7 @@ CAmount CWalletTx::GetImmatureCredit(bool fUseCache) const
     return 0;
 }
 
-CAmount CWalletTx::GetAvailableCredit(bool fUseCache) const
+CAmount CWalletTx::GetAvailableCredit(AddressAmountMap& address_amounts, bool fUseCache) const
 {
     if (pwallet == nullptr)
         return 0;
@@ -2317,8 +2317,10 @@ CAmount CWalletTx::GetAvailableCredit(bool fUseCache) const
     if (IsCoinBase() && GetBlocksToMaturity() > 0)
         return 0;
 
-    if (fUseCache && fAvailableCreditCached)
+    if (fUseCache && fAvailableCreditCached) {
+        address_amounts = available_credit_address_amounts;
         return nAvailableCreditCached;
+    }
 
     CAmount nCredit = 0;
     uint256 hashTx = GetHash();
@@ -2327,14 +2329,25 @@ CAmount CWalletTx::GetAvailableCredit(bool fUseCache) const
         if (!pwallet->IsSpent(hashTx, i))
         {
             const CTxOut &txout = tx->vout[i];
-            nCredit += pwallet->GetCredit(txout, ISMINE_SPENDABLE);
+
+            const auto amount = pwallet->GetCredit(txout, ISMINE_SPENDABLE);
+            nCredit += amount;
+
+            if(amount > 0) {
+                auto address = ExtractAddress(txout);
+                if (address.second != 0) {
+                    address_amounts[address.first] += amount;
+                }
+            }
             if (!MoneyRange(nCredit))
                 throw std::runtime_error(std::string(__func__) + " : value out of range");
         }
     }
 
     nAvailableCreditCached = nCredit;
+    available_credit_address_amounts = address_amounts;
     fAvailableCreditCached = true;
+
     return nCredit;
 }
 
@@ -2494,17 +2507,19 @@ void CWallet::ResendWalletTransactions(int64_t nBestBlockTime, CConnman* connman
  * @{
  */
 
-
 CAmount CWallet::GetBalance(bool invite) const
 {
     CAmount nTotal = 0;
+    AddressAmountMap address_amounts;
     {
         LOCK2(cs_main, cs_wallet);
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
             if (pcoin->IsTrusted() && pcoin->IsInvite() == invite) {
-                nTotal += pcoin->GetAvailableCredit();
+                AddressAmountMap tx_address_amounts;
+                nTotal += pcoin->GetAvailableCredit(tx_address_amounts);
+                address_amounts.insert(tx_address_amounts.begin(), tx_address_amounts.end());
             }
         }
     }
@@ -2513,7 +2528,7 @@ CAmount CWallet::GetBalance(bool invite) const
     //if you transfer the last uspent invite from address A to address B, you
     //will render address A unusable.
     if(invite) {
-        nTotal = std::max(CAmount{0}, nTotal - 1);
+        nTotal = std::max<CAmount>(0, nTotal - address_amounts.size());
     }
 
     return nTotal;
@@ -2586,6 +2601,7 @@ pog::RewardsAmount CWallet::GetRewards() const
 CAmount CWallet::GetUnconfirmedBalance(bool invite) const
 {
     CAmount nTotal = 0;
+    AddressAmountMap address_amounts;
     {
         LOCK2(cs_main, cs_wallet);
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
@@ -2594,10 +2610,17 @@ CAmount CWallet::GetUnconfirmedBalance(bool invite) const
             if (!pcoin->IsTrusted() &&
                     pcoin->GetDepthInMainChain() == 0 &&
                     pcoin->InMempool() &&
-                    pcoin->IsInvite() == invite)
+                    pcoin->IsInvite() == invite) {
 
-                nTotal += pcoin->GetAvailableCredit();
+                AddressAmountMap tx_address_amounts;
+                nTotal += pcoin->GetAvailableCredit(tx_address_amounts);
+                address_amounts.insert(tx_address_amounts.begin(), tx_address_amounts.end());
+            }
         }
+    }
+
+    if(invite) {
+        nTotal = std::max<CAmount>(0, nTotal - address_amounts.size());
     }
     return nTotal;
 }
