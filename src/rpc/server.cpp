@@ -348,7 +348,7 @@ void StartMining()
 
 void StopMining()
 {
-    LogPrint(BCLog::RPC, "Sttop mining with RPC call\n");
+    LogPrint(BCLog::RPC, "Stop mining with RPC call\n");
     g_rpcSignals.MiningStopped();
 }
 
