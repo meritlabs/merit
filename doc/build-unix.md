@@ -123,6 +123,46 @@ Once these are installed, pass `--with-gui` to configure to build Merit-Qt.
 If both Qt 4 and Qt 5 are installed, Qt 5 will be used.
 Pass `--with-gui=qt4` to configure to choose Qt4.
 
+Making an Ubuntu (systemctl) Service
+---------------------------
+
+Once you have Merit up-and-running, you'll probably want to start and monitor the application as a  systemctl service.
+
+1. Create the service definition
+  a. `touch /etc/systemd/system/meritd.service`
+  b. `chmod 0766 /etc/systemd/system/meritd.service`
+  c. `vi /etc/systemd/system/meritd.service`
+```bash
+[Unit]
+Description=Merit Server
+After=network.target syslog.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/merit
+User=root
+ExecStart=/root/merit/src/meritd
+Restart=on-failure
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=meritd
+
+[Install]
+WantedBy=multi-user.target
+```
+
+2. Reload systemctl so it finds your new service
+`sudo systemctl daemon-reload`
+
+3. Start the service and enable it at boot
+```
+sudo systemctl enable meritd.service
+sudo systemctl start meritd.service
+```
+
+4. Check on the service
+`sudo systemctl status myforever.service`
+
 Dependency Build Instructions: Fedora
 -------------------------------------
 Build requirements:
