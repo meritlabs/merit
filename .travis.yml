@@ -45,7 +45,7 @@ script:
     - ./autogen.sh
     - CFLAGS=-fPIC CXXFLAGS=-fPIC CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure --prefix=/ --with-gui=qt5 --with-pic
     - cd src && make obj/build.h && cd ..
-    # - make $MAKEJOBS
+    - make $MAKEJOBS
     # - make install DESTDIR=$PWD/dist
 after_script:
     - echo $TRAVIS_COMMIT_RANGE
