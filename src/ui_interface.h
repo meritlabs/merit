@@ -110,11 +110,8 @@ public:
     /** Banlist did change. */
     boost::signals2::signal<void (void)> BannedListChanged;
 
-    /** Mining started. */
-    boost::signals2::signal<void (void)> MiningStarted;
-
-    /** Mining stopped. */
-    boost::signals2::signal<void (void)> MiningStopped;
+    /** Mining started or stopped */
+    boost::signals2::signal<void (bool)> MiningStatusChanged;
 };
 
 /** Show warning message **/

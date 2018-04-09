@@ -24,6 +24,7 @@
 #include "optionsmodel.h"
 #include "platformstyle.h"
 #include "rpcconsole.h"
+#include "rpc/server.h"
 #include "utilitydialog.h"
 
 #ifdef ENABLE_WALLET
@@ -169,7 +170,11 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
         setCentralWidget(walletFrame);
 
         connect(this, SIGNAL(miningStatusChanged(bool)), this, SLOT(setMiningStatus(bool)));
-
+        // Wire RPC calls with GUI
+        std::function<void ()> starter = [this]() -> void { this->miningStarted(); };
+        RPCServer::OnMiningStarted(starter);
+        std::function<void ()> stopper = [this]() -> void { this->miningStopped(); };
+        RPCServer::OnMiningStopped(stopper);
     } else
 #endif // ENABLE_WALLET
     {
@@ -596,7 +601,7 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *_walletModel)
     if(isReferred)
     {
         modalOverlay->allowHide();
-    } 
+    }
     else
     {
         enterUnlockCode->setModel(walletModel);
@@ -1186,10 +1191,8 @@ void MeritGUI::setEncryptionStatus(int status)
     }
 }
 
-void MeritGUI::setMiningStatus(bool isMining)
+void MeritGUI::changeMiningIndicator(bool isMining)
 {
-    miningStatusIcon->show();
-
     if (isMining) {
         miningStatusIcon->setPixmap(platformStyle->SingleColorIcon(":/icons/tx_mined").pixmap(STATUSBAR_ICONSIZE,STATUSBAR_ICONSIZE));
         miningStatusIcon->setToolTip(tr("Mining is <b>enabled</b>"));
@@ -1197,6 +1200,25 @@ void MeritGUI::setMiningStatus(bool isMining)
         miningStatusIcon->setPixmap(platformStyle->SingleColorIcon(":/icons/transaction_conflicted").pixmap(STATUSBAR_ICONSIZE,STATUSBAR_ICONSIZE));
         miningStatusIcon->setToolTip(tr("Mining is <b>not enabled</b>"));
     }
+
+    startMiningAction->setEnabled(!isMining);
+    stopMiningAction->setEnabled(isMining);
+}
+
+void MeritGUI::miningStarted()
+{
+    changeMiningIndicator(true);
+}
+
+void MeritGUI::miningStopped()
+{
+    changeMiningIndicator(false);
+}
+
+void MeritGUI::setMiningStatus(bool isMining)
+{
+    miningStatusIcon->show();
+    changeMiningIndicator(isMining);
 
     int pow_threads = DEFAULT_MINING_POW_THREADS;
     int bucket_threads = DEFAULT_MINING_BUCKET_THREADS;
@@ -1206,9 +1228,6 @@ void MeritGUI::setMiningStatus(bool isMining)
     gArgs.ForceSetArg("-minebucketsize", itostr(bucket_size));
     gArgs.ForceSetArg("-minebucketthreads", itostr(bucket_threads));
     gArgs.ForceSetArg("-mine", (isMining ? "1" : "0"));
-
-    startMiningAction->setEnabled(!isMining);
-    stopMiningAction->setEnabled(isMining);
 
     try
     {
