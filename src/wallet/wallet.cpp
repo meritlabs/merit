@@ -2507,6 +2507,12 @@ void CWallet::ResendWalletTransactions(int64_t nBestBlockTime, CConnman* connman
  * @{
  */
 
+void ReduceAddressAmounts(AddressAmountMap& result, const AddressAmountMap& other) {
+    for (const auto& a : other) {
+        result[a.first] += a.second;
+    }
+}
+
 CAmount CWallet::GetBalance(bool invite) const
 {
     CAmount nTotal = 0;
@@ -2519,7 +2525,7 @@ CAmount CWallet::GetBalance(bool invite) const
             if (pcoin->IsTrusted() && pcoin->IsInvite() == invite) {
                 AddressAmountMap tx_address_amounts;
                 nTotal += pcoin->GetAvailableCredit(tx_address_amounts);
-                address_amounts.insert(tx_address_amounts.begin(), tx_address_amounts.end());
+                ReduceAddressAmounts(address_amounts, tx_address_amounts);
             }
         }
     }
@@ -2614,7 +2620,7 @@ CAmount CWallet::GetUnconfirmedBalance(bool invite) const
 
                 AddressAmountMap tx_address_amounts;
                 nTotal += pcoin->GetAvailableCredit(tx_address_amounts);
-                address_amounts.insert(tx_address_amounts.begin(), tx_address_amounts.end());
+                ReduceAddressAmounts(address_amounts, tx_address_amounts);
             }
         }
     }
@@ -2950,7 +2956,7 @@ void CWallet::AvailableCoins(
         }
 
         if (invite) {
-            vCoins.erase(std::remove_if(vCoins.begin(), vCoins.end(), 
+            vCoins.erase(std::remove_if(vCoins.begin(), vCoins.end(),
                         [&address_amounts](const COutput& coin) {
                             const auto& txout = coin.tx->tx->vout[coin.i];
 
