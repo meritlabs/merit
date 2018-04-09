@@ -151,7 +151,7 @@ SyslogIdentifier=meritd
 WantedBy=multi-user.target
 ```
 
-2. Relaod systemctl so it finds your new service
+2. Reload systemctl so it finds your new service
 `sudo systemctl daemon-reload`
 
 3. Start the service and enable it at boot
