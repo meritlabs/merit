@@ -45,7 +45,7 @@ Build Merit Core
         ./configure
         cd src && make obj/build.h && cd .. && make
 
-3.  It is recommended to build and run the unit tests (requires the QT GUI installation setps above):
+3.  It is recommended to build and run the unit tests (requires the QT GUI installation steps above):
 
         make check
 
