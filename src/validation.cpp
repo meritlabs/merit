@@ -741,19 +741,13 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
 
     referral::RefMemPoolEntry entry(*referral, nAcceptTime, chainActive.Height());
 
-    const uint256 hash = referral->GetHash();
+    const auto hash = referral->GetHash();
 
     {
         LOCK(pool.cs);
 
-        // is it already in the chain?
-        if (prefviewcache->Exists(hash)) {
-            return state.Invalid(false, REJECT_DUPLICATE, "ref-already-beaconed");
-        }
-
-        // is it already in the memory pool?
-        if (pool.Exists(hash)) {
-            return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
+        if (CheckAddressBeaconed(referral->GetAddress())) {
+            return state.Invalid(false, REJECT_DUPLICATE, "ref-address-beaconed");
         }
 
         // check if referral alias is already occupied
@@ -773,7 +767,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_INVALID, "ref-bad-sig");
         }
 
-        pool.AddUnchecked(referral->GetHash(), entry);
+        pool.AddUnchecked(hash, entry);
     }
 
     // trim mempool and check if referral was trimmed
@@ -3755,7 +3749,7 @@ static bool ConnectBlock(
         if (!GetDebitsAndCredits(debits_and_credits, tx, view)) {
             return state.DoS(100,
                     error("ConnectBlock(): merit was sent to addresses that are non standard"),
-                    REJECT_INVALID, "bad-cb-bad-outputs");
+                    REJECT_INVALID, "bad-tx-outputs");
         }
 
         CTxUndo undoDummy;
@@ -3826,7 +3820,7 @@ static bool ConnectBlock(
             if (!GetDebitsAndCredits(invite_debits_and_credits, inv, view)) {
                 return state.DoS(100,
                         error("ConnectBlock(): merit was sent to addresses that are non standard"),
-                        REJECT_INVALID, "bad-cb-bad-outputs");
+                        REJECT_INVALID, "bad-inv-outputs");
             }
 
             blockundo.invites_undo.push_back(CTxUndo());
@@ -3852,13 +3846,13 @@ static bool ConnectBlock(
             if (CheckAddressBeaconed(ref->GetAddress(), false)) {
                 return state.DoS(100,
                         error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex()),
-                        REJECT_INVALID, "bad-cb-ref-already-beaconed");
+                        REJECT_INVALID, "bad-ref-address-beaconed");
             }
 
             if (!CheckReferralSignature(*ref)) {
                 return state.DoS(100,
                         error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex()),
-                        REJECT_INVALID, "bad-cb-ref-sig-failed");
+                        REJECT_INVALID, "bad-ref-sig-failed");
             }
 
             // is referral alias already occupied?
@@ -3875,7 +3869,7 @@ static bool ConnectBlock(
             return state.DoS(
                     100,
                     error("ConnectBlock(): referral is not confirmed"),
-                    REJECT_INVALID, "bad-cb-ref-not-confirmed");
+                    REJECT_INVALID, "bad-ref-not-confirmed");
         }
 
         std::set<uint256> referral_hashes{};
@@ -3987,7 +3981,7 @@ static bool ConnectBlock(
                 if (block.invites[i]->IsCoinBase()) {
                     return state.DoS(100,
                             error("ConnectBlock(): coinbase invite is unexpected"),
-                            REJECT_INVALID, "bad-cb-invite-unexpected-coinbase");
+                            REJECT_INVALID, "bad-invite-unexpected-coinbase");
                 }
             }
 
@@ -4000,7 +3994,7 @@ static bool ConnectBlock(
     if (!prefviewdb->OrderReferrals(ordered_referrals)) {
         return state.DoS(100,
                 error("ConnectBlock(): There are orphan referrals in the block"),
-                REJECT_INVALID, "bad-cb-orphan-referrals");
+                REJECT_INVALID, "bad-orphan-referrals");
     }
 
 
