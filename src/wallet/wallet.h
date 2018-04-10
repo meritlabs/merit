@@ -99,6 +99,8 @@ enum WalletFeature
     FEATURE_LATEST = FEATURE_BASE // HD is optional, use FEATURE_COMPRPUBKEY as latest version
 };
 
+using AddressAmountMap = std::map<referral::Address, CAmount>;
+
 /** A key pool entry */
 class CKeyPool
 {
@@ -292,6 +294,8 @@ public:
     bool IsCoinBase() const override { return false; }
 };
 
+
+
 } // namespace referral
 
 /**
@@ -373,6 +377,7 @@ public:
     mutable CAmount nImmatureWatchCreditCached;
     mutable CAmount nAvailableWatchCreditCached;
     mutable CAmount nChangeCached;
+    mutable AddressAmountMap available_credit_address_amounts;
 
     CWalletTx(bool invite = false)
     {
@@ -413,6 +418,7 @@ public:
         nCreditCached = 0;
         nImmatureCreditCached = 0;
         nAvailableCreditCached = 0;
+        available_credit_address_amounts.clear();
         nWatchDebitCached = 0;
         nWatchCreditCached = 0;
         nAvailableWatchCreditCached = 0;
@@ -482,6 +488,7 @@ public:
     {
         fCreditCached = false;
         fAvailableCreditCached = false;
+        available_credit_address_amounts.clear();
         fImmatureCreditCached = false;
         fWatchDebitCached = false;
         fWatchCreditCached = false;
@@ -504,7 +511,7 @@ public:
     CAmount GetDebit(const isminefilter& filter) const;
     CAmount GetCredit(const isminefilter& filter) const;
     CAmount GetImmatureCredit(bool fUseCache=true) const;
-    CAmount GetAvailableCredit(bool fUseCache=true) const;
+    CAmount GetAvailableCredit(AddressAmountMap&, bool fUseCache=true) const;
     CAmount GetImmatureWatchOnlyCredit(const bool& fUseCache=true) const;
     CAmount GetAvailableWatchOnlyCredit(const bool& fUseCache=true) const;
     CAmount GetChange() const;
