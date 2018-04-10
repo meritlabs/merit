@@ -474,33 +474,27 @@ QVariant TransactionTableModel::addressColor(const TransactionRecord *wtx) const
 QString TransactionTableModel::formatTxAmount(const TransactionRecord *wtx, bool showUnconfirmed, MeritUnits::SeparatorStyle separators) const
 {
     QString str = MeritUnits::format(walletModel->getOptionsModel()->getDisplayUnit(), wtx->credit + wtx->debit, false, separators);
-    if(showUnconfirmed)
-    {
-        if(!wtx->status.countsForBalance)
-        {
+
+    if (showUnconfirmed) {
+        if(!wtx->status.countsForBalance) {
             str = QString("[") + str + QString("]");
         }
     }
+
     return QString(str);
 }
 
 QString TransactionTableModel::formatInvite(const TransactionRecord *rec, bool showUnconfirmed) const
 {
-    if (rec->IsInvite()) {
-        QString str = QString("1"); // dirty hack until we get transactions with multiple invites
+    QString str = QString("1"); // dirty hack until we get transactions with multiple invites
 
-        if(showUnconfirmed)
-        {
-            if(!rec->status.countsForBalance)
-            {
-                str = QString("[") + str + QString("]");
-            }
+    if (showUnconfirmed) {
+        if (!rec->status.countsForBalance) {
+            str = QString("[") + str + QString("]");
         }
-
-        return QString(str);
     }
 
-    return QString("0");
+    return QString(str);
 }
 
 QVariant TransactionTableModel::txStatusDecoration(const TransactionRecord *wtx) const
@@ -596,9 +590,9 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
         case ToAddress:
             return formatTxToAddress(rec, false);
         case Amount:
-            return formatTxAmount(rec, true, MeritUnits::separatorAlways);
+            return !rec->IsInvite() ? formatTxAmount(rec, true, MeritUnits::separatorAlways) : QString("");
         case Invite:
-            return formatInvite(rec, true);
+            return rec->IsInvite() ? formatInvite(rec, true) : QString("");
         }
         break;
     case Qt::EditRole:
