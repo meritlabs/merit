@@ -2310,6 +2310,8 @@ CAmount CWalletTx::GetImmatureCredit(bool fUseCache) const
 
 CAmount CWalletTx::GetAvailableCredit(AddressAmountMap& address_amounts, bool fUseCache) const
 {
+    assert(address_amounts.empty());
+
     if (pwallet == nullptr)
         return 0;
 
