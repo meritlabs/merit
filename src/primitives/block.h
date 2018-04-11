@@ -128,6 +128,7 @@ public:
         CBlockHeader::SetNull();
         vtx.clear();
         m_vRef.clear();
+        invites.clear();
         fChecked = false;
     }
 
@@ -140,8 +141,9 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
-        block.nEdgeBits     = nEdgeBits;
-        block.sCycle       = sCycle;
+        block.nEdgeBits      = nEdgeBits;
+        block.sCycle         = sCycle;
+
         return block;
     }
 

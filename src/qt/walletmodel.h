@@ -211,6 +211,7 @@ public:
     bool IsSpendable(const CTxDestination& dest) const;
     bool getPrivKey(const CKeyID &address, CKey& vchPrivKeyOut) const;
     void getOutputs(const std::vector<COutPoint>& vOutpoints, std::vector<COutput>& vOutputs);
+    bool hasMnemonic() const;
     QString getMnemonic() const;
     bool isSpent(const COutPoint& outpoint) const;
     void listCoins(std::map<QString, std::vector<COutput> >& mapCoins) const;

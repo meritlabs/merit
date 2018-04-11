@@ -349,6 +349,48 @@ bool CConnman::CheckIncomingNonce(uint64_t nonce)
     return true;
 }
 
+void CConnman::InitMiningStats()
+{
+    if (mining.active) {
+        return;
+    }
+
+    mining.active = true;
+    mining.start_time = GetTimeMillis();
+    mining.end_time = GetTimeMillis();
+    mining.nonces_done = 0;
+}
+
+void CConnman::ResetMiningStats()
+{
+    mining.active = false;
+    mining.start_time = 0;
+    mining.end_time = 0;
+    mining.nonces_done = 0;
+}
+
+int CConnman::AddCheckedNonces(int nonces)
+{
+    if (mining.active) {
+        mining.nonces_done += nonces;
+        mining.end_time = GetTimeMillis();
+    }
+
+    return mining.nonces_done;
+}
+
+double CConnman::GetHashPower()
+{
+    if (!mining.active) {
+        return .0;
+    }
+
+    double seconds_ellapsed = (mining.end_time - mining.start_time) / 1e3;
+    double hashpower = seconds_ellapsed ? mining.nonces_done / seconds_ellapsed : 0;
+
+    return hashpower;
+}
+
 /** Get the bind address for a socket as CAddress */
 static CAddress GetBindAddress(SOCKET sock)
 {

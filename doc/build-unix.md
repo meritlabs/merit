@@ -20,7 +20,7 @@ To Build
 ```bash
 ./autogen.sh
 ./configure
-make
+cd src && make obj/build.h && cd .. && make
 make install # optional
 ```
 
@@ -107,25 +107,61 @@ ZMQ dependencies (provides ZMQ API 4.x):
 Dependencies for the GUI: Ubuntu & Debian
 -----------------------------------------
 
+Merit is configured without building GUI by default.
 If you want to build Merit-Qt, make sure that the required packages for Qt development
 are installed. Either Qt 5 or Qt 4 are necessary to build the GUI.
-If both Qt 4 and Qt 5 are installed, Qt 5 will be used. Pass `--with-gui=qt4` to configure to choose Qt4.
-To build without GUI pass `--without-gui`.
 
 To build with Qt 5 (recommended) you need the following:
 
-    sudo apt-get install libqt5gui5 libqt5core5a libqt5dbus5 qttools5-dev qttools5-dev-tools libprotobuf-dev protobuf-compiler libarchive-dev
+    sudo apt-get install libqt5gui5 libqt5core5a libqt5dbus5 qttools5-dev qttools5-dev-tools libprotobuf-dev protobuf-compiler libarchive-dev libqrencode-dev
 
 Alternatively, to build with Qt 4 you need the following:
 
-    sudo apt-get install libqt4-dev libprotobuf-dev protobuf-compiler libarchive-dev
+    sudo apt-get install libqt4-dev libprotobuf-dev protobuf-compiler libarchive-dev libqrencode-dev
 
-libqrencode (optional) can be installed with:
+Once these are installed, pass `--with-gui` to configure to build Merit-Qt.
+If both Qt 4 and Qt 5 are installed, Qt 5 will be used.
+Pass `--with-gui=qt4` to configure to choose Qt4.
 
-    sudo apt-get install libqrencode-dev
+Making an Ubuntu (systemctl) Service
+---------------------------
 
-Once these are installed, they will be found by configure and a merit-qt executable will be
-built by default.
+Once you have Merit up-and-running, you'll probably want to start and monitor the application as a  systemctl service.
+
+1. Create the service definition
+  a. `touch /etc/systemd/system/meritd.service`
+  b. `chmod 0766 /etc/systemd/system/meritd.service`
+  c. `vi /etc/systemd/system/meritd.service`
+```bash
+[Unit]
+Description=Merit Server
+After=network.target syslog.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/merit
+User=root
+ExecStart=/root/merit/src/meritd
+Restart=on-failure
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=meritd
+
+[Install]
+WantedBy=multi-user.target
+```
+
+2. Reload systemctl so it finds your new service
+`sudo systemctl daemon-reload`
+
+3. Start the service and enable it at boot
+```
+sudo systemctl enable meritd.service
+sudo systemctl start meritd.service
+```
+
+4. Check on the service
+`sudo systemctl status myforever.service`
 
 Dependency Build Instructions: Fedora
 -------------------------------------

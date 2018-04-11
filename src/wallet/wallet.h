@@ -99,6 +99,8 @@ enum WalletFeature
     FEATURE_LATEST = FEATURE_BASE // HD is optional, use FEATURE_COMPRPUBKEY as latest version
 };
 
+using AddressAmountMap = std::map<referral::Address, CAmount>;
+
 /** A key pool entry */
 class CKeyPool
 {
@@ -292,6 +294,8 @@ public:
     bool IsCoinBase() const override { return false; }
 };
 
+
+
 } // namespace referral
 
 /**
@@ -373,6 +377,7 @@ public:
     mutable CAmount nImmatureWatchCreditCached;
     mutable CAmount nAvailableWatchCreditCached;
     mutable CAmount nChangeCached;
+    mutable AddressAmountMap available_credit_address_amounts;
 
     CWalletTx(bool invite = false)
     {
@@ -413,6 +418,7 @@ public:
         nCreditCached = 0;
         nImmatureCreditCached = 0;
         nAvailableCreditCached = 0;
+        available_credit_address_amounts.clear();
         nWatchDebitCached = 0;
         nWatchCreditCached = 0;
         nAvailableWatchCreditCached = 0;
@@ -482,6 +488,7 @@ public:
     {
         fCreditCached = false;
         fAvailableCreditCached = false;
+        available_credit_address_amounts.clear();
         fImmatureCreditCached = false;
         fWatchDebitCached = false;
         fWatchCreditCached = false;
@@ -504,7 +511,7 @@ public:
     CAmount GetDebit(const isminefilter& filter) const;
     CAmount GetCredit(const isminefilter& filter) const;
     CAmount GetImmatureCredit(bool fUseCache=true) const;
-    CAmount GetAvailableCredit(bool fUseCache=true) const;
+    CAmount GetAvailableCredit(AddressAmountMap&, bool fUseCache=true) const;
     CAmount GetImmatureWatchOnlyCredit(const bool& fUseCache=true) const;
     CAmount GetAvailableWatchOnlyCredit(const bool& fUseCache=true) const;
     CAmount GetChange() const;
@@ -876,7 +883,7 @@ public:
     const CWalletTx* GetWalletTx(const uint256& hash) const;
 
     // Sets the referral address to unlock the wallet and sends referral tx to the network
-    referral::ReferralRef Unlock(const referral::Address& parentAddress, const std::string alias = "");
+    referral::ReferralRef Unlock(const referral::Address& parentAddress, std::string alias = "");
 
     bool AliasExists(const std::string& alias) const;
     bool AddressBeaconed(const CMeritAddress& address) const;
@@ -1218,6 +1225,7 @@ public:
     void postInitProcess(CScheduler& scheduler);
 
     bool BackupWallet(const std::string& strDest);
+    bool HasMnemonic();
     std::string GetMnemonic();
 
     /* Set the HD chain model (chain child index counters) */
@@ -1247,8 +1255,7 @@ public:
     std::string GetAlias() const
     {
         auto ref = GetRootReferral();
-
-        return ref != nullptr ? ref->alias : "";
+        return ref != nullptr ? ref->GetAlias() : "";
     }
 
     std::string GetUnlockCode() const
@@ -1269,25 +1276,25 @@ public:
             const referral::Address& addr,
             const CPubKey& signPubKey,
             const referral::Address& parentAddress,
-            const std::string alias = "",
+            std::string alias = "",
             CKey key = CKey{});
 
     referral::ReferralRef GenerateNewReferral(
             const CScriptID& id,
             const referral::Address& parentAddress,
             const CPubKey& signPubKey,
-            const std::string alias = "");
+            std::string alias = "");
 
     referral::ReferralRef GenerateNewReferral(
             const CParamScriptID& id,
             const referral::Address& parentAddress,
             const CPubKey& signPubKey,
-            const std::string alias = "");
+            std::string alias = "");
 
     referral::ReferralRef GenerateNewReferral(
             const CPubKey& pubkey,
             const referral::Address& parentAddress,
-            const std::string alias = "",
+            std::string alias = "",
             CKey key = CKey{});
 
     CTransactionRef SendInviteTo(const CScript& scriptPubKey, int amount = 1);

@@ -187,15 +187,16 @@ UniValue validateaddress(const JSONRPCRequest& request)
 
             // check if we have referral with the given address
             if (const auto referral = prefviewcache->GetReferral(address160)) {
-                if (referral->alias.size() > 0) {
+                auto ref_alias = referral->GetAlias();
+                if (ref_alias.size() > 0) {
                     // if referral has an alias, check if was not occupied by somebody else
                     // in case of this one was unconfirmed at some point.
-                    alias = strprintf("%s%s", referral->alias, CheckAliasUnconfirmed(address160) ? " (stale)" : "");
+                    alias = strprintf("%s%s", ref_alias, CheckAliasUnconfirmed(address160) ? " (stale)" : "");
                 }
             } else {
                 // if referral is in mempool, show it's alias
                 if (const auto mempool_referral = mempoolReferral.Get(address160)) {
-                    alias = mempool_referral->alias;
+                    alias = mempool_referral->GetAlias();
                     in_mempool = true;
                 }
             }

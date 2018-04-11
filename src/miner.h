@@ -26,8 +26,8 @@ namespace Consensus { struct Params; };
 const bool DEFAULT_PRINTPRIORITY = false;
 const bool DEFAULT_MINING = false;
 const int DEFAULT_MINING_BUCKET_SIZE = 10;
-const int DEFAULT_MINING_BUCKET_THREADS = 1;
-const int DEFAULT_MINING_POW_THREADS = std::thread::hardware_concurrency();
+const int DEFAULT_MINING_BUCKET_THREADS = std::thread::hardware_concurrency() / 2;
+const int DEFAULT_MINING_POW_THREADS = 2;
 
 
 /** Run the miner threads */
@@ -86,7 +86,7 @@ struct modifiedentry_iter {
 struct CompareModifiedEntry {
     bool operator()(const CTxMemPoolModifiedEntry &a, const CTxMemPoolModifiedEntry &b) const
     {
-       
+
         bool ai = a.iter->GetSharedEntryValue()->IsInvite();
         bool bi = b.iter->GetSharedEntryValue()->IsInvite();
 
