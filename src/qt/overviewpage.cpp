@@ -573,8 +573,8 @@ void OverviewPage::setClientModel(ClientModel *model)
     {
         // Show warning if this is a prerelease version
         connect(model, SIGNAL(alertsChanged(QString)), this, SLOT(updateAlerts(QString)));
-        connect(model, SIGNAL(mempoolSizeChanged(long,size_t)), this, SLOT(MempoolSizeChanged(long, size_t)));
         connect(model, SIGNAL(numBlocksChanged(int,QDateTime, double,bool)), this, SLOT(UpdateNetworkView()));
+        connect(model, SIGNAL(numBlocksChanged(int,QDateTime, double,bool)), this, SLOT(UpdateInviteRequestView()));
         updateAlerts(model->getStatusBarWarnings());
     }
 }
@@ -639,6 +639,7 @@ void OverviewPage::setWalletModel(WalletModel *model)
         connect(model->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
         connect(model, SIGNAL(transactionUpdated()), this, SLOT(UpdateInvitationStatus()));
         connect(model, SIGNAL(transactionUpdated()), this, SLOT(UpdateInviteRequestView()));
+        connect(model, SIGNAL(transactionUpdated()), this, SLOT(UpdateNetworkView()));
 
         updateWatchOnlyLabels(model->haveWatchOnly());
         connect(model, SIGNAL(notifyWatchonlyChanged(bool)), this, SLOT(updateWatchOnlyLabels(bool)));
@@ -766,19 +767,6 @@ void OverviewPage::UpdateInviteRequestView()
         ui->approvedRequestsLabel->show();
         ui->listApprovedRequests->show();
     }
-}
-
-void OverviewPage::MempoolSizeChanged(long size, size_t bytes)
-{
-    if(size == mempool_size && bytes == mempool_bytes) {
-        return;
-    }
-
-    UpdateNetworkView();
-    UpdateInviteRequestView();
-
-    mempool_size = size;
-    mempool_bytes = bytes;
 }
 
 void OverviewPage::resizeEvent(QResizeEvent* e)

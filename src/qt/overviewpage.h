@@ -56,7 +56,6 @@ public Q_SLOTS:
     void UpdateInviteRequestView();
     void UpdateNetworkView();
     void HideInviteNotice();
-    void MempoolSizeChanged(long size, size_t bytes);
     void resizeEvent(QResizeEvent*);
 
 Q_SIGNALS:
@@ -82,9 +81,6 @@ private:
     std::unique_ptr<QSortFilterProxyModel> pendingRequestsFilter;
     std::unique_ptr<QSortFilterProxyModel> approvedRequestsFilter;
     bool is_confirmed = false;
-
-    long mempool_size = 0;
-    size_t mempool_bytes = 0;
 
     QPixmap* spread_pixmap;
 
