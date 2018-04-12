@@ -638,6 +638,7 @@ void OverviewPage::setWalletModel(WalletModel *model)
 
         connect(model->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
         connect(model, SIGNAL(transactionUpdated()), this, SLOT(UpdateInvitationStatus()));
+        connect(model, SIGNAL(transactionUpdated()), this, SLOT(UpdateInviteRequestView()));
 
         updateWatchOnlyLabels(model->haveWatchOnly());
         connect(model, SIGNAL(notifyWatchonlyChanged(bool)), this, SLOT(updateWatchOnlyLabels(bool)));
