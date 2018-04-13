@@ -80,8 +80,14 @@ public:
     /** Get referral by address */
     MaybeReferral GetReferral(const Address&) const;
 
+    /** Get referral by hash */
+    MaybeReferral GetReferral(const uint256&) const;
+
     /** Get referral by alias */
     MaybeReferral GetReferral(const std::string& alias, bool normalize_alias) const;
+
+    /** Get referral by address */
+    MaybeReferral GetReferral(const ReferralId&, bool normalize_alias) const;
 
     /** Check if referral exists by beaconed address */
     bool Exists(const Address&) const;

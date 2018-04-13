@@ -439,14 +439,7 @@ int AddressTableModel::lookupAddress(const QString &address) const
 {
     QModelIndexList lst = match(index(0, Address, QModelIndex()),
                                 Qt::EditRole, address, 1, Qt::MatchExactly);
-    if(lst.isEmpty())
-    {
-        return -1;
-    }
-    else
-    {
-        return lst.at(0).row();
-    }
+    return lst.isEmpty() ? -1 : lst.at(0).row();
 }
 
 void AddressTableModel::emitDataChanged(int idx)

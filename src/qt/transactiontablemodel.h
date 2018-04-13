@@ -33,7 +33,7 @@ public:
         Watchonly = 1,
         Date = 2,
         Type = 3,
-        ToAddress = 4,
+        Address = 4,
         Amount = 5,
         Invite = 6,
     };
@@ -53,7 +53,9 @@ public:
         /** Long description (HTML format) */
         LongDescriptionRole,
         /** Address of transaction */
-        AddressRole,
+        FromRole,
+        /** Alias of transaction */
+        ToRole,
         /** Label of address related to transaction */
         LabelRole,
         /** Net amount of transaction */
@@ -98,13 +100,19 @@ private:
     void subscribeToCoreSignals();
     void unsubscribeFromCoreSignals();
 
-    QString lookupAddress(const std::string &address, bool tooltip) const;
+    QString lookupAddress(const std::string& address, bool tooltip) const;
+
     QVariant addressColor(const TransactionRecord *wtx) const;
     QString formatTxStatus(const TransactionRecord *wtx) const;
     QString formatTxDate(const TransactionRecord *wtx) const;
     QString formatTxType(const TransactionRecord *wtx) const;
-    QString formatTxToAddress(const TransactionRecord *wtx, bool tooltip) const;
-    QString formatTxAmount(const TransactionRecord *wtx, bool showUnconfirmed = true, MeritUnits::SeparatorStyle separators=MeritUnits::separatorStandard) const;
+    QString formatTxAddress(const TransactionRecord *wtx, bool tooltip) const;
+
+    QString formatTxAmount(
+            const TransactionRecord *wtx,
+            bool showUnconfirmed = true,
+            MeritUnits::SeparatorStyle separators=MeritUnits::separatorStandard) const;
+
     QString formatTooltip(const TransactionRecord *rec) const;
     QString formatInvite(const TransactionRecord *rec, bool showUnconfirmed = true) const;
     QVariant txStatusDecoration(const TransactionRecord *wtx) const;

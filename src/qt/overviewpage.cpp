@@ -53,9 +53,16 @@ public:
         int xpad = 8;
         int ypad = 10;
         int halfheight = (mainRect.height() - 2*ypad)/2;
-        QRect amountRect(mainRect.left() + xpad, mainRect.top()+ypad, mainRect.width() - 2*xpad, halfheight);
-        QRect timestampRect(mainRect.left() + xpad, mainRect.top()+ypad+halfheight, mainRect.width() - xpad, halfheight);
+        QRect topRect(mainRect.left() + xpad, mainRect.top()+ypad, mainRect.width() - 2*xpad, halfheight);
+        QRect bottomRect(mainRect.left() + xpad, mainRect.top()+ypad+halfheight, mainRect.width() - xpad, halfheight);
         QLine line(mainRect.left() + xpad, mainRect.bottom(), mainRect.right() - xpad, mainRect.bottom());
+
+        QString fromString = index.data(TransactionTableModel::FromRole).toString();
+        if(fromString.count(",") > 0) {
+            fromString ="many addresses";
+        }
+
+        QString toString = index.data(TransactionTableModel::ToRole).toString();
 
         QDateTime date = index.data(TransactionTableModel::DateRole).toDateTime();
         qint64 amount = index.data(TransactionTableModel::AmountRole).toLongLong();
@@ -81,7 +88,7 @@ public:
         }
 
         painter->setPen(COLOR_BAREADDRESS);
-        painter->drawText(timestampRect, Qt::AlignLeft|Qt::AlignVCenter, GUIUtil::dateTimeStr(date));
+        painter->drawText(bottomRect, Qt::AlignLeft|Qt::AlignVCenter, GUIUtil::dateTimeStr(date));
 
         QFont font;
         font.setBold(true);
@@ -90,10 +97,11 @@ public:
 
         QString amountText;
 
+        QString label;
         if(amount < 0)
         {
             foreground = COLOR_NEGATIVE;
-            amountText = QString("Sent: ");
+            label = QString("To ") + toString;
             amount = -amount;
         }
         else
@@ -103,14 +111,16 @@ public:
 
             switch(txType) {
                 case TransactionRecord::Generated:
-                    amountText = QString("Mining Reward: ");
+                    label = QString("Mining Reward");
                     break;
                 case TransactionRecord::GeneratedInvite:
-                    amountText = QString("Invite: ");
+                    label = QString("Invite");
                     break;
                 case TransactionRecord::AmbassadorReward:
-                    amountText = QString("Ambassador Reward: ");
+                    label = QString("Ambassador Reward");
                     break;
+                default:
+                    label = QString("From ") + fromString;
             }
         }
 
@@ -121,13 +131,23 @@ public:
             amountText += MeritUnits::formatWithUnit(unit, amount, false, MeritUnits::separatorAlways);
         }
 
+        auto label_rect = painter->boundingRect(topRect, label);
+        auto amount_rect = painter->boundingRect(topRect, amountText);
+        while((topRect.width() < label_rect.width() + amount_rect.width()) && label.length() > 3) {
+            label = label.left(std::max(0, label.length() - 6)) + "...";
+            label_rect = painter->boundingRect(topRect, label);
+        }
+
         painter->setPen(foreground);
-        painter->drawText(amountRect, Qt::AlignLeft|Qt::AlignVCenter, amountText);
+        if(label.length() > 3) {
+            painter->drawText(topRect, Qt::AlignLeft|Qt::AlignVCenter, label);
+        }
+        painter->drawText(topRect, Qt::AlignRight|Qt::AlignVCenter, amountText);
 
         if(!confirmed)
         {
             painter->setPen(COLOR_UNCONFIRMED);
-            painter->drawText(amountRect, Qt::AlignRight|Qt::AlignVCenter, QStringLiteral("(unconfirmed)"));
+            painter->drawText(bottomRect, Qt::AlignRight|Qt::AlignVCenter, QStringLiteral("(unconfirmed)"));
         }
 
         painter->setPen(Qt::lightGray);
@@ -604,7 +624,7 @@ void OverviewPage::setWalletModel(WalletModel *model)
         approvedRequestsFilter->setFilterFixedString(QString("Confirmed"));
 
         ui->listTransactions->setModel(txFilter.get());
-        ui->listTransactions->setModelColumn(TransactionTableModel::ToAddress);
+        ui->listTransactions->setModelColumn(TransactionTableModel::Address);
 
         ui->listPendingRequests->setModel(pendingRequestsFilter.get());
         ui->listApprovedRequests->setModel(approvedRequestsFilter.get());

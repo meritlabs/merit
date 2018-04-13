@@ -1083,16 +1083,26 @@ void MeritGUI::showEvent(QShowEvent *event)
 }
 
 #ifdef ENABLE_WALLET
-void MeritGUI::incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label)
+void MeritGUI::incomingTransaction(
+        const QString& date,
+        int unit,
+        const CAmount& amount,
+        const QString& type,
+        const QString& from,
+        const QString& to,
+        const QString& label)
 {
     // On new transaction, make an info balloon
     QString msg = tr("Date: %1\n").arg(date) +
                 tr("Amount: %1\n").arg(MeritUnits::formatWithUnit(unit, amount, true)) +
                 tr("Type: %1\n").arg(type);
-    if (!label.isEmpty())
+    if (!label.isEmpty()) {
         msg += tr("Label: %1\n").arg(label);
-    else if (!address.isEmpty())
-        msg += tr("Address: %1\n").arg(address);
+    } else if (!from.isEmpty()) {
+        msg += tr("From: %1\nTo: %2\n").arg(from).arg(to);
+    } else  {
+        msg += tr("To: %2\n").arg(to);
+    }
 
     QString title;
     if (type.contains("invite")) {
