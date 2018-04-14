@@ -92,6 +92,7 @@ QString MeritUnits::format(int unit, const CAmount& nIn, bool fPlus, SeparatorSt
     // localized number formatting.
     if(!valid(unit))
         return QString(); // Refuse to format invalid unit
+
     qint64 n = (qint64)nIn;
     qint64 coin = factor(unit);
     int num_decimals = decimals(unit);
@@ -113,7 +114,12 @@ QString MeritUnits::format(int unit, const CAmount& nIn, bool fPlus, SeparatorSt
         quotient_str.insert(0, '-');
     else if (fPlus && n > 0)
         quotient_str.insert(0, '+');
-    return quotient_str + QString(".") + remainder_str;
+
+    if (unit != MeritUnits::Unit::INV) {
+        return quotient_str + QString(".") + remainder_str;
+    } else {
+        return quotient_str;
+    }
 }
 
 

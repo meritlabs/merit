@@ -596,7 +596,7 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *_walletModel)
     if(isReferred)
     {
         modalOverlay->allowHide();
-    } 
+    }
     else
     {
         enterUnlockCode->setModel(walletModel);
@@ -1086,9 +1086,15 @@ void MeritGUI::showEvent(QShowEvent *event)
 void MeritGUI::incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label)
 {
     // On new transaction, make an info balloon
-    QString msg = tr("Date: %1\n").arg(date) +
-                tr("Amount: %1\n").arg(MeritUnits::formatWithUnit(unit, amount, true)) +
-                tr("Type: %1\n").arg(type);
+    QString msg = tr("Date: %1\n").arg(date);
+
+    if (type.contains("invite")) {
+        msg += tr("Amount: %1 \n").arg(MeritUnits::formatWithUnit(MeritUnits::Unit::INV, static_cast<unsigned long long>(amount), true));
+    } else {
+        msg += tr("Amount: %1 \n").arg(MeritUnits::formatWithUnit(unit, amount, true));
+    }
+    msg += tr("Type: %1\n").arg(type);
+
     if (!label.isEmpty())
         msg += tr("Label: %1\n").arg(label);
     else if (!address.isEmpty())
