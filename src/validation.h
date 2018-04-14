@@ -604,6 +604,11 @@ referral::ReferralRef LookupReferral(
         referral::ReferralId& referral_id,
         bool normalize_alias);
 
+/**
+ * Returns an alias for a particular address. Otherwise an empty string.
+ */
+std::string FindAliasForAddress(const uint160 &hash);
+
 /** When there are blocks in the active chain with missing data, rewind the chainstate and remove them from the block index */
 bool RewindBlockIndex(const CChainParams& params);
 

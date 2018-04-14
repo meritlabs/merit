@@ -13,6 +13,31 @@ ReferralsViewCache::ReferralsViewCache(ReferralsViewDB* db) : m_db{db}
     assert(db);
 };
 
+namespace {
+    class ReferralIdVisitor : public boost::static_visitor<MaybeReferral>
+    {
+        private:
+            const ReferralsViewCache *db;
+            const bool normalize_alias;
+
+        public:
+            ReferralIdVisitor(
+                    const ReferralsViewCache *db_in,
+                    bool normalize_alias_in) :
+                db{db_in},
+                normalize_alias{normalize_alias_in} {}
+
+            MaybeReferral operator()(const std::string &id) const {
+                return db->GetReferral(id, normalize_alias);
+            }
+
+            template <typename T>
+                MaybeReferral operator()(const T &id) const {
+                    return db->GetReferral(id);
+                }
+    };
+}
+
 MaybeReferral ReferralsViewCache::GetReferral(const Address& address) const
 {
     {
@@ -24,6 +49,24 @@ MaybeReferral ReferralsViewCache::GetReferral(const Address& address) const
     }
 
     if (auto ref = m_db->GetReferral(address)) {
+        InsertReferralIntoCache(*ref);
+        return ref;
+    }
+
+    return {};
+}
+
+MaybeReferral ReferralsViewCache::GetReferral(const uint256& hash) const
+{
+    {
+        LOCK(m_cs_cache);
+        auto it = referrals_index.get<by_hash>().find(hash);
+        if (it != referrals_index.get<by_hash>().end()) {
+            return *it;
+        }
+    }
+
+    if (auto ref = m_db->GetReferral(hash)) {
         InsertReferralIntoCache(*ref);
         return ref;
     }
@@ -60,6 +103,11 @@ MaybeReferral ReferralsViewCache::GetReferral(const std::string& alias, bool nor
     }
 
     return {};
+}
+
+MaybeReferral ReferralsViewCache::GetReferral(const ReferralId& id, bool normalize_alias) const
+{
+    return boost::apply_visitor(ReferralIdVisitor{this, normalize_alias}, id);
 }
 
 bool ReferralsViewCache::Exists(const uint256& hash) const

@@ -93,21 +93,13 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx, TransactionReco
         if (nNet > 0)
         {
             // Credit
-            CTxDestination address = LookupDestination(rec->address);
-            if (IsValidDestination(address)) {
-                if (wallet->mapAddressBook.count(address))
-                {
-                    strHTML += "<b>" + tr("From") + ":</b> " + tr("unknown") + "<br>";
-                    strHTML += "<b>" + tr("To") + ":</b> ";
-                    strHTML += GUIUtil::HtmlEscape(rec->address);
-                    QString addressOwned = (::IsMine(*wallet, address) == ISMINE_SPENDABLE) ? tr("own address") : tr("watch-only");
-                    if (!wallet->mapAddressBook[address].name.empty())
-                        strHTML += " (" + addressOwned + ", " + tr("label") + ": " + GUIUtil::HtmlEscape(wallet->mapAddressBook[address].name) + ")";
-                    else
-                        strHTML += " (" + addressOwned + ")";
-                    strHTML += "<br>";
-                }
-            }
+            strHTML += "<b>" + tr("From") + ":</b> " + QString::fromStdString(rec->from) + "<br>";
+            strHTML += "<b>" + tr("To") + ":</b> ";
+            strHTML += GUIUtil::HtmlEscape(rec->to);
+            auto dest = LookupDestination(rec->to);
+            if (!wallet->mapAddressBook[dest].name.empty())
+                strHTML += QString{"("} + GUIUtil::HtmlEscape(wallet->mapAddressBook[dest].name) + QString{")"};
+            strHTML += "<br>";
         }
     }
 
@@ -119,7 +111,7 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx, TransactionReco
         // Online transaction
         std::string strAddress = wtx.mapValue["to"];
         strHTML += "<b>" + tr("To") + ":</b> ";
-        CTxDestination dest = DecodeDestination(strAddress);
+        CTxDestination dest = LookupDestination(strAddress);
         if (wallet->mapAddressBook.count(dest) && !wallet->mapAddressBook[dest].name.empty())
             strHTML += GUIUtil::HtmlEscape(wallet->mapAddressBook[dest].name) + " ";
         strHTML += GUIUtil::HtmlEscape(strAddress) + "<br>";

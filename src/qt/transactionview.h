@@ -78,6 +78,7 @@ private:
     QDateTimeEdit *dateTo;
     QAction *abandonAction;
     QAction *bumpFeeAction;
+    QAction *editFromLabelAction;
 
     QWidget *createDateRangeWidget();
 
@@ -91,13 +92,16 @@ private Q_SLOTS:
     void contextualMenu(const QPoint &);
     void dateRangeChanged();
     void showDetails();
-    void copyAddress();
-    void editLabel();
+    void copyFrom();
+    void copyTo();
     void copyLabel();
     void copyAmount();
     void copyTxID();
     void copyTxHex();
     void copyTxPlainText();
+    void editFromLabel();
+    void editToLabel();
+    void editLabel(const QString& address);
     void openThirdPartyTxUrl(QString url);
     void updateWatchOnlyColumn(bool fHaveWatchOnly);
     void abandonTx();

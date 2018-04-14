@@ -5326,15 +5326,20 @@ referral::ReferralRef LookupReferral(
         referral::ReferralId& referral_id,
         bool normalize_alias)
 {
-    //We don't do transpose check here because LookupReferral is used by client
-    //code retrieval not consensus.
-    auto chain_referral = prefviewdb->GetReferral(referral_id, normalize_alias);
+    auto chain_referral = prefviewcache->GetReferral(referral_id, normalize_alias);
 
     if (chain_referral) {
         return MakeReferralRef(*chain_referral);
     }
 
     return mempoolReferral.Get(referral_id);
+}
+
+std::string FindAliasForAddress(const uint160 &address)
+{
+    referral::ReferralId id = address;
+    auto ref = LookupReferral(id, true);
+    return ref ? ref->GetAlias() : "";
 }
 
 bool IsWitnessCommitment(const CTxOut& out)
