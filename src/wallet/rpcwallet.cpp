@@ -4646,7 +4646,14 @@ UniValue listinvites(const JSONRPCRequest& request)
             max_depth,
             true);
 
-    for (const COutput& out : outputs) {
+    std::sort(outputs.begin(), outputs.end(), 
+            [](const COutput& a, const COutput& b) {
+                return a.nDepth > b.nDepth;
+            });
+
+    for (size_t i = 1; i < outputs.size(); i++) {
+        const auto& out = outputs[i];
+
         CTxDestination address;
         const CScript& scriptPubKey = out.tx->tx->vout[out.i].scriptPubKey;
         bool fValidAddress = ExtractDestination(scriptPubKey, address);
