@@ -1138,7 +1138,7 @@ bool CWallet::AddToWallet(const referral::ReferralTx& rtxIn, bool fFlushOnClose)
     }
 
     //// debug print
-    LogPrintf("AddToWallet %s  %s%s\n",
+    LogPrintf("Beacon AddToWallet %s  %s%s\n",
             rtxIn.GetHash().ToString(),
             (fInsertedNew ? "new" : ""),
             (fUpdated ? "update" : ""));
@@ -2142,11 +2142,16 @@ CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool f
 
             CBlock block;
             if (ReadBlockFromDisk(block, pindex, Params().GetConsensus())) {
-                for (size_t posInBlock = 0; posInBlock < block.vtx.size(); ++posInBlock) {
-                    AddToWalletIfInvolvingMe(block.vtx[posInBlock], pindex, posInBlock, fUpdate);
+                for (size_t i = 0; i < block.vtx.size(); ++i) {
+                    AddToWalletIfInvolvingMe(block.vtx[i], pindex, i, fUpdate);
                 }
-                for (size_t posInBlock = 0; posInBlock < block.m_vRef.size(); ++posInBlock) {
-                    // Add referral transaction to map
+
+                for (size_t i = 0; i < block.invites.size(); ++i) {
+                    AddToWalletIfInvolvingMe(block.invites[i], pindex, i, fUpdate);
+                }
+
+                for (size_t i = 0; i < block.m_vRef.size(); ++i) {
+                    AddToWalletIfInvolvingMe(block.m_vRef[i], pindex, i, fUpdate);
                 }
             } else {
                 ret = pindex;
