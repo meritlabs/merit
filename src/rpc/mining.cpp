@@ -1051,6 +1051,11 @@ UniValue setmining(const JSONRPCRequest& request)
     gArgs.ForceSetArg("-minebucketsize", itostr(bucket_size));
 
     GenerateMerit(mine, pow_threads, bucket_size, bucket_threads, Params());
+    if (mine) {
+        StartMining();
+    } else {
+        StopMining();
+    }
 
     return gArgs.GetBoolArg("-mine", DEFAULT_MINING);
 }
