@@ -732,7 +732,7 @@ void OverviewPage::UpdateInvitationStatus()
     } else {
         ui->inviteNotice->setStyleSheet("QLabel {background-color: rgb(128, 255, 128)}");
         ui->inviteNotice->setText("<html><head/><body><p align=\"center\"><span style=\" font-size:12pt; font-weight:600;\">You Have Been Invited to Merit!</span></p></body></html>");
-        QTimer::singleShot(3000, this, SLOT(HideInviteNotice()));
+        QTimer::singleShot(30000, this, SLOT(HideInviteNotice()));
     }
     is_confirmed = confirmed;
 }
