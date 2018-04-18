@@ -5030,11 +5030,6 @@ UniValue generate(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
     }
 
-    // check that wallet is alredy referred or has unlock transaction
-    if (!pwallet->IsReferred() && pwallet->mapWalletRTx.empty()) {
-        throw JSONRPCError(RPC_WALLET_NOT_REFERRED, "Error: Wallet is not unlocked. Use referrer address to unlock first. See 'unlockwallet'");
-    }
-
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 3) {
         throw std::runtime_error(
             "generate nblocks ( maxtries )\n"
@@ -5050,6 +5045,11 @@ UniValue generate(const JSONRPCRequest& request)
             "\nGenerate 11 blocks\n"
             + HelpExampleCli("generate", "11")
         );
+    }
+
+    // check that wallet is alredy referred or has unlock transaction
+    if (!pwallet->IsReferred() && pwallet->mapWalletRTx.empty()) {
+        throw JSONRPCError(RPC_WALLET_NOT_REFERRED, "Error: Wallet is not unlocked. Use referrer address to unlock first. See 'unlockwallet'");
     }
 
     int num_generate = request.params[0].get_int();
