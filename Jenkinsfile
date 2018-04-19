@@ -15,7 +15,7 @@ pipeline {
     stage("Build Merit Core") {
       parallel {
         stage("Build Linux x64") {
-          stages {
+          steps {
             stage("Prebuild Dependencies") {
               steps {
                 sh "cd depends && make -j${parallelismFactor} && cd .."
@@ -41,7 +41,7 @@ pipeline {
           }
         }
         stage("Build Windows x64") {
-          stages {
+          steps {
             stage("Prebuild Dependencies") {
               steps {
                 sh "cd depends && make HOST=${windowsTriplet} -j${parallelismFactor} && cd .."
