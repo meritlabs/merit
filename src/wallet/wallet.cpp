@@ -3776,7 +3776,6 @@ bool CWallet::CreateInviteTransaction(
     assert(txNew.nLockTime <= (unsigned int)chainActive.Height());
     assert(txNew.nLockTime < LOCKTIME_THRESHOLD);
 
-    unsigned int nBytes;
     {
         std::set<CInputCoin> setCoins;
         LOCK2(cs_main, cs_wallet);
@@ -3864,8 +3863,6 @@ bool CWallet::CreateInviteTransaction(
             for (const auto& coin : setCoins)
                 txNew.vin.push_back(CTxIn(coin.outpoint,CScript(),
                             nSequence));
-
-            nBytes = GetVirtualTransactionSize(txNew);
 
         }
 

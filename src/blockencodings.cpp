@@ -217,7 +217,6 @@ ReadStatus InitRefData(
     available.resize(cmpctblock.BlockRefCount());
 
     std::unordered_map<uint64_t, uint16_t> short_ids(block_short_ids.size());
-    uint16_t index_offset = 0;
     for (size_t i = 0; i < block_short_ids.size(); i++) {
         short_ids[block_short_ids[i]] = i;
         if (short_ids.bucket_size(short_ids.bucket(block_short_ids[i])) > 12)

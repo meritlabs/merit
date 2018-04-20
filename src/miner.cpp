@@ -994,7 +994,6 @@ void MinerWorker(int thread_id, MinerContext& ctx)
 
         while (ctx.alive) {
             // Check if something found
-            auto attempt_start = GetTimeMillis();
             nonces_checked++;
 
             if (cuckoo::FindProofOfWorkAdvanced(

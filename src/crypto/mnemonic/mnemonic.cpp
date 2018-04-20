@@ -63,7 +63,7 @@ namespace mnemonic
         assert(entString.size() / 11 == MNEMONIC_WORD_COUNT); // maybe this doesn't have to be constant?
 
         std::vector<int> inds(MNEMONIC_WORD_COUNT);
-        for(auto i = 0; i < entString.size() / 11; i++) {
+        for(size_t i = 0; i < entString.size() / 11; i++) {
             inds[i] = std::stoi(entString.substr(11*i, 11), nullptr, 2);
         }
 

@@ -114,11 +114,6 @@ bool ExtractArchive(QLabel* status, const std::string& snapshot, const std::stri
     archive_read_support_format_all(a.get());
     archive_read_support_compression_all(a.get());
 
-    int flags = ARCHIVE_EXTRACT_TIME
-        | ARCHIVE_EXTRACT_PERM
-        | ARCHIVE_EXTRACT_ACL
-        | ARCHIVE_EXTRACT_FFLAGS;
-
     if(archive_read_open_filename(a.get(), snapshot.c_str(), 10240)) {
         return false;
     }
@@ -203,8 +198,8 @@ bool FastStart::DoDownloadSnapshot()
 }
 
 FastStart::FastStart(const QString& data_dir,  QWidget *parent) :
-    data_dir{data_dir},
     QDialog{parent},
+    data_dir{data_dir},
     failed{false},
     ui{new Ui::FastStart}
 {
