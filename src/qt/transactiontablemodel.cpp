@@ -676,10 +676,12 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
             } else {
                 auto from_label = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(rec->from));
                 auto to_label = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(rec->to));
+                if(from_label.isEmpty()) from_label = QString::fromStdString(rec->from);
+                if(to_label.isEmpty()) to_label = QString::fromStdString(rec->to);
 
-                label += from_label.isEmpty() ? QString::fromStdString(rec->from) : from_label;
+                label += from_label;
                 label += " to ";
-                label += to_label.isEmpty() ? QString::fromStdString(rec->to) : to_label;
+                label += to_label;
             }
             return label;
         }
