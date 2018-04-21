@@ -386,9 +386,6 @@ public:
 
     void genUnodes(const uint32_t id, const uint32_t uorv)
     {
-        uint64_t rdtsc0, rdtsc1;
-        rdtsc0 = __rdtsc();
-
         uint32_t last[P::NX];
 
         uint8_t const* base = (uint8_t*)buckets;
@@ -511,8 +508,6 @@ public:
 
             sumsize += dst.storev(buckets, my);
         }
-        rdtsc1 = __rdtsc();
-        // if (!id) printf("genUnodes round %2d size %u rdtsc: %lu\n", uorv, sumsize / P::BIGSIZE0, rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / P::BIGSIZE0;
     }
 
@@ -520,8 +515,6 @@ public:
     // Generate new paired nodes for remaining nodes generated in genUnodes step
     void genVnodes(const uint32_t id, const uint32_t uorv)
     {
-        uint64_t rdtsc0, rdtsc1;
-
 #if NSIPHASH == 8
         static const __m256i vxmask = {P::XMASK, P::XMASK, P::XMASK, P::XMASK};
         static const __m256i vyzmask = {P::YZMASK, P::YZMASK, P::YZMASK, P::YZMASK};
@@ -539,7 +532,6 @@ public:
         indexerZ dst;
         indexerT small;
 
-        rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
         uint8_t const* base = (uint8_t*)buckets;
         uint8_t const* small0 = (uint8_t*)tbuckets[id];
@@ -681,8 +673,6 @@ public:
             }
             sumsize += dst.storeu(buckets, ux);
         }
-        rdtsc1 = __rdtsc();
-        // if (!id) printf("genVnodes round %2d size %u rdtsc: %lu\n", uorv, sumsize / P::BIGSIZE, rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / P::BIGSIZE;
     }
 
@@ -697,11 +687,9 @@ public:
         const uint64_t DSTSLOTMASK = (1ULL << DSTSLOTBITS) - 1ULL;
         const uint32_t DSTPREFBITS = DSTSLOTBITS - P::YZZBITS;
         const uint32_t DSTPREFMASK = (1 << DSTPREFBITS) - 1;
-        uint64_t rdtsc0, rdtsc1;
         indexerZ dst;
         indexerT small;
 
-        rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
         uint8_t const* base = (uint8_t*)buckets;
         uint8_t const* small0 = (uint8_t*)tbuckets[id];
@@ -758,8 +746,6 @@ public:
             }
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
-        rdtsc1 = __rdtsc();
-        // if ((!id)) printf("trimedges round %2d size %u; rdtsc: %lu\n", round, sumsize / DSTSIZE, rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / DSTSIZE;
     }
 
@@ -772,12 +758,10 @@ public:
         const uint32_t SRCPREFMASK = (1 << SRCPREFBITS) - 1;
         const uint32_t SRCPREFBITS2 = SRCSLOTBITS - P::YZZBITS;
         const uint32_t SRCPREFMASK2 = (1 << SRCPREFBITS2) - 1;
-        uint64_t rdtsc0, rdtsc1;
         indexerZ dst;
         indexerT small;
         static uint32_t maxnnid = 0;
 
-        rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
         uint8_t const* base = (uint8_t*)buckets;
         uint8_t const* small0 = (uint8_t*)tbuckets[id];
@@ -863,8 +847,6 @@ public:
                 maxnnid = newnodeid;
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
-        rdtsc1 = __rdtsc();
-        // if (!id) printf("trimrename round %2d size %u rdtsc: %lu maxnnid %d\n", round, sumsize / DSTSIZE, rdtsc1 - rdtsc0, maxnnid);
         assert(maxnnid < P::NYZ1);
         tcounts[id] = sumsize / DSTSIZE;
     }
@@ -872,10 +854,8 @@ public:
     template <bool TRIMONV>
     void trimedges1(const uint32_t id, const uint32_t round)
     {
-        uint64_t rdtsc0, rdtsc1;
         indexerZ dst;
 
-        rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
         uint8_t* degs = tdegs[id];
         uint8_t const* base = (uint8_t*)buckets;
@@ -906,19 +886,15 @@ public:
             }
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
-        rdtsc1 = __rdtsc();
-        // if ((!id)) printf("trimedges1 round %2d size %u rdtsc: %lu\n", round, sumsize / sizeof(uint32_t), rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / sizeof(uint32_t);
     }
 
     template <bool TRIMONV>
     void trimrename1(const uint32_t id, const uint32_t round)
     {
-        uint64_t rdtsc0, rdtsc1;
         indexerZ dst;
         static uint32_t maxnnid = 0;
 
-        rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
         uint16_t* degs = (uint16_t*)tdegs[id];
         uint8_t const* base = (uint8_t*)buckets;
@@ -965,8 +941,6 @@ public:
                 maxnnid = newnodeid;
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
-        rdtsc1 = __rdtsc();
-        // if (!id) printf("trimrename1 round %2d size %u rdtsc: %lu maxnnid %d\n", round, sumsize / sizeof(uint32_t), rdtsc1 - rdtsc0, maxnnid);
         assert(maxnnid < P::NYZ2);
         tcounts[id] = sumsize / sizeof(uint32_t);
     }
@@ -1162,9 +1136,7 @@ public:
     bool findcycles()
     {
         uint32_t us[MAXPATHLEN], vs[MAXPATHLEN];
-        uint64_t rdtsc0, rdtsc1;
 
-        rdtsc0 = __rdtsc();
         for (uint32_t vx = 0; vx < P::NX; vx++) {
             for (uint32_t ux = 0; ux < P::NX; ux++) {
                 zbucketZ& zb = trimmer->buckets[ux][vx];
@@ -1202,8 +1174,6 @@ public:
                 }
             }
         }
-        rdtsc1 = __rdtsc();
-        // printf("findcycles rdtsc: %lu\n", rdtsc1 - rdtsc0);
 
         return false;
     }
@@ -1220,9 +1190,6 @@ public:
 
     void* matchUnodes(uint32_t threadId)
     {
-        uint64_t rdtsc0, rdtsc1;
-
-        rdtsc0 = __rdtsc();
         const uint32_t starty = P::NY * threadId / trimmer->nThreads;
         const uint32_t endy = P::NY * (threadId + 1) / trimmer->nThreads;
 
@@ -1315,8 +1282,6 @@ public:
             }
         }
 
-        rdtsc1 = __rdtsc();
-        // if (!threadId) printf("matchUnodes %d rdtsc: %lu\n", threadId, rdtsc1 - rdtsc0);
         return 0;
     }
 };

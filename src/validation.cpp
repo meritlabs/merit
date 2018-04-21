@@ -2897,7 +2897,7 @@ bool DisconnectInputs(
     for (unsigned int j = vin.size(); j-- > 0;) {
         const COutPoint &out = vin[j].prevout;
         int res = ApplyTxInUndo(std::move(txundo.vprevout[j]), view, out);
-        if (res == DISCONNECT_FAILED) return DISCONNECT_FAILED;
+        if (res == DISCONNECT_FAILED) return false;
         clean &= res != DISCONNECT_UNCLEAN;
     }
     return clean;
