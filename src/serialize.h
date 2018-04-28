@@ -21,9 +21,11 @@
 #include <string.h>
 #include <utility>
 #include <vector>
+#include <array>
 #include <boost/multiprecision/cpp_dec_float.hpp> 
 
 #include "prevector.h"
+
 
 static const unsigned int MAX_SIZE = 0x02000000;
 
@@ -194,7 +196,38 @@ template<typename Stream> inline void Serialize(Stream& s, double a  ) { ser_wri
 
 template<typename Stream> inline void Serialize(Stream& s, const boost::multiprecision::cpp_dec_float_50& a) 
 {
-    s.write((char*)&a, sizeof(boost::multiprecision::cpp_dec_float_50));
+    /**
+     * The original serialization was a byte dump of the cpp_dec_float_50 which
+     * included padding. This was stupid because any value could be in the padding
+     * causing random checksum failures on startup during the block validation phase.
+     * Particularly the CBlockUndo serialization wrote checksums which could be computed
+     * differently than what was written to disk.
+     *
+     * Until we do a better serialization of the cpp_dec_floats on disk we will 
+     * explicitly zero out the padding before writing to disk.
+     */
+    struct cpp_dec_float_50_with_padding
+    {
+        std::array<int32_t, 10> data;
+        int32_t exp;
+        bool neg;
+        char padding[3];
+        int32_t fpclass;
+        int32_t prec_elem;
+    };
+
+    static_assert(sizeof(boost::multiprecision::cpp_dec_float_50) == 56, "serialization here assumes padding");
+    static_assert(sizeof(cpp_dec_float_50_with_padding) == 56, "structure with explicit padding should match cpp_dec_float_50");
+
+    //zero out padding
+    const char padding[3] = {0};
+    auto padded = reinterpret_cast<const cpp_dec_float_50_with_padding*>(&a);
+    s.write(reinterpret_cast<const char*>(padded->data.data()), 40); //sizeof(int32_t) * 10
+    s.write(reinterpret_cast<const char*>(&padded->exp), sizeof(int32_t));
+    s.write(reinterpret_cast<const char*>(&padded->neg), sizeof(bool));
+    s.write(&padding[0], sizeof(padding));
+    s.write(reinterpret_cast<const char*>(&padded->fpclass), sizeof(int32_t));
+    s.write(reinterpret_cast<const char*>(&padded->prec_elem), sizeof(int32_t));
 }
 
 
