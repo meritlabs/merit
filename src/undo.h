@@ -25,12 +25,12 @@ public:
 
     template <typename Stream>
     void Serialize(Stream& s) const {
-        ::Serialize(s, REF(vprevout));
+        ::Serialize(s, vprevout);
     }
 
     template <typename Stream>
     void Unserialize(Stream& s) {
-        ::Unserialize(s, REF(vprevout));
+        ::Unserialize(s, vprevout);
     }
 };
 
@@ -47,15 +47,22 @@ struct CBlockUndo
 
         //If we are daedalus, we will signal it by including 
         //a lottery element with an address of type 100
-        auto lottery_copy = lottery;
         if(!invites_undo.empty()) {
-            lottery_copy.push_back(referral::LotteryUndo{
-                    0,
-                    100,
-                    referral::Address(),
-                    referral::Address()});
+            WriteCompactSize(s, lottery.size() + 1);
+            for(const auto& e : lottery) {
+                s << e;
+            }
+
+            referral::LotteryUndo signal{
+                0,
+                100,
+                referral::Address(),
+                referral::Address()};
+
+            s << signal;
+        } else {
+            s << lottery;
         }
-        s << lottery_copy;
 
         if(!invites_undo.empty()) {
             s << invites_undo;
