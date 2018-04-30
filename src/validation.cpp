@@ -3464,8 +3464,9 @@ void IndexTransaction(
     if (!tx.IsCoinBase()) {
         for (unsigned int j = 0; j < static_cast<unsigned int>(tx.vin.size()); j++) {
 
-            const CTxIn input = tx.vin[j];
-            const CTxOut &prevout = view.AccessCoin(input.prevout).out;
+            const auto& input = tx.vin[j];
+            const auto &coin = view.AccessCoin(input.prevout);
+            const auto &prevout = coin.out;
 
             const auto address = ExtractAddress(prevout);
             const auto& hashBytes = address.first;
@@ -3497,8 +3498,8 @@ void IndexTransaction(
                         hashBytes,
                         input.prevout.hash,
                         input.prevout.n,
-                        tx.IsCoinBase(),
-                        tx.IsInvite()},
+                        coin.IsCoinBase(),
+                        coin.IsInvite()},
                         CAddressUnspentValue{}));
 
             spentIndex.push_back(
