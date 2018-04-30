@@ -2851,7 +2851,7 @@ void UnIndexTransactions(
                                 addressType,
                                 hashBytes,
                                 input.prevout.hash,
-                                k,
+                                input.prevout.n,
                                 coin.IsCoinBase(),
                                 coin.IsInvite()
                             },
