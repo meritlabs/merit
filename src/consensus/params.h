@@ -18,6 +18,7 @@ enum DeploymentPos
 {
     DEPLOYMENT_GENESIS,
     DEPLOYMENT_DAEDALUS,
+    DEPLOYMENT_IMP_INVITES,
     MAX_VERSION_BITS_DEPLOYMENTS
 };
 
@@ -90,6 +91,11 @@ struct Params {
     
     /** Bug Fix heights */
     int safer_alias_blockheight;
+
+    /** Improved Invites */
+    int imp_invites_blockheight;
+    int imp_block_window;
+    std::vector<double> imp_weights;
 
 };
 } // namespace Consensus

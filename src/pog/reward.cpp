@@ -62,7 +62,7 @@ namespace pog
         return {filtered_rewards, remainder};
     }
 
-    int ComputeTotalInviteLotteryWinners(
+    int OldComputeTotalInviteLotteryWinners(
             int height,
             const InviteLotteryParams& lottery,
             const Consensus::Params& params)
@@ -108,6 +108,41 @@ namespace pog
 
         assert(total_winners >= 0 && total_winners <= params.daedalus_max_invites_per_block);
         return total_winners;
+    }
+
+    int ImpComputeTotalInviteLotteryWinners(
+            int height,
+            const InviteLotteryParams& lottery,
+            const Consensus::Params& params)
+    {
+        LogPrint(BCLog::VALIDATION, "Invites used: %d created: %d period: %d used per block: %d\n",
+                lottery.invites_used,
+                lottery.invites_created,
+                params.daedalus_block_window,
+                static_cast<double>(lottery.invites_used) /
+                static_cast<double>(params.daedalus_block_window));
+
+        assert(lottery.invites_used >= 0);
+        assert(params.daedalus_min_one_invite_for_every_x_blocks > 0);
+        assert(params.daedalus_min_one_invite_for_every_x_blocks <= params.daedalus_block_window);
+
+        const auto blocks_per_period = params.imp_block_window / params.imp_weights.size(); 
+        const int invites_used_per_block = lottery.invites_used / blocks_per_period;
+        const auto total_winners = std::max(0, invites_used_per_block);
+
+        assert(total_winners >= 0 && total_winners <= params.daedalus_max_invites_per_block);
+        return total_winners;
+    }
+
+    int ComputeTotalInviteLotteryWinners(
+            int height,
+            const InviteLotteryParams& lottery,
+            const Consensus::Params& params)
+    {
+        if(height >= params.imp_invites_blockheight) {
+            return ImpComputeTotalInviteLotteryWinners(height, lottery, params);
+        }
+        return OldComputeTotalInviteLotteryWinners(height, lottery, params);
     }
 
     InviteRewards RewardInvites(const referral::ConfirmedAddresses& winners)

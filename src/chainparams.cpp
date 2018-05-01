@@ -171,6 +171,10 @@ public:
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("0x0000000000000000003b9ce759c2a087d52abc4266f8f4ebd6d768b89defa50a"); //477890
 
+        // Block where improved invites turn on
+        consensus.imp_invites_blockheight = 179096;
+        consensus.imp_block_window = 60 * 24 * 2; //2 days of blocks
+        consensus.imp_weights = {60, 40}; 
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -311,6 +315,11 @@ public:
         // Block where safer aliases are enabled.
         consensus.safer_alias_blockheight = 2060;
 
+        // Block where improved invites turn on
+        consensus.imp_invites_blockheight = 80278;
+        consensus.imp_block_window = 4;
+        consensus.imp_weights = {60, 40}; 
+
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
         pchMessageStart[2] = 0x09;
@@ -322,7 +331,6 @@ public:
         base58Prefixes[PUBKEY_ADDRESS] = AddressPrefix(1, 110);
         base58Prefixes[SCRIPT_ADDRESS] = AddressPrefix(1, 125);
         base58Prefixes[PARAM_SCRIPT_ADDRESS] = AddressPrefix(1, 117);
-        //base58Prefixes[SECRET_KEY] = AddressPrefix(1, 239);
         base58Prefixes[SECRET_KEY] = AddressPrefix(1, 128);
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
@@ -419,8 +427,7 @@ public:
         consensus.daedalus_max_outstanding_invites_per_address = 3;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 500;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = 5000;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 10;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = std::numeric_limits<int>::max();
 
         // The best chain should have at least this much work.
@@ -430,7 +437,12 @@ public:
         consensus.defaultAssumeValid = uint256S("0x00");
 
         // Block where safer aliases are enabled.
-        consensus.safer_alias_blockheight = 2060;
+        consensus.safer_alias_blockheight = 20;
+
+        // Block where improved invites turn on
+        consensus.imp_invites_blockheight = 30;
+        consensus.imp_block_window = 4;
+        consensus.imp_weights = {60, 40}; 
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;

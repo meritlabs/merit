@@ -21,6 +21,7 @@
 #include "init.h"
 #include "pog/reward.h"
 #include "pog/select.h"
+#include "pog/invitebuffer.h"
 #include "policy/fees.h"
 #include "policy/policy.h"
 #include "policy/rbf.h"
@@ -76,6 +77,7 @@ CCriticalSection cs_main;
 
 BlockMap mapBlockIndex;
 CChain chainActive;
+pog::InviteBuffer inviteBuffer{chainActive};
 CBlockIndex *pindexBestHeader = nullptr;
 CWaitableCriticalSection csBestBlock;
 CConditionVariable cvBlockChange;
@@ -1859,44 +1861,7 @@ pog::AmbassadorLottery RewardAmbassadors(
     return rewards;
 }
 
-bool UpdateInviteLotteryParams(
-        const CBlock& block,
-        CCoinsViewCache& view,
-        pog::InviteLotteryParams& lottery_params,
-        const Consensus::Params& params)
-{
-    for (const auto& invite : block.invites) {
-        if (!invite->IsCoinBase()) {
-            for (const auto& in : invite->vin) {
-                CTransactionRef prev;
-                uint256 block_inv_is_in;
-
-                if (!GetTransaction(
-                            in.prevout.hash,
-                            prev,
-                            params,
-                            block_inv_is_in,
-                            false)) {
-                    return false;
-                }
-
-                assert(prev);
-                if (!prev->IsCoinBase()) {
-                    continue;
-                }
-                lottery_params.invites_used += prev->vout.at(in.prevout.n).nValue;
-            }
-        } else {
-            for (const auto& out : invite->vout) {
-                lottery_params.invites_created += out.nValue;
-            }
-        }
-    }
-
-    return true;
-}
-
-bool ComputeInviteLotteryParams(
+bool OldComputeInviteLotteryParams(
         int height,
         CBlockIndex* pindexPrev,
         CCoinsViewCache& view,
@@ -1909,19 +1874,100 @@ bool ComputeInviteLotteryParams(
 
     while (total_blocks-- && pindexPrev) {
 
-        CBlock block;
-        if (!ReadBlockFromDisk(block, pindexPrev, params, false)) {
-            return AbortNode(state, "Failed to read block");
+        auto stats = inviteBuffer.get(pindexPrev->nHeight, params);
+        if(!stats.is_set) { 
+            return AbortNode(state, "Failed to get invite stats");
         }
 
-        if (!UpdateInviteLotteryParams(block, view, lottery_params, params)) {
-            return AbortNode(state,"Failed to update invite lottery params");
-        }
+        lottery_params.invites_created += stats.invites_created;
+        lottery_params.invites_used += stats.invites_used;
 
         pindexPrev = pindexPrev->pprev;
     }
 
     return true;
+}
+
+bool ImpComputeInviteLotteryParams(
+        int height,
+        CBlockIndex* pindexPrev,
+        CCoinsViewCache& view,
+        const Consensus::Params& params,
+        CValidationState& state,
+        pog::InviteLotteryParams& lottery_param)
+{
+    assert(!params.imp_weights.empty());
+
+    auto total_blocks = params.imp_block_window;
+    assert(total_blocks > 0);
+
+    size_t period_length = params.imp_block_window / params.imp_weights.size();
+
+    pog::InviteLotteryParamsVec period_vec;
+    period_vec.resize(params.imp_weights.size());
+    size_t period = 0;
+
+    while (total_blocks-- && pindexPrev) {
+        assert(period < period_vec.size());
+
+        auto stats = inviteBuffer.get(pindexPrev->nHeight, params);
+        if(!stats.is_set) { 
+            return AbortNode(state, "Failed to get invite stats");
+        }
+
+        auto& period_params = period_vec[period];
+
+        period_params.invites_created += stats.invites_created;
+        period_params.invites_used += stats.invites_used;
+
+        pindexPrev = pindexPrev->pprev;
+
+        if(total_blocks % period_length == 0) { 
+            period++;
+        }
+    }
+
+    assert(period == period_vec.size());
+    assert(period_vec.size() == params.imp_weights.size());
+
+    for(size_t i = 0; i < params.imp_weights.size(); i++) {
+        const auto& p = period_vec[i];
+        const auto& w = params.imp_weights[i];
+        lottery_param.invites_created += p.invites_created;
+        lottery_param.invites_used += w*p.invites_used;
+    }
+
+    lottery_param.invites_created /= params.imp_weights.size();
+    lottery_param.invites_used /= 100;
+
+    return true;
+}
+
+bool ComputeInviteLotteryParams(
+        int height,
+        CBlockIndex* pindexPrev,
+        CCoinsViewCache& view,
+        const Consensus::Params& params,
+        CValidationState& state,
+        pog::InviteLotteryParams& lottery_params)
+{
+    if (height >= params.imp_invites_blockheight) { 
+        return ImpComputeInviteLotteryParams(
+                height,
+                pindexPrev,
+                view,
+                params,
+                state,
+                lottery_params);
+    }
+
+    return OldComputeInviteLotteryParams(
+            height,
+            pindexPrev,
+            view,
+            params,
+            state,
+            lottery_params);
 }
 
 bool RewardInvites(

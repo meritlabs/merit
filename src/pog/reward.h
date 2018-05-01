@@ -48,6 +48,8 @@ namespace pog
         int invites_used = 0;
     };
 
+    using InviteLotteryParamsVec = std::vector<InviteLotteryParams>;
+
     int ComputeTotalInviteLotteryWinners(
             int height,
             const InviteLotteryParams&,
