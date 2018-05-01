@@ -59,7 +59,7 @@ namespace pog
 
         InviteStats s;
 
-        auto adjusted_height = AdjustedHeight(height, params);
+        const auto adjusted_height = AdjustedHeight(height, params);
 
         //get cached value, otherwise we compute.
         if(get(adjusted_height, s)) {
@@ -83,6 +83,35 @@ namespace pog
         s.is_set = true;
         insert(adjusted_height, s);
         return s;
+    }
+
+    bool InviteBuffer::set_mean(int height, const MeanStats& mean_stats, const Consensus::Params& params)
+    {
+        LOCK(cs);
+        const auto adjusted_height = AdjustedHeight(height, params);
+
+        if(stats.size() <= adjusted_height) {
+            return false;
+        }
+
+        auto& stat = stats[adjusted_height];
+        stat.mean_stats = mean_stats;
+        stat.mean_set = true;
+
+        return true;
+    }
+
+    bool InviteBuffer::drop(int height, const Consensus::Params& params)
+    {
+        LOCK(cs);
+        const auto adjusted_height = AdjustedHeight(height, params);
+
+        if(stats.size() <= adjusted_height) {
+            return false;
+        }
+
+        stats.resize(adjusted_height);
+        return true;
     }
 
     bool InviteBuffer::get(int adjusted_height, InviteStats& s) const

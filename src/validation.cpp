@@ -1872,18 +1872,45 @@ bool OldComputeInviteLotteryParams(
     auto total_blocks = params.daedalus_block_window;
     assert(total_blocks > 0);
 
+    auto stats = inviteBuffer.get(pindexPrev->nHeight, params);
+    if(!stats.is_set) { 
+        return AbortNode(state, "Failed to get invite stats");
+    }
+
+    if(stats.mean_set) {
+        lottery_params.invites_used = stats.mean_stats.invites_used;
+        lottery_params.invites_created = stats.mean_stats.invites_created;
+        lottery_params.blocks = stats.mean_stats.blocks;
+        lottery_params.mean_used = stats.mean_stats.mean_used;
+        return true;
+    } 
+
+    const auto prevHeight = pindexPrev->nHeight;
     while (total_blocks-- && pindexPrev) {
 
-        auto stats = inviteBuffer.get(pindexPrev->nHeight, params);
+        stats = inviteBuffer.get(pindexPrev->nHeight, params);
         if(!stats.is_set) { 
             return AbortNode(state, "Failed to get invite stats");
         }
 
+
         lottery_params.invites_created += stats.invites_created;
         lottery_params.invites_used += stats.invites_used;
+        lottery_params.blocks++;
 
         pindexPrev = pindexPrev->pprev;
     }
+
+    lottery_params.mean_used = pog::ComputeUsedInviteMean(lottery_params);
+
+    pog::MeanStats mean_stats {
+        lottery_params.invites_created,
+            lottery_params.invites_used,
+            lottery_params.blocks,
+            lottery_params.mean_used
+    };
+
+    inviteBuffer.set_mean(prevHeight, mean_stats, params);
 
     return true;
 }
@@ -1894,7 +1921,7 @@ bool ImpComputeInviteLotteryParams(
         CCoinsViewCache& view,
         const Consensus::Params& params,
         CValidationState& state,
-        pog::InviteLotteryParams& lottery_param)
+        pog::InviteLotteryParams& lottery_params)
 {
     assert(!params.imp_weights.empty());
 
@@ -1907,6 +1934,20 @@ bool ImpComputeInviteLotteryParams(
     period_vec.resize(params.imp_weights.size());
     size_t period = 0;
 
+    auto stats = inviteBuffer.get(pindexPrev->nHeight, params);
+    if(!stats.is_set) { 
+        return AbortNode(state, "Failed to get invite stats");
+    }
+
+    if(stats.mean_set) {
+        lottery_params.invites_used = stats.mean_stats.invites_used;
+        lottery_params.invites_created = stats.mean_stats.invites_created;
+        lottery_params.blocks = stats.mean_stats.blocks;
+        lottery_params.mean_used = stats.mean_stats.mean_used;
+        return true;
+    } 
+
+    const auto prevHeight = pindexPrev->nHeight;
     while (total_blocks-- && pindexPrev) {
         assert(period < period_vec.size());
 
@@ -1933,12 +1974,23 @@ bool ImpComputeInviteLotteryParams(
     for(size_t i = 0; i < params.imp_weights.size(); i++) {
         const auto& p = period_vec[i];
         const auto& w = params.imp_weights[i];
-        lottery_param.invites_created += p.invites_created;
-        lottery_param.invites_used += w*p.invites_used;
+        lottery_params.invites_created += p.invites_created;
+        lottery_params.invites_used += w*p.invites_used;
     }
 
-    lottery_param.invites_created /= params.imp_weights.size();
-    lottery_param.invites_used /= 100;
+    lottery_params.invites_created /= params.imp_weights.size();
+    lottery_params.invites_used /= 100;
+    lottery_params.blocks=period_length;
+    lottery_params.mean_used = pog::ComputeUsedInviteMean(lottery_params);
+
+    pog::MeanStats mean_stats {
+        lottery_params.invites_created,
+            lottery_params.invites_used,
+            lottery_params.blocks,
+            lottery_params.mean_used
+    };
+
+    inviteBuffer.set_mean(prevHeight, mean_stats, params);
 
     return true;
 }
@@ -1993,6 +2045,12 @@ bool RewardInvites(
                 lottery_params)) {
         return false;
     }
+
+    std::cerr << "LOTTERY PARAMS" << std::endl;
+    std::cerr << "\tcreated: " << lottery_params.invites_created << std::endl;
+    std::cerr << "\tused:    " << lottery_params.invites_used << std::endl;
+    std::cerr << "\tblocks:  " << lottery_params.blocks << std::endl;
+    std::cerr << "\tmean:    " << lottery_params.mean_used << std::endl;
 
     const auto total_winners =
         pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
@@ -3064,6 +3122,8 @@ static DisconnectResult DisconnectBlock(
         error("DisconnectBlock(): block invites and undo data inconsistent");
         return DISCONNECT_FAILED;
     }
+
+    inviteBuffer.drop(pindex->nHeight, consensus_params);
 
     KeyActivity addressIndex;
     AddressUnspentIndex addressUnspentIndex;

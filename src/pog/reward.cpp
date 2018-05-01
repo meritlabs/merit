@@ -134,6 +134,18 @@ namespace pog
         return total_winners;
     }
 
+    double ComputeUsedInviteMean(const InviteLotteryParams& lottery)
+    {
+        if(lottery.blocks <= 0) {
+            return 0.0;
+        }
+
+        auto mean = static_cast<double>(lottery.invites_used) /
+            static_cast<double>(lottery.blocks);
+        LogPrintf("Mean Invites Used %d:  used total: %d  created: %d blocks: %d\n", mean, lottery.invites_used, lottery.invites_created, lottery.blocks);
+        return mean;
+    }
+
     int ComputeTotalInviteLotteryWinners(
             int height,
             const InviteLotteryParams& lottery,

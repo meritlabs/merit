@@ -13,11 +13,33 @@
 
 namespace pog 
 {
-    struct InviteStats 
+    struct MeanStats
     {
         int invites_created = 0;
         int invites_used = 0;
+        int blocks = 0;
+        double mean_used = 0.0;
+
+        MeanStats() {}
+
+        MeanStats(
+                int created,
+                int used,
+                int blks,
+                double mean) :
+            invites_created{created},
+            invites_used{used},
+            blocks{blks},
+            mean_used{mean} {}
+    };
+
+    struct InviteStats 
+    {
+        MeanStats mean_stats;
+        int invites_created = 0;
+        int invites_used = 0;
         bool is_set = false;
+        bool mean_set = false;
     };
 
     class InviteBuffer
@@ -25,6 +47,9 @@ namespace pog
         public:
             InviteBuffer(const CChain& c);
             InviteStats get(int height, const Consensus::Params& p) const;
+            bool set_mean(int height, const MeanStats& mean_stats, const Consensus::Params& p);
+
+            bool drop(int height, const Consensus::Params& p);
 
         private:
             bool get(int adjusted_height, InviteStats& s) const;
