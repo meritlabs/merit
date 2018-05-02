@@ -272,6 +272,15 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         coinbaseInvites.vin[0].prevout.SetNull();
         coinbaseInvites.vin[0].scriptSig = CScript() << nHeight << OP_0;
 
+        bool improved_lottery_on = nHeight >= chain_params.imp_invites_blockheight;
+
+        //Improved invite lottery allows the miner to pay themselves an invite
+        if(improved_lottery_on) {
+            coinbaseInvites.vout.resize(1);
+            coinbaseInvites.vout[0].scriptPubKey = scriptPubKeyIn;
+            coinbaseInvites.vin[0].scriptSig = CScript() << nHeight << OP_0;
+        }
+
         coinbaseInvites.nVersion = CTransaction::INVITE_VERSION;
 
         assert(pcoinsTip);
@@ -295,8 +304,8 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
                 state,
                 invites);
 
-        if (invites.empty()) {
-            // remove empty coinbase
+        if (invites.empty() && !improved_lottery_on) {
+            // remove empty coinbase 
             pblock->invites.erase(pblock->invites.begin());
         } else {
             DistributeInvites(invites, coinbaseInvites);

@@ -95,6 +95,7 @@ struct Params {
     /** Improved Invites */
     int imp_invites_blockheight;
     int imp_block_window;
+    int imp_min_one_invite_for_every_x_blocks;
     std::vector<double> imp_weights;
 
 };

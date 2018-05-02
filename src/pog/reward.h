@@ -56,7 +56,7 @@ namespace pog
 
     int ComputeTotalInviteLotteryWinners(
             int height,
-            const InviteLotteryParams&,
+            const InviteLotteryParamsVec&,
             const Consensus::Params& params);
 
     using InviteRewards = std::vector<InviteReward>;

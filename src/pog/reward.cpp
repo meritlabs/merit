@@ -71,8 +71,7 @@ namespace pog
                 lottery.invites_used,
                 lottery.invites_created,
                 params.daedalus_block_window,
-                static_cast<double>(lottery.invites_used) /
-                static_cast<double>(params.daedalus_block_window));
+                lottery.mean_used);
 
         const auto period = (height - params.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block) /
             params.daedalus_block_window;
@@ -112,25 +111,40 @@ namespace pog
 
     int ImpComputeTotalInviteLotteryWinners(
             int height,
-            const InviteLotteryParams& lottery,
+            const InviteLotteryParamsVec& lottery_points,
             const Consensus::Params& params)
     {
+        assert(lottery_points.size() == 2);
+
+        const auto& block1 = lottery_points[0];
+        const auto& block2 = lottery_points[1];
+
         LogPrint(BCLog::VALIDATION, "Invites used: %d created: %d period: %d used per block: %d\n",
-                lottery.invites_used,
-                lottery.invites_created,
+                block1.invites_used,
+                block1.invites_created,
                 params.daedalus_block_window,
-                static_cast<double>(lottery.invites_used) /
-                static_cast<double>(params.daedalus_block_window));
+                block1.mean_used);
 
-        assert(lottery.invites_used >= 0);
-        assert(params.daedalus_min_one_invite_for_every_x_blocks > 0);
-        assert(params.daedalus_min_one_invite_for_every_x_blocks <= params.daedalus_block_window);
 
-        const auto blocks_per_period = params.imp_block_window / params.imp_weights.size(); 
-        const int invites_used_per_block = lottery.invites_used / blocks_per_period;
-        const auto total_winners = std::max(0, invites_used_per_block);
+        int min_total_winners = 0;
+        if(block1.invites_created <= block1.blocks) {
+            min_total_winners = 
+                (block1.blocks / params.imp_min_one_invite_for_every_x_blocks);
+        }
 
-        assert(total_winners >= 0 && total_winners <= params.daedalus_max_invites_per_block);
+        const double mean_diff = block1.mean_used - block2.mean_used;
+
+        //Assume we need more or less than what was used before.
+        //This allows invites to grow or shrink exponentially.
+        const int change = mean_diff >= 0 ?
+            std::ceil(mean_diff) : 
+            std::floor(mean_diff);
+
+        const int total_winners = std::max(
+                min_total_winners,
+                static_cast<int>(std::floor(block1.mean_used) + change));
+
+        assert(total_winners >= 0);
         return total_winners;
     }
 
@@ -142,19 +156,19 @@ namespace pog
 
         auto mean = static_cast<double>(lottery.invites_used) /
             static_cast<double>(lottery.blocks);
-        LogPrintf("Mean Invites Used %d:  used total: %d  created: %d blocks: %d\n", mean, lottery.invites_used, lottery.invites_created, lottery.blocks);
         return mean;
     }
 
     int ComputeTotalInviteLotteryWinners(
             int height,
-            const InviteLotteryParams& lottery,
+            const InviteLotteryParamsVec& lottery,
             const Consensus::Params& params)
     {
+        assert(lottery.size() > 0 && lottery.size() <=2);
         if(height >= params.imp_invites_blockheight) {
             return ImpComputeTotalInviteLotteryWinners(height, lottery, params);
         }
-        return OldComputeTotalInviteLotteryWinners(height, lottery, params);
+        return OldComputeTotalInviteLotteryWinners(height, lottery[0], params);
     }
 
     InviteRewards RewardInvites(const referral::ConfirmedAddresses& winners)

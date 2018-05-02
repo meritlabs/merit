@@ -173,7 +173,8 @@ public:
 
         // Block where improved invites turn on
         consensus.imp_invites_blockheight = 179096;
-        consensus.imp_block_window = 60 * 24 * 2; //2 days of blocks
+        consensus.imp_block_window = 60 * 24 * 1; //1 days of blocks
+        consensus.imp_min_one_invite_for_every_x_blocks = 3; //invite every 3 minutes at a minumum, 480 per day.
         consensus.imp_weights = {60, 40}; 
 
         /**
@@ -316,7 +317,7 @@ public:
         consensus.safer_alias_blockheight = 2060;
 
         // Block where improved invites turn on
-        consensus.imp_invites_blockheight = 80278;
+        consensus.imp_invites_blockheight = 82000;
         consensus.imp_block_window = 4;
         consensus.imp_weights = {60, 40}; 
 
