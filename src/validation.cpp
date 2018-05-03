@@ -21,6 +21,7 @@
 #include "init.h"
 #include "pog/reward.h"
 #include "pog/select.h"
+#include "pog/invitebuffer.h"
 #include "policy/fees.h"
 #include "policy/policy.h"
 #include "policy/rbf.h"
@@ -76,6 +77,7 @@ CCriticalSection cs_main;
 
 BlockMap mapBlockIndex;
 CChain chainActive;
+pog::InviteBuffer inviteBuffer{chainActive};
 CBlockIndex *pindexBestHeader = nullptr;
 CWaitableCriticalSection csBestBlock;
 CConditionVariable cvBlockChange;
@@ -1859,39 +1861,134 @@ pog::AmbassadorLottery RewardAmbassadors(
     return rewards;
 }
 
-bool UpdateInviteLotteryParams(
-        const CBlock& block,
+bool OldComputeInviteLotteryParams(
+        CBlockIndex* pindexPrev,
         CCoinsViewCache& view,
-        pog::InviteLotteryParams& lottery_params,
-        const Consensus::Params& params)
+        const Consensus::Params& params,
+        CValidationState& state,
+        pog::InviteLotteryParams& lottery_params)
 {
-    for (const auto& invite : block.invites) {
-        if (!invite->IsCoinBase()) {
-            for (const auto& in : invite->vin) {
-                CTransactionRef prev;
-                uint256 block_inv_is_in;
+    auto total_blocks = params.daedalus_block_window;
+    assert(total_blocks > 0);
 
-                if (!GetTransaction(
-                            in.prevout.hash,
-                            prev,
-                            params,
-                            block_inv_is_in,
-                            false)) {
-                    return false;
-                }
+    auto stats = inviteBuffer.get(pindexPrev->nHeight, params);
+    if (!stats.is_set) { 
+        return AbortNode(state, "Failed to get invite stats");
+    }
 
-                assert(prev);
-                if (!prev->IsCoinBase()) {
-                    continue;
-                }
-                lottery_params.invites_used += prev->vout.at(in.prevout.n).nValue;
-            }
-        } else {
-            for (const auto& out : invite->vout) {
-                lottery_params.invites_created += out.nValue;
-            }
+    if (stats.mean_set) {
+        lottery_params.invites_used = stats.mean_stats.invites_used;
+        lottery_params.invites_created = stats.mean_stats.invites_created;
+        lottery_params.blocks = stats.mean_stats.blocks;
+        lottery_params.mean_used = stats.mean_stats.mean_used;
+        return true;
+    } 
+
+    const auto prevHeight = pindexPrev->nHeight;
+    while (total_blocks-- && pindexPrev) {
+
+        stats = inviteBuffer.get(pindexPrev->nHeight, params);
+        if (!stats.is_set) { 
+            return AbortNode(state, "Failed to get invite stats");
+        }
+
+
+        lottery_params.invites_created += stats.invites_created;
+        lottery_params.invites_used += stats.invites_used;
+        lottery_params.blocks++;
+
+        pindexPrev = pindexPrev->pprev;
+    }
+
+    lottery_params.mean_used = pog::ComputeUsedInviteMean(lottery_params);
+
+    pog::MeanStats mean_stats {
+        lottery_params.invites_created,
+            lottery_params.invites_used,
+            lottery_params.blocks,
+            lottery_params.mean_used
+    };
+
+    inviteBuffer.set_mean(prevHeight, mean_stats, params);
+
+    return true;
+}
+
+bool ImpComputeInviteLotteryParams(
+        CBlockIndex* pindexPrev,
+        CCoinsViewCache& view,
+        const Consensus::Params& params,
+        CValidationState& state,
+        pog::InviteLotteryParams& lottery_params)
+{
+    assert(!params.imp_weights.empty());
+
+    auto total_blocks = params.imp_block_window;
+    assert(total_blocks > 0);
+
+    size_t period_length = params.imp_block_window / params.imp_weights.size();
+
+    pog::InviteLotteryParamsVec period_vec;
+    period_vec.resize(params.imp_weights.size());
+    size_t period = 0;
+
+    auto stats = inviteBuffer.get(pindexPrev->nHeight, params);
+    if (!stats.is_set) { 
+        return AbortNode(state, "Failed to get invite stats");
+    }
+
+    if (stats.mean_set) {
+        lottery_params.invites_used = stats.mean_stats.invites_used;
+        lottery_params.invites_created = stats.mean_stats.invites_created;
+        lottery_params.blocks = stats.mean_stats.blocks;
+        lottery_params.mean_used = stats.mean_stats.mean_used;
+        return true;
+    } 
+
+    const auto prevHeight = pindexPrev->nHeight;
+    while (total_blocks-- && pindexPrev) {
+        assert(period < period_vec.size());
+
+        auto stats = inviteBuffer.get(pindexPrev->nHeight, params);
+        if (!stats.is_set) { 
+            return AbortNode(state, "Failed to get invite stats");
+        }
+
+        auto& period_params = period_vec[period];
+
+        period_params.invites_created += stats.invites_created;
+        period_params.invites_used += stats.invites_used;
+
+        pindexPrev = pindexPrev->pprev;
+
+        if (total_blocks % period_length == 0) { 
+            period++;
         }
     }
+
+    assert(period == period_vec.size());
+    assert(period_vec.size() == params.imp_weights.size());
+
+    for(size_t i = 0; i < params.imp_weights.size(); i++) {
+        const auto& p = period_vec[i];
+        const auto& w = params.imp_weights[i];
+        lottery_params.invites_created += p.invites_created;
+        lottery_params.invites_used += w*p.invites_used;
+    }
+
+    lottery_params.invites_created /= params.imp_weights.size();
+    lottery_params.invites_used /= 100;
+    lottery_params.blocks=period_length;
+    lottery_params.mean_used = pog::ComputeUsedInviteMean(lottery_params);
+
+    pog::MeanStats mean_stats {
+        lottery_params.invites_created,
+            lottery_params.invites_used,
+            lottery_params.blocks,
+            lottery_params.mean_used
+    };
+
+    inviteBuffer.set_mean(prevHeight, mean_stats, params);
 
     return true;
 }
@@ -1902,26 +1999,39 @@ bool ComputeInviteLotteryParams(
         CCoinsViewCache& view,
         const Consensus::Params& params,
         CValidationState& state,
-        pog::InviteLotteryParams& lottery_params)
+        pog::InviteLotteryParamsVec& lottery_params)
 {
-    auto total_blocks = params.daedalus_block_window;
-    assert(total_blocks > 0);
-
-    while (total_blocks-- && pindexPrev) {
-
-        CBlock block;
-        if (!ReadBlockFromDisk(block, pindexPrev, params, false)) {
-            return AbortNode(state, "Failed to read block");
+    if (height >= params.imp_invites_blockheight) { 
+        lottery_params.resize(2);
+        if (!ImpComputeInviteLotteryParams(
+                pindexPrev,
+                view,
+                params,
+                state,
+                lottery_params[0])) {
+            return false;
         }
 
-        if (!UpdateInviteLotteryParams(block, view, lottery_params, params)) {
-            return AbortNode(state,"Failed to update invite lottery params");
+        if (pindexPrev && pindexPrev->pprev) {
+            if (!ImpComputeInviteLotteryParams(
+                        pindexPrev->pprev,
+                        view,
+                        params,
+                        state,
+                        lottery_params[1])) {
+                return false;
+            }
         }
-
-        pindexPrev = pindexPrev->pprev;
+        return true;
     }
 
-    return true;
+    lottery_params.resize(1);
+    return OldComputeInviteLotteryParams(
+            pindexPrev,
+            view,
+            params,
+            state,
+            lottery_params[0]);
 }
 
 bool RewardInvites(
@@ -1937,7 +2047,7 @@ bool RewardInvites(
     assert(height >= 0);
     assert(prefviewdb != nullptr);
 
-    pog::InviteLotteryParams lottery_params;
+    pog::InviteLotteryParamsVec lottery_params;
     if (!ComputeInviteLotteryParams(
                 height,
                 pindexPrev,
@@ -1951,7 +2061,7 @@ bool RewardInvites(
     const auto total_winners =
         pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
 
-    if (total_winners == 0 ) {
+    if (total_winners == 0) {
         return true;
     }
 
@@ -1992,7 +2102,6 @@ bool RewardInvites(
     assert(winners.size() <= static_cast<size_t>(total_winners));
 
     rewards = pog::RewardInvites(winners);
-
     return true;
 }
 
@@ -2121,17 +2230,26 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
             RewardComp());
 }
 
-bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, const CTransaction& coinbase) {
-    if(!coinbase.IsCoinBase()) {
+bool AreExpectedInvitesRewarded(
+        int height,
+        const bool miner_reward_block,
+        const pog::InviteRewards& expected_invites,
+        const CTransaction& coinbase,
+        const Consensus::Params& params) {
+
+    assert(params.imp_min_one_invite_for_every_x_blocks > 0);
+
+    if (!coinbase.IsCoinBase()) {
         return false;
     }
 
-    if(!coinbase.IsInvite()) {
+    const int miner_reward = miner_reward_block ? 1 : 0;
+
+    if (coinbase.vout.size() != expected_invites.size() + miner_reward) {
         return false;
     }
 
-    //quick test before doing more expensive validation
-    if (coinbase.vout.size() != expected_invites.size()) {
+    if (!coinbase.IsInvite()) {
         return false;
     }
 
@@ -2141,7 +2259,7 @@ bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, cons
                 return accum + inv.invites;
             });
 
-    if(coinbase.GetValueOut() != expected_invite_reward) {
+    if (coinbase.GetValueOut() != expected_invite_reward + miner_reward) {
         return false;
     }
 
@@ -2674,7 +2792,7 @@ bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
     //          D 0
     //          C 1
     //Which is not the original state.
-    if(undo) {
+    if (undo) {
         debits_and_credits.insert(debits_and_credits.end(), stage.rbegin(), stage.rend());
     } else {
         debits_and_credits.insert(debits_and_credits.end(), stage.begin(), stage.end());
@@ -2816,7 +2934,7 @@ void UnIndexTransactions(
         auto tx = vtx[i];
         auto txhash = tx->GetHash();
 
-        if(!tx->IsCoinBase()) {
+        if (!tx->IsCoinBase()) {
             for (unsigned int k = tx->vin.size(); k-- > 0;) {
                 const auto& input = tx->vin[k];
                 const auto& coin = view.AccessCoin(input.prevout);
@@ -3018,6 +3136,8 @@ static DisconnectResult DisconnectBlock(
         error("DisconnectBlock(): block invites and undo data inconsistent");
         return DISCONNECT_FAILED;
     }
+
+    inviteBuffer.drop(pindex->nHeight, consensus_params);
 
     KeyActivity addressIndex;
     AddressUnspentIndex addressUnspentIndex;
@@ -3369,7 +3489,7 @@ bool ValidateContextualDaedalusBlock(
     if (!ExpectDaedalus(pindexPrev, params)) {
         // During the Daedalus deployment, no other block types will be accepted.
         // This is unique to the daedalus deployment.
-        if(block.IsDaedalus()) {
+        if (block.IsDaedalus()) {
             return state.DoS(100,
                     false,
                     REJECT_INVALID,
@@ -3432,6 +3552,13 @@ static int64_t nTimeIndex = 0;
 static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
+
+bool BlockHasMinerInviteReward(int height, const uint256& previous_block_hash, const Consensus::Params& params) {
+    const bool improved_lottery_on = height >= params.imp_invites_blockheight;
+    return
+        improved_lottery_on &&
+        (SipHashUint256(0, 0, previous_block_hash) % params.imp_miner_reward_for_every_x_blocks == 0);
+}
 
 bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos, unsigned int pos_offset)
 {
@@ -3580,8 +3707,8 @@ static bool ConnectBlock(
     int64_t nTimeStart = GetTimeMicros();
 
     const auto checkpoint = chainparams.Checkpoints().mapCheckpoints.find(pindex->nHeight);
-    if(checkpoint != chainparams.Checkpoints().mapCheckpoints.end()) {
-        if(block.GetHash() != checkpoint->second.hash) {
+    if (checkpoint != chainparams.Checkpoints().mapCheckpoints.end()) {
+        if (block.GetHash() != checkpoint->second.hash) {
             return state.DoS(
                     50,
                     false,
@@ -3840,7 +3967,7 @@ static bool ConnectBlock(
         for (int i = 0; i < static_cast<int>(block.invites.size()); i++) {
             const CTransaction &inv = *(block.invites[i]);
 
-            if(validate) {
+            if (validate) {
                 if (!Consensus::CheckTxOutputs(inv, state, *prefviewcache, block.m_vRef)) {
                     return error("ConnectBlock(): CheckTxOutputs on invite %s failed with %s",
                             inv.GetHash().ToString(), FormatStateMessage(state));
@@ -3900,7 +4027,7 @@ static bool ConnectBlock(
     }
 
     int64_t nTime7 = GetTimeMicros();
-    if(validate) {
+    if (validate) {
         for (const auto& ref: block.m_vRef) {
             if (CheckAddressBeaconed(ref->GetAddress(), false)) {
                 return state.DoS(100,
@@ -4017,7 +4144,15 @@ static bool ConnectBlock(
                         REJECT_INVALID, "bad-cb-no-invites");
             }
 
-            size_t coinbase_end = 0;
+            //We allow miner to claim an invite now, so we check if expected
+            //lottery winners are paid
+            const bool miner_reward_block = 
+                BlockHasMinerInviteReward(
+                        pindex->nHeight,
+                        hashPrevBlock,
+                        chainparams.GetConsensus());
+
+            size_t coinbase_end = miner_reward_block ? 1 : 0;
             if (!invite_rewards.empty()) {
                 const CTransaction& coinbase_invites = *block.invites[0];
                 coinbase_end = 1;
@@ -4028,7 +4163,13 @@ static bool ConnectBlock(
                             REJECT_INVALID, "bad-cb-invite-expected-coinbase");
                 }
 
-                if (!AreExpectedInvitesRewarded(invite_rewards, coinbase_invites)) {
+                if (!AreExpectedInvitesRewarded(
+                            pindex->nHeight,
+                            miner_reward_block,
+                            invite_rewards,
+                            coinbase_invites,
+                            chainparams.GetConsensus())) {
+
                     return state.DoS(100,
                             error("ConnectBlock(): coinbase did not reward expected invites."),
                             REJECT_INVALID, "bad-cb-bad-invites");
@@ -5517,7 +5658,7 @@ static bool ContextualCheckBlock(
         const CBlockIndex* pindexPrev,
         bool validate)
 {
-    if(!validate) {
+    if (!validate) {
         return true;
     }
 
