@@ -318,7 +318,7 @@ public:
         consensus.safer_alias_blockheight = 2060;
 
         // Block where improved invites turn on
-        consensus.imp_invites_blockheight = 82161;
+        consensus.imp_invites_blockheight = 82275;
         consensus.imp_block_window = 4;
         consensus.imp_min_one_invite_for_every_x_blocks = 2; //invite every minute
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
