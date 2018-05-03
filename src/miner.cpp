@@ -272,12 +272,17 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         coinbaseInvites.vin[0].prevout.SetNull();
         coinbaseInvites.vin[0].scriptSig = CScript() << nHeight << OP_0;
 
-        bool improved_lottery_on = nHeight >= chain_params.imp_invites_blockheight;
+        const bool miner_reward_block = 
+                BlockHasMinerInviteReward(
+                        nHeight,
+                        previousBlockHash,
+                        chain_params);
 
         //Improved invite lottery allows the miner to pay themselves an invite
-        if(improved_lottery_on) {
+        if(miner_reward_block) {
             coinbaseInvites.vout.resize(1);
             coinbaseInvites.vout[0].scriptPubKey = scriptPubKeyIn;
+            coinbaseInvites.vout[0].nValue = 1;
             coinbaseInvites.vin[0].scriptSig = CScript() << nHeight << OP_0;
         }
 
@@ -304,7 +309,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
                 state,
                 invites);
 
-        if (invites.empty() && !improved_lottery_on) {
+        if (invites.empty() && !miner_reward_block) {
             // remove empty coinbase 
             pblock->invites.erase(pblock->invites.begin());
         } else {
@@ -329,6 +334,14 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
             nFees,
             nBlockSigOpsCost,
             nBlockRef);
+    std::string block_hex;
+    {
+        CDataStream ssBlock(SER_NETWORK, PROTOCOL_VERSION);
+        ssBlock << *pblock;
+        block_hex = HexStr(ssBlock.begin(), ssBlock.end());
+    }
+
+    LogPrintf("%s\n", block_hex);
 
     auto pow = GetNextWorkRequired(pindexPrev, pblock, chain_params);
 

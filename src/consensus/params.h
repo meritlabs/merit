@@ -96,6 +96,7 @@ struct Params {
     int imp_invites_blockheight;
     int imp_block_window;
     int imp_min_one_invite_for_every_x_blocks;
+    int imp_miner_reward_for_every_x_blocks;
     std::vector<double> imp_weights;
 
 };

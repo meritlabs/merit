@@ -127,7 +127,7 @@ namespace pog
 
 
         int min_total_winners = 0;
-        if(block1.invites_created <= block1.blocks) {
+        if(block1.invites_created <= (block1.blocks / params.imp_miner_reward_for_every_x_blocks)) {
             min_total_winners = 
                 (block1.blocks / params.imp_min_one_invite_for_every_x_blocks);
         }

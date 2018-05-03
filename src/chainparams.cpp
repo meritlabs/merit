@@ -172,9 +172,10 @@ public:
         consensus.defaultAssumeValid = uint256S("0x0000000000000000003b9ce759c2a087d52abc4266f8f4ebd6d768b89defa50a"); //477890
 
         // Block where improved invites turn on
-        consensus.imp_invites_blockheight = 179096;
+        consensus.imp_invites_blockheight = 180640; //Fri, Jan 4th
         consensus.imp_block_window = 60 * 24 * 1; //1 days of blocks
-        consensus.imp_min_one_invite_for_every_x_blocks = 3; //invite every 3 minutes at a minumum, 480 per day.
+        consensus.imp_min_one_invite_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
+        consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_weights = {60, 40}; 
 
         /**
@@ -317,8 +318,10 @@ public:
         consensus.safer_alias_blockheight = 2060;
 
         // Block where improved invites turn on
-        consensus.imp_invites_blockheight = 82000;
+        consensus.imp_invites_blockheight = 82161;
         consensus.imp_block_window = 4;
+        consensus.imp_min_one_invite_for_every_x_blocks = 2; //invite every minute
+        consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_weights = {60, 40}; 
 
         pchMessageStart[0] = 0x0b;
@@ -405,9 +408,9 @@ public:
         consensus.powLimit = Consensus::PoWLimit{
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
             *consensus.sEdgeBitsAllowed.begin()};
-        consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
+        consensus.nPowTargetTimespan = 60; // one minute for nBits adjustment
         consensus.nEdgeBitsTargetThreshold = 2;      // adjust nEdgeBits if block time is twice more/less than expected
-        consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
+        consensus.nPowTargetSpacing = 10;        // 10 seconds per block
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = true;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains
@@ -441,8 +444,10 @@ public:
         consensus.safer_alias_blockheight = 20;
 
         // Block where improved invites turn on
-        consensus.imp_invites_blockheight = 30;
+        consensus.imp_invites_blockheight = 12;
         consensus.imp_block_window = 4;
+        consensus.imp_min_one_invite_for_every_x_blocks = 1; //invite every minute
+        consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_weights = {60, 40}; 
 
         pchMessageStart[0] = 0xfa;
@@ -478,9 +483,14 @@ public:
     {
         CAmount genesisReward = 20000000_merit;
 
-        PubKeys genesisKeys = {
-            CPubKey{ParseHex("03C710FD3FD8B56537BF121870AF462107D3583F7E0CBD97F80EE271F48DAFF593")},
-            CPubKey{ParseHex("024F1BC2E023ED1BACDC8171798113F1F7280C881919A11B592A25A976ABFB8798")},
+        // genesis ref address:
+        // sPm5Tq6pZwDtcgGMJcqsvtmh5wZsSqVyRH
+        consensus.genesis_address = uint160{ParseHex("3c759153e6519361689f43d1ed981c1417c05dcf")};
+
+
+        PubKeys genesisKeys{
+            CPubKey(ParseHex("03C710FD3FD8B56537BF121870AF462107D3583F7E0CBD97F80EE271F48DAFF593")),
+                CPubKey(ParseHex("024F1BC2E023ED1BACDC8171798113F1F7280C881919A11B592A25A976ABFB8798")),
         };
 
         const std::string referralSig =
@@ -488,19 +498,21 @@ public:
             "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
             "f967f5b6895626";
 
-        // genesis ref address:
-        // sPm5Tq6pZwDtcgGMJcqsvtmh5wZsSqVyRH
-        consensus.genesis_address = uint160{ParseHex("3c759153e6519361689f43d1ed981c1417c05dcf")};
-
-        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800,  0, 0x207fffff, 24, 1, genesisReward, consensus);
+        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800, 381, 0x207fffff, 24, 1, genesisReward, consensus);
 
         genesis.sCycle = {
-            0x15b8f, 0x195867, 0x1bbe29, 0x1bd48c, 0x230a7e, 0x2553db, 0x2c5bd0, 0x31996b, 0x3789b6, 0x48b67a, 0x4a31e0, 0x52a1bf, 0x5f6ddc, 0x60f02d, 0x6de4ec, 0x7e7534, 0x89b733, 0x8ed16d, 0x93ee9f, 0x9d09d8, 0xa19b42, 0xa2374b, 0xa3a53e, 0xab68ff, 0xb3f004, 0xb64ebf, 0xc582b5, 0xcb1628, 0xcc9d57, 0xd0a370, 0xd12874, 0xd14c44, 0xd379b3, 0xd479ec, 0xd62a58, 0xdebb7a, 0xe86442, 0xeb5482, 0xf2609d, 0xf28706, 0xf5e069, 0xf9eb5f
+            0x13529, 0xb3ef1, 0xf3211, 0x166f1d, 0x1fe182, 0x229740, 0x2704c2, 0x2a3b1b,
+            0x32053c, 0x39fee1, 0x3ed8ff, 0x3f079d, 0x408b98, 0x40b31d, 0x434ea2, 0x463eaa,
+            0x482bb4, 0x49eae3, 0x4bb609, 0x545752, 0x5a2d5b, 0x5e3999, 0x6ca1d2, 0x76c4f7,
+            0x826245, 0x82d44d, 0xad2cd4, 0xafd7be, 0xb5792b, 0xb593a2, 0xb7f4fb, 0xc2a540,
+            0xcec41e, 0xd33967, 0xdbb0b8, 0xdc9ce4, 0xdf509e, 0xe04520, 0xe187ef, 0xe30157,
+            0xed068f, 0xfd58fe
         };
 
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("795bc3e58f7863d41411eed4f7ec488570250a4907083df553285b7497e6338e"));
-        assert(genesis.hashMerkleRoot == uint256S("b27e04cc1c480dc707e72dd37ffabf0cc12d34c2a535368434350d1de7b5f065"));
+
+        assert(consensus.hashGenesisBlock == uint256S("448f31e47f5daabfd1984f03a64723c7f50b2306961e6f0e7f482e0b49f2dbea"));
+        assert(genesis.hashMerkleRoot == uint256S("8be99a68b2514e86f17368e9cce63d302aa0f29ed91654b7c90dc9f7201fb69f"));
     }
 };
 

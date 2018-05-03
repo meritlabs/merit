@@ -678,6 +678,14 @@ int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Para
  */
 bool ExpectDaedalus(const CBlockIndex* pindexPrev, const Consensus::Params& params);
 
+/**
+ * Returns true if the block can have a miner invite reward
+ */
+bool BlockHasMinerInviteReward(
+        int height,
+        const uint256& previous_block_hash,
+        const Consensus::Params& params);
+
 /** Reject codes greater or equal to this can be returned by AcceptToMemPool
  * for transactions, to signal internal conditions. They cannot and should not
  * be sent over the P2P network.

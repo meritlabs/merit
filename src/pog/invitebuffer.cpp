@@ -12,12 +12,26 @@ namespace pog
     InviteBuffer::InviteBuffer(const CChain& c) : chain{c} {}
 
     bool ComputeStats(
+            int height,
             const CBlock& block,
             InviteStats& stats,
             const Consensus::Params& params)
     {
+        assert(height >= 0);
+
+        bool check_for_beacon = height >= params.imp_invites_blockheight;
+
+        std::set<uint160> beaconed_addresses;
+        if(check_for_beacon) {
+            for(const auto& beacon : block.m_vRef) {
+                beaconed_addresses.insert(beacon->GetAddress());
+            }
+        }
+
         for (const auto& invite : block.invites) {
             if (!invite->IsCoinBase()) {
+
+                int coinbase_used = 0;
                 for (const auto& in : invite->vin) {
                     CTransactionRef prev;
                     uint256 block_inv_is_in;
@@ -35,8 +49,26 @@ namespace pog
                     if (!prev->IsCoinBase()) {
                         continue;
                     }
-                    stats.invites_used += prev->vout.at(in.prevout.n).nValue;
+
+                    coinbase_used += prev->vout.at(in.prevout.n).nValue;
                 }
+
+                if (check_for_beacon) {
+                    int beacons_invited = 0;
+                    for (const auto& out: invite->vout) {
+                        const auto addr = ExtractAddress(out);
+                        if(addr.second == 0) {
+                            continue;
+                        }
+                        beacons_invited += beaconed_addresses.count(addr.first);
+                    }
+
+                    stats.invites_used += std::min(coinbase_used, beacons_invited);
+
+                } else {
+                    stats.invites_used += coinbase_used;
+                }
+
             } else {
                 for (const auto& out : invite->vout) {
                     stats.invites_created += out.nValue;
@@ -76,7 +108,7 @@ namespace pog
             return s;
         }
 
-        if (!ComputeStats(block, s, params)) {
+        if (!ComputeStats(height, block, s, params)) {
             return s;
         }
 

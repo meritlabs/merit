@@ -2022,6 +2022,7 @@ bool ComputeInviteLotteryParams(
                 return false;
             }
         }
+        return true;
     }
 
     lottery_params.resize(1);
@@ -2231,16 +2232,18 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
 
 bool AreExpectedInvitesRewarded(
         int height,
+        const bool miner_reward_block,
         const pog::InviteRewards& expected_invites,
         const CTransaction& coinbase,
         const Consensus::Params& params) {
+
+    assert(params.imp_min_one_invite_for_every_x_blocks > 0);
+
     if (!coinbase.IsCoinBase()) {
         return false;
     }
 
-    //We allow miner to claim an invite now, so we check if expected
-    //lottery winners are paid
-    int miner_reward = height >= params.imp_invites_blockheight ? 1 : 0;
+    const int miner_reward = miner_reward_block ? 1 : 0;
 
     if (coinbase.vout.size() != expected_invites.size() + miner_reward) {
         return false;
@@ -3550,6 +3553,13 @@ static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
 
+bool BlockHasMinerInviteReward(int height, const uint256& previous_block_hash, const Consensus::Params& params) {
+    const bool improved_lottery_on = height >= params.imp_invites_blockheight;
+    return
+        improved_lottery_on &&
+        (SipHashUint256(0, 0, previous_block_hash) % params.imp_miner_reward_for_every_x_blocks == 0);
+}
+
 bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos, unsigned int pos_offset)
 {
     // Update offsets for referrals so they can be recorded.
@@ -4134,7 +4144,15 @@ static bool ConnectBlock(
                         REJECT_INVALID, "bad-cb-no-invites");
             }
 
-            size_t coinbase_end = 0;
+            //We allow miner to claim an invite now, so we check if expected
+            //lottery winners are paid
+            const bool miner_reward_block = 
+                BlockHasMinerInviteReward(
+                        pindex->nHeight,
+                        hashPrevBlock,
+                        chainparams.GetConsensus());
+
+            size_t coinbase_end = miner_reward_block ? 1 : 0;
             if (!invite_rewards.empty()) {
                 const CTransaction& coinbase_invites = *block.invites[0];
                 coinbase_end = 1;
@@ -4147,6 +4165,7 @@ static bool ConnectBlock(
 
                 if (!AreExpectedInvitesRewarded(
                             pindex->nHeight,
+                            miner_reward_block,
                             invite_rewards,
                             coinbase_invites,
                             chainparams.GetConsensus())) {
