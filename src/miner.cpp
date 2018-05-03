@@ -334,14 +334,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
             nFees,
             nBlockSigOpsCost,
             nBlockRef);
-    std::string block_hex;
-    {
-        CDataStream ssBlock(SER_NETWORK, PROTOCOL_VERSION);
-        ssBlock << *pblock;
-        block_hex = HexStr(ssBlock.begin(), ssBlock.end());
-    }
-
-    LogPrintf("%s\n", block_hex);
 
     auto pow = GetNextWorkRequired(pindexPrev, pblock, chain_params);
 
