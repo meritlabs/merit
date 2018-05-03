@@ -172,7 +172,7 @@ public:
         consensus.defaultAssumeValid = uint256S("0x0000000000000000003b9ce759c2a087d52abc4266f8f4ebd6d768b89defa50a"); //477890
 
         // Block where improved invites turn on
-        consensus.imp_invites_blockheight = 180640; //Fri, Jan 4th
+        consensus.imp_invites_blockheight = 180980; //Sat, Jan 5th 6:11:00 ish GMT
         consensus.imp_block_window = 60 * 24 * 1; //1 days of blocks
         consensus.imp_min_one_invite_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
