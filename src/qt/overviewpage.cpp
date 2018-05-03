@@ -114,7 +114,7 @@ public:
                     label = QString("Mining Reward");
                     break;
                 case TransactionRecord::GeneratedInvite:
-                    label = QString("Invite");
+                    label = QString("Invite Reward");
                     break;
                 case TransactionRecord::AmbassadorReward:
                     label = QString("Ambassador Reward");
