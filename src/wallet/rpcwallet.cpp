@@ -988,7 +988,7 @@ UniValue easysend(const JSONRPCRequest& request)
     if(!request.params[1].isNull())
         optional_password = request.params[1].get_str();
 
-    int max_blocks = 1008; //about a week.
+    int max_blocks = 10080; //about a week.
     if(!request.params[2].isNull())
         max_blocks = request.params[2].get_int();
 
@@ -1062,7 +1062,7 @@ UniValue easyreceive(const JSONRPCRequest& request)
     if(!request.params[2].isNull())
         optional_password = request.params[2].get_str();
 
-    int max_blocks = 1008; //about a week.
+    int max_blocks = 10080; //about a week.
     if(!request.params[3].isNull())
         max_blocks = request.params[3].get_int();
 
