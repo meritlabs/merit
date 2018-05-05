@@ -102,10 +102,11 @@ public:
         {
             foreground = COLOR_NEGATIVE;
             label = QString("To ") + toString;
-            amount = -amount;
+            invitesNumber = -invitesNumber;
         }
         else
         {
+            amountText+= "+";
             foreground = COLOR_LIGHTBLUE;
             int txType = index.data(TransactionTableModel::TypeRole).toInt();
 
@@ -125,7 +126,7 @@ public:
         }
 
         if (index.data(TransactionTableModel::IsInviteRole).toBool()) {
-            QString plurality = invitesNumber > 1 ? QString("s") : QString();
+            QString plurality = std::abs(invitesNumber) > 1 ? QString("s") : QString();
             amountText += QString::number(invitesNumber) + QString(" Invite") + plurality;
         } else {
             amountText += MeritUnits::formatWithUnit(unit, amount, false, MeritUnits::separatorAlways);
@@ -252,7 +253,7 @@ public:
         font.setBold(true);
         font.setWeight(QFont::Bold);
         painter->setFont(font);
-        painter->setPen(COLOR_NEGATIVE);
+        painter->setPen(COLOR_BEACON);
         painter->drawText(addressRect, Qt::AlignLeft|Qt::AlignVCenter, displayString);
 
         QString statusString = index.data(ReferralListModel::StatusRole).toString();
