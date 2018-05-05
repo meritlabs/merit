@@ -102,10 +102,10 @@ public:
         {
             foreground = COLOR_NEGATIVE;
             label = QString("To ") + toString;
-            amount = -amount;
         }
         else
         {
+            amountText+= "+";
             foreground = COLOR_LIGHTBLUE;
             int txType = index.data(TransactionTableModel::TypeRole).toInt();
 
