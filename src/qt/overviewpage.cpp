@@ -252,7 +252,7 @@ public:
         font.setBold(true);
         font.setWeight(QFont::Bold);
         painter->setFont(font);
-        painter->setPen(COLOR_NEGATIVE);
+        painter->setPen(COLOR_BEACON);
         painter->drawText(addressRect, Qt::AlignLeft|Qt::AlignVCenter, displayString);
 
         QString statusString = index.data(ReferralListModel::StatusRole).toString();

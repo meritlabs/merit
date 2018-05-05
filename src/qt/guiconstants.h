@@ -23,7 +23,7 @@ static const bool DEFAULT_SPLASHSCREEN = true;
 /* Transaction list -- unconfirmed transaction */
 #define COLOR_UNCONFIRMED QColor(128, 128, 128)
 /* Transaction list -- negative amount */
-#define COLOR_NEGATIVE QColor(0, 0, 0)
+#define COLOR_NEGATIVE QColor(221, 25, 0)
 /* Transaction list -- bare address (without label) */
 #define COLOR_BAREADDRESS QColor(140, 140, 140)
 /* Transaction list -- TX status decoration - open until date */
@@ -35,6 +35,7 @@ static const bool DEFAULT_SPLASHSCREEN = true;
 /* Transaction list -- TX status decoration - default color */
 #define COLOR_BLACK QColor(0, 0, 0)
 
+#define COLOR_BEACON QColor(0, 0, 0)
 #define COLOR_LIGHTBLUE QColor(0, 176, 221)
 
 /* Tooltips longer than this (in characters) are converted into rich text,
