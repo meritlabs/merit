@@ -354,24 +354,17 @@ std::string gbt_vb_name(const Consensus::DeploymentPos pos) {
 
 UniValue getblocktemplate(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() > 1)
+    if (request.fHelp || request.params.size() > 2 || request.params.empty())
         throw std::runtime_error(
             "getblocktemplate ( TemplateRequest )\n"
             "\nIf the request parameters include a 'mode' key, that is used to explicitly select between the default 'template' request or a 'proposal'.\n"
             "It returns data needed to construct a block to work on.\n"
-            "Wallet is required to generate valid coinbase that can take part in lottery.\n"
-            "Otherwise assebmled block won't pass validation.\n"
-            "For full specification, see BIPs 22, 23, 9, and 145:\n"
-            "    https://github.com/bitcoin/bips/blob/master/bip-0022.mediawiki\n"
-            "    https://github.com/bitcoin/bips/blob/master/bip-0023.mediawiki\n"
-            "    https://github.com/bitcoin/bips/blob/master/bip-0009.mediawiki#getblocktemplate_changes\n"
-            "    https://github.com/bitcoin/bips/blob/master/bip-0145.mediawiki\n"
 
             "\nArguments:\n"
-            "1. template_request         (json object, optional) A json object in the following spec\n"
+            "1. address                 (string) Address to pay coinbase to\n"
+            "2. template_request         (json object, optional) A json object in the following spec\n"
             "     {\n"
             "       \"mode\":\"template\"   (string, optional) This must be set to \"template\", \"proposal\" (see BIP 23), or omitted\n"
-            "       \"address\":\"xyz\"     (string, optional) Address to pay coinbase to. Defaults to the genesis address.\n"
             "       \"capabilities\":[      (array, optional) A list of strings\n"
             "           \"support\"         (string) client side supported feature, 'longpoll', 'coinbasetxn', 'coinbasevalue', 'proposal', 'serverlist', 'workid'\n"
             "           ,...\n"
@@ -440,19 +433,27 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     std::string strMode = "template";
     UniValue lpval = NullUniValue;
     std::set<std::string> setClientRules;
+
     CTxDestination address;
 
-    if (!request.params[0].isNull()) {
+    if (request.params[0].isNull()) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "The first parameter must be an alias/address.");
+    }
+
+    if (!request.params[0].isStr()) {
+        throw JSONRPCError(RPC_TYPE_ERROR, "The address must be a string.");
+    }
+
+    address = LookupDestination(request.params[0].get_str());
+    if(!IsValidDestination(address)) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "The alias/address is invalid");
+    }
+
+    if (!request.params[1].isNull()) {
 
         const UniValue& oparam = request.params[0].get_obj();
-
-        const UniValue& address_val = find_value(oparam, "address");
-
-        if(!address_val.isNull() && address_val.isStr()) {
-            address = LookupDestination(address_val.get_str());
-        }
-
         const UniValue& modeval = find_value(oparam, "mode");
+
         if (modeval.isStr()) {
             strMode = modeval.get_str();
         } else if (modeval.isNull()) {
@@ -570,14 +571,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
         nStart = GetTime();
         CBlockIndex* pindexPrevNew = chainActive.Tip();
 
-        CScript coinbase_script;
-        if(IsValidDestination(address)) {
-            coinbase_script = GetScriptForDestination(address);
-        } else {
-            // create dummy script that sends rewards to the genesis block.
-            // it MUST be updated on the miners side!
-            coinbase_script = GetScriptForDestination(CScriptID{consensusParams.genesis_address});
-        }
+        const auto coinbase_script = GetScriptForDestination(address);
 
         // Create new block
         pblocktemplate = BlockAssembler(Params()).CreateNewBlock(coinbase_script);
@@ -1070,7 +1064,7 @@ static const CRPCCommand commands[] =
     { "mining",             "getnetworkhashps",       &getnetworkhashps,       {"nblocks","height"} },
     { "mining",             "getmininginfo",          &getmininginfo,          {} },
     { "mining",             "prioritisetransaction",  &prioritisetransaction,  {"txid","dummy","fee_delta"} },
-    { "mining",             "getblocktemplate",       &getblocktemplate,       {"template_request"} },
+    { "mining",             "getblocktemplate",       &getblocktemplate,       {"address","template_request"} },
     { "mining",             "submitblock",            &submitblock,            {"hexdata","dummy"} },
     { "mining",             "setmining",              &setmining,              {"mine","mineproclimit"} },
     { "mining",             "getmining",              &getmining,              {} },
