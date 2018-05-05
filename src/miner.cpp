@@ -31,7 +31,6 @@
 #include "validationinterface.h"
 
 #include <algorithm>
-#include <chrono>
 #include <boost/thread.hpp>
 #include <limits>
 #include <queue>
@@ -55,6 +54,8 @@ uint64_t nLastBlockWeight = 0;
 
 extern std::unique_ptr<CConnman> g_connman;
 extern CCoinsViewCache *pcoinsTip;
+
+const int MAX_NONCE = 0xfffff;
 
 int64_t UpdateTime(
         CBlockHeader* pblock,
@@ -271,6 +272,20 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         coinbaseInvites.vin[0].prevout.SetNull();
         coinbaseInvites.vin[0].scriptSig = CScript() << nHeight << OP_0;
 
+        const bool miner_reward_block = 
+                BlockHasMinerInviteReward(
+                        nHeight,
+                        previousBlockHash,
+                        chain_params);
+
+        //Improved invite lottery allows the miner to pay themselves an invite
+        if(miner_reward_block) {
+            coinbaseInvites.vout.resize(1);
+            coinbaseInvites.vout[0].scriptPubKey = scriptPubKeyIn;
+            coinbaseInvites.vout[0].nValue = 1;
+            coinbaseInvites.vin[0].scriptSig = CScript() << nHeight << OP_0;
+        }
+
         coinbaseInvites.nVersion = CTransaction::INVITE_VERSION;
 
         assert(pcoinsTip);
@@ -294,8 +309,8 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
                 state,
                 invites);
 
-        if (invites.empty()) {
-            // remove empty coinbase
+        if (invites.empty() && !miner_reward_block) {
+            // remove empty coinbase 
             pblock->invites.erase(pblock->invites.begin());
         } else {
             DistributeInvites(invites, coinbaseInvites);
@@ -912,6 +927,7 @@ static bool ProcessBlockFound(const CBlock* pblock, const CChainParams& chainpar
 
 struct MinerContext {
     std::atomic<bool>& alive;
+    int pow_threads;
     int threads_number;
     int nonces_per_thread;
     const CChainParams& chainparams;
@@ -940,8 +956,14 @@ void MinerWorker(int thread_id, MinerContext& ctx)
 
                 if (!fvNodesEmpty && !IsInitialBlockDownload())
                     break;
+
+                g_connman->ResetMiningStats();
                 MilliSleep(1000);
             } while (ctx.alive);
+        }
+
+        if(g_connman) {
+            g_connman->InitMiningStats();
         }
 
         //
@@ -978,27 +1000,26 @@ void MinerWorker(int thread_id, MinerContext& ctx)
         //
         // Search
         //
-        int64_t nStart = GetTime();
+        int64_t nStart = GetTimeMillis();
+        auto nonces_checked = 0;
         arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
         uint256 hash;
         std::set<uint32_t> cycle;
 
-        auto start = std::chrono::system_clock::now();
-
         while (ctx.alive) {
             // Check if something found
+            nonces_checked++;
+
             if (cuckoo::FindProofOfWorkAdvanced(
                         pblock->GetHash(),
                         pblock->nBits,
                         pblock->nEdgeBits,
                         cycle,
                         ctx.chainparams.GetConsensus(),
+                        ctx.pow_threads,
                         ctx.pool)) {
                 // Found a solution
                 pblock->sCycle = cycle;
-
-                auto end = std::chrono::system_clock::now();
-                std::chrono::duration<double> elapsed = end - start;
 
                 auto cycleHash = SerializeHash(cycle);
 
@@ -1006,7 +1027,7 @@ void MinerWorker(int thread_id, MinerContext& ctx)
                 LogPrintf(
                         "\n\n\nproof-of-work found within %8.3f seconds \n"
                         "\tblock hash: %s\n\tnonce: %d\n\tcycle hash: %s\n\ttarget: %s\n\n\n",
-                    elapsed.count(),
+                    static_cast<double>(GetTimeMillis() - nStart) / 1e3,
                     pblock->GetHash().GetHex(),
                     pblock->nNonce,
                     cycleHash.GetHex(),
@@ -1028,17 +1049,17 @@ void MinerWorker(int thread_id, MinerContext& ctx)
             }
 
             // Regtest mode doesn't require peers
-            if (g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0 &&
+            if ((!g_connman || g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) == 0) &&
                     ctx.chainparams.MiningRequiresPeers()) {
                 break;
             }
 
-            if (pblock->nNonce >= 0xfffff) {
+            if (pblock->nNonce >= MAX_NONCE) {
                 break;
             }
 
             if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast &&
-                    GetTime() - nStart > ctx.chainparams.MininBlockStaleTime()) {
+                    (GetTimeMillis() - nStart) / 1e3 > ctx.chainparams.MininBlockStaleTime()) {
                 break;
             }
 
@@ -1065,6 +1086,10 @@ void MinerWorker(int thread_id, MinerContext& ctx)
                 pblock->nNonce += ctx.nonces_per_thread * (ctx.threads_number - 1);
             }
         }
+
+        if (ctx.alive && g_connman) {
+            g_connman->AddCheckedNonces(nonces_checked);
+        }
     }
 
     LogPrintf("MeritMiner pool #%d terminated\n", thread_id);
@@ -1084,18 +1109,11 @@ void static MeritMiner(
         bucket_threads = 1;
     }
 
-    if (bucket_threads == 1) {
-        bucket_size = std::numeric_limits<int>::max();
+    if (bucket_size == 0) {
+        bucket_size = MAX_NONCE / bucket_threads;
     }
 
-    using pool_ptr = std::unique_ptr<ctpl::thread_pool>;
-    ctpl::thread_pool parallel_pool(bucket_threads);
-    std::vector<pool_ptr> cuckoo_pools;
-
-    for (int i = 0; i < bucket_threads; i++) {
-        cuckoo_pools.push_back(pool_ptr(new ctpl::thread_pool(pow_threads)));
-    }
-
+    ctpl::thread_pool pool(bucket_threads + bucket_threads * pow_threads);
     std::atomic<bool> alive{true};
 
     try {
@@ -1113,14 +1131,15 @@ void static MeritMiner(
         for (int t = 0; t < bucket_threads; t++) {
             MinerContext ctx{
                 alive,
+                pow_threads,
                 bucket_threads,
                 bucket_size,
                 chainparams,
                 coinbase_script,
-                *(cuckoo_pools.at(t))
+                pool
             };
 
-            parallel_pool.push(MinerWorker, ctx);
+            pool.push(MinerWorker, ctx);
         }
 
         while (true) {
@@ -1129,13 +1148,14 @@ void static MeritMiner(
     } catch (const boost::thread_interrupted&) {
         LogPrintf("MeritMiner terminated\n");
         alive = false;
-        for (int i = 0; i < bucket_threads; i++) {
-            cuckoo_pools.at(i)->stop(true);
-        }
+        pool.stop();
+
         throw;
     } catch (const std::runtime_error& e) {
         LogPrintf("MeritMiner runtime error: %s\n", e.what());
         gArgs.ForceSetArg("-mine", 0);
+        pool.stop();
+
         return;
     }
 }
@@ -1145,8 +1165,8 @@ void GenerateMerit(bool mine, int pow_threads, int bucket_size, int bucket_threa
     static boost::thread* minerThread = nullptr;
 
     if (pow_threads < 0) {
-        pow_threads = GetNumCores();
-        bucket_threads = 1;
+        pow_threads = std::thread::hardware_concurrency() / 2;
+        bucket_threads = 2;
     }
 
     if (minerThread != nullptr) {
@@ -1155,8 +1175,12 @@ void GenerateMerit(bool mine, int pow_threads, int bucket_size, int bucket_threa
         minerThread = nullptr;
     }
 
-    if (pow_threads == 0 || !mine)
+    if (pow_threads == 0 || bucket_threads == 0 || !mine) {
+        if(g_connman) {
+            g_connman->ResetMiningStats();
+        }
         return;
+    }
 
     std::shared_ptr<CReserveScript> coinbase_script;
     GetMainSignals().ScriptForMining(coinbase_script);

@@ -24,6 +24,7 @@
 #include "optionsmodel.h"
 #include "platformstyle.h"
 #include "rpcconsole.h"
+#include "rpc/server.h"
 #include "utilitydialog.h"
 
 #ifdef ENABLE_WALLET
@@ -169,7 +170,11 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
         setCentralWidget(walletFrame);
 
         connect(this, SIGNAL(miningStatusChanged(bool)), this, SLOT(setMiningStatus(bool)));
-
+        // Wire RPC calls with GUI
+        std::function<void ()> starter = [this]() -> void { this->miningStarted(); };
+        RPCServer::OnMiningStarted(starter);
+        std::function<void ()> stopper = [this]() -> void { this->miningStopped(); };
+        RPCServer::OnMiningStopped(stopper);
     } else
 #endif // ENABLE_WALLET
     {
@@ -583,8 +588,11 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *_walletModel)
     walletModel = _walletModel;
     assert(walletModel);
 
+    hasMnemonic = walletModel->hasMnemonic();
     #ifdef USE_QRCODE
-        exportWalletDialog = new ExportWalletDialog(this, walletModel);
+        if(hasMnemonic)
+            exportWalletDialog = new ExportWalletDialog(this, walletModel);
+        exportWalletQRAction->setVisible(hasMnemonic);
     #endif
 
     isReferred = walletModel->IsReferred();
@@ -593,7 +601,7 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *_walletModel)
     if(isReferred)
     {
         modalOverlay->allowHide();
-    } 
+    }
     else
     {
         enterUnlockCode->setModel(walletModel);
@@ -651,7 +659,7 @@ void MeritGUI::setWalletActionsEnabled(bool enabled, bool isReferred)
     usedReceivingAddressesAction->setEnabled(enabled);
     openAction->setEnabled(enabled);
     #ifdef USE_QRCODE
-        exportWalletQRAction->setEnabled(enabled);
+        exportWalletQRAction->setEnabled(enabled && hasMnemonic);
     #endif
 }
 
@@ -756,6 +764,7 @@ void MeritGUI::showHelpMessageClicked()
 void MeritGUI::showExportWallet()
 {
     #ifdef USE_QRCODE
+    if(hasMnemonic)
         exportWalletDialog->show();
     #endif
 }
@@ -1079,16 +1088,37 @@ void MeritGUI::showEvent(QShowEvent *event)
 }
 
 #ifdef ENABLE_WALLET
-void MeritGUI::incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label)
+void MeritGUI::incomingTransaction(
+        const QString& date,
+        int unit,
+        const CAmount& amount,
+        const QString& type,
+        const QString& from,
+        const QString& to,
+        const QString& label)
 {
     // On new transaction, make an info balloon
-    QString msg = tr("Date: %1\n").arg(date) +
-                tr("Amount: %1\n").arg(MeritUnits::formatWithUnit(unit, amount, true)) +
-                tr("Type: %1\n").arg(type);
-    if (!label.isEmpty())
+    QString msg = tr("Date: %1\n").arg(date);
+
+    if (type.contains("invite")) {
+        msg += tr("Amount: %1 \n").arg(MeritUnits::formatWithUnit(MeritUnits::Unit::INV, static_cast<unsigned long long>(amount), true));
+    } else {
+        msg += tr("Amount: %1 \n").arg(MeritUnits::formatWithUnit(unit, amount, true));
+    }
+
+    msg += tr("Type: %1\n").arg(type);
+
+    if (!label.isEmpty()) {
         msg += tr("Label: %1\n").arg(label);
-    else if (!address.isEmpty())
-        msg += tr("Address: %1\n").arg(address);
+    } 
+
+    if (!from.isEmpty()) {
+        msg += tr("From: %1\n").arg(from);
+    } 
+    
+    if(!to.isEmpty()) {
+        msg += tr("To: %1\n").arg(to);
+    }
 
     QString title;
     if (type.contains("invite")) {
@@ -1182,10 +1212,8 @@ void MeritGUI::setEncryptionStatus(int status)
     }
 }
 
-void MeritGUI::setMiningStatus(bool isMining)
+void MeritGUI::changeMiningIndicator(bool isMining)
 {
-    miningStatusIcon->show();
-
     if (isMining) {
         miningStatusIcon->setPixmap(platformStyle->SingleColorIcon(":/icons/tx_mined").pixmap(STATUSBAR_ICONSIZE,STATUSBAR_ICONSIZE));
         miningStatusIcon->setToolTip(tr("Mining is <b>enabled</b>"));
@@ -1193,6 +1221,25 @@ void MeritGUI::setMiningStatus(bool isMining)
         miningStatusIcon->setPixmap(platformStyle->SingleColorIcon(":/icons/transaction_conflicted").pixmap(STATUSBAR_ICONSIZE,STATUSBAR_ICONSIZE));
         miningStatusIcon->setToolTip(tr("Mining is <b>not enabled</b>"));
     }
+
+    startMiningAction->setEnabled(!isMining);
+    stopMiningAction->setEnabled(isMining);
+}
+
+void MeritGUI::miningStarted()
+{
+    changeMiningIndicator(true);
+}
+
+void MeritGUI::miningStopped()
+{
+    changeMiningIndicator(false);
+}
+
+void MeritGUI::setMiningStatus(bool isMining)
+{
+    miningStatusIcon->show();
+    changeMiningIndicator(isMining);
 
     int pow_threads = DEFAULT_MINING_POW_THREADS;
     int bucket_threads = DEFAULT_MINING_BUCKET_THREADS;
@@ -1202,9 +1249,6 @@ void MeritGUI::setMiningStatus(bool isMining)
     gArgs.ForceSetArg("-minebucketsize", itostr(bucket_size));
     gArgs.ForceSetArg("-minebucketthreads", itostr(bucket_threads));
     gArgs.ForceSetArg("-mine", (isMining ? "1" : "0"));
-
-    startMiningAction->setEnabled(!isMining);
-    stopMiningAction->setEnabled(isMining);
 
     try
     {

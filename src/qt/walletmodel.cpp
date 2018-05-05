@@ -40,12 +40,15 @@
 
 
 WalletModel::WalletModel(const PlatformStyle *platformStyle, CWallet *_wallet, OptionsModel *_optionsModel, QObject *parent) :
-    QObject(parent), wallet(_wallet), optionsModel(_optionsModel), addressTableModel(0),
-    transactionTableModel(0),
-    recentRequestsTableModel(0),
-    cachedBalance(0), cachedUnconfirmedBalance(0), cachedImmatureBalance(0),
-    cachedEncryptionStatus(Unencrypted),
-    cachedNumBlocks(0)
+    QObject{parent}, wallet{_wallet}, 
+    isConfirmed{false},
+    optionsModel{_optionsModel},
+    addressTableModel{0},
+    transactionTableModel{0},
+    recentRequestsTableModel{0},
+    cachedBalance{0}, cachedUnconfirmedBalance{0}, cachedImmatureBalance{0},
+    cachedEncryptionStatus{Unencrypted},
+    cachedNumBlocks{0}
 {
     fHaveWatchOnly = wallet->HaveWatchOnly();
     fForceCheckBalanceChanged = false;
@@ -697,6 +700,12 @@ bool WalletModel::IsSpendable(const CTxDestination& dest) const
 bool WalletModel::getPrivKey(const CKeyID &address, CKey& vchPrivKeyOut) const
 {
     return wallet->GetKey(address, vchPrivKeyOut);
+}
+
+bool WalletModel::hasMnemonic() const
+{
+    assert(wallet);
+    return wallet->HasMnemonic();
 }
 
 QString WalletModel::getMnemonic() const

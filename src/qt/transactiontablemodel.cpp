@@ -247,7 +247,7 @@ TransactionTableModel::TransactionTableModel(const PlatformStyle *_platformStyle
         fProcessingQueuedTransactions(false),
         platformStyle(_platformStyle)
 {
-    columns << QString() << QString() << tr("Date") << tr("Type") << tr("Label") << MeritUnits::getAmountColumnTitle(walletModel->getOptionsModel()->getDisplayUnit()) << tr("Invites");
+    columns << QString() << QString() << tr("Date") << tr("Type") << tr("Address") << MeritUnits::getAmountColumnTitle(walletModel->getOptionsModel()->getDisplayUnit()) << tr("Invites");
     priv->refreshWallet();
 
     connect(walletModel->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
@@ -283,7 +283,7 @@ void TransactionTableModel::updateConfirmations()
     //  for all rows. Qt is smart enough to only actually request the data for the
     //  visible rows.
     Q_EMIT dataChanged(index(0, Status), index(priv->size()-1, Status));
-    Q_EMIT dataChanged(index(0, ToAddress), index(priv->size()-1, ToAddress));
+    Q_EMIT dataChanged(index(0, Address), index(priv->size()-1, Address));
 }
 
 int TransactionTableModel::rowCount(const QModelIndex &parent) const
@@ -354,18 +354,20 @@ QString TransactionTableModel::formatTxDate(const TransactionRecord *wtx) const
 /* Look up address in address book, if found return label (address)
    otherwise just return (address)
  */
-QString TransactionTableModel::lookupAddress(const std::string &address, bool tooltip) const
+QString TransactionTableModel::lookupAddress(
+        const std::string &address,
+        bool tooltip) const
 {
     QString label = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(address));
     QString description;
-    if(!label.isEmpty())
-    {
+    if (!label.isEmpty()) {
         description += label;
+    } else if (tooltip && !address.empty()) {
+        description += QString{"("} + QString::fromStdString(address) + ")";
+    } else if (!address.empty()) {
+        description += QString::fromStdString(address);
     }
-    if(label.isEmpty() || tooltip)
-    {
-        description += QString(" (") + QString::fromStdString(address) + QString(")");
-    }
+
     return description;
 }
 
@@ -375,6 +377,8 @@ QString TransactionTableModel::formatTxType(const TransactionRecord *wtx) const
     {
     case TransactionRecord::RecvWithAddress:
         return tr("Received with");
+    case TransactionRecord::RecvFromAddress:
+        return tr("Received fom");
     case TransactionRecord::RecvFromOther:
         return tr("Received from");
     case TransactionRecord::SendToAddress:
@@ -406,6 +410,7 @@ QVariant TransactionTableModel::txAddressDecoration(const TransactionRecord *wtx
     case TransactionRecord::GeneratedInvite:
         return QIcon(":/icons/tx_mined");
     case TransactionRecord::RecvWithAddress:
+    case TransactionRecord::RecvFromAddress:
     case TransactionRecord::RecvFromOther:
     case TransactionRecord::RecvInvite:
         return QIcon(":/icons/tx_input");
@@ -418,7 +423,7 @@ QVariant TransactionTableModel::txAddressDecoration(const TransactionRecord *wtx
     }
 }
 
-QString TransactionTableModel::formatTxToAddress(const TransactionRecord *wtx, bool tooltip) const
+QString TransactionTableModel::formatTxAddress(const TransactionRecord *wtx, bool tooltip) const
 {
     QString watchAddress;
     if (tooltip) {
@@ -430,16 +435,18 @@ QString TransactionTableModel::formatTxToAddress(const TransactionRecord *wtx, b
     {
     case TransactionRecord::RecvFromOther:
     case TransactionRecord::RecvInvite:
-        return QString::fromStdString(wtx->address) + watchAddress;
+        return lookupAddress(wtx->from, tooltip) + watchAddress;
+    case TransactionRecord::RecvFromAddress:
+        return lookupAddress(wtx->from, tooltip) + watchAddress;
     case TransactionRecord::RecvWithAddress:
     case TransactionRecord::SendToAddress:
     case TransactionRecord::AmbassadorReward:
     case TransactionRecord::Generated:
     case TransactionRecord::GeneratedInvite:
     case TransactionRecord::SendInvite:
-        return lookupAddress(wtx->address, tooltip) + watchAddress;
+        return lookupAddress(wtx->to, tooltip) + watchAddress;
     case TransactionRecord::SendToOther:
-        return QString::fromStdString(wtx->address) + watchAddress;
+        return QString::fromStdString(wtx->to) + watchAddress;
     case TransactionRecord::SendToSelf:
     default:
         return tr("(n/a)") + watchAddress;
@@ -452,6 +459,7 @@ QVariant TransactionTableModel::addressColor(const TransactionRecord *wtx) const
     switch(wtx->type)
     {
     case TransactionRecord::RecvWithAddress:
+    case TransactionRecord::RecvFromAddress:
     case TransactionRecord::SendToAddress:
     case TransactionRecord::AmbassadorReward:
     case TransactionRecord::Generated:
@@ -459,8 +467,8 @@ QVariant TransactionTableModel::addressColor(const TransactionRecord *wtx) const
     case TransactionRecord::SendInvite:
     case TransactionRecord::RecvInvite:
         {
-        QString label = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(wtx->address));
-        if(label.isEmpty())
+        QString label = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(wtx->from));
+        if(label.isEmpty() && !wtx->from.empty())
             return COLOR_BAREADDRESS;
         } break;
     case TransactionRecord::SendToSelf:
@@ -474,33 +482,27 @@ QVariant TransactionTableModel::addressColor(const TransactionRecord *wtx) const
 QString TransactionTableModel::formatTxAmount(const TransactionRecord *wtx, bool showUnconfirmed, MeritUnits::SeparatorStyle separators) const
 {
     QString str = MeritUnits::format(walletModel->getOptionsModel()->getDisplayUnit(), wtx->credit + wtx->debit, false, separators);
-    if(showUnconfirmed)
-    {
-        if(!wtx->status.countsForBalance)
-        {
+
+    if (showUnconfirmed) {
+        if(!wtx->status.countsForBalance) {
             str = QString("[") + str + QString("]");
         }
     }
+
     return QString(str);
 }
 
 QString TransactionTableModel::formatInvite(const TransactionRecord *rec, bool showUnconfirmed) const
 {
-    if (rec->IsInvite()) {
-        QString str = QString("1"); // dirty hack until we get transactions with multiple invites
+    QString str = QString("1"); // dirty hack until we get transactions with multiple invites
 
-        if(showUnconfirmed)
-        {
-            if(!rec->status.countsForBalance)
-            {
-                str = QString("[") + str + QString("]");
-            }
+    if (showUnconfirmed) {
+        if (!rec->status.countsForBalance) {
+            str = QString("[") + str + QString("]");
         }
-
-        return QString(str);
     }
 
-    return QString("0");
+    return QString(str);
 }
 
 QVariant TransactionTableModel::txStatusDecoration(const TransactionRecord *wtx) const
@@ -553,11 +555,16 @@ QVariant TransactionTableModel::txWatchonlyDecoration(const TransactionRecord *w
 QString TransactionTableModel::formatTooltip(const TransactionRecord *rec) const
 {
     QString tooltip = formatTxStatus(rec) + QString("\n") + formatTxType(rec);
-    if(rec->type == TransactionRecord::RecvFromOther || rec->type == TransactionRecord::SendToOther ||
-       rec->type == TransactionRecord::SendToAddress || rec->type == TransactionRecord::RecvWithAddress ||
-       rec->type == TransactionRecord::SendInvite || rec->type == TransactionRecord::RecvInvite)
-    {
-        tooltip += QString(" ") + formatTxToAddress(rec, true);
+    switch(rec->type) {
+        case TransactionRecord::RecvInvite:
+        case TransactionRecord::RecvFromAddress:
+        case TransactionRecord::SendToOther:
+        case TransactionRecord::SendToAddress:
+        case TransactionRecord::RecvWithAddress:
+        case TransactionRecord::RecvFromOther:
+        case TransactionRecord::SendInvite:
+            tooltip += QString(" ") + formatTxAddress(rec, true);
+            break;
     }
     return tooltip;
 }
@@ -577,7 +584,7 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
             return txStatusDecoration(rec);
         case Watchonly:
             return txWatchonlyDecoration(rec);
-        case ToAddress:
+        case Address:
             return txAddressDecoration(rec);
         }
         break;
@@ -593,12 +600,12 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
             return formatTxDate(rec);
         case Type:
             return formatTxType(rec);
-        case ToAddress:
-            return formatTxToAddress(rec, false);
+        case Address:
+            return formatTxAddress(rec, false);
         case Amount:
-            return formatTxAmount(rec, true, MeritUnits::separatorAlways);
+            return !rec->IsInvite() ? formatTxAmount(rec, true, MeritUnits::separatorAlways) : QString("");
         case Invite:
-            return formatInvite(rec, true);
+            return rec->IsInvite() ? formatInvite(rec, true) : QString("");
         }
         break;
     case Qt::EditRole:
@@ -613,8 +620,8 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
             return formatTxType(rec);
         case Watchonly:
             return (rec->involvesWatchAddress ? 1 : 0);
-        case ToAddress:
-            return formatTxToAddress(rec, true);
+        case Address:
+            return formatTxAddress(rec, false);
         case Amount:
             return qint64(rec->credit + rec->debit);
         case Invite:
@@ -640,7 +647,7 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
         {
             return COLOR_NEGATIVE;
         }
-        if(index.column() == ToAddress)
+        if(index.column() == Address)
         {
             return addressColor(rec);
         }
@@ -655,10 +662,29 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
         return txWatchonlyDecoration(rec);
     case LongDescriptionRole:
         return priv->describe(rec, walletModel->getOptionsModel()->getDisplayUnit());
-    case AddressRole:
-        return QString::fromStdString(rec->address);
+    case FromRole:
+        return QString::fromStdString(rec->from);
+    case ToRole:
+        return QString::fromStdString(rec->to);
     case LabelRole:
-        return walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(rec->address));
+        {
+            //TODO Add support for labelling transactions using the transaction id + ouput index.
+            QString label;
+            if (rec->from.empty()) {
+                auto address_label = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(rec->to));
+                label = address_label.isEmpty() ?  QString::fromStdString(rec->to) : address_label;
+            } else {
+                auto from_label = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(rec->from));
+                auto to_label = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(rec->to));
+                if(from_label.isEmpty()) from_label = QString::fromStdString(rec->from);
+                if(to_label.isEmpty()) to_label = QString::fromStdString(rec->to);
+
+                label += from_label;
+                label += " to ";
+                label += to_label;
+            }
+            return label;
+        }
     case AmountRole:
         return qint64(rec->credit + rec->debit);
     case IsInviteRole:
@@ -675,7 +701,7 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
         {
             QString details;
             QDateTime date = QDateTime::fromTime_t(static_cast<uint>(rec->time));
-            QString txLabel = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(rec->address));
+            QString txLabel = data(index, RoleIndex::LabelRole).toString();
 
             details.append(date.toString("M/d/yy HH:mm"));
             details.append(" ");
@@ -685,16 +711,8 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
                 details.append(formatTxType(rec));
                 details.append(" ");
             }
-            if(!rec->address.empty()) {
-                if(txLabel.isEmpty())
-                    details.append(tr("(no label)") + " ");
-                else {
-                    details.append("(");
-                    details.append(txLabel);
-                    details.append(") ");
-                }
-                details.append(QString::fromStdString(rec->address));
-                details.append(" ");
+            if(!rec->to.empty()) {
+                details.append(txLabel);
             }
             details.append(formatTxAmount(rec, false, MeritUnits::separatorNever));
             return details;
@@ -734,8 +752,8 @@ QVariant TransactionTableModel::headerData(int section, Qt::Orientation orientat
                 return tr("Type of transaction.");
             case Watchonly:
                 return tr("Whether or not a watch-only address is involved in this transaction.");
-            case ToAddress:
-                return tr("User-defined intent/purpose of the transaction.");
+            case Address:
+                return tr("Which address(es) did the transaction go to or from?");
             case Amount:
                 return tr("Amount removed from or added to balance.");
             case Invite:

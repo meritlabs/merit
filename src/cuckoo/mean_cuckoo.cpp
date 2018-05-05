@@ -12,6 +12,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <pthread.h>
+#include <string.h>
 #include <sys/time.h>
 #include <thread>
 #include <unistd.h>
@@ -314,13 +315,13 @@ public:
 
     edgetrimmer(
             ctpl::thread_pool& poolIn,
-            const uint32_t nTrimsIn) :
-        pool{poolIn}, nTrims{nTrimsIn}
+            size_t nThreadsIn,
+            const uint32_t nTrimsIn) : pool{poolIn}, nTrims{nTrimsIn}
     {
         assert(sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucketZ));
         assert(sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>) == P::NX * sizeof(yzbucketZ));
 
-        nThreads = pool.size();
+        nThreads = nThreadsIn;
 
         buckets = new yzbucketZ[P::NX];
         touch((uint8_t*)buckets, sizeof(matrix<EDGEBITS, XBITS, P::ZBUCKETSIZE>));
@@ -385,9 +386,6 @@ public:
 
     void genUnodes(const uint32_t id, const uint32_t uorv)
     {
-        uint64_t rdtsc0, rdtsc1;
-        rdtsc0 = __rdtsc();
-
         uint32_t last[P::NX];
 
         uint8_t const* base = (uint8_t*)buckets;
@@ -510,8 +508,6 @@ public:
 
             sumsize += dst.storev(buckets, my);
         }
-        rdtsc1 = __rdtsc();
-        // if (!id) printf("genUnodes round %2d size %u rdtsc: %lu\n", uorv, sumsize / P::BIGSIZE0, rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / P::BIGSIZE0;
     }
 
@@ -519,8 +515,6 @@ public:
     // Generate new paired nodes for remaining nodes generated in genUnodes step
     void genVnodes(const uint32_t id, const uint32_t uorv)
     {
-        uint64_t rdtsc0, rdtsc1;
-
 #if NSIPHASH == 8
         static const __m256i vxmask = {P::XMASK, P::XMASK, P::XMASK, P::XMASK};
         static const __m256i vyzmask = {P::YZMASK, P::YZMASK, P::YZMASK, P::YZMASK};
@@ -538,7 +532,6 @@ public:
         indexerZ dst;
         indexerT small;
 
-        rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
         uint8_t const* base = (uint8_t*)buckets;
         uint8_t const* small0 = (uint8_t*)tbuckets[id];
@@ -680,8 +673,6 @@ public:
             }
             sumsize += dst.storeu(buckets, ux);
         }
-        rdtsc1 = __rdtsc();
-        // if (!id) printf("genVnodes round %2d size %u rdtsc: %lu\n", uorv, sumsize / P::BIGSIZE, rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / P::BIGSIZE;
     }
 
@@ -696,11 +687,9 @@ public:
         const uint64_t DSTSLOTMASK = (1ULL << DSTSLOTBITS) - 1ULL;
         const uint32_t DSTPREFBITS = DSTSLOTBITS - P::YZZBITS;
         const uint32_t DSTPREFMASK = (1 << DSTPREFBITS) - 1;
-        uint64_t rdtsc0, rdtsc1;
         indexerZ dst;
         indexerT small;
 
-        rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
         uint8_t const* base = (uint8_t*)buckets;
         uint8_t const* small0 = (uint8_t*)tbuckets[id];
@@ -757,8 +746,6 @@ public:
             }
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
-        rdtsc1 = __rdtsc();
-        // if ((!id)) printf("trimedges round %2d size %u; rdtsc: %lu\n", round, sumsize / DSTSIZE, rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / DSTSIZE;
     }
 
@@ -771,12 +758,10 @@ public:
         const uint32_t SRCPREFMASK = (1 << SRCPREFBITS) - 1;
         const uint32_t SRCPREFBITS2 = SRCSLOTBITS - P::YZZBITS;
         const uint32_t SRCPREFMASK2 = (1 << SRCPREFBITS2) - 1;
-        uint64_t rdtsc0, rdtsc1;
         indexerZ dst;
         indexerT small;
         static uint32_t maxnnid = 0;
 
-        rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
         uint8_t const* base = (uint8_t*)buckets;
         uint8_t const* small0 = (uint8_t*)tbuckets[id];
@@ -862,8 +847,6 @@ public:
                 maxnnid = newnodeid;
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
-        rdtsc1 = __rdtsc();
-        // if (!id) printf("trimrename round %2d size %u rdtsc: %lu maxnnid %d\n", round, sumsize / DSTSIZE, rdtsc1 - rdtsc0, maxnnid);
         assert(maxnnid < P::NYZ1);
         tcounts[id] = sumsize / DSTSIZE;
     }
@@ -871,10 +854,8 @@ public:
     template <bool TRIMONV>
     void trimedges1(const uint32_t id, const uint32_t round)
     {
-        uint64_t rdtsc0, rdtsc1;
         indexerZ dst;
 
-        rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
         uint8_t* degs = tdegs[id];
         uint8_t const* base = (uint8_t*)buckets;
@@ -905,19 +886,15 @@ public:
             }
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
-        rdtsc1 = __rdtsc();
-        // if ((!id)) printf("trimedges1 round %2d size %u rdtsc: %lu\n", round, sumsize / sizeof(uint32_t), rdtsc1 - rdtsc0);
         tcounts[id] = sumsize / sizeof(uint32_t);
     }
 
     template <bool TRIMONV>
     void trimrename1(const uint32_t id, const uint32_t round)
     {
-        uint64_t rdtsc0, rdtsc1;
         indexerZ dst;
         static uint32_t maxnnid = 0;
 
-        rdtsc0 = __rdtsc();
         offset_t sumsize = 0;
         uint16_t* degs = (uint16_t*)tdegs[id];
         uint8_t const* base = (uint8_t*)buckets;
@@ -964,8 +941,6 @@ public:
                 maxnnid = newnodeid;
             sumsize += TRIMONV ? dst.storev(buckets, vx) : dst.storeu(buckets, vx);
         }
-        rdtsc1 = __rdtsc();
-        // if (!id) printf("trimrename1 round %2d size %u rdtsc: %lu maxnnid %d\n", round, sumsize / sizeof(uint32_t), rdtsc1 - rdtsc0, maxnnid);
         assert(maxnnid < P::NYZ2);
         tcounts[id] = sumsize / sizeof(uint32_t);
     }
@@ -978,7 +953,7 @@ public:
         }
 
         std::vector<std::future<void>> jobs;
-        for (int t = 0; t < pool.size(); t++) {
+        for (int t = 0; t < nThreads; t++) {
             jobs.push_back(
                     pool.push([this, t](int id) {
                         etworker<offset_t, EDGEBITS, XBITS>(this, t);
@@ -1051,16 +1026,18 @@ public:
     std::bitset<P::NXY> uxymap;
     std::vector<uint32_t> sols; // concatanation of all proof's indices
     ctpl::thread_pool& pool;
+    size_t nThreads;
     uint8_t proofSize;
 
     solver_ctx(
             ctpl::thread_pool& poolIn,
+            size_t nThreadsIn,
             const char* header,
             const uint32_t headerlen,
             const uint32_t nTrims,
-            const uint8_t proofSizeIn) : pool{poolIn}, proofSize{proofSizeIn}
+            const uint8_t proofSizeIn) : pool{poolIn}, nThreads{nThreadsIn}, proofSize{proofSizeIn}
     {
-        trimmer = new edgetrimmer<offset_t, EDGEBITS, XBITS>(pool, nTrims);
+        trimmer = new edgetrimmer<offset_t, EDGEBITS, XBITS>(pool, nThreadsIn, nTrims);
 
         cycleus.reserve(proofSize);
         cyclevs.reserve(proofSize);
@@ -1121,7 +1098,7 @@ public:
         sols.resize(sols.size() + proofSize);
 
         std::vector<std::future<void>> jobs;
-        for (int t = 0; t < pool.size(); t++) {
+        for (size_t t = 0; t < nThreads; t++) {
             jobs.push_back(
                     pool.push(
                         [this, t](int id) {
@@ -1159,9 +1136,7 @@ public:
     bool findcycles()
     {
         uint32_t us[MAXPATHLEN], vs[MAXPATHLEN];
-        uint64_t rdtsc0, rdtsc1;
 
-        rdtsc0 = __rdtsc();
         for (uint32_t vx = 0; vx < P::NX; vx++) {
             for (uint32_t ux = 0; ux < P::NX; ux++) {
                 zbucketZ& zb = trimmer->buckets[ux][vx];
@@ -1199,8 +1174,6 @@ public:
                 }
             }
         }
-        rdtsc1 = __rdtsc();
-        // printf("findcycles rdtsc: %lu\n", rdtsc1 - rdtsc0);
 
         return false;
     }
@@ -1217,9 +1190,6 @@ public:
 
     void* matchUnodes(uint32_t threadId)
     {
-        uint64_t rdtsc0, rdtsc1;
-
-        rdtsc0 = __rdtsc();
         const uint32_t starty = P::NY * threadId / trimmer->nThreads;
         const uint32_t endy = P::NY * (threadId + 1) / trimmer->nThreads;
 
@@ -1312,14 +1282,12 @@ public:
             }
         }
 
-        rdtsc1 = __rdtsc();
-        // if (!threadId) printf("matchUnodes %d rdtsc: %lu\n", threadId, rdtsc1 - rdtsc0);
         return 0;
     }
 };
 
 template <typename offset_t, uint8_t EDGEBITS, uint8_t XBITS>
-bool run(const uint256& hash, uint8_t proofSize, std::set<uint32_t>& cycle, ctpl::thread_pool& pool)
+bool run(const uint256& hash, uint8_t proofSize, std::set<uint32_t>& cycle, size_t nThreads, ctpl::thread_pool& pool)
 {
     assert(EDGEBITS >= MIN_EDGE_BITS && EDGEBITS <= MAX_EDGE_BITS);
 
@@ -1327,7 +1295,7 @@ bool run(const uint256& hash, uint8_t proofSize, std::set<uint32_t>& cycle, ctpl
 
     auto hashStr = hash.GetHex();
 
-    solver_ctx<offset_t, EDGEBITS, XBITS> ctx(pool, hashStr.c_str(), hashStr.size(), nTrims, proofSize);
+    solver_ctx<offset_t, EDGEBITS, XBITS> ctx(pool, nThreads, hashStr.c_str(), hashStr.size(), nTrims, proofSize);
 
     bool found = ctx.solve();
 
@@ -1338,41 +1306,46 @@ bool run(const uint256& hash, uint8_t proofSize, std::set<uint32_t>& cycle, ctpl
     return found;
 }
 
-bool FindCycleAdvanced(const uint256& hash, uint8_t edgeBits, uint8_t proofSize, std::set<uint32_t>& cycle, ctpl::thread_pool& pool)
+bool FindCycleAdvanced(const uint256& hash,
+    uint8_t edgeBits,
+    uint8_t proofSize,
+    std::set<uint32_t>& cycle,
+    size_t nThreads,
+    ctpl::thread_pool& pool)
 {
     switch (edgeBits) {
     case 16:
-        return run<uint32_t, 16u, 0u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 16u, 0u>(hash, proofSize, cycle, nThreads, pool);
     case 17:
-        return run<uint32_t, 17u, 1u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 17u, 1u>(hash, proofSize, cycle, nThreads, pool);
     case 18:
-        return run<uint32_t, 18u, 1u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 18u, 1u>(hash, proofSize, cycle, nThreads, pool);
     case 19:
-        return run<uint32_t, 19u, 2u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 19u, 2u>(hash, proofSize, cycle, nThreads, pool);
     case 20:
-        return run<uint32_t, 20u, 2u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 20u, 2u>(hash, proofSize, cycle, nThreads, pool);
     case 21:
-        return run<uint32_t, 21u, 3u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 21u, 3u>(hash, proofSize, cycle, nThreads, pool);
     case 22:
-        return run<uint32_t, 22u, 3u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 22u, 3u>(hash, proofSize, cycle, nThreads, pool);
     case 23:
-        return run<uint32_t, 23u, 4u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 23u, 4u>(hash, proofSize, cycle, nThreads, pool);
     case 24:
-        return run<uint32_t, 24u, 4u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 24u, 4u>(hash, proofSize, cycle, nThreads, pool);
     case 25:
-        return run<uint32_t, 25u, 5u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 25u, 5u>(hash, proofSize, cycle, nThreads, pool);
     case 26:
-        return run<uint32_t, 26u, 5u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 26u, 5u>(hash, proofSize, cycle, nThreads, pool);
     case 27:
-        return run<uint32_t, 27u, 6u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 27u, 6u>(hash, proofSize, cycle, nThreads, pool);
     case 28:
-        return run<uint32_t, 28u, 6u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 28u, 6u>(hash, proofSize, cycle, nThreads, pool);
     case 29:
-        return run<uint32_t, 29u, 7u>(hash, proofSize, cycle, pool);
+        return run<uint32_t, 29u, 7u>(hash, proofSize, cycle, nThreads, pool);
     case 30:
-        return run<uint64_t, 30u, 8u>(hash, proofSize, cycle, pool);
+        return run<uint64_t, 30u, 8u>(hash, proofSize, cycle, nThreads, pool);
     case 31:
-        return run<uint64_t, 31u, 8u>(hash, proofSize, cycle, pool);
+        return run<uint64_t, 31u, 8u>(hash, proofSize, cycle, nThreads, pool);
 
     default:
         throw std::runtime_error(strprintf("%s: EDGEBITS equal to %d is not suppoerted", __func__, edgeBits));

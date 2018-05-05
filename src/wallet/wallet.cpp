@@ -187,7 +187,7 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
     return &(it->second);
 }
 
-referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, const std::string alias)
+referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, std::string alias)
 {
     // check wallet is not unlocked yet
     if (IsReferred()) {
@@ -337,7 +337,7 @@ void CWallet::DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata
 {
     // this method uses a fixed keypath scheme of m/44'/0'/0'/0/k
     // m/44'/1'/0'/0/k for testnet
-    const auto seed = mnemonic::mnemonicToSeed(mapKeyMetadata[hdChain.masterKeyID].mnemonic);
+    const auto seed = mnemonic::MnemonicToSeed(mapKeyMetadata[hdChain.masterKeyID].mnemonic);
 
     CExtKey masterKey;             //hd master key  m
     CExtKey changeKey;             //key at m/44'/0'/0'/0'
@@ -1138,7 +1138,7 @@ bool CWallet::AddToWallet(const referral::ReferralTx& rtxIn, bool fFlushOnClose)
     }
 
     //// debug print
-    LogPrintf("AddToWallet %s  %s%s\n",
+    LogPrintf("Beacon AddToWallet %s  %s%s\n",
             rtxIn.GetHash().ToString(),
             (fInsertedNew ? "new" : ""),
             (fUpdated ? "update" : ""));
@@ -1729,7 +1729,7 @@ CPubKey CWallet::GenerateNewHDMasterKey()
 CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const std::string& passphrase)
 {
     CExtKey extkey;
-    std::array<uint8_t, mnemonic::SEED_LENGTH> seed = mnemonic::mnemonicToSeed(mnemonic, passphrase);
+    std::array<uint8_t, mnemonic::SEED_LENGTH> seed = mnemonic::MnemonicToSeed(mnemonic, passphrase);
     extkey.SetMaster(seed.begin(), mnemonic::SEED_LENGTH);
 
 
@@ -1743,7 +1743,7 @@ CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const s
     // set the hd keypath to "m" -> Master, refers the masterkeyid to itself
     metadata.hdKeypath     = "m";
     metadata.hdMasterKeyID = pubkey.GetID();
-    metadata.mnemonic = mnemonic::unwords(mnemonic);
+    metadata.mnemonic = mnemonic::Unwords(mnemonic);
     metadata.nVersion = CKeyMetadata::VERSION_WITH_MNEMONIC;
 
     {
@@ -1760,9 +1760,14 @@ CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const s
     return pubkey;
 }
 
+bool CWallet::HasMnemonic()
+{
+    return mapKeyMetadata[hdChain.masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC;
+}
+
 std::string CWallet::GetMnemonic()
 {
-    if(mapKeyMetadata[hdChain.masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC)
+    if(HasMnemonic())
         return mapKeyMetadata[hdChain.masterKeyID].mnemonic;
     return "";
 }
@@ -1802,7 +1807,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const referral::Address& address,
         const CPubKey& signPubKey,
         const referral::Address& parentAddress,
-        const std::string alias,
+        std::string alias,
         CKey key)
 {
     if (!signPubKey.IsValid()) {
@@ -1814,6 +1819,8 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         Daedalus() ?
         referral::Referral::INVITE_VERSION :
         referral::Referral::CURRENT_VERSION;
+
+    referral::CleanupAlias(alias);
 
     // generate referral for given public key
     auto referral =
@@ -2135,11 +2142,16 @@ CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool f
 
             CBlock block;
             if (ReadBlockFromDisk(block, pindex, Params().GetConsensus())) {
-                for (size_t posInBlock = 0; posInBlock < block.vtx.size(); ++posInBlock) {
-                    AddToWalletIfInvolvingMe(block.vtx[posInBlock], pindex, posInBlock, fUpdate);
+                for (size_t i = 0; i < block.vtx.size(); ++i) {
+                    AddToWalletIfInvolvingMe(block.vtx[i], pindex, i, fUpdate);
                 }
-                for (size_t posInBlock = 0; posInBlock < block.m_vRef.size(); ++posInBlock) {
-                    // Add referral transaction to map
+
+                for (size_t i = 0; i < block.invites.size(); ++i) {
+                    AddToWalletIfInvolvingMe(block.invites[i], pindex, i, fUpdate);
+                }
+
+                for (size_t i = 0; i < block.m_vRef.size(); ++i) {
+                    AddToWalletIfInvolvingMe(block.m_vRef[i], pindex, i, fUpdate);
                 }
             } else {
                 ret = pindex;
@@ -2301,8 +2313,10 @@ CAmount CWalletTx::GetImmatureCredit(bool fUseCache) const
     return 0;
 }
 
-CAmount CWalletTx::GetAvailableCredit(bool fUseCache) const
+CAmount CWalletTx::GetAvailableCredit(AddressAmountMap& address_amounts, bool fUseCache) const
 {
+    assert(address_amounts.empty());
+
     if (pwallet == nullptr)
         return 0;
 
@@ -2310,8 +2324,10 @@ CAmount CWalletTx::GetAvailableCredit(bool fUseCache) const
     if (IsCoinBase() && GetBlocksToMaturity() > 0)
         return 0;
 
-    if (fUseCache && fAvailableCreditCached)
+    if (fUseCache && fAvailableCreditCached) {
+        address_amounts = available_credit_address_amounts;
         return nAvailableCreditCached;
+    }
 
     CAmount nCredit = 0;
     uint256 hashTx = GetHash();
@@ -2320,14 +2336,25 @@ CAmount CWalletTx::GetAvailableCredit(bool fUseCache) const
         if (!pwallet->IsSpent(hashTx, i))
         {
             const CTxOut &txout = tx->vout[i];
-            nCredit += pwallet->GetCredit(txout, ISMINE_SPENDABLE);
+
+            const auto amount = pwallet->GetCredit(txout, ISMINE_SPENDABLE);
+            nCredit += amount;
+
+            if(amount > 0) {
+                auto address = ExtractAddress(txout);
+                if (address.second != 0) {
+                    address_amounts[address.first] += amount;
+                }
+            }
             if (!MoneyRange(nCredit))
                 throw std::runtime_error(std::string(__func__) + " : value out of range");
         }
     }
 
     nAvailableCreditCached = nCredit;
+    available_credit_address_amounts = address_amounts;
     fAvailableCreditCached = true;
+
     return nCredit;
 }
 
@@ -2487,17 +2514,25 @@ void CWallet::ResendWalletTransactions(int64_t nBestBlockTime, CConnman* connman
  * @{
  */
 
+void ReduceAddressAmounts(AddressAmountMap& result, const AddressAmountMap& other) {
+    for (const auto& a : other) {
+        result[a.first] += a.second;
+    }
+}
 
 CAmount CWallet::GetBalance(bool invite) const
 {
     CAmount nTotal = 0;
+    AddressAmountMap address_amounts;
     {
         LOCK2(cs_main, cs_wallet);
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx* pcoin = &(*it).second;
             if (pcoin->IsTrusted() && pcoin->IsInvite() == invite) {
-                nTotal += pcoin->GetAvailableCredit();
+                AddressAmountMap tx_address_amounts;
+                nTotal += pcoin->GetAvailableCredit(tx_address_amounts);
+                ReduceAddressAmounts(address_amounts, tx_address_amounts);
             }
         }
     }
@@ -2506,7 +2541,7 @@ CAmount CWallet::GetBalance(bool invite) const
     //if you transfer the last uspent invite from address A to address B, you
     //will render address A unusable.
     if(invite) {
-        nTotal = std::max(CAmount{0}, nTotal - 1);
+        nTotal = std::max<CAmount>(0, nTotal - address_amounts.size());
     }
 
     return nTotal;
@@ -2579,6 +2614,7 @@ pog::RewardsAmount CWallet::GetRewards() const
 CAmount CWallet::GetUnconfirmedBalance(bool invite) const
 {
     CAmount nTotal = 0;
+    AddressAmountMap address_amounts;
     {
         LOCK2(cs_main, cs_wallet);
         for (WalletTxMap::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
@@ -2587,10 +2623,17 @@ CAmount CWallet::GetUnconfirmedBalance(bool invite) const
             if (!pcoin->IsTrusted() &&
                     pcoin->GetDepthInMainChain() == 0 &&
                     pcoin->InMempool() &&
-                    pcoin->IsInvite() == invite)
+                    pcoin->IsInvite() == invite) {
 
-                nTotal += pcoin->GetAvailableCredit();
+                AddressAmountMap tx_address_amounts;
+                nTotal += pcoin->GetAvailableCredit(tx_address_amounts);
+                ReduceAddressAmounts(address_amounts, tx_address_amounts);
+            }
         }
+    }
+
+    if(invite) {
+        nTotal = std::max<CAmount>(0, nTotal - address_amounts.size());
     }
     return nTotal;
 }
@@ -2791,6 +2834,7 @@ void CWallet::AvailableCoins(
 {
     vCoins.clear();
 
+    AddressAmountMap address_amounts;
     {
         LOCK2(cs_main, cs_wallet);
 
@@ -2807,7 +2851,9 @@ void CWallet::AvailableCoins(
             if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0 && !invite)
                 continue;
 
-            if (pcoin->IsInvite() != invite)
+            const bool is_invite = pcoin->IsInvite();
+
+            if (is_invite != invite)
                 continue;
 
             int nDepth = pcoin->GetDepthInMainChain();
@@ -2860,7 +2906,11 @@ void CWallet::AvailableCoins(
                 continue;
 
             for (unsigned int i = 0; i < pcoin->tx->vout.size(); i++) {
-                if (pcoin->tx->vout[i].nValue < nMinimumAmount || pcoin->tx->vout[i].nValue > nMaximumAmount)
+                const auto& txout = pcoin->tx->vout[i];
+                const auto amount = txout.nValue;
+
+
+                if (amount < nMinimumAmount || amount > nMaximumAmount)
                     continue;
 
                 if (coinControl && coinControl->HasSelected() && !coinControl->fAllowOtherInputs && !coinControl->IsSelected(COutPoint((*it).first, i)))
@@ -2872,11 +2922,24 @@ void CWallet::AvailableCoins(
                 if (IsSpent(wtxid, i))
                     continue;
 
-                isminetype mine = IsMine(pcoin->tx->vout[i]);
+                isminetype mine = IsMine(txout);
 
                 if (mine == ISMINE_NO) {
                     continue;
                 }
+
+                // aggregate counts for invites per address. We
+                // will need to remove coins later that fewer than 2
+                // invites.
+                if(is_invite) {
+                    const auto address = ExtractAddress(txout);
+                    if (address.second == 0) {
+                        continue;
+                    }
+
+                    address_amounts[address.first] += amount;
+                }
+
 
                 bool fSpendableIn = ((mine & ISMINE_SPENDABLE) != ISMINE_NO) || (coinControl && coinControl->fAllowWatchOnly && (mine & ISMINE_WATCH_SOLVABLE) != ISMINE_NO);
                 bool fSolvableIn = (mine & (ISMINE_SPENDABLE | ISMINE_WATCH_SOLVABLE)) != ISMINE_NO;
@@ -2885,7 +2948,7 @@ void CWallet::AvailableCoins(
 
                 // Checks the sum amount of all UTXO's.
                 if (nMinimumSumAmount != MAX_MONEY) {
-                    nTotal += pcoin->tx->vout[i].nValue;
+                    nTotal += amount;
 
                     if (nTotal >= nMinimumSumAmount) {
                         return;
@@ -2897,6 +2960,20 @@ void CWallet::AvailableCoins(
                     return;
                 }
             }
+        }
+
+        if (invite) {
+            vCoins.erase(std::remove_if(vCoins.begin(), vCoins.end(),
+                        [&address_amounts](const COutput& coin) {
+                            const auto& txout = coin.tx->tx->vout[coin.i];
+
+                            const auto address = ExtractAddress(txout);
+                            assert(address.second != 0);
+
+                            const auto amount = address_amounts[address.first];
+
+                            return amount < 2;
+                        }), vCoins.end());
         }
     }
 }
@@ -3699,7 +3776,6 @@ bool CWallet::CreateInviteTransaction(
     assert(txNew.nLockTime <= (unsigned int)chainActive.Height());
     assert(txNew.nLockTime < LOCKTIME_THRESHOLD);
 
-    unsigned int nBytes;
     {
         std::set<CInputCoin> setCoins;
         LOCK2(cs_main, cs_wallet);
@@ -3787,8 +3863,6 @@ bool CWallet::CreateInviteTransaction(
             for (const auto& coin : setCoins)
                 txNew.vin.push_back(CTxIn(coin.outpoint,CScript(),
                             nSequence));
-
-            nBytes = GetVirtualTransactionSize(txNew);
 
         }
 
@@ -4864,10 +4938,9 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
             // generate a new master key
 
             // TODO: Support multiple languages
-            WordList mnemonic;
-            for(size_t i = 0; i < mnemonic::MNEMONIC_WORD_COUNT; i++) {
-                mnemonic.push_back(language::en[GetRand(language::en.size())]);
-            }
+            std::vector<uint8_t> entropy(mnemonic::ENTROPY_BYTES);
+            GetStrongRandBytes(entropy.data(), mnemonic::ENTROPY_BYTES);
+            WordList mnemonic = mnemonic::Entropy2Mnemonic(entropy, language::en);
 
             CPubKey masterPubKey = walletInstance->GenerateMasterKeyFromMnemonic(mnemonic);
             if (!walletInstance->SetHDMasterKey(masterPubKey))

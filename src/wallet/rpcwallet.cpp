@@ -988,7 +988,7 @@ UniValue easysend(const JSONRPCRequest& request)
     if(!request.params[1].isNull())
         optional_password = request.params[1].get_str();
 
-    int max_blocks = 1008; //about a week.
+    int max_blocks = 10080; //about a week.
     if(!request.params[2].isNull())
         max_blocks = request.params[2].get_int();
 
@@ -1062,7 +1062,7 @@ UniValue easyreceive(const JSONRPCRequest& request)
     if(!request.params[2].isNull())
         optional_password = request.params[2].get_str();
 
-    int max_blocks = 1008; //about a week.
+    int max_blocks = 10080; //about a week.
     if(!request.params[3].isNull())
         max_blocks = request.params[3].get_int();
 
@@ -4646,7 +4646,14 @@ UniValue listinvites(const JSONRPCRequest& request)
             max_depth,
             true);
 
-    for (const COutput& out : outputs) {
+    std::sort(outputs.begin(), outputs.end(), 
+            [](const COutput& a, const COutput& b) {
+                return a.nDepth > b.nDepth;
+            });
+
+    for (size_t i = 1; i < outputs.size(); i++) {
+        const auto& out = outputs[i];
+
         CTxDestination address;
         const CScript& scriptPubKey = out.tx->tx->vout[out.i].scriptPubKey;
         bool fValidAddress = ExtractDestination(scriptPubKey, address);
@@ -5023,11 +5030,6 @@ UniValue generate(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
     }
 
-    // check that wallet is alredy referred or has unlock transaction
-    if (!pwallet->IsReferred() && pwallet->mapWalletRTx.empty()) {
-        throw JSONRPCError(RPC_WALLET_NOT_REFERRED, "Error: Wallet is not unlocked. Use referrer address to unlock first. See 'unlockwallet'");
-    }
-
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 3) {
         throw std::runtime_error(
             "generate nblocks ( maxtries )\n"
@@ -5043,6 +5045,11 @@ UniValue generate(const JSONRPCRequest& request)
             "\nGenerate 11 blocks\n"
             + HelpExampleCli("generate", "11")
         );
+    }
+
+    // check that wallet is alredy referred or has unlock transaction
+    if (!pwallet->IsReferred() && pwallet->mapWalletRTx.empty()) {
+        throw JSONRPCError(RPC_WALLET_NOT_REFERRED, "Error: Wallet is not unlocked. Use referrer address to unlock first. See 'unlockwallet'");
     }
 
     int num_generate = request.params[0].get_int();

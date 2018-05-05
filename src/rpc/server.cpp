@@ -39,6 +39,8 @@ static struct CRPCSignals
 {
     boost::signals2::signal<void ()> Started;
     boost::signals2::signal<void ()> Stopped;
+    boost::signals2::signal<void ()> MiningStarted;
+    boost::signals2::signal<void ()> MiningStopped;
     boost::signals2::signal<void (const CRPCCommand&)> PreCommand;
 } g_rpcSignals;
 
@@ -50,6 +52,16 @@ void RPCServer::OnStarted(std::function<void ()> slot)
 void RPCServer::OnStopped(std::function<void ()> slot)
 {
     g_rpcSignals.Stopped.connect(slot);
+}
+
+void RPCServer::OnMiningStarted(std::function<void ()> slot)
+{
+    g_rpcSignals.MiningStarted.connect(slot);
+}
+
+void RPCServer::OnMiningStopped(std::function<void ()> slot)
+{
+    g_rpcSignals.MiningStopped.connect(slot);
 }
 
 void RPCTypeCheck(const UniValue& params,
@@ -326,6 +338,18 @@ void StopRPC()
     deadlineTimers.clear();
     DeleteAuthCookie();
     g_rpcSignals.Stopped();
+}
+
+void StartMining()
+{
+    LogPrint(BCLog::RPC, "Starting mining with RPC call\n");
+    g_rpcSignals.MiningStarted();
+}
+
+void StopMining()
+{
+    LogPrint(BCLog::RPC, "Stop mining with RPC call\n");
+    g_rpcSignals.MiningStopped();
 }
 
 bool IsRPCRunning()

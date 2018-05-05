@@ -21,7 +21,6 @@ extern std::atomic_bool fImporting;
 namespace 
 {
     int SLIDE_TRANSITION_SECONDS = 15;
-
 }
 
 ModalOverlay::ModalOverlay(QWidget *parent) :

@@ -42,7 +42,7 @@ namespace referral
         const std::regex SAFER_ALIAS_REGEX(strprintf("^[a-z0-9]([a-z0-9_-]){1,%d}[a-z0-9]$", SAFER_MAX_ALIAS_LENGTH));
     }
 
-void NormalizeAlias(std::string& alias)
+void CleanupAlias(std::string& alias)
 {
     boost::algorithm::trim(alias);
     if(alias.empty()) {
@@ -54,7 +54,11 @@ void NormalizeAlias(std::string& alias)
     if(alias[0] == '@') {
         alias.erase(0,1);
     }
+}
 
+void NormalizeAlias(std::string& alias)
+{
+    CleanupAlias(alias);
     std::transform(alias.begin(), alias.end(), alias.begin(), ::tolower);
 }
 
@@ -149,6 +153,13 @@ uint256 Referral::ComputeHash() const
     return SerializeHash(*this, SER_GETHASH);
 }
 
+std::string MutableReferral::GetAlias() const
+{
+    auto clean_alias = alias;
+    CleanupAlias(clean_alias);
+    return clean_alias;
+}
+
 Referral::Referral(const MutableReferral &ref) :
     version{ref.version},
     parentAddress{ref.parentAddress},
@@ -172,6 +183,13 @@ Referral::Referral(MutableReferral &&ref) :
 unsigned int Referral::GetTotalSize() const
 {
     return ::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION);
+}
+
+std::string Referral::GetAlias() const
+{
+    auto clean_alias = alias;
+    CleanupAlias(clean_alias);
+    return clean_alias;
 }
 
 std::string Referral::ToString() const

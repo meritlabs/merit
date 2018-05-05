@@ -23,6 +23,43 @@ bool TransactionRecord::showTransaction(const CWalletTx &wtx)
     return true;
 }
 
+std::string FindFrom(CTransactionRef tx, const CWallet* wallet) {
+    assert(tx);
+    assert(wallet);
+
+    LOCK(cs_main);
+    std::string from;
+    for(const auto& input : tx->vin) {
+        CTransactionRef tx;
+        uint256 hashBlock;
+        if (!GetTransaction(
+                    input.prevout.hash,
+                    tx,
+                    Params().GetConsensus(),
+                    hashBlock,
+                    false)) {
+            continue;
+        }
+        const auto& out = tx->vout[input.prevout.n];
+        CTxDestination address;
+        if (ExtractDestination(out.scriptPubKey, address) && !IsMine(*wallet, address))
+        {
+            if(!from.empty()) {
+                from += ", ";
+            }
+
+            uint160 address_bytes;
+            if(GetUint160(address, address_bytes)) {
+                auto alias = FindAliasForAddress(address_bytes);
+                from += alias.empty() ? 
+                    EncodeDestination(address) : 
+                    "@" + FindAliasForAddress(address_bytes);
+            }
+        }
+    }
+    return from;
+}
+
 /*
  * Decompose CWallet transaction to model transaction records.
  */
@@ -39,6 +76,8 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
 
     if (nNet > 0 || wtx.IsCoinBase())
     {
+        auto from = FindFrom(wtx.tx, wallet);
+
         //
         // Credit
         //
@@ -53,22 +92,44 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 sub.idx = i; // vout index
                 sub.credit = txout.nValue;
                 sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
+                std::string encoded_address;
                 if (ExtractDestination(txout.scriptPubKey, address) && IsMine(*wallet, address))
                 {
                     // Received by Merit Address
-                    sub.type = is_invite ?
-                        TransactionRecord::RecvInvite:
-                        TransactionRecord::RecvWithAddress;
-                    sub.address = EncodeDestination(address);
+                    if(is_invite) {
+                        sub.type = TransactionRecord::RecvInvite;
+                    } else {
+                        sub.type = from.empty() ?
+                            TransactionRecord::RecvWithAddress:
+                            TransactionRecord::RecvFromAddress;
+                    }
+                    encoded_address = EncodeDestination(address);
                 }
                 else
                 {
                     // Received by IP connection (deprecated features), or a multisignature or other non-simple transaction
+                    if(is_invite) {
+                        sub.type = TransactionRecord::RecvInvite;
+                    } else {
+                        sub.type = from.empty() ?
+                            TransactionRecord::RecvFromOther:
+                            TransactionRecord::RecvFromAddress;
+                    }
                     sub.type = is_invite ?
                         TransactionRecord::RecvInvite:
                         TransactionRecord::RecvFromOther;
-                    sub.address = mapValue["from"];
+                    encoded_address = mapValue["from"];
                 }
+
+                uint160 address_bytes;
+                std::string alias;
+                if(GetUint160(address, address_bytes)) {
+                    alias = FindAliasForAddress(address_bytes);
+                }
+
+                sub.to = alias.empty() ? encoded_address : ("@" + alias);
+                sub.from = from;
+
                 if (wtx.IsCoinBase())
                 {
                     // Generated
@@ -109,12 +170,28 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
             // Payment to self
             CAmount nChange = wtx.GetChange();
 
-            parts.append(TransactionRecord(hash, nTime, TransactionRecord::SendToSelf, "",
-                            -(nDebit - nChange), nCredit - nChange));
+            parts.append(
+                    TransactionRecord(
+                        hash,
+                        nTime,
+                        TransactionRecord::SendToSelf,
+                        "",
+                        "",
+                        -(nDebit - nChange),
+                        nCredit - nChange));
             parts.last().involvesWatchAddress = involvesWatchAddress;   // maybe pass to TransactionRecord as constructor argument
         }
         else if (fAllFromMe)
         {
+            std::string from; 
+            auto wallet_address = wallet->GetRootAddress();
+            if(wallet_address) {
+                std::string alias = wallet->GetAlias();
+                from = alias.empty() ? 
+                    EncodeDestination(CKeyID{*wallet_address})
+                    : ("@" + alias);
+            }
+
             //
             // Debit
             //
@@ -134,19 +211,29 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                     continue;
                 }
 
+                std::string encoded_address;
                 CTxDestination address;
                 if (ExtractDestination(txout.scriptPubKey, address))
                 {
                     // Sent to Merit Address
                     sub.type = is_invite ? TransactionRecord::SendInvite : TransactionRecord::SendToAddress;
-                    sub.address = EncodeDestination(address);
+                    encoded_address = EncodeDestination(address);
                 }
                 else
                 {
                     // Sent to IP, or other non-address transaction like OP_EVAL
                     sub.type = is_invite ? TransactionRecord::SendInvite : TransactionRecord::SendToOther;
-                    sub.address = mapValue["to"];
+                    encoded_address = mapValue["to"];
                 }
+
+                std::string alias;
+                uint160 address_bytes;
+                if(GetUint160(address, address_bytes)) {
+                    alias = FindAliasForAddress(address_bytes);
+                }
+
+                sub.from = from;
+                sub.to = alias.empty() ? encoded_address : "@" + alias;
 
                 CAmount nValue = txout.nValue;
                 /* Add fee to first output */
@@ -165,7 +252,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
             //
             // Mixed debit transaction, can't break down payees
             //
-            parts.append(TransactionRecord(hash, nTime, TransactionRecord::Other, "", nNet, 0));
+            parts.append(TransactionRecord(hash, nTime, TransactionRecord::Other, "", "", nNet, 0));
             parts.last().involvesWatchAddress = involvesWatchAddress;
         }
     }

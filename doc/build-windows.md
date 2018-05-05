@@ -8,7 +8,7 @@ Windows. This is also used to build the release binaries.
 
 Building on Ubuntu Trusty 14.04 is recommended.
 At the time of writing the Windows Subsystem for Linux installs Ubuntu Xenial 16.04. The default cross
-compiler package for Ubuntu Xenial does not produce working executables for some of the bitcoin applications.
+compiler package for Ubuntu Xenial does not produce working executables for some of the Merit applications.
 It is possible to build on Ubuntu Xenial by installing the cross compiler packages from
 Ubuntu Zesty, see the steps below.
 Building on Ubuntu Zesty 17.04 up to 17.10 has been verified to work.
@@ -150,7 +150,7 @@ Footnotes
 -------------
 
 <a name="footnote1">1</a>: There is currently a bug in the 64 bit mingw-w64 cross compiler packaged for WSL/Ubuntu Xenial 16.04 that
-causes two of the bitcoin executables to crash shortly after start up. The bug is related to the
+causes two of the Merit executables to crash shortly after start up. The bug is related to the
 -fstack-protector-all g++ compiler flag which is used to mitigate buffer overflows.
 Installing the mingw-w64 packages from the Ubuntu 17 distribution solves the issue, however, this is not
 an officially supported approach and it's only recommended if you are prepared to reinstall WSL/Ubutntu should

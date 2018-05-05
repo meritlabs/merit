@@ -136,6 +136,7 @@ private:
     int spinnerFrame;
 
     bool isReferred = false;
+    bool hasMnemonic = false;
 
     const PlatformStyle *platformStyle;
 
@@ -204,11 +205,21 @@ public Q_SLOTS:
     void setHDStatus(int hdEnabled);
 
     void setMiningStatus(bool isMining);
+    void changeMiningIndicator(bool isMining);
+    void miningStarted();
+    void miningStopped();
 
     bool handlePaymentRequest(const SendCoinsRecipient& recipient);
 
     /** Show incoming transaction notification for new transactions. */
-    void incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label);
+    void incomingTransaction(
+            const QString& date,
+            int unit,
+            const CAmount& amount,
+            const QString& type,
+            const QString& address,
+            const QString& alias,
+            const QString& label);
 #endif // ENABLE_WALLET
 
 private Q_SLOTS:

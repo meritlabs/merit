@@ -106,6 +106,8 @@ public:
         return address;
     }
 
+    std::string GetAlias() const;
+
     /**
      * Get the total transaction size in bytes, including witness data.
      * "Total Size" defined in BIP141 and BIP144.
@@ -181,6 +183,8 @@ public:
         Unserialize(s);
     }
 
+    std::string GetAlias() const;
+
     /**
      * Compute the hash of this MutableReferral. This is computed on the
      * fly, as opposed to GetHash() in Referral, which uses a cached result.
@@ -252,11 +256,16 @@ static inline ReferralRef MakeReferralRef(Ref&& referralIn)
 }
 
 /**
+ * Trim an cleanup the alias text. Trims whitespace and removes the '@' symbol.
+ */
+void CleanupAlias(std::string& alias);
+
+/**
  * Returns true if the referral's alias passes validation.
  * It must not be greater than a certain size and not use certain
  * blacklisted words
  */
-bool CheckReferralAlias(std::string ref, bool normalize_alias);
+bool CheckReferralAlias(std::string alias, bool normalize_alias);
 
 /**
  * Safe version of CheckReferralAlias that assumes the new safety rules.

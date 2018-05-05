@@ -104,7 +104,7 @@ struct CAddressUnspentValue {
     }
 
     bool IsNull() const {
-        return (satoshis == -1);
+        return satoshis == -1;
     }
 };
 

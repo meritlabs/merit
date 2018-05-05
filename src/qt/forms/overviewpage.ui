@@ -553,7 +553,7 @@ background-color: rgb(232, 179, 54);</string>
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
               <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
+              <verstretch>1</verstretch>
              </sizepolicy>
             </property>
             <property name="autoFillBackground">

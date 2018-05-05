@@ -1,8 +1,8 @@
 dnl require autoconf 2.60 (AS_ECHO/AS_ECHO_N)
 AC_PREREQ([2.60])
 define(_CLIENT_VERSION_MAJOR, 0)
-define(_CLIENT_VERSION_MINOR, 4)
-define(_CLIENT_VERSION_REVISION, 2)
+define(_CLIENT_VERSION_MINOR, 5)
+define(_CLIENT_VERSION_REVISION, 0)
 define(_CLIENT_VERSION_BUILD, 0)
 define(_CLIENT_VERSION_IS_RELEASE, true)
 define(_COPYRIGHT_YEAR, 2018)
@@ -411,6 +411,7 @@ case $host in
          openssl_prefix=`$BREW --prefix openssl 2>/dev/null`
          bdb_prefix=`$BREW --prefix berkeley-db4 2>/dev/null`
          qt5_prefix=`$BREW --prefix qt5 2>/dev/null`
+         libarchive_prefix=`$BREW --prefix libarchive 2>/dev/null`
          if test x$openssl_prefix != x; then
            PKG_CONFIG_PATH="$openssl_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
            export PKG_CONFIG_PATH
@@ -421,6 +422,10 @@ case $host in
          fi
          if test x$qt5_prefix != x; then
            PKG_CONFIG_PATH="$qt5_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
+           export PKG_CONFIG_PATH
+         fi
+         if test x$libarchive_prefix != x; then
+           PKG_CONFIG_PATH="$libarchive_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
            export PKG_CONFIG_PATH
          fi
        fi
@@ -739,7 +744,7 @@ fi
 MERIT_QT_INIT
 
 dnl sets $merit_enable_qt, $merit_enable_qt_test, $merit_enable_qt_dbus
-MERIT_QT_CONFIGURE([$use_pkgconfig], [no])
+MERIT_QT_CONFIGURE([$use_pkgconfig], [qt5])
 
 if test x$build_merit_utils$build_meritd$merit_enable_qt$use_tests$use_bench = xnonononono; then
     use_boost=no
@@ -927,6 +932,9 @@ if test x$use_pkgconfig = xyes; then
       if test x$use_qr != xno; then
         MERIT_QT_CHECK([PKG_CHECK_MODULES([QR], [libqrencode], [have_qrencode=yes], [have_qrencode=no])])
       fi
+      if test x$merit_enable_qt != xno; then
+        MERIT_QT_CHECK([PKG_CHECK_MODULES([ARCHIVE], [libarchive], [have_libarchive=yes], [have_libarchive=no])])
+      fi
       if test x$build_merit_utils$build_meritd$merit_enable_qt$use_tests != xnononono; then
         PKG_CHECK_MODULES([EVENT], [libevent],, [AC_MSG_ERROR(libevent not found.)])
         if test x$TARGET_OS != xwindows; then
@@ -987,6 +995,11 @@ else
   if test x$use_qr != xno; then
     MERIT_QT_CHECK([AC_CHECK_LIB([qrencode], [main],[QR_LIBS=-lqrencode], [have_qrencode=no])])
     MERIT_QT_CHECK([AC_CHECK_HEADER([qrencode.h],, have_qrencode=no)])
+  fi
+  if test x$merit_enable_qt != xno; then
+    MERIT_QT_CHECK([AC_CHECK_LIB([archive], [main],[ARCHIVE_LIBS=-larchive], [have_libarchive=no])])
+    MERIT_QT_CHECK([AC_CHECK_HEADER([archive.h],, have_libarchive=no)])
+    MERIT_QT_CHECK([AC_CHECK_HEADER([archive_entry.h],, have_libarchive=no)])
   fi
 fi
 
@@ -1148,6 +1161,10 @@ if test x$merit_enable_qt != xno; then
     fi
   fi
 
+  if test x$have_libarchive = xno; then
+    AC_MSG_ERROR("libarchive not found")
+  fi
+
   if test x$XGETTEXT = x; then
     AC_MSG_WARN("xgettext is required to update qt translations")
   fi
@@ -1246,6 +1263,7 @@ AC_SUBST(EVENT_PTHREADS_LIBS)
 AC_SUBST(ZMQ_LIBS)
 AC_SUBST(PROTOBUF_LIBS)
 AC_SUBST(QR_LIBS)
+AC_SUBST(ARCHIVE_LIBS)
 AC_CONFIG_FILES([Makefile src/Makefile doc/man/Makefile share/setup.nsi share/qt/Info.plist test/config.ini])
 AC_CONFIG_FILES([contrib/devtools/split-debug.sh],[chmod +x contrib/devtools/split-debug.sh])
 AC_CONFIG_FILES([doc/Doxyfile])

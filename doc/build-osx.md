@@ -16,7 +16,11 @@ Then install [Homebrew](https://brew.sh).
 Dependencies
 ----------------------
 
-    brew install automake berkeley-db4 libtool boost --c++11 miniupnpc openssl pkg-config protobuf python3 qt libevent qrencode
+    brew install automake berkeley-db4 libtool boost --c++11 miniupnpc openssl pkg-config protobuf python3 libevent
+
+If you want to build with Merit-Qt GUI app, you need additional liblaries:
+
+    brew install qt qrencode libarchive
 
 If you want to build the disk image with `make deploy` (.dmg / optional), you need RSVG
 
@@ -34,15 +38,14 @@ Build Merit Core
 
 2.  Build merit-core:
 
-    Configure and build the headless merit binaries as well as the GUI (if Qt is found).
-
-    You can disable the GUI build by passing `--without-gui` to configure.
+    Configure and build the headless merit binaries.
+    To build with Merit-Qt GUI app pass `--with-gui` to configure, it will use Qt5 by default; pass `--with-gui=qt4` to build with Qt4
 
         ./autogen.sh
         ./configure
-        make
+        cd src && make obj/build.h && cd .. && make
 
-3.  It is recommended to build and run the unit tests:
+3.  It is recommended to build and run the unit tests (requires the QT GUI installation steps above):
 
         make check
 
@@ -57,6 +60,7 @@ Merit Core is now available at `./src/meritd`
 
 Before running, it's recommended you create an RPC configuration file.
 
+    mkdir -p "/Users/${USER}/Library/Application Support/Merit/merit.conf" # create the merit directory
     echo -e "rpcuser=meritrpc\nrpcpassword=$(xxd -l 16 -p /dev/urandom)" > "/Users/${USER}/Library/Application Support/Merit/merit.conf"
 
     chmod 600 "/Users/${USER}/Library/Application Support/Merit/merit.conf"
@@ -96,4 +100,4 @@ Notes
 
 * Tested on OS X 10.8 through 10.12 on 64-bit Intel processors only.
 
-* Building with downloaded Qt binaries is not officially supported. See the notes in [#7714](https://github.com/bitcoin/bitcoin/issues/7714)
+* Building with downloaded Qt binaries is not officially supported.

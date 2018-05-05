@@ -132,6 +132,7 @@ MERIT_CORE_H = \
   pog/anv.h \
   pog/select.h \
   pog/wrs.h \
+  pog/invitebuffer.h \
   pog/reward.h \
   protocol.h \
   random.h \
@@ -226,6 +227,7 @@ libmerit_server_a_SOURCES = \
   pog/reward.cpp \
   pog/select.cpp \
   pog/wrs.cpp \
+  pog/invitebuffer.cpp \
   policy/fees.cpp \
   policy/policy.cpp \
   policy/rbf.cpp \

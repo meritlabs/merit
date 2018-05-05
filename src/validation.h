@@ -604,6 +604,11 @@ referral::ReferralRef LookupReferral(
         referral::ReferralId& referral_id,
         bool normalize_alias);
 
+/**
+ * Returns an alias for a particular address. Otherwise an empty string.
+ */
+std::string FindAliasForAddress(const uint160 &hash);
+
 /** When there are blocks in the active chain with missing data, rewind the chainstate and remove them from the block index */
 bool RewindBlockIndex(const CChainParams& params);
 
@@ -672,6 +677,14 @@ int32_t ComputeBlockVersion(const CBlockIndex* pindexPrev, const Consensus::Para
  * Returns true if we expect to be in daedalus mode.
  */
 bool ExpectDaedalus(const CBlockIndex* pindexPrev, const Consensus::Params& params);
+
+/**
+ * Returns true if the block can have a miner invite reward
+ */
+bool BlockHasMinerInviteReward(
+        int height,
+        const uint256& previous_block_hash,
+        const Consensus::Params& params);
 
 /** Reject codes greater or equal to this can be returned by AcceptToMemPool
  * for transactions, to signal internal conditions. They cannot and should not

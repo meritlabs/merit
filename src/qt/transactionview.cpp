@@ -85,8 +85,11 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
     }
 
     typeWidget->addItem(tr("All"), TransactionFilterProxy::ALL_TYPES);
-    typeWidget->addItem(tr("Received with"), TransactionFilterProxy::TYPE(TransactionRecord::RecvWithAddress) |
-                                        TransactionFilterProxy::TYPE(TransactionRecord::RecvFromOther));
+    typeWidget->addItem(tr("Received from"),
+            TransactionFilterProxy::TYPE(TransactionRecord::RecvWithAddress) |
+            TransactionFilterProxy::TYPE(TransactionRecord::RecvFromAddress) |
+            TransactionFilterProxy::TYPE(TransactionRecord::RecvFromOther));
+
     typeWidget->addItem(tr("Sent to"), TransactionFilterProxy::TYPE(TransactionRecord::SendToAddress) |
                                   TransactionFilterProxy::TYPE(TransactionRecord::SendToOther));
     typeWidget->addItem(tr("To yourself"), TransactionFilterProxy::TYPE(TransactionRecord::SendToSelf));
@@ -104,7 +107,7 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
 
     addressWidget = new QLineEdit(this);
 #if QT_VERSION >= 0x040700
-    addressWidget->setPlaceholderText(tr("Enter address or label to search"));
+    addressWidget->setPlaceholderText(tr("Enter address, alias, or label to search"));
 #endif
     hlayout->addWidget(addressWidget);
 
@@ -172,18 +175,21 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
     abandonAction = new QAction(tr("Abandon transaction"), this);
     bumpFeeAction = new QAction(tr("Increase transaction fee"), this);
     bumpFeeAction->setObjectName("bumpFeeAction");
-    QAction *copyAddressAction = new QAction(tr("Copy address"), this);
+    QAction *copyFromAction = new QAction(tr("Copy from"), this);
+    QAction *copyToAction = new QAction(tr("Copy to"), this);
     QAction *copyLabelAction = new QAction(tr("Copy label"), this);
     QAction *copyAmountAction = new QAction(tr("Copy amount"), this);
     QAction *copyTxIDAction = new QAction(tr("Copy transaction ID"), this);
     QAction *copyTxHexAction = new QAction(tr("Copy raw transaction"), this);
     QAction *copyTxPlainText = new QAction(tr("Copy full transaction details"), this);
-    QAction *editLabelAction = new QAction(tr("Edit label"), this);
+    editFromLabelAction = new QAction(tr("Edit from address"), this);
+    QAction *editToLabelAction = new QAction(tr("Edit to address"), this);
     QAction *showDetailsAction = new QAction(tr("Show transaction details"), this);
 
     contextMenu = new QMenu(this);
     contextMenu->setObjectName("contextMenu");
-    contextMenu->addAction(copyAddressAction);
+    contextMenu->addAction(copyFromAction);
+    contextMenu->addAction(copyToAction);
     contextMenu->addAction(copyLabelAction);
     contextMenu->addAction(copyAmountAction);
     contextMenu->addAction(copyTxIDAction);
@@ -193,7 +199,8 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
     contextMenu->addSeparator();
     contextMenu->addAction(bumpFeeAction);
     contextMenu->addAction(abandonAction);
-    contextMenu->addAction(editLabelAction);
+    contextMenu->addAction(editFromLabelAction);
+    contextMenu->addAction(editToLabelAction);
 
     mapperThirdPartyTxUrls = new QSignalMapper(this);
 
@@ -211,13 +218,15 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
 
     connect(bumpFeeAction, SIGNAL(triggered()), this, SLOT(bumpFee()));
     connect(abandonAction, SIGNAL(triggered()), this, SLOT(abandonTx()));
-    connect(copyAddressAction, SIGNAL(triggered()), this, SLOT(copyAddress()));
+    connect(copyFromAction, SIGNAL(triggered()), this, SLOT(copyFrom()));
+    connect(copyToAction, SIGNAL(triggered()), this, SLOT(copyTo()));
     connect(copyLabelAction, SIGNAL(triggered()), this, SLOT(copyLabel()));
     connect(copyAmountAction, SIGNAL(triggered()), this, SLOT(copyAmount()));
     connect(copyTxIDAction, SIGNAL(triggered()), this, SLOT(copyTxID()));
     connect(copyTxHexAction, SIGNAL(triggered()), this, SLOT(copyTxHex()));
     connect(copyTxPlainText, SIGNAL(triggered()), this, SLOT(copyTxPlainText()));
-    connect(editLabelAction, SIGNAL(triggered()), this, SLOT(editLabel()));
+    connect(editFromLabelAction, SIGNAL(triggered()), this, SLOT(editFromLabel()));
+    connect(editToLabelAction, SIGNAL(triggered()), this, SLOT(editToLabel()));
     connect(showDetailsAction, SIGNAL(triggered()), this, SLOT(showDetails()));
 }
 
@@ -346,7 +355,7 @@ void TransactionView::changedPrefix(const QString &prefix)
 {
     if(!transactionProxyModel)
         return;
-    transactionProxyModel->setAddressPrefix(prefix);
+    transactionProxyModel->setPrefix(prefix);
 }
 
 void TransactionView::changedAmount(const QString &amount)
@@ -388,7 +397,8 @@ void TransactionView::exportClicked()
     writer.addColumn(tr("Date"), 0, TransactionTableModel::DateRole);
     writer.addColumn(tr("Type"), TransactionTableModel::Type, Qt::EditRole);
     writer.addColumn(tr("Label"), 0, TransactionTableModel::LabelRole);
-    writer.addColumn(tr("Address"), 0, TransactionTableModel::AddressRole);
+    writer.addColumn(tr("From"), 0, TransactionTableModel::FromRole);
+    writer.addColumn(tr("To"), 0, TransactionTableModel::ToRole);
     writer.addColumn(MeritUnits::getAmountColumnTitle(model->getOptionsModel()->getDisplayUnit()), 0, TransactionTableModel::FormattedAmountRole);
     writer.addColumn(tr("ID"), 0, TransactionTableModel::TxIDRole);
 
@@ -409,11 +419,14 @@ void TransactionView::contextualMenu(const QPoint &point)
     if (selection.empty())
         return;
 
+    QString from = selection.at(0).data(TransactionTableModel::FromRole).toString();
+
     // check if transaction can be abandoned, disable context menu action in case it doesn't
     uint256 hash;
     hash.SetHex(selection.at(0).data(TransactionTableModel::TxHashRole).toString().toStdString());
     abandonAction->setEnabled(model->transactionCanBeAbandoned(hash));
     bumpFeeAction->setEnabled(model->transactionCanBeBumped(hash));
+    editFromLabelAction->setEnabled(!from.isEmpty());
 
     if(index.isValid())
     {
@@ -457,9 +470,14 @@ void TransactionView::bumpFee()
     }
 }
 
-void TransactionView::copyAddress()
+void TransactionView::copyFrom()
 {
-    GUIUtil::copyEntryData(transactionView, 0, TransactionTableModel::AddressRole);
+    GUIUtil::copyEntryData(transactionView, 0, TransactionTableModel::FromRole);
+}
+
+void TransactionView::copyTo()
+{
+    GUIUtil::copyEntryData(transactionView, 0, TransactionTableModel::ToRole);
 }
 
 void TransactionView::copyLabel()
@@ -486,49 +504,74 @@ void TransactionView::copyTxPlainText()
 {
     GUIUtil::copyEntryData(transactionView, 0, TransactionTableModel::TxPlainTextRole);
 }
-
-void TransactionView::editLabel()
+void TransactionView::editFromLabel()
 {
     if(!transactionView->selectionModel() ||!model)
         return;
-    QModelIndexList selection = transactionView->selectionModel()->selectedRows();
-    if(!selection.isEmpty())
-    {
-        AddressTableModel *addressBook = model->getAddressTableModel();
-        if(!addressBook)
-            return;
-        QString address = selection.at(0).data(TransactionTableModel::AddressRole).toString();
-        if(address.isEmpty())
-        {
-            // If this transaction has no associated address, exit
-            return;
-        }
-        // Is address in address book? Address book can miss address when a transaction is
-        // sent from outside the UI.
-        int idx = addressBook->lookupAddress(address);
-        if(idx != -1)
-        {
-            // Edit sending / receiving address
-            QModelIndex modelIdx = addressBook->index(idx, 0, QModelIndex());
-            // Determine type of address, launch appropriate editor dialog type
-            QString type = modelIdx.data(AddressTableModel::TypeRole).toString();
 
-            EditAddressDialog dlg(
+    QModelIndexList selection = transactionView->selectionModel()->selectedRows();
+
+    if(selection.isEmpty()) {
+        return;
+    }
+
+    QString from = selection.at(0).data(TransactionTableModel::FromRole).toString();
+    if(from.isEmpty()) {
+        return;
+    }
+    editLabel(from);
+}
+
+void TransactionView::editToLabel()
+{
+    if(!transactionView->selectionModel() ||!model)
+        return;
+
+    QModelIndexList selection = transactionView->selectionModel()->selectedRows();
+
+    if(selection.isEmpty()) {
+        return;
+    }
+
+    QString to = selection.at(0).data(TransactionTableModel::ToRole).toString();
+    if(to.isEmpty()) {
+        return;
+    }
+    editLabel(to);
+}
+
+void TransactionView::editLabel(const QString& address)
+{
+    AddressTableModel *addressBook = model->getAddressTableModel();
+    if(!addressBook) {
+        return;
+    }
+
+    // Is address in address book? Address book can miss address when a transaction is
+    // sent from outside the UI.
+    int idx = addressBook->lookupAddress(address);
+    if(idx != -1)
+    {
+        // Edit sending / receiving address
+        QModelIndex modelIdx = addressBook->index(idx, 0, QModelIndex());
+        // Determine type of address, launch appropriate editor dialog type
+        QString type = modelIdx.data(AddressTableModel::TypeRole).toString();
+
+        EditAddressDialog dlg(
                 type == AddressTableModel::Receive
                 ? EditAddressDialog::EditReceivingAddress
                 : EditAddressDialog::EditSendingAddress, this, model);
-            dlg.setModel(addressBook);
-            dlg.loadRow(idx);
-            dlg.exec();
-        }
-        else
-        {
-            // Add sending address
-            EditAddressDialog dlg(EditAddressDialog::NewSendingAddress, this, model);
-            dlg.setModel(addressBook);
-            dlg.setAddress(address);
-            dlg.exec();
-        }
+        dlg.setModel(addressBook);
+        dlg.loadRow(idx);
+        dlg.exec();
+    }
+    else
+    {
+        // Add sending address
+        EditAddressDialog dlg(EditAddressDialog::NewSendingAddress, this, model);
+        dlg.setModel(addressBook);
+        dlg.setAddress(address);
+        dlg.exec();
     }
 }
 
@@ -614,7 +657,7 @@ void TransactionView::focusTransaction(const QModelIndex &idx)
 void TransactionView::resizeEvent(QResizeEvent* event)
 {
     QWidget::resizeEvent(event);
-    columnResizingFixer->stretchColumnWidth(TransactionTableModel::ToAddress);
+    columnResizingFixer->stretchColumnWidth(TransactionTableModel::Address);
 }
 
 // Need to override default Ctrl+C action for amount as default behaviour is just to copy DisplayRole text

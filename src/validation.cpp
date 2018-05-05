@@ -21,6 +21,7 @@
 #include "init.h"
 #include "pog/reward.h"
 #include "pog/select.h"
+#include "pog/invitebuffer.h"
 #include "policy/fees.h"
 #include "policy/policy.h"
 #include "policy/rbf.h"
@@ -76,6 +77,7 @@ CCriticalSection cs_main;
 
 BlockMap mapBlockIndex;
 CChain chainActive;
+pog::InviteBuffer inviteBuffer{chainActive};
 CBlockIndex *pindexBestHeader = nullptr;
 CWaitableCriticalSection csBestBlock;
 CConditionVariable cvBlockChange;
@@ -741,19 +743,13 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
 
     referral::RefMemPoolEntry entry(*referral, nAcceptTime, chainActive.Height());
 
-    const uint256 hash = referral->GetHash();
+    const auto hash = referral->GetHash();
 
     {
         LOCK(pool.cs);
 
-        // is it already in the chain?
-        if (prefviewcache->Exists(hash)) {
-            return state.Invalid(false, REJECT_DUPLICATE, "ref-already-beaconed");
-        }
-
-        // is it already in the memory pool?
-        if (pool.Exists(hash)) {
-            return state.Invalid(false, REJECT_DUPLICATE, "ref-already-in-mempool");
+        if (CheckAddressBeaconed(referral->GetAddress())) {
+            return state.Invalid(false, REJECT_DUPLICATE, "ref-address-beaconed");
         }
 
         // check if referral alias is already occupied
@@ -773,7 +769,7 @@ bool AcceptReferralToMemoryPoolWithTime(referral::ReferralTxMemPool& pool,
             return state.Invalid(false, REJECT_INVALID, "ref-bad-sig");
         }
 
-        pool.AddUnchecked(referral->GetHash(), entry);
+        pool.AddUnchecked(hash, entry);
     }
 
     // trim mempool and check if referral was trimmed
@@ -1070,6 +1066,11 @@ static bool AcceptToMemoryPoolWorker(
                     auto it = mempoolReferral.Find(referral->alias);
                     while (it.first != it.second) {
                         const auto duplicate_referral = it.first->GetSharedEntryValue();
+                        it.first++;
+
+                        if (referral->GetHash() == duplicate_referral->GetHash()) {
+                            continue;
+                        }
 
                         std::vector<AddressPair> addresses{{duplicate_referral->GetAddress(), duplicate_referral->addressType}};
                         std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
@@ -1085,8 +1086,6 @@ static bool AcceptToMemoryPoolWorker(
                                 return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
                             }
                         }
-
-                        it.first++;
                     }
                 }
             }
@@ -1586,8 +1585,6 @@ bool GetTransaction(
 {
     CBlockIndex *pindexSlow = nullptr;
 
-    LOCK(cs_main);
-
     CTransactionRef ptx = mempool.get(hash);
     if (ptx)
     {
@@ -1596,7 +1593,14 @@ bool GetTransaction(
     }
 
     CDiskTxPos postx;
-    if (pblocktree->ReadTxIndex(hash, postx)) {
+
+    bool found = false;
+    {
+        LOCK(cs_main);
+        found = pblocktree->ReadTxIndex(hash, postx);
+    }
+
+    if (found) {
         CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
         if (file.IsNull())
             return error("%s: OpenBlockFile failed", __func__);
@@ -1616,6 +1620,7 @@ bool GetTransaction(
     }
 
     if (fAllowSlow) { // use coin database to locate block that contains transaction, and scan it
+        LOCK(cs_main);
         const Coin& coin = AccessByTxid(*pcoinsTip, hash);
         //if (!coin.IsSpent()) pindexSlow = chainActive[coin.nHeight];
         pindexSlow = chainActive[coin.nHeight];
@@ -1645,8 +1650,6 @@ bool GetTransaction(
 /** Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock */
 bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock)
 {
-    LOCK(cs_main);
-
     referral::ReferralRef mempoolref = mempoolReferral.Get(hash);
     if (mempoolref) {
         refOut = mempoolref;
@@ -1654,7 +1657,13 @@ bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &ha
     }
 
     CDiskTxPos posref;
-    if (pblocktree->ReadReferralIndex(hash, posref)) {
+    bool found = false;
+    {
+        LOCK(cs_main);
+        found = pblocktree->ReadReferralIndex(hash, posref);
+    }
+
+    if (found) {
         CAutoFile file(OpenBlockFile(posref, true), SER_DISK, CLIENT_VERSION);
         if (file.IsNull())
             return error("%s: OpenBlockFile failed", __func__);
@@ -1852,39 +1861,134 @@ pog::AmbassadorLottery RewardAmbassadors(
     return rewards;
 }
 
-bool UpdateInviteLotteryParams(
-        const CBlock& block,
+bool OldComputeInviteLotteryParams(
+        CBlockIndex* pindexPrev,
         CCoinsViewCache& view,
-        pog::InviteLotteryParams& lottery_params,
-        const Consensus::Params& params)
+        const Consensus::Params& params,
+        CValidationState& state,
+        pog::InviteLotteryParams& lottery_params)
 {
-    for (const auto& invite : block.invites) {
-        if (!invite->IsCoinBase()) {
-            for (const auto& in : invite->vin) {
-                CTransactionRef prev;
-                uint256 block_inv_is_in;
+    auto total_blocks = params.daedalus_block_window;
+    assert(total_blocks > 0);
 
-                if (!GetTransaction(
-                            in.prevout.hash,
-                            prev,
-                            params,
-                            block_inv_is_in,
-                            true)) {
-                    return false;
-                }
+    auto stats = inviteBuffer.get(pindexPrev->nHeight, params);
+    if (!stats.is_set) { 
+        return AbortNode(state, "Failed to get invite stats");
+    }
 
-                assert(prev);
-                if (!prev->IsCoinBase()) {
-                    continue;
-                }
-                lottery_params.invites_used += prev->vout.at(in.prevout.n).nValue;
-            }
-        } else {
-            for (const auto& out : invite->vout) {
-                lottery_params.invites_created += out.nValue;
-            }
+    if (stats.mean_set) {
+        lottery_params.invites_used = stats.mean_stats.invites_used;
+        lottery_params.invites_created = stats.mean_stats.invites_created;
+        lottery_params.blocks = stats.mean_stats.blocks;
+        lottery_params.mean_used = stats.mean_stats.mean_used;
+        return true;
+    } 
+
+    const auto prevHeight = pindexPrev->nHeight;
+    while (total_blocks-- && pindexPrev) {
+
+        stats = inviteBuffer.get(pindexPrev->nHeight, params);
+        if (!stats.is_set) { 
+            return AbortNode(state, "Failed to get invite stats");
+        }
+
+
+        lottery_params.invites_created += stats.invites_created;
+        lottery_params.invites_used += stats.invites_used;
+        lottery_params.blocks++;
+
+        pindexPrev = pindexPrev->pprev;
+    }
+
+    lottery_params.mean_used = pog::ComputeUsedInviteMean(lottery_params);
+
+    pog::MeanStats mean_stats {
+        lottery_params.invites_created,
+            lottery_params.invites_used,
+            lottery_params.blocks,
+            lottery_params.mean_used
+    };
+
+    inviteBuffer.set_mean(prevHeight, mean_stats, params);
+
+    return true;
+}
+
+bool ImpComputeInviteLotteryParams(
+        CBlockIndex* pindexPrev,
+        CCoinsViewCache& view,
+        const Consensus::Params& params,
+        CValidationState& state,
+        pog::InviteLotteryParams& lottery_params)
+{
+    assert(!params.imp_weights.empty());
+
+    auto total_blocks = params.imp_block_window;
+    assert(total_blocks > 0);
+
+    size_t period_length = params.imp_block_window / params.imp_weights.size();
+
+    pog::InviteLotteryParamsVec period_vec;
+    period_vec.resize(params.imp_weights.size());
+    size_t period = 0;
+
+    auto stats = inviteBuffer.get(pindexPrev->nHeight, params);
+    if (!stats.is_set) { 
+        return AbortNode(state, "Failed to get invite stats");
+    }
+
+    if (stats.mean_set) {
+        lottery_params.invites_used = stats.mean_stats.invites_used;
+        lottery_params.invites_created = stats.mean_stats.invites_created;
+        lottery_params.blocks = stats.mean_stats.blocks;
+        lottery_params.mean_used = stats.mean_stats.mean_used;
+        return true;
+    } 
+
+    const auto prevHeight = pindexPrev->nHeight;
+    while (total_blocks-- && pindexPrev) {
+        assert(period < period_vec.size());
+
+        auto stats = inviteBuffer.get(pindexPrev->nHeight, params);
+        if (!stats.is_set) { 
+            return AbortNode(state, "Failed to get invite stats");
+        }
+
+        auto& period_params = period_vec[period];
+
+        period_params.invites_created += stats.invites_created;
+        period_params.invites_used += stats.invites_used;
+
+        pindexPrev = pindexPrev->pprev;
+
+        if (total_blocks % period_length == 0) { 
+            period++;
         }
     }
+
+    assert(period == period_vec.size());
+    assert(period_vec.size() == params.imp_weights.size());
+
+    for(size_t i = 0; i < params.imp_weights.size(); i++) {
+        const auto& p = period_vec[i];
+        const auto& w = params.imp_weights[i];
+        lottery_params.invites_created += p.invites_created;
+        lottery_params.invites_used += w*p.invites_used;
+    }
+
+    lottery_params.invites_created /= params.imp_weights.size();
+    lottery_params.invites_used /= 100;
+    lottery_params.blocks=period_length;
+    lottery_params.mean_used = pog::ComputeUsedInviteMean(lottery_params);
+
+    pog::MeanStats mean_stats {
+        lottery_params.invites_created,
+            lottery_params.invites_used,
+            lottery_params.blocks,
+            lottery_params.mean_used
+    };
+
+    inviteBuffer.set_mean(prevHeight, mean_stats, params);
 
     return true;
 }
@@ -1895,26 +1999,39 @@ bool ComputeInviteLotteryParams(
         CCoinsViewCache& view,
         const Consensus::Params& params,
         CValidationState& state,
-        pog::InviteLotteryParams& lottery_params)
+        pog::InviteLotteryParamsVec& lottery_params)
 {
-    auto total_blocks = params.daedalus_block_window;
-    assert(total_blocks > 0);
-
-    while (total_blocks-- && pindexPrev) {
-
-        CBlock block;
-        if (!ReadBlockFromDisk(block, pindexPrev, params, false)) {
-            return AbortNode(state, "Failed to read block");
+    if (height >= params.imp_invites_blockheight) { 
+        lottery_params.resize(2);
+        if (!ImpComputeInviteLotteryParams(
+                pindexPrev,
+                view,
+                params,
+                state,
+                lottery_params[0])) {
+            return false;
         }
 
-        if (!UpdateInviteLotteryParams(block, view, lottery_params, params)) {
-            return AbortNode(state,"Failed to update invite lottery params");
+        if (pindexPrev && pindexPrev->pprev) {
+            if (!ImpComputeInviteLotteryParams(
+                        pindexPrev->pprev,
+                        view,
+                        params,
+                        state,
+                        lottery_params[1])) {
+                return false;
+            }
         }
-
-        pindexPrev = pindexPrev->pprev;
+        return true;
     }
 
-    return true;
+    lottery_params.resize(1);
+    return OldComputeInviteLotteryParams(
+            pindexPrev,
+            view,
+            params,
+            state,
+            lottery_params[0]);
 }
 
 bool RewardInvites(
@@ -1930,7 +2047,7 @@ bool RewardInvites(
     assert(height >= 0);
     assert(prefviewdb != nullptr);
 
-    pog::InviteLotteryParams lottery_params;
+    pog::InviteLotteryParamsVec lottery_params;
     if (!ComputeInviteLotteryParams(
                 height,
                 pindexPrev,
@@ -1944,7 +2061,7 @@ bool RewardInvites(
     const auto total_winners =
         pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
 
-    if (total_winners == 0 ) {
+    if (total_winners == 0) {
         return true;
     }
 
@@ -1985,7 +2102,6 @@ bool RewardInvites(
     assert(winners.size() <= static_cast<size_t>(total_winners));
 
     rewards = pog::RewardInvites(winners);
-
     return true;
 }
 
@@ -2114,17 +2230,26 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
             RewardComp());
 }
 
-bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, const CTransaction& coinbase) {
-    if(!coinbase.IsCoinBase()) {
+bool AreExpectedInvitesRewarded(
+        int height,
+        const bool miner_reward_block,
+        const pog::InviteRewards& expected_invites,
+        const CTransaction& coinbase,
+        const Consensus::Params& params) {
+
+    assert(params.imp_min_one_invite_for_every_x_blocks > 0);
+
+    if (!coinbase.IsCoinBase()) {
         return false;
     }
 
-    if(!coinbase.IsInvite()) {
+    const int miner_reward = miner_reward_block ? 1 : 0;
+
+    if (coinbase.vout.size() != expected_invites.size() + miner_reward) {
         return false;
     }
 
-    //quick test before doing more expensive validation
-    if (coinbase.vout.size() != expected_invites.size()) {
+    if (!coinbase.IsInvite()) {
         return false;
     }
 
@@ -2134,7 +2259,7 @@ bool AreExpectedInvitesRewarded(const pog::InviteRewards& expected_invites, cons
                 return accum + inv.invites;
             });
 
-    if(coinbase.GetValueOut() != expected_invite_reward) {
+    if (coinbase.GetValueOut() != expected_invite_reward + miner_reward) {
         return false;
     }
 
@@ -2667,7 +2792,7 @@ bool GetDebitsAndCredits(DebitsAndCredits& debits_and_credits, const CTransactio
     //          D 0
     //          C 1
     //Which is not the original state.
-    if(undo) {
+    if (undo) {
         debits_and_credits.insert(debits_and_credits.end(), stage.rbegin(), stage.rend());
     } else {
         debits_and_credits.insert(debits_and_credits.end(), stage.begin(), stage.end());
@@ -2799,31 +2924,76 @@ bool UndoLotteryEntrants(const CBlockUndo& undo, const size_t max_reservoir_size
 
 void UnIndexTransactions(
         const CBlockIndex *pindex,
+        CCoinsViewCache& view,
         const std::vector<CTransactionRef>& vtx,
         KeyActivity& addressIndex,
-        AddressUnspentIndex& addressUnspentIndex)
+        AddressUnspentIndex& addressUnspentIndex,
+        SpentIndex& spentIndex)
 {
-    return;
     for (int i = vtx.size() - 1; i >= 0; i--) {
         auto tx = vtx[i];
-        auto hash = tx->GetHash();
+        auto txhash = tx->GetHash();
+
+        if (!tx->IsCoinBase()) {
+            for (unsigned int k = tx->vin.size(); k-- > 0;) {
+                const auto& input = tx->vin[k];
+                const auto& coin = view.AccessCoin(input.prevout);
+                const auto& prevout = coin.out;
+
+                const auto address = ExtractAddress(prevout);
+                const auto& hashBytes = address.first;
+                const unsigned int addressType = address.second;
+
+                if (addressType == 0) {
+                    continue;
+                }
+
+                // undo receiving activity
+                addressIndex.push_back(
+                        std::make_pair(
+                            CAddressIndexKey{
+                            addressType,
+                            hashBytes,
+                            pindex->nHeight,
+                            i,
+                            txhash,
+                            k,
+                            true,
+                            tx->IsInvite()},
+                            prevout.nValue * -1));
+
+                // undo unspent output
+                addressUnspentIndex.push_back(
+                        std::make_pair(
+                            CAddressUnspentKey{
+                                addressType,
+                                hashBytes,
+                                input.prevout.hash,
+                                input.prevout.n,
+                                coin.IsCoinBase(),
+                                coin.IsInvite()
+                            },
+                            CAddressUnspentValue{
+                                prevout.nValue,
+                                prevout.scriptPubKey,
+                                static_cast<int>(coin.nHeight)}));
+
+                //undo spent index
+                spentIndex.push_back(
+                        std::make_pair(
+                            CSpentIndexKey{input.prevout.hash, input.prevout.n},
+                            CSpentIndexValue{}));
+            }
+        }
 
         for (unsigned int k = tx->vout.size(); k-- > 0;) {
             const CTxOut &out = tx->vout[k];
 
-            unsigned int type = 0;
-            std::vector<unsigned char> hashBytes(20);
+            const auto address = ExtractAddress(out);
+            const auto& hashBytes = address.first;
+            const unsigned int addressType = address.second;
 
-            if (out.scriptPubKey.IsPayToScriptHash()) {
-                type = 2;
-                hashBytes.assign(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
-            }else if (out.scriptPubKey.IsParameterizedPayToScriptHash()) {
-                type = 3;
-                hashBytes.assign(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
-            } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
-                type = 1;
-                hashBytes.assign(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
-            } else {
+            if (addressType == 0) {
                 continue;
             }
 
@@ -2831,11 +3001,11 @@ void UnIndexTransactions(
             addressIndex.push_back(
                     std::make_pair(
                         CAddressIndexKey{
-                            type,
+                            addressType,
                             uint160(hashBytes),
                             pindex->nHeight,
                             i,
-                            hash,
+                            txhash,
                             k,
                             false,
                             tx->IsInvite()},
@@ -2845,9 +3015,9 @@ void UnIndexTransactions(
             addressUnspentIndex.push_back(
                     std::make_pair(
                         CAddressUnspentKey(
-                            type,
+                            addressType,
                             uint160(hashBytes),
-                            hash,
+                            txhash,
                             k,
                             tx->IsCoinBase(),
                             tx->IsInvite()),
@@ -2890,7 +3060,7 @@ bool DisconnectInputs(
     for (unsigned int j = vin.size(); j-- > 0;) {
         const COutPoint &out = vin[j].prevout;
         int res = ApplyTxInUndo(std::move(txundo.vprevout[j]), view, out);
-        if (res == DISCONNECT_FAILED) return DISCONNECT_FAILED;
+        if (res == DISCONNECT_FAILED) return false;
         clean &= res != DISCONNECT_UNCLEAN;
     }
     return clean;
@@ -2967,6 +3137,8 @@ static DisconnectResult DisconnectBlock(
         return DISCONNECT_FAILED;
     }
 
+    inviteBuffer.drop(pindex->nHeight, consensus_params);
+
     KeyActivity addressIndex;
     AddressUnspentIndex addressUnspentIndex;
     SpentIndex spentIndex;
@@ -3007,16 +3179,27 @@ static DisconnectResult DisconnectBlock(
         }
     }
 
-    UnIndexTransactions(pindex, block.vtx, addressIndex, addressUnspentIndex);
+    UnIndexTransactions(
+            pindex,
+            view,
+            block.vtx,
+            addressIndex,
+            addressUnspentIndex,
+            spentIndex);
 
     if (block.IsDaedalus()) {
-        UnIndexTransactions(pindex, block.invites, addressIndex, addressUnspentIndex);
+        UnIndexTransactions(
+                pindex,
+                view,
+                block.invites,
+                addressIndex,
+                addressUnspentIndex,
+                spentIndex);
     }
 
-    fClean &= pblocktree->WriteAddressIndex(addressIndex);
+    fClean &= pblocktree->EraseAddressIndex(addressIndex);
     fClean &= pblocktree->UpdateAddressUnspentIndex(addressUnspentIndex);
-
-
+    fClean &= pblocktree->UpdateSpentIndex(spentIndex);
 
     if (block.IsDaedalus()) {
         if (!UpdateConfirmations(block, invite_debits_and_credits)) {
@@ -3306,7 +3489,7 @@ bool ValidateContextualDaedalusBlock(
     if (!ExpectDaedalus(pindexPrev, params)) {
         // During the Daedalus deployment, no other block types will be accepted.
         // This is unique to the daedalus deployment.
-        if(block.IsDaedalus()) {
+        if (block.IsDaedalus()) {
             return state.DoS(100,
                     false,
                     REJECT_INVALID,
@@ -3370,6 +3553,13 @@ static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 static int64_t nBlocksTotal = 0;
 
+bool BlockHasMinerInviteReward(int height, const uint256& previous_block_hash, const Consensus::Params& params) {
+    const bool improved_lottery_on = height >= params.imp_invites_blockheight;
+    return
+        improved_lottery_on &&
+        (SipHashUint256(0, 0, previous_block_hash) % params.imp_miner_reward_for_every_x_blocks == 0);
+}
+
 bool UpdateAndIndexReferralOffset(const CBlock& block, const CDiskBlockPos& cur_block_pos, unsigned int pos_offset)
 {
     // Update offsets for referrals so they can be recorded.
@@ -3401,40 +3591,43 @@ void IndexTransaction(
     if (!tx.IsCoinBase()) {
         for (unsigned int j = 0; j < static_cast<unsigned int>(tx.vin.size()); j++) {
 
-            const CTxIn input = tx.vin[j];
-            const CTxOut &prevout = view.AccessCoin(input.prevout).out;
+            const auto& input = tx.vin[j];
+            const auto &coin = view.AccessCoin(input.prevout);
+            const auto &prevout = coin.out;
 
             const auto address = ExtractAddress(prevout);
             const auto& hashBytes = address.first;
             const unsigned int addressType = address.second;
 
-            if (addressType > 0) {
-                // record spending activity
-                addressIndex.push_back(
-                        std::make_pair(
-                            CAddressIndexKey{
-                                addressType,
-                                hashBytes,
-                                pindex->nHeight,
-                                blockindex,
-                                txhash,
-                                j,
-                                true,
-                                tx.IsInvite()},
-                            prevout.nValue * -1));
-
-                // remove address from unspent index
-                addressUnspentIndex.push_back(
-                        std::make_pair(
-                            CAddressUnspentKey{
-                                addressType,
-                                hashBytes,
-                                input.prevout.hash,
-                                input.prevout.n,
-                                tx.IsCoinBase(),
-                                tx.IsInvite()},
-                            CAddressUnspentValue{}));
+            if (addressType == 0) {
+                continue;
             }
+
+            // record spending activity
+            addressIndex.push_back(
+                    std::make_pair(
+                        CAddressIndexKey{
+                        addressType,
+                        hashBytes,
+                        pindex->nHeight,
+                        blockindex,
+                        txhash,
+                        j,
+                        true,
+                        tx.IsInvite()},
+                        prevout.nValue * -1));
+
+            // remove address from unspent index
+            addressUnspentIndex.push_back(
+                    std::make_pair(
+                        CAddressUnspentKey{
+                        addressType,
+                        hashBytes,
+                        input.prevout.hash,
+                        input.prevout.n,
+                        coin.IsCoinBase(),
+                        coin.IsInvite()},
+                        CAddressUnspentValue{}));
 
             spentIndex.push_back(
                     std::make_pair(
@@ -3514,8 +3707,8 @@ static bool ConnectBlock(
     int64_t nTimeStart = GetTimeMicros();
 
     const auto checkpoint = chainparams.Checkpoints().mapCheckpoints.find(pindex->nHeight);
-    if(checkpoint != chainparams.Checkpoints().mapCheckpoints.end()) {
-        if(block.GetHash() != checkpoint->second.hash) {
+    if (checkpoint != chainparams.Checkpoints().mapCheckpoints.end()) {
+        if (block.GetHash() != checkpoint->second.hash) {
             return state.DoS(
                     50,
                     false,
@@ -3742,7 +3935,7 @@ static bool ConnectBlock(
         if (!GetDebitsAndCredits(debits_and_credits, tx, view)) {
             return state.DoS(100,
                     error("ConnectBlock(): merit was sent to addresses that are non standard"),
-                    REJECT_INVALID, "bad-cb-bad-outputs");
+                    REJECT_INVALID, "bad-tx-outputs");
         }
 
         CTxUndo undoDummy;
@@ -3774,7 +3967,7 @@ static bool ConnectBlock(
         for (int i = 0; i < static_cast<int>(block.invites.size()); i++) {
             const CTransaction &inv = *(block.invites[i]);
 
-            if(validate) {
+            if (validate) {
                 if (!Consensus::CheckTxOutputs(inv, state, *prefviewcache, block.m_vRef)) {
                     return error("ConnectBlock(): CheckTxOutputs on invite %s failed with %s",
                             inv.GetHash().ToString(), FormatStateMessage(state));
@@ -3813,7 +4006,7 @@ static bool ConnectBlock(
             if (!GetDebitsAndCredits(invite_debits_and_credits, inv, view)) {
                 return state.DoS(100,
                         error("ConnectBlock(): merit was sent to addresses that are non standard"),
-                        REJECT_INVALID, "bad-cb-bad-outputs");
+                        REJECT_INVALID, "bad-inv-outputs");
             }
 
             blockundo.invites_undo.push_back(CTxUndo());
@@ -3834,18 +4027,18 @@ static bool ConnectBlock(
     }
 
     int64_t nTime7 = GetTimeMicros();
-    if(validate) {
+    if (validate) {
         for (const auto& ref: block.m_vRef) {
             if (CheckAddressBeaconed(ref->GetAddress(), false)) {
                 return state.DoS(100,
                         error("ConnectBlock(): Referral %s is already beaconed", ref->GetHash().GetHex()),
-                        REJECT_INVALID, "bad-cb-ref-already-beaconed");
+                        REJECT_INVALID, "bad-ref-address-beaconed");
             }
 
             if (!CheckReferralSignature(*ref)) {
                 return state.DoS(100,
                         error("ConnectBlock(): referral sig check failed on %s", ref->GetHash().GetHex()),
-                        REJECT_INVALID, "bad-cb-ref-sig-failed");
+                        REJECT_INVALID, "bad-ref-sig-failed");
             }
 
             // is referral alias already occupied?
@@ -3862,7 +4055,7 @@ static bool ConnectBlock(
             return state.DoS(
                     100,
                     error("ConnectBlock(): referral is not confirmed"),
-                    REJECT_INVALID, "bad-cb-ref-not-confirmed");
+                    REJECT_INVALID, "bad-ref-not-confirmed");
         }
 
         std::set<uint256> referral_hashes{};
@@ -3951,7 +4144,15 @@ static bool ConnectBlock(
                         REJECT_INVALID, "bad-cb-no-invites");
             }
 
-            size_t coinbase_end = 0;
+            //We allow miner to claim an invite now, so we check if expected
+            //lottery winners are paid
+            const bool miner_reward_block = 
+                BlockHasMinerInviteReward(
+                        pindex->nHeight,
+                        hashPrevBlock,
+                        chainparams.GetConsensus());
+
+            size_t coinbase_end = miner_reward_block ? 1 : 0;
             if (!invite_rewards.empty()) {
                 const CTransaction& coinbase_invites = *block.invites[0];
                 coinbase_end = 1;
@@ -3962,7 +4163,13 @@ static bool ConnectBlock(
                             REJECT_INVALID, "bad-cb-invite-expected-coinbase");
                 }
 
-                if (!AreExpectedInvitesRewarded(invite_rewards, coinbase_invites)) {
+                if (!AreExpectedInvitesRewarded(
+                            pindex->nHeight,
+                            miner_reward_block,
+                            invite_rewards,
+                            coinbase_invites,
+                            chainparams.GetConsensus())) {
+
                     return state.DoS(100,
                             error("ConnectBlock(): coinbase did not reward expected invites."),
                             REJECT_INVALID, "bad-cb-bad-invites");
@@ -3974,7 +4181,7 @@ static bool ConnectBlock(
                 if (block.invites[i]->IsCoinBase()) {
                     return state.DoS(100,
                             error("ConnectBlock(): coinbase invite is unexpected"),
-                            REJECT_INVALID, "bad-cb-invite-unexpected-coinbase");
+                            REJECT_INVALID, "bad-invite-unexpected-coinbase");
                 }
             }
 
@@ -3987,7 +4194,7 @@ static bool ConnectBlock(
     if (!prefviewdb->OrderReferrals(ordered_referrals)) {
         return state.DoS(100,
                 error("ConnectBlock(): There are orphan referrals in the block"),
-                REJECT_INVALID, "bad-cb-orphan-referrals");
+                REJECT_INVALID, "bad-orphan-referrals");
     }
 
 
@@ -5319,15 +5526,20 @@ referral::ReferralRef LookupReferral(
         referral::ReferralId& referral_id,
         bool normalize_alias)
 {
-    //We don't do transpose check here because LookupReferral is used by client
-    //code retrieval not consensus.
-    auto chain_referral = prefviewdb->GetReferral(referral_id, normalize_alias);
+    auto chain_referral = prefviewcache->GetReferral(referral_id, normalize_alias);
 
     if (chain_referral) {
         return MakeReferralRef(*chain_referral);
     }
 
     return mempoolReferral.Get(referral_id);
+}
+
+std::string FindAliasForAddress(const uint160 &address)
+{
+    referral::ReferralId id = address;
+    auto ref = LookupReferral(id, true);
+    return ref ? ref->GetAlias() : "";
 }
 
 bool IsWitnessCommitment(const CTxOut& out)
@@ -5446,7 +5658,7 @@ static bool ContextualCheckBlock(
         const CBlockIndex* pindexPrev,
         bool validate)
 {
-    if(!validate) {
+    if (!validate) {
         return true;
     }
 

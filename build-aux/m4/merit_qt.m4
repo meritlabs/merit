@@ -54,7 +54,7 @@ AC_DEFUN([MERIT_QT_INIT],[
   dnl enable qt support
   AC_ARG_WITH([gui],
     [AS_HELP_STRING([--with-gui@<:@=no|qt4|qt5|auto@:>@],
-    [build merit-qt GUI (default=auto, qt5 tried first)])],
+    [build merit-qt GUI (default=no, qt5 tried first)])],
     [
      merit_qt_want_version=$withval
      if test x$merit_qt_want_version = xyes; then
@@ -62,7 +62,7 @@ AC_DEFUN([MERIT_QT_INIT],[
        merit_qt_want_version=auto
      fi
     ],
-    [merit_qt_want_version=auto])
+    [merit_qt_want_version=no])
 
   AC_ARG_WITH([qt-incdir],[AS_HELP_STRING([--with-qt-incdir=INC_DIR],[specify qt include path (overridden by pkgconfig)])], [qt_include_path=$withval], [])
   AC_ARG_WITH([qt-libdir],[AS_HELP_STRING([--with-qt-libdir=LIB_DIR],[specify qt lib path (overridden by pkgconfig)])], [qt_lib_path=$withval], [])
@@ -388,6 +388,8 @@ AC_DEFUN([_MERIT_QT_FIND_LIBS_WITH_PKGCONFIG],[
   if test x$auto_priority_version = x; then
     auto_priority_version=qt5
   fi
+  have_qt=no
+
     if test x$merit_qt_want_version = xqt5 ||  ( test x$merit_qt_want_version = xauto && test x$auto_priority_version = xqt5 ); then
       QT_LIB_PREFIX=Qt5
       merit_qt_got_major_vers=5
@@ -412,8 +414,7 @@ AC_DEFUN([_MERIT_QT_FIND_LIBS_WITH_PKGCONFIG],[
           PKG_CHECK_MODULES([QT5], [$qt5_modules], [QT_INCLUDES="$QT5_CFLAGS"; QT_LIBS="$QT5_LIBS" ; have_qt=yes; QT_LIB_PREFIX=Qt5; merit_qt_got_major_vers=5], [have_qt=no])
         fi
       fi
-      if test x$have_qt != xyes; then
-        have_qt=no
+      if test x$have_qt = xno; then
         MERIT_QT_FAIL([Qt dependencies not found])
       fi
     ])
