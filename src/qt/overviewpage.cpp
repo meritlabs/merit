@@ -102,6 +102,7 @@ public:
         {
             foreground = COLOR_NEGATIVE;
             label = QString("To ") + toString;
+            invitesNumber = -invitesNumber;
         }
         else
         {
@@ -125,7 +126,7 @@ public:
         }
 
         if (index.data(TransactionTableModel::IsInviteRole).toBool()) {
-            QString plurality = invitesNumber > 1 ? QString("s") : QString();
+            QString plurality = std::abs(invitesNumber) > 1 ? QString("s") : QString();
             amountText += QString::number(invitesNumber) + QString(" Invite") + plurality;
         } else {
             amountText += MeritUnits::formatWithUnit(unit, amount, false, MeritUnits::separatorAlways);
