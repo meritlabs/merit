@@ -370,13 +370,14 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             "\nArguments:\n"
             "1. template_request         (json object, optional) A json object in the following spec\n"
             "     {\n"
-            "       \"mode\":\"template\"    (string, optional) This must be set to \"template\", \"proposal\" (see BIP 23), or omitted\n"
-            "       \"capabilities\":[     (array, optional) A list of strings\n"
-            "           \"support\"          (string) client side supported feature, 'longpoll', 'coinbasetxn', 'coinbasevalue', 'proposal', 'serverlist', 'workid'\n"
+            "       \"mode\":\"template\"   (string, optional) This must be set to \"template\", \"proposal\" (see BIP 23), or omitted\n"
+            "       \"address\":\"xyz\"     (string, optional) Address to pay coinbase to. Defaults to the genesis address.\n"
+            "       \"capabilities\":[      (array, optional) A list of strings\n"
+            "           \"support\"         (string) client side supported feature, 'longpoll', 'coinbasetxn', 'coinbasevalue', 'proposal', 'serverlist', 'workid'\n"
             "           ,...\n"
             "       ],\n"
-            "       \"rules\":[            (array, optional) A list of strings\n"
-            "           \"support\"          (string) client side supported softfork deployment\n"
+            "       \"rules\":[             (array, optional) A list of strings\n"
+            "           \"support\"         (string) client side supported softfork deployment\n"
             "           ,...\n"
             "       ]\n"
             "     }\n"
@@ -439,10 +440,18 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     std::string strMode = "template";
     UniValue lpval = NullUniValue;
     std::set<std::string> setClientRules;
+    CTxDestination address;
 
     if (!request.params[0].isNull()) {
 
         const UniValue& oparam = request.params[0].get_obj();
+
+        const UniValue& address_val = find_value(oparam, "address");
+
+        if(!address_val.isNull() && address_val.isStr()) {
+            address = LookupDestination(address_val.get_str());
+        }
+
         const UniValue& modeval = find_value(oparam, "mode");
         if (modeval.isStr()) {
             strMode = modeval.get_str();
@@ -561,9 +570,14 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
         nStart = GetTime();
         CBlockIndex* pindexPrevNew = chainActive.Tip();
 
-        // create dummy script that sends rewards to the genesis block.
-        // it MUST be updated on the miners side!
-        auto coinbase_script = CScript() << OP_HASH160 << ToByteVector(consensusParams.genesis_address) << OP_EQUAL;
+        CScript coinbase_script;
+        if(IsValidDestination(address)) {
+            coinbase_script = GetScriptForDestination(address);
+        } else {
+            // create dummy script that sends rewards to the genesis block.
+            // it MUST be updated on the miners side!
+            coinbase_script = GetScriptForDestination(CScriptID{consensusParams.genesis_address});
+        }
 
         // Create new block
         pblocktemplate = BlockAssembler(Params()).CreateNewBlock(coinbase_script);
