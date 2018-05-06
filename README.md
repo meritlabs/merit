@@ -15,6 +15,10 @@ Merit is a digital currency that focuses on community, simplicity, and safety. I
 
 Merit Core is a distributed peer-to-peer server that maintains a ledger using a global blockchain. For the convenience of all users, especially non-technical ones, you can also use Merit Core to mine on your machine with a couple of clicks.
 
+Download
+------------------
+
+Download the latest release from the [releases section](https://github.com/meritlabs/merit/releases).
 
 Community Resources
 ------------------
