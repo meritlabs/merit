@@ -361,8 +361,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             "It returns data needed to construct a block to work on.\n"
 
             "\nArguments:\n"
-            "1. address                 (string) Address to pay coinbase to\n"
-            "2. template_request         (json object, optional) A json object in the following spec\n"
+            "1. template_request         (json object, optional) A json object in the following spec\n"
             "     {\n"
             "       \"mode\":\"template\"   (string, optional) This must be set to \"template\", \"proposal\" (see BIP 23), or omitted\n"
             "       \"capabilities\":[      (array, optional) A list of strings\n"
@@ -374,6 +373,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             "           ,...\n"
             "       ]\n"
             "     }\n"
+            "2. address                 (string, optional) Address to pay coinbase to, used for solo mining.\n"
             "\n"
 
             "\nResult:\n"
@@ -434,22 +434,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     UniValue lpval = NullUniValue;
     std::set<std::string> setClientRules;
 
-    CTxDestination address;
-
-    if (request.params[0].isNull()) {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "The first parameter must be an alias/address.");
-    }
-
-    if (!request.params[0].isStr()) {
-        throw JSONRPCError(RPC_TYPE_ERROR, "The address must be a string.");
-    }
-
-    address = LookupDestination(request.params[0].get_str());
-    if(!IsValidDestination(address)) {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "The alias/address is invalid");
-    }
-
-    if (!request.params[1].isNull()) {
+    if (!request.params[0].isNull()) {
 
         const UniValue& oparam = request.params[0].get_obj();
         const UniValue& modeval = find_value(oparam, "mode");
@@ -499,6 +484,39 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
                 setClientRules.insert(v.get_str());
             }
         }
+    }
+
+    CTxDestination address;
+    CTxDestination default_address;
+
+#ifdef ENABLE_WALLET
+    const auto pwallet = GetWalletForJSONRPCRequest(request);
+    // check that wallet is alredy referred or has unlock transaction
+    if (!pwallet->IsReferred() && pwallet->mapWalletRTx.empty()) {
+        default_address = CScriptID{Params().GetConsensus().genesis_address};
+    } else {
+        auto root_ref = pwallet->GetRootReferral();
+        assert(root_ref);
+        default_address = CMeritAddress{root_ref->addressType, root_ref->GetAddress()}.Get();
+    }
+#else
+    default_address = CScriptID{Params().GetConsensus().genesis_address};
+#endif
+
+    if (!request.params[1].isNull()) {
+        if (!request.params[1].isStr()) {
+            throw JSONRPCError(RPC_TYPE_ERROR, "The address must be a string.");
+        }
+
+        address = LookupDestination(request.params[1].get_str());
+        if(!IsValidDestination(address)) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "The alias/address is invalid");
+        }
+    } else if (gArgs.IsArgSet("-pooladdress")) { 
+        auto address_str = gArgs.GetArg("-pooladdress", EncodeDestination(default_address));
+        address = DecodeDestination(address_str); //decode vs loopup because it's faster.
+    } else {
+        address = default_address;
     }
 
     if (strMode != "template")
