@@ -502,7 +502,7 @@ public:
 
     void addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewCache &view);
     bool getAddressIndex(std::vector<AddressPair> &addresses,
-                         std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results);
+                         std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results) const;
     bool removeAddressIndex(const uint256 txhash);
 
     void addSpentIndex(const CTxMemPoolEntry &entry, const CCoinsViewCache &view);
