@@ -12,6 +12,11 @@
 
 #include <map>
 
+namespace referral
+{
+    class ReferralsViewCache;
+}
+
 namespace pog
 {
     using InvertedAnvs = referral::AddressANVs;
@@ -35,7 +40,10 @@ namespace pog
         public:
             WalletSelector(int height, const referral::AddressANVs& anvs);
 
-            referral::AddressANVs Select(uint256 hash, size_t n) const;
+            referral::AddressANVs Select(
+                    const referral::ReferralsViewCache& referrals,
+                    uint256 hash,
+                    size_t n) const;
 
             size_t Size() const;
         private:

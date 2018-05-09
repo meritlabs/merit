@@ -7,6 +7,7 @@
 #include "clientversion.h"
 #include <algorithm>
 #include <iterator>
+#include "referrals.h"
 
 namespace pog
 {
@@ -275,7 +276,10 @@ namespace pog
      * Selecting winners from the distribution is deterministic and will return the same
      * N samples given the same input hash.
      */
-    referral::AddressANVs WalletSelector::Select(uint256 hash, size_t n) const
+    referral::AddressANVs WalletSelector::Select(
+            const referral::ReferralsViewCache& referrals,
+            uint256 hash,
+            size_t n) const
     {
         assert(n <= m_distribution.Size());
         referral::AddressANVs samples;
@@ -288,7 +292,11 @@ namespace pog
             hasher << hash << sampled.address;
             hash = hasher.GetHash();
 
-            samples.push_back(sampled);
+            if(referrals.IsConfirmed(sampled.address)) {
+                samples.push_back(sampled);
+            } else {
+                n++;
+            }
         }
 
         return samples;
