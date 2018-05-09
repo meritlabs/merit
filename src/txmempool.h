@@ -266,10 +266,10 @@ public:
         bool bi = b.IsInvite();
 
         if(ai == bi) {
-            double aFees = a.GetModFeesWithAncestors();
+            double aFees = a.IsInvite() ? 1.0 : a.GetModFeesWithAncestors();
             double aSize = a.GetSizeWithAncestors();
 
-            double bFees = b.GetModFeesWithAncestors();
+            double bFees = b.IsInvite() ? 1.0 : b.GetModFeesWithAncestors();
             double bSize = b.GetSizeWithAncestors();
 
             // Avoid division by rewriting (a/b > c/d) as (a*d > c*b).
@@ -286,6 +286,7 @@ public:
         return ai > bi;
     }
 };
+
 
 // Multi_index tag names
 struct descendant_score {};
@@ -501,7 +502,7 @@ public:
 
     void addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewCache &view);
     bool getAddressIndex(std::vector<AddressPair> &addresses,
-                         std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results);
+                         std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results) const;
     bool removeAddressIndex(const uint256 txhash);
 
     void addSpentIndex(const CTxMemPoolEntry &entry, const CCoinsViewCache &view);

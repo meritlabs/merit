@@ -254,7 +254,10 @@ void CTxMemPool::CalculateReferralsConfirmations(
         addresses.push_back({referral->GetAddress(), referral->addressType});
     }
 
-    mempool.getAddressIndex(addresses, indexes);
+    getAddressIndex(addresses, indexes);
+
+    uint64_t nNoLimit = std::numeric_limits<uint64_t>::max();
+    std::string dummy;
 
     for (const auto& index: indexes) {
         auto it = mapTx.find(index.first.txhash);
@@ -262,12 +265,22 @@ void CTxMemPool::CalculateReferralsConfirmations(
 
         auto tx = it->GetSharedEntryValue();
         if (tx->IsInvite()) {
-            debug("Found confirmation in mempool: %s, %s",
+            debug("Found confirmation in mempool: %s, %s\n",
                     tx->GetHash().GetHex(),
                     CMeritAddress{
                         static_cast<char>(index.first.type),
                         index.first.addressBytes}.ToString());
             confirmations.insert(it);
+
+            CalculateMemPoolAncestors(
+                    *it,
+                    confirmations,
+                    nNoLimit,
+                    nNoLimit,
+                    nNoLimit,
+                    nNoLimit,
+                    dummy,
+                    false);
         }
     }
 }
@@ -529,11 +542,11 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
 }
 
 bool CTxMemPool::getAddressIndex(std::vector<AddressPair> &addresses,
-                                 std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results)
+                                 std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results) const
 {
     LOCK(cs);
     for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
-        addressDeltaMap::iterator ait = mapAddress.lower_bound(CMempoolAddressDeltaKey((*it).second, (*it).first));
+        addressDeltaMap::const_iterator ait = mapAddress.lower_bound(CMempoolAddressDeltaKey((*it).second, (*it).first));
         while (ait != mapAddress.end() && (*ait).first.addressBytes == (*it).first && (*ait).first.type == (*it).second) {
             results.push_back(*ait);
             ait++;
