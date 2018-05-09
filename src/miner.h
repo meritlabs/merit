@@ -91,8 +91,9 @@ struct CompareModifiedEntry {
         bool bi = b.iter->GetSharedEntryValue()->IsInvite();
 
         if(ai == bi) {
-            double f1 = (double)a.nModFeesWithAncestors * b.nSizeWithAncestors;
-            double f2 = (double)b.nModFeesWithAncestors * a.nSizeWithAncestors;
+            double f1 = (ai ? 1.0 : static_cast<double>(a.nModFeesWithAncestors)) * b.nSizeWithAncestors;
+            double f2 = (bi ? 1.0 : static_cast<double>(b.nModFeesWithAncestors)) * a.nSizeWithAncestors;
+
             if (f1 == f2) {
                 return CompareIteratorByHash<CTxMemPool::txiter>()(a.iter, b.iter);
             }

@@ -262,12 +262,24 @@ void CTxMemPool::CalculateReferralsConfirmations(
 
         auto tx = it->GetSharedEntryValue();
         if (tx->IsInvite()) {
-            debug("Found confirmation in mempool: %s, %s",
+            debug("Found confirmation in mempool: %s, %s\n",
                     tx->GetHash().GetHex(),
                     CMeritAddress{
                         static_cast<char>(index.first.type),
                         index.first.addressBytes}.ToString());
             confirmations.insert(it);
+            uint64_t nNoLimit = std::numeric_limits<uint64_t>::max();
+            std::string dummy;
+
+            mempool.CalculateMemPoolAncestors(
+                    *it,
+                    confirmations,
+                    nNoLimit,
+                    nNoLimit,
+                    nNoLimit,
+                    nNoLimit,
+                    dummy,
+                    false);
         }
     }
 }
