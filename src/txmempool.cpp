@@ -256,6 +256,9 @@ void CTxMemPool::CalculateReferralsConfirmations(
 
     getAddressIndex(addresses, indexes);
 
+    uint64_t nNoLimit = std::numeric_limits<uint64_t>::max();
+    std::string dummy;
+
     for (const auto& index: indexes) {
         auto it = mapTx.find(index.first.txhash);
         assert(it != mapTx.end());
@@ -268,8 +271,6 @@ void CTxMemPool::CalculateReferralsConfirmations(
                         static_cast<char>(index.first.type),
                         index.first.addressBytes}.ToString());
             confirmations.insert(it);
-            uint64_t nNoLimit = std::numeric_limits<uint64_t>::max();
-            std::string dummy;
 
             CalculateMemPoolAncestors(
                     *it,
