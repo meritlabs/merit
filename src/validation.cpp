@@ -1820,6 +1820,9 @@ pog::AmbassadorLottery RewardAmbassadors(
     assert(height >= 0);
     assert(prefviewdb != nullptr);
 
+    const bool is_daedalus = 
+        height >= params.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block;
+
     static size_t max_embassador_lottery = 0;
     referral::AddressANVs entrants;
 
@@ -1848,6 +1851,7 @@ pog::AmbassadorLottery RewardAmbassadors(
 
     // Select the N winners using the previous block hash as the seed
     auto winners = selector.Select(
+            is_daedalus,
             *prefviewcache,
             previous_block_hash,
             desired_winners);

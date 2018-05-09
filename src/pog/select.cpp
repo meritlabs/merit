@@ -277,6 +277,7 @@ namespace pog
      * N samples given the same input hash.
      */
     referral::AddressANVs WalletSelector::Select(
+            bool check_confirmations,
             const referral::ReferralsViewCache& referrals,
             uint256 hash,
             size_t n) const
@@ -292,7 +293,7 @@ namespace pog
             hasher << hash << sampled.address;
             hash = hasher.GetHash();
 
-            if(referrals.IsConfirmed(sampled.address)) {
+            if(!check_confirmations || referrals.IsConfirmed(sampled.address)) {
                 samples.push_back(sampled);
             } else {
                 n++;

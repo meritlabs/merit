@@ -41,6 +41,7 @@ namespace pog
             WalletSelector(int height, const referral::AddressANVs& anvs);
 
             referral::AddressANVs Select(
+                    bool check_confirmations,
                     const referral::ReferralsViewCache& referrals,
                     uint256 hash,
                     size_t n) const;
