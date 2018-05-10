@@ -417,7 +417,12 @@ bool BlockAssembler::CheckReferrals(
         const auto tx = it->GetEntryValue();
 
         CValidationState dummy;
-        if (!Consensus::CheckTxOutputs(tx, dummy, *prefviewcache, candidate_referrals)) {
+        if (!Consensus::CheckTxOutputs(
+                    tx,
+                    dummy,
+                    *prefviewcache,
+                    candidate_referrals,
+                    &confirmations)) {
             return false;
         }
     }
