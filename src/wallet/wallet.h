@@ -946,6 +946,7 @@ public:
     void UnlockCoin(const COutPoint& output);
     void UnlockAllCoins();
     void ListLockedCoins(std::vector<COutPoint>& vOutpts) const;
+    bool EncryptMnemonic(CKeyingMaterial& master_key);
 
     /*
      * Rescan abort properties
@@ -1008,6 +1009,7 @@ public:
     bool Unlock(const SecureString& strWalletPassphrase);
     bool ChangeWalletPassphrase(const SecureString& strOldWalletPassphrase, const SecureString& strNewWalletPassphrase);
     bool EncryptWallet(const SecureString& strWalletPassphrase);
+    bool CryptedWalletNeedsNewPassphrase() const;
 
     void GetKeyBirthTimes(std::map<CTxDestination, int64_t> &mapKeyBirth) const;
     unsigned int ComputeTimeSmart(const CWalletTx& wtx) const;
@@ -1235,8 +1237,8 @@ public:
     void postInitProcess(CScheduler& scheduler);
 
     bool BackupWallet(const std::string& strDest);
-    bool HasMnemonic();
-    std::string GetMnemonic();
+    bool HasMnemonic() const;
+    std::string GetMnemonic() const;
 
     /* Set the HD chain model (chain child index counters) */
     bool SetHDChain(const CHDChain& chain, bool memonly);

@@ -110,7 +110,11 @@ bool CCrypter::Decrypt(const std::vector<unsigned char>& vchCiphertext, CKeyingM
 }
 
 
-static bool EncryptSecret(const CKeyingMaterial& vMasterKey, const CKeyingMaterial &vchPlaintext, const uint256& nIV, std::vector<unsigned char> &vchCiphertext)
+bool EncryptSecret(
+        const CKeyingMaterial& vMasterKey,
+        const CKeyingMaterial &vchPlaintext,
+        const uint256& nIV,
+        std::vector<unsigned char> &vchCiphertext)
 {
     CCrypter cKeyCrypter;
     std::vector<unsigned char> chIV(WALLET_CRYPTO_IV_SIZE);
@@ -120,7 +124,11 @@ static bool EncryptSecret(const CKeyingMaterial& vMasterKey, const CKeyingMateri
     return cKeyCrypter.Encrypt(*((const CKeyingMaterial*)&vchPlaintext), vchCiphertext);
 }
 
-static bool DecryptSecret(const CKeyingMaterial& vMasterKey, const std::vector<unsigned char>& vchCiphertext, const uint256& nIV, CKeyingMaterial& vchPlaintext)
+bool DecryptSecret(
+        const CKeyingMaterial& vMasterKey,
+        const std::vector<unsigned char>& vchCiphertext,
+        const uint256& nIV,
+        CKeyingMaterial& vchPlaintext)
 {
     CCrypter cKeyCrypter;
     std::vector<unsigned char> chIV(WALLET_CRYPTO_IV_SIZE);
@@ -204,6 +212,18 @@ bool CCryptoKeyStore::Unlock(const CKeyingMaterial& vMasterKeyIn)
     }
     NotifyStatusChanged(this);
     return true;
+}
+
+bool CCryptoKeyStore::DecryptSecret(
+        const std::vector<unsigned char>& ciphertext,
+        const uint256& IV,
+        CKeyingMaterial& plaintext) const
+{
+    if (!IsCrypted()) {
+        return false;
+    }
+
+    return ::DecryptSecret(vMasterKey, ciphertext, IV, plaintext);
 }
 
 bool CCryptoKeyStore::AddKeyPubKey(const CKey& key, const CPubKey &pubkey)
