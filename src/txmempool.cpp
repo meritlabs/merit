@@ -254,7 +254,10 @@ void CTxMemPool::CalculateReferralsConfirmations(
         addresses.push_back({referral->GetAddress(), referral->addressType});
     }
 
-    mempool.getAddressIndex(addresses, indexes);
+    getAddressIndex(addresses, indexes);
+
+    uint64_t nNoLimit = std::numeric_limits<uint64_t>::max();
+    std::string dummy;
 
     for (const auto& index: indexes) {
         auto it = mapTx.find(index.first.txhash);
@@ -268,10 +271,8 @@ void CTxMemPool::CalculateReferralsConfirmations(
                         static_cast<char>(index.first.type),
                         index.first.addressBytes}.ToString());
             confirmations.insert(it);
-            uint64_t nNoLimit = std::numeric_limits<uint64_t>::max();
-            std::string dummy;
 
-            mempool.CalculateMemPoolAncestors(
+            CalculateMemPoolAncestors(
                     *it,
                     confirmations,
                     nNoLimit,
@@ -541,11 +542,11 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
 }
 
 bool CTxMemPool::getAddressIndex(std::vector<AddressPair> &addresses,
-                                 std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results)
+                                 std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results) const
 {
     LOCK(cs);
     for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
-        addressDeltaMap::iterator ait = mapAddress.lower_bound(CMempoolAddressDeltaKey((*it).second, (*it).first));
+        addressDeltaMap::const_iterator ait = mapAddress.lower_bound(CMempoolAddressDeltaKey((*it).second, (*it).first));
         while (ait != mapAddress.end() && (*ait).first.addressBytes == (*it).first && (*ait).first.type == (*it).second) {
             results.push_back(*ait);
             ait++;
@@ -934,7 +935,7 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins, const referral::ReferralsV
             CValidationState state;
             bool fCheckResult = tx.IsCoinBase() ||
                 (Consensus::CheckTxInputs(tx, state, mempoolDuplicate, nSpendHeight) &&
-                Consensus::CheckTxOutputs(tx, state, referralsCache, refs));
+                Consensus::CheckTxOutputs(tx, state, referralsCache, refs, nullptr, true));
             assert(fCheckResult);
             UpdateCoins(tx, mempoolDuplicate, 1000000);
         }
@@ -951,7 +952,7 @@ void CTxMemPool::check(const CCoinsViewCache *pcoins, const referral::ReferralsV
         } else {
             bool fCheckResult = entry->GetEntryValue().IsCoinBase() ||
                 (Consensus::CheckTxInputs(entry->GetEntryValue(), state, mempoolDuplicate, nSpendHeight) &&
-                Consensus::CheckTxOutputs(entry->GetEntryValue(), state, referralsCache, refs));
+                Consensus::CheckTxOutputs(entry->GetEntryValue(), state, referralsCache, refs, nullptr, true));
             assert(fCheckResult);
             UpdateCoins(entry->GetEntryValue(), mempoolDuplicate, 1000000);
             stepsSinceLastRemove = 0;

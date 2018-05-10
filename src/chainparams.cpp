@@ -223,7 +223,7 @@ public:
             {
                 {49000, {uint256S("a133b70798599e3c9edd67def448d2df0ce2326e70aae8035329550650fb93c6"), VALIDATE}},
                 //==================================================
-                //These checkpoints are to work around an invite lottery bug. The resulting
+                //These checkpoints are to work around an invite and ambassador lottery bug. The resulting
                 //distribution is still random but the exact payout was different. These checkpoints
                 //make sure users can continue down the longest chain.
                 {74924, {uint256S("05184d173389688471b51ded4a1bbcffe819d976ba7b2b210de1b9dd455b136a"), DONT_VALIDATE}},
@@ -231,6 +231,8 @@ public:
                 {87887, {uint256S("2131c1c464642d73504541dfd24ded42d8942de923345ab309397aba25b91527"), DONT_VALIDATE}},
                 {92208, {uint256S("1b865121cc2b7b8c730a46d42faea035646897f208098437dc9284d707955b99"), DONT_VALIDATE}},
                 {96529, {uint256S("599f23553592401a61813cfd144e0a75e798fd01c8b4268855b1880d71bc320f"), DONT_VALIDATE}},
+                {97589, {uint256S("17a0a02de5ccfd673d7df5bac6bda4fba7b869cda6bce51cf0f6a93befa505ab"), DONT_VALIDATE}},
+                {123498,{uint256S("5d458d6afed5a9fee43b0281e3b2e8717dfc5a1c9cd1ceba345131b290530637"), DONT_VALIDATE}},
                 //==================================================
             }};
 

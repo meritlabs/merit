@@ -48,6 +48,8 @@ Optional dependencies:
  libqrencode | QR codes in GUI  | Optional for generating QR codes (only needed when GUI enabled)
  univalue    | Utility          | JSON parsing and encoding (bundled version will be used unless --with-system-univalue passed to configure)
  libzmq3     | ZMQ notification | Optional, allows generating ZMQ notifications (requires ZMQ version >= 4.x)
+ libarchive  | Archive suppoort | Optional, used by the quickstart feature to unpack blockchain stapshots.
+
 
 For the versions used in the release, see [release-process.md](release-process.md) under *Fetch and build inputs*.
 
