@@ -4151,6 +4151,7 @@ UniValue getmnemonic(const JSONRPCRequest& request)
         throw std::runtime_error(
             "getmnemonic\n"
             "Returns an object containing a mnemonic phrase if one exists used to recover your wallet.\n"
+            + HelpRequiringPassphrase(pwallet) + "\n"
             "\nResult:\n"
             "{\n"
             "  \"mnemonic\": xxxxx,                  (string) mnemonic phrase used to recover your wallet\n"
@@ -4162,6 +4163,7 @@ UniValue getmnemonic(const JSONRPCRequest& request)
 
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
+    EnsureWalletIsUnlocked(pwallet);
 
     UniValue obj(UniValue::VOBJ);
 
@@ -4646,7 +4648,7 @@ UniValue listinvites(const JSONRPCRequest& request)
             max_depth,
             true);
 
-    std::sort(outputs.begin(), outputs.end(), 
+    std::sort(outputs.begin(), outputs.end(),
             [](const COutput& a, const COutput& b) {
                 return a.nDepth > b.nDepth;
             });
