@@ -113,6 +113,7 @@ public Q_SLOTS:
 
     /** User has requested more information about the out of sync state */
     void requestedSyncWarningInfo();
+    void UpdateOverviewPage();
 
 Q_SIGNALS:
     /** Signal that we want to show the main window */
@@ -135,6 +136,7 @@ Q_SIGNALS:
 
     /** Notify that the out of sync warning icon has been pressed */
     void outOfSyncWarningClicked();
+    void DoUpdateOverviewPage();
 };
 
 #endif // MERIT_QT_WALLETVIEW_H

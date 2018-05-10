@@ -766,7 +766,11 @@ private:
 
     /* HD derive new child key (on internal or external chain) */
     void DeriveNewChildKey(CWalletDB& walletdb, CKeyMetadata& metadata, CKey& secret);
-    void DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKey& secret);
+    void DeriveNewBIP44ChildKey(
+            const std::string& mnemonic,
+            std::string& hdKeypath,
+            CKey& secret,
+            uint32_t& hdchain_counter);
 
     std::set<int64_t> setKeyPool;
     int64_t m_max_keypool_index;
@@ -955,6 +959,12 @@ public:
      * Generate a new key
      */
     CPubKey GenerateNewKey(CWalletDB& walletdb);
+
+    //! Creates a new master key with the mnemonic phrase specified
+    bool ImportMnemonicAsMaster(
+            const std::string& mnemonic,
+            const std::string& passphrase = "");
+
     //! Adds a key to the store, and saves it to disk.
     bool AddKeyPubKey(const CKey& key, const CPubKey &pubkey) override;
     bool AddKeyPubKeyWithDB(CWalletDB &walletdb,const CKey& key, const CPubKey &pubkey);
@@ -1237,7 +1247,15 @@ public:
 
     /* Generates a new HD master key (will not be activated) */
     CPubKey GenerateNewHDMasterKey();
-    CPubKey GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const std::string& passphrase = "");
+
+    CPubKey GenerateMasterKeyFromMnemonic(
+            const WordList& mnemonic,
+            const std::string& passphrase = "");
+
+    CPubKey GenerateMasterKeyFromMnemonic(
+            const WordList& mnemonic,
+            const std::string& passphrase,
+            CExtKey& extkey);
 
     /* Set the current HD master key (will reset the chain child index counters)
        Sets the master key's version based on the current wallet version (so the
@@ -1303,6 +1321,14 @@ public:
     bool IsConfirmed() const;
     referral::Address ReferralAddress() const;
     CPubKey ReferralPubKey() const;
+
+    bool IsAValidMnemonic(const std::string& mnemonic);
+
+private:
+    CPubKey SetMasterKeyMetadata(
+            const CExtKey& extkey,
+            const WordList& menmonic,
+            const CPubKey& pubkey);
 };
 
 /** A key allocated from the key pool. */

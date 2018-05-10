@@ -10,6 +10,8 @@ namespace Ui {
     class EnterUnlockCode;
 }
 
+class ImportWalletDialog;
+
 /** Modal overlay to display information about the chain-sync state */
 class EnterUnlockCode : public QWidget
 {
@@ -31,6 +33,7 @@ public Q_SLOTS:
     // will show or hide the modal layer
     void showHide(bool hide = false, bool userRequested = false);
     bool isLayerVisible() const { return layerIsVisible; }
+    void importWallet();
 
 protected:
     bool eventFilter(QObject * obj, QEvent * ev);
@@ -45,6 +48,7 @@ private:
     bool canSubmit = false;
     bool addressValid = false;
     bool aliasValid = true;
+    ImportWalletDialog *importWalletDialog;
 
     void UpdateCanSubmit();
     void InvalidAddressMessageBox();

@@ -17,6 +17,8 @@ namespace mnemonic
     static constexpr size_t ENTROPY_BYTES = 16;
     std::array<uint8_t, SEED_LENGTH> MnemonicToSeed(const WordList& mnemonic, const std::string& passphrase = "");
     std::array<uint8_t, SEED_LENGTH> MnemonicToSeed(const std::string& mnemonic, const std::string& passphrase = "");
+    bool IsAValidMnemonic(const WordList& words);
+    WordList MnemonicStringToWords(const std::string& mnemonic);
     std::string Unwords(const WordList& phrase);
     WordList Entropy2Mnemonic(const std::vector<uint8_t>& entropy, const language::Dictionary& dict);
 }

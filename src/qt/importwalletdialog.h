@@ -18,7 +18,10 @@ public:
     ~ImportWalletDialog();
 
 private Q_SLOTS:
-    void onCancelClicked();
+    void OnCancelClicked();
+    void ImportWallet();
+    void UpdateImportButton();
+    void DoImport();
 
 private:
     WalletModel *walletModel;

@@ -187,6 +187,57 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
     return &(it->second);
 }
 
+bool CWallet::ImportMnemonicAsMaster(
+        const std::string& mnemonic,
+        const std::string& passphrase)
+{
+    if(!IsAValidMnemonic(mnemonic)) {
+        return false;
+    }
+
+    CWalletDB walletdb(*dbw);
+    LOCK(cs_wallet);
+    assert(IsHDEnabled());
+
+    auto words = mnemonic::MnemonicStringToWords(mnemonic);
+    auto master_pubkey = GenerateMasterKeyFromMnemonic(words, passphrase);
+
+    if (!SetHDMasterKey(master_pubkey)) {
+        LogPrintf("Failed to set master hd key\n");
+        return false;
+    }
+
+    auto derived_pubkey = GenerateNewKey(walletdb);
+    CKeyPool keypool(derived_pubkey, true);
+
+    auto referral = prefviewcache->GetReferral(derived_pubkey.GetID());
+    if(!referral) {
+        LogPrintf("Failed to find the referral on the blockchain\n");
+        return false;
+    }
+
+    AddReferralAddressPubKey(referral->GetAddress(), referral->pubkey.GetID());
+
+    referral::ReferralTx rtx{MakeReferralRef(*referral), true};
+    if (!AddToWallet(rtx)) {
+        LogPrintf("Failed to add the referral to the wallet.\n");
+        return false;
+    }
+    //SetUnlockReferralTx(rtx, true);
+
+    int64_t index = ++m_max_keypool_index;
+
+    if (!walletdb.WritePool(index, keypool)) {
+        LogPrintf("Failed write the keypool.\n");
+        return false;
+    }
+
+    LoadKeyPool(index, keypool);
+    RescanFromTime(TIMESTAMP_MIN, true /* update */);
+
+    return true;
+}
+
 referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, std::string alias)
 {
     // check wallet is not unlocked yet
@@ -277,7 +328,15 @@ CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb)
     CKeyMetadata metadata(nCreationTime);
 
     if(mapKeyMetadata[hdChain.masterKeyID].nVersion >= CKeyMetadata::VERSION_WITH_MNEMONIC) {
-        DeriveNewBIP44ChildKey(walletdb, metadata, secret);
+        DeriveNewBIP44ChildKey(
+                mapKeyMetadata[hdChain.masterKeyID].mnemonic,
+                metadata.hdKeypath,
+                secret,
+                hdChain.nInternalChainCounter);
+        metadata.hdMasterKeyID = hdChain.masterKeyID;
+        // update the chain model in the database
+        if (!walletdb.WriteHDChain(hdChain))
+            throw std::runtime_error(std::string(__func__) + ": Writing HD chain model failed");
     } else {
         DeriveNewChildKey(walletdb, metadata, secret);
     }
@@ -333,11 +392,15 @@ void CWallet::DeriveNewChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKe
 }
 
 // TODO: make a more generic method to derive based on a given keypath
-void CWallet::DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKey& secret)
+void CWallet::DeriveNewBIP44ChildKey(
+        const std::string& mnemonic,
+        std::string& hdKeypath,
+        CKey& secret,
+        uint32_t& hdchain_counter)
 {
     // this method uses a fixed keypath scheme of m/44'/0'/0'/0/k
     // m/44'/1'/0'/0/k for testnet
-    const auto seed = mnemonic::MnemonicToSeed(mapKeyMetadata[hdChain.masterKeyID].mnemonic);
+    const auto seed = mnemonic::MnemonicToSeed(mnemonic);
 
     CExtKey masterKey;             //hd master key  m
     CExtKey changeKey;             //key at m/44'/0'/0'/0'
@@ -360,15 +423,11 @@ void CWallet::DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata
 
     // derive child key at next index, skip keys already known to the wallet
     do {
-        changeKey.Derive(childKey, hdChain.nInternalChainCounter);
-        metadata.hdKeypath = (livenet ? "m/44'/0'/0'/0" : "m/44'/1'/0'/0/") + std::to_string(hdChain.nInternalChainCounter);
-        hdChain.nInternalChainCounter++;
+        changeKey.Derive(childKey, hdchain_counter);
+        hdKeypath = (livenet ? "m/44'/0'/0'/0" : "m/44'/1'/0'/0/") + std::to_string(hdchain_counter);
+        hdchain_counter++;
     } while (HaveKey(childKey.key.GetPubKey().GetID()));
     secret = childKey.key;
-    metadata.hdMasterKeyID = hdChain.masterKeyID;
-    // update the chain model in the database
-    if (!walletdb.WriteHDChain(hdChain))
-        throw std::runtime_error(std::string(__func__) + ": Writing HD chain model failed");
 }
 
 bool CWallet::AddKeyPubKeyWithDB(CWalletDB &walletdb, const CKey& secret, const CPubKey &pubkey)
@@ -1726,19 +1785,13 @@ CPubKey CWallet::GenerateNewHDMasterKey()
     return pubkey;
 }
 
-CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const std::string& passphrase)
+CPubKey CWallet::SetMasterKeyMetadata(
+        const CExtKey& extkey,
+        const WordList& mnemonic,
+        const CPubKey& pubkey)
 {
-    CExtKey extkey;
-    std::array<uint8_t, mnemonic::SEED_LENGTH> seed = mnemonic::MnemonicToSeed(mnemonic, passphrase);
-    extkey.SetMaster(seed.begin(), mnemonic::SEED_LENGTH);
-
-
     int64_t nCreationTime = GetTime();
     CKeyMetadata metadata(nCreationTime);
-
-    // calculate the pubkey
-    CPubKey pubkey = extkey.key.GetPubKey();
-    assert(extkey.key.VerifyPubKey(pubkey));
 
     // set the hd keypath to "m" -> Master, refers the masterkeyid to itself
     metadata.hdKeypath     = "m";
@@ -1756,6 +1809,27 @@ CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const s
         if (!AddKeyPubKey(extkey.key, pubkey))
             throw std::runtime_error(std::string(__func__) + ": AddKeyPubKey failed");
     }
+
+}
+CPubKey CWallet::GenerateMasterKeyFromMnemonic(
+        const WordList& mnemonic,
+        const std::string& passphrase,
+        CExtKey& extkey)
+{
+    const auto seed = mnemonic::MnemonicToSeed(mnemonic, passphrase);
+    extkey.SetMaster(seed.begin(), mnemonic::SEED_LENGTH);
+}
+
+CPubKey CWallet::GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const std::string& passphrase)
+{
+    CExtKey extkey;
+    GenerateMasterKeyFromMnemonic(mnemonic, passphrase, extkey);
+
+    // calculate the pubkey
+    CPubKey pubkey = extkey.key.GetPubKey();
+    assert(extkey.key.VerifyPubKey(pubkey));
+
+    SetMasterKeyMetadata(extkey, mnemonic, pubkey);
 
     return pubkey;
 }
@@ -5049,6 +5123,30 @@ void CWallet::postInitProcess(CScheduler& scheduler)
 bool CWallet::BackupWallet(const std::string& strDest)
 {
     return dbw->Backup(strDest);
+}
+
+bool CWallet::IsAValidMnemonic(const std::string& mnemonic)
+{
+    auto words = mnemonic::MnemonicStringToWords(mnemonic);
+    if(!mnemonic::IsAValidMnemonic(words)) {
+        return false;
+    }
+
+    CKey secret;
+    std::string hdKeypath;
+    uint32_t hdchain_counter = 0;
+    DeriveNewBIP44ChildKey(
+            mnemonic,
+            hdKeypath,
+            secret,
+            hdchain_counter);
+
+    auto master_pubkey = secret.GetPubKey();
+    if(!AddressBeaconed(CMeritAddress{master_pubkey.GetID()})) {
+        return false;
+    }
+
+    return true;
 }
 
 CKeyPool::CKeyPool()

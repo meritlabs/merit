@@ -4,6 +4,7 @@
 
 #include "enterunlockcode.h"
 #include "ui_enterunlockcode.h"
+#include "importwalletdialog.h"
 
 #include "guiutil.h"
 
@@ -25,11 +26,13 @@ userClosed(false)
     connect(ui->aliasTextInput, SIGNAL(textChanged(QString)), this, SLOT(aliasChanged(QString)));
     connect(this, SIGNAL(CanSubmitChanged(bool)), ui->submitButton, SLOT(setEnabled(bool)));
     connect(ui->submitButton, SIGNAL(clicked()), this, SLOT(submit()));
+    connect(ui->importButton, SIGNAL(clicked()), this, SLOT(importWallet()));
     if (parent) {
         parent->installEventFilter(this);
         raise();
     }
 
+    ui->importButton->setEnabled(false);
     setVisible(false);
 }
 
@@ -90,6 +93,8 @@ void EnterUnlockCode::showHide(bool hide, bool userRequested)
 void EnterUnlockCode::setModel(WalletModel *model)
 {
     this->walletModel = model;
+    importWalletDialog = new ImportWalletDialog(this, walletModel);
+    ui->importButton->setEnabled(true);
 }
 
 extern CTxDestination LookupDestination(const std::string& address);
@@ -162,5 +167,14 @@ void EnterUnlockCode::submit()
                 tr("Sorry, there was a problem."), 
                 tr(err.what()));
         }
+    }
+}
+
+void EnterUnlockCode::importWallet()
+{
+    importWalletDialog->exec();
+
+    if(importWalletDialog->result() == QDialog::Accepted) {
+            Q_EMIT WalletReferred();
     }
 }
