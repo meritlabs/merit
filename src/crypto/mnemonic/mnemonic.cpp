@@ -30,17 +30,16 @@ namespace mnemonic
         while(s.good()) {
             std::string word;
             s >> word;
-            words.push_back(word);
+
+            if(!word.empty()) { 
+                words.push_back(word);
+            }
         }
         return words;
     }
 
     bool IsAValidMnemonic(const WordList& words) {
-        if(words.size() != MNEMONIC_WORD_COUNT) {
-            return false;
-        }
-
-        return true;
+        return words.size() == MNEMONIC_WORD_COUNT;
     }
 
     std::array<uint8_t, SEED_LENGTH> MnemonicToSeed(const WordList& mnemonic, const std::string& passphrase)
