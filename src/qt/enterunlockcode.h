@@ -48,7 +48,6 @@ private:
     bool canSubmit = false;
     bool addressValid = false;
     bool aliasValid = true;
-    ImportWalletDialog *importWalletDialog;
 
     void UpdateCanSubmit();
     void InvalidAddressMessageBox();

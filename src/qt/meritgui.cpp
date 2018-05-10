@@ -385,7 +385,6 @@ void MeritGUI::createActions()
 #endif
     importWalletAction = new QAction(platformStyle->TextColorIcon(":/icons/verify"), tr("&Import Wallet..."), this);
     importWalletAction->setStatusTip(tr("Import wallet using Mnemonic"));
-    importWalletDialog = new ImportWalletDialog(this, walletModel);
 
     changePassphraseAction = new QAction(platformStyle->TextColorIcon(":/icons/key"), tr("&Change Passphrase..."), this);
     changePassphraseAction->setStatusTip(tr("Change the passphrase used for wallet encryption"));
@@ -789,7 +788,15 @@ void MeritGUI::showExportWallet()
 
 void MeritGUI::showImportWallet()
 {
-    importWalletDialog->exec();
+    if(!walletModel) {
+        return;
+    }
+
+    ImportWalletDialog importWalletDialog{this, walletModel};
+    importWalletDialog.exec();
+    if(importWalletDialog.result() == QDialog::Accepted) {
+            walletReferred();
+    }
 }
 
 #ifdef ENABLE_WALLET

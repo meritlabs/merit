@@ -93,7 +93,6 @@ void EnterUnlockCode::showHide(bool hide, bool userRequested)
 void EnterUnlockCode::setModel(WalletModel *model)
 {
     this->walletModel = model;
-    importWalletDialog = new ImportWalletDialog(this, walletModel);
     ui->importButton->setEnabled(true);
 }
 
@@ -172,9 +171,14 @@ void EnterUnlockCode::submit()
 
 void EnterUnlockCode::importWallet()
 {
-    importWalletDialog->exec();
+    if(!walletModel) {
+        return;
+    }
 
-    if(importWalletDialog->result() == QDialog::Accepted) {
+    ImportWalletDialog importWalletDialog{this, walletModel};
+    importWalletDialog.exec();
+
+    if(importWalletDialog.result() == QDialog::Accepted) {
             Q_EMIT WalletReferred();
     }
 }

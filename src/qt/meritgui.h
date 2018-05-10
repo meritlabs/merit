@@ -132,7 +132,6 @@ private:
     ModalOverlay *modalOverlay;
     EnterUnlockCode *enterUnlockCode;
     ExportWalletDialog *exportWalletDialog;
-    ImportWalletDialog *importWalletDialog;
 
     /** Keep track of previous number of blocks, to detect progress */
     int prevBlocks;
