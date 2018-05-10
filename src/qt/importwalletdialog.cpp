@@ -1,3 +1,4 @@
+#include <boost/algorithm/string.hpp>
 #include <QPainter>
 #include <QPixmap>
 #include <QString>
@@ -44,7 +45,8 @@ void ImportWalletDialog::OnCancelClicked()
 
 void ImportWalletDialog::UpdateImportButton()
 {
-    const auto mnemonic = ui->mnemonic->toPlainText().toStdString();
+    auto mnemonic = ui->mnemonic->toPlainText().toStdString();
+    boost::trim(mnemonic);
     const bool enabled = walletModel->IsAValidMnemonic(mnemonic);
 
     if(enabled) {
@@ -69,15 +71,16 @@ void ImportWalletDialog::ImportWallet()
 void ImportWalletDialog::DoImport()
 {
     auto mnemonic = ui->mnemonic->toPlainText().toStdString();
+    boost::trim(mnemonic);
 
     if(!walletModel->ImportMnemonicAsMaster(mnemonic)) {
         QMessageBox::critical(
-                this, 
+                this,
                 tr("Error importing wallet"),
                 tr("Unable to import the wallet with the mnemonic given"));
         reject();
         return;
-    } 
+    }
 
     accept();
     return;
