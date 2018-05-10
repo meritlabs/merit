@@ -1296,7 +1296,9 @@ static bool AcceptToMemoryPoolWorker(
                     tx,
                     state,
                     *prefviewcache,
-                    mempoolReferral.GetReferrals())) {
+                    mempoolReferral.GetReferrals(),
+                    nullptr,
+                    true)) {
 
             return false;
         }
