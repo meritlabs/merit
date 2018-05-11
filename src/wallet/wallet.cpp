@@ -477,6 +477,7 @@ bool CWallet::AddCryptedKey(const CPubKey &vchPubKey,
 {
     if (!CCryptoKeyStore::AddCryptedKey(vchPubKey, vchCryptedSecret))
         return false;
+
     {
         LOCK(cs_wallet);
         if (pwalletdbEncryption) {
@@ -581,7 +582,8 @@ bool CWallet::LoadWatchOnly(const CScript &dest)
 bool CWallet::CryptedWalletNeedsNewPassphrase() const
 {
     const auto p = mapKeyMetadata.find(hdChain.masterKeyID);
-    return IsCrypted() && p->second.nVersion < CKeyMetadata::VERSION_WITH_SECURE_MNEMONIC;
+    return IsCrypted() && p != mapKeyMetadata.end() && 
+        p->second.nVersion < CKeyMetadata::VERSION_WITH_SECURE_MNEMONIC;
 }
 
 bool CWallet::Unlock(const SecureString& strWalletPassphrase)
@@ -896,15 +898,6 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
         }
         pwalletdbEncryption->WriteMasterKey(nMasterKeyMaxID, kMasterKey);
 
-        if (!EncryptKeys(_vMasterKey))
-        {
-            pwalletdbEncryption->TxnAbort();
-            delete pwalletdbEncryption;
-            // We now probably have half of our keys encrypted in memory, and half not...
-            // die and let the user reload the unencrypted wallet.
-            assert(false);
-        }
-
         if(HasMnemonic()) {
             if(!EncryptMnemonic(*pwalletdbEncryption, _vMasterKey))
             {
@@ -914,6 +907,15 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
                 // die and let the user reload the unencrypted wallet.
                 assert(false);
             }
+        }
+
+        if (!EncryptKeys(_vMasterKey))
+        {
+            pwalletdbEncryption->TxnAbort();
+            delete pwalletdbEncryption;
+            // We now probably have half of our keys encrypted in memory, and half not...
+            // die and let the user reload the unencrypted wallet.
+            assert(false);
         }
 
         if (!pwalletdbEncryption->TxnCommit()) {

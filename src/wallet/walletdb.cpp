@@ -58,14 +58,20 @@ bool CWalletDB::EraseTx(uint256 hash)
     return EraseIC(std::make_pair(std::string("tx"), hash));
 }
 
-bool CWalletDB::WriteKeyMetadata(const CPubKey& vchPubKey, const CKeyMetadata& keyMeta)
+bool CWalletDB::WriteKeyMetadata(
+        const CPubKey& vchPubKey,
+        const CKeyMetadata& keyMeta,
+        bool overwrite)
 {
-   return WriteIC(std::make_pair(std::string("keymeta"), vchPubKey), keyMeta, false);
+   return WriteIC(std::make_pair(std::string("keymeta"), vchPubKey), keyMeta, overwrite);
 }
 
-bool CWalletDB::WriteKey(const CPubKey& vchPubKey, const CPrivKey& vchPrivKey, const CKeyMetadata& keyMeta)
+bool CWalletDB::WriteKey(
+        const CPubKey& vchPubKey,
+        const CPrivKey& vchPrivKey,
+        const CKeyMetadata& keyMeta)
 {
-    if(!WriteKeyMetadata(vchPubKey, keyMeta)) {
+    if(!WriteKeyMetadata(vchPubKey, keyMeta, false)) {
         return false;
     }
 
