@@ -2,6 +2,7 @@
 #define MERIT_QT_IMPORTWALLETDIALOG_H
 
 #include <QDialog>
+#include <future>
 
 class WalletModel;
 
@@ -22,10 +23,12 @@ private Q_SLOTS:
     void ImportWallet();
     void UpdateImportButton();
     void DoImport();
+    void CheckImport();
 
 private:
-    WalletModel *walletModel;
+    WalletModel *model;
     Ui::ImportWalletDialog *ui;
+    std::future<bool> import_result;
 };
 
 #endif

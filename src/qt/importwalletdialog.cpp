@@ -4,6 +4,7 @@
 #include <QString>
 #include <QMessageBox>
 #include <QTimer>
+#include <chrono>
 
 #include "config/merit-config.h" /* for USE_QRCODE */
 #ifdef USE_QRCODE
@@ -19,9 +20,9 @@
 #include "ui_importwalletdialog.h"
 #include "crypto/mnemonic/mnemonic.h"
 
-ImportWalletDialog::ImportWalletDialog(QWidget *parent, WalletModel *model) :
+ImportWalletDialog::ImportWalletDialog(QWidget *parent, WalletModel *wmodel) :
     QDialog(parent),
-    walletModel(model),
+    model(wmodel),
     ui(new Ui::ImportWalletDialog)
 {
     ui->setupUi(this);
@@ -29,7 +30,6 @@ ImportWalletDialog::ImportWalletDialog(QWidget *parent, WalletModel *model) :
     connect(ui->cancelButton, SIGNAL(clicked()), this, SLOT(OnCancelClicked()));
     connect(ui->importButton, SIGNAL(clicked()), this, SLOT(ImportWallet()));
     connect(ui->mnemonic, SIGNAL(textChanged()), this, SLOT(UpdateImportButton()));
-    uiInterface.ShowProgress.connect([](const std::string&, int){});
 
     ui->importButton->setEnabled(false);
     ui->progressTitle->setVisible(false);
@@ -49,7 +49,7 @@ void ImportWalletDialog::UpdateImportButton()
 {
     auto mnemonic = ui->mnemonic->toPlainText().toStdString();
     boost::trim(mnemonic);
-    const bool enabled = walletModel->IsAValidMnemonic(mnemonic);
+    const bool enabled = model->IsAValidMnemonic(mnemonic);
 
     if(enabled) {
         ui->mnemonic->setStyleSheet("QPlainTextEdit { background-color: rgb(128, 255, 128) }");
@@ -62,7 +62,7 @@ void ImportWalletDialog::UpdateImportButton()
 
 void ImportWalletDialog::ImportWallet()
 {
-    assert(walletModel);
+    assert(model);
     ui->cancelButton->setVisible(false);
     ui->importButton->setVisible(false);
     ui->progressTitle->setVisible(true);
@@ -75,7 +75,22 @@ void ImportWalletDialog::DoImport()
     auto mnemonic = ui->mnemonic->toPlainText().toStdString();
     boost::trim(mnemonic);
 
-    if(!walletModel->ImportMnemonicAsMaster(mnemonic)) {
+    import_result = std::async(std::launch::async, [this,mnemonic]() {
+                return model->ImportMnemonicAsMaster(mnemonic);
+            });
+
+    QTimer::singleShot(500, this, SLOT(CheckImport()));
+}
+
+void ImportWalletDialog::CheckImport()
+{
+    if(import_result.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+        QTimer::singleShot(500, this, SLOT(CheckImport()));
+        return;
+    }
+
+    bool success = import_result.get();
+    if(!success) {
         QMessageBox::critical(
                 this,
                 tr("Error importing wallet"),
@@ -87,4 +102,3 @@ void ImportWalletDialog::DoImport()
     accept();
     return;
 }
-

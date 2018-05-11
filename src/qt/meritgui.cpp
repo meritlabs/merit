@@ -388,10 +388,11 @@ void MeritGUI::createActions()
 
     changePassphraseAction = new QAction(platformStyle->TextColorIcon(":/icons/key"), tr("&Change Passphrase..."), this);
     changePassphraseAction->setStatusTip(tr("Change the passphrase used for wallet encryption"));
-    changePassphraseAction->setVisible(false);
+
     signMessageAction = new QAction(platformStyle->TextColorIcon(":/icons/edit"), tr("Sign &message..."), this);
     signMessageAction->setStatusTip(tr("Sign messages with your Merit addresses to prove you own them"));
     signMessageAction->setVisible(false);
+
     verifyMessageAction = new QAction(platformStyle->TextColorIcon(":/icons/verify"), tr("&Verify message..."), this);
     verifyMessageAction->setStatusTip(tr("Verify messages to ensure they were signed with specified Merit addresses"));
     verifyMessageAction->setVisible(false);

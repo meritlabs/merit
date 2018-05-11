@@ -152,7 +152,6 @@ void WalletView::setWalletModel(WalletModel *_walletModel)
         // Show progress dialog
         connect(_walletModel, SIGNAL(showProgress(QString,int)), this, SLOT(showProgress(QString,int)));
 
-        connect(_walletModel, SIGNAL(showProgress(QString,int)), this, SLOT(showProgress(QString,int)));
         QTimer::singleShot(3000, this, SLOT(CheckChangePassphrase()));
     }
 }
