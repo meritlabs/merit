@@ -223,7 +223,6 @@ bool CWallet::ImportMnemonicAsMaster(
         LogPrintf("Failed to add the referral to the wallet.\n");
         return false;
     }
-    //SetUnlockReferralTx(rtx, true);
 
     int64_t index = ++m_max_keypool_index;
 

@@ -91,7 +91,7 @@ namespace mnemonic
         WordList mnemonic(MNEMONIC_WORD_COUNT);
         std::transform(inds.begin(), inds.end(), mnemonic.begin(), [&dict](const int& i) { return dict[i]; });
 
-        assert(mnemonic.size() == MNEMONIC_WORD_COUNT);
+        assert(IsAValidMnemonic(mnemonic));
         return mnemonic;
     }
 }
