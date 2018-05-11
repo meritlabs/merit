@@ -912,3 +912,9 @@ bool WalletModel::ImportMnemonicAsMaster(const std::string& mnemonic)
     assert(wallet);
     return wallet->ImportMnemonicAsMaster(mnemonic);
 }
+
+bool WalletModel::CryptedWalletNeedsNewPassphrase() const
+{
+    assert(wallet);
+    return wallet->CryptedWalletNeedsNewPassphrase();
+}

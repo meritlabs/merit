@@ -946,7 +946,7 @@ public:
     void UnlockCoin(const COutPoint& output);
     void UnlockAllCoins();
     void ListLockedCoins(std::vector<COutPoint>& vOutpts) const;
-    bool EncryptMnemonic(CKeyingMaterial& master_key);
+    bool EncryptMnemonic(CWalletDB&, CKeyingMaterial& master_key);
 
     /*
      * Rescan abort properties

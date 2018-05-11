@@ -479,14 +479,15 @@ bool CWallet::AddCryptedKey(const CPubKey &vchPubKey,
         return false;
     {
         LOCK(cs_wallet);
-        if (pwalletdbEncryption)
+        if (pwalletdbEncryption) {
             return pwalletdbEncryption->WriteCryptedKey(vchPubKey,
                                                         vchCryptedSecret,
                                                         mapKeyMetadata[vchPubKey.GetID()]);
-        else
+        } else {
             return CWalletDB(*dbw).WriteCryptedKey(vchPubKey,
                                                             vchCryptedSecret,
                                                             mapKeyMetadata[vchPubKey.GetID()]);
+        }
     }
 }
 
@@ -619,8 +620,14 @@ bool CWallet::ChangeWalletPassphrase(const SecureString& strOldWalletPassphrase,
                 return false;
             if (!crypter.Decrypt(pMasterKey.second.vchCryptedKey, _vMasterKey))
                 return false;
-            if (CCryptoKeyStore::Unlock(_vMasterKey))
-            {
+
+            if(CryptedWalletNeedsNewPassphrase()) {
+                CWalletDB walletdb{*dbw};
+                EncryptMnemonic(walletdb, _vMasterKey);
+            } 
+
+            if (CCryptoKeyStore::Unlock(_vMasterKey)) {
+            
                 int64_t nStartTime = GetTimeMillis();
                 crypter.SetKeyFromPassphrase(strNewWalletPassphrase, pMasterKey.second.vchSalt, pMasterKey.second.nDeriveIterations, pMasterKey.second.nDerivationMethod);
                 pMasterKey.second.nDeriveIterations = pMasterKey.second.nDeriveIterations * (100 / ((double)(GetTimeMillis() - nStartTime)));
@@ -810,7 +817,7 @@ void CWallet::AddToSpends(const uint256& wtxid)
         AddToSpends(txin.prevout, wtxid);
 }
 
-bool CWallet::EncryptMnemonic(CKeyingMaterial& master_key)
+bool CWallet::EncryptMnemonic(CWalletDB& walletdb, CKeyingMaterial& master_key)
 {
     if (!mapCryptedKeys.empty() || IsCrypted())
         return false;
@@ -834,8 +841,11 @@ bool CWallet::EncryptMnemonic(CKeyingMaterial& master_key)
       if (hdkey == mapKeys.end()) {
           return false;
       }
-      
-      CWalletDB walletdb{*dbw};
+
+      //Make sure the version get's updated because older wallets may
+      //have the insecure mnemonic
+      meta.nVersion = CKeyMetadata::VERSION_WITH_SECURE_MNEMONIC;
+
       walletdb.WriteKeyMetadata(hdkey->second.GetPubKey(), meta);
       return true;
 }
@@ -886,17 +896,6 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
         }
         pwalletdbEncryption->WriteMasterKey(nMasterKeyMaxID, kMasterKey);
 
-        if(HasMnemonic()) {
-            if(!EncryptMnemonic(_vMasterKey))
-            {
-                pwalletdbEncryption->TxnAbort();
-                delete pwalletdbEncryption;
-                // We now probably have half of our keys encrypted in memory, and half not...
-                // die and let the user reload the unencrypted wallet.
-                assert(false);
-            }
-        }
-
         if (!EncryptKeys(_vMasterKey))
         {
             pwalletdbEncryption->TxnAbort();
@@ -906,6 +905,16 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
             assert(false);
         }
 
+        if(HasMnemonic()) {
+            if(!EncryptMnemonic(*pwalletdbEncryption, _vMasterKey))
+            {
+                pwalletdbEncryption->TxnAbort();
+                delete pwalletdbEncryption;
+                // We now probably have half of our keys encrypted in memory, and half not...
+                // die and let the user reload the unencrypted wallet.
+                assert(false);
+            }
+        }
 
         if (!pwalletdbEncryption->TxnCommit()) {
             delete pwalletdbEncryption;

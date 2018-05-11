@@ -240,6 +240,7 @@ public:
 
     bool IsAValidMnemonic(const std::string& mnemonic);
     bool ImportMnemonicAsMaster(const std::string& mnemonic);
+    bool CryptedWalletNeedsNewPassphrase() const;
 
 private:
     CWallet *wallet;

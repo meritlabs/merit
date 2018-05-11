@@ -97,6 +97,8 @@ public Q_SLOTS:
     void backupWallet();
     /** Change encrypted wallet passphrase */
     void changePassphrase();
+    /** Check to see if passphrase change is nessasary*/
+    void CheckChangePassphrase();
     /** Ask for passphrase to unlock wallet temporarily */
     void unlockWallet();
 

@@ -15,6 +15,7 @@
 #include "qrutil.h"
 #include "walletmodel.h"
 #include "importwalletdialog.h"
+#include "ui_interface.h"
 #include "ui_importwalletdialog.h"
 #include "crypto/mnemonic/mnemonic.h"
 
@@ -28,6 +29,7 @@ ImportWalletDialog::ImportWalletDialog(QWidget *parent, WalletModel *model) :
     connect(ui->cancelButton, SIGNAL(clicked()), this, SLOT(OnCancelClicked()));
     connect(ui->importButton, SIGNAL(clicked()), this, SLOT(ImportWallet()));
     connect(ui->mnemonic, SIGNAL(textChanged()), this, SLOT(UpdateImportButton()));
+    uiInterface.ShowProgress.connect([](const std::string&, int){});
 
     ui->importButton->setEnabled(false);
     ui->progressTitle->setVisible(false);
