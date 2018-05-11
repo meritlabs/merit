@@ -625,7 +625,9 @@ bool CWallet::ChangeWalletPassphrase(const SecureString& strOldWalletPassphrase,
 
             if(CryptedWalletNeedsNewPassphrase()) {
                 CWalletDB walletdb{*dbw};
-                EncryptMnemonic(walletdb, _vMasterKey);
+                if(!EncryptMnemonic(walletdb, _vMasterKey)) {
+                    return false;
+                }
             } 
 
             if (CCryptoKeyStore::Unlock(_vMasterKey)) {
@@ -821,35 +823,44 @@ void CWallet::AddToSpends(const uint256& wtxid)
 
 bool CWallet::EncryptMnemonic(CWalletDB& walletdb, CKeyingMaterial& master_key)
 {
-    if (!mapCryptedKeys.empty() || IsCrypted())
+    auto& meta = mapKeyMetadata[hdChain.masterKeyID];
+    auto& mnemonic = meta.mnemonic;
+
+    CKeyingMaterial secret{mnemonic.begin(), mnemonic.end()};
+
+    auto master_key_id_string = hdChain.masterKeyID.ToString();
+    auto master_key_id_hash = Hash(master_key_id_string.begin(), master_key_id_string.end());
+
+    std::vector<unsigned char> encrypted_mnemonic;
+    if (!EncryptSecret(master_key, secret, master_key_id_hash, encrypted_mnemonic))
         return false;
 
-      auto& meta = mapKeyMetadata[hdChain.masterKeyID];
-      auto& mnemonic = meta.mnemonic;
+    mnemonic.resize(encrypted_mnemonic.size());
+    std::copy(encrypted_mnemonic.begin(), encrypted_mnemonic.end(), mnemonic.begin());
 
-      CKeyingMaterial secret{mnemonic.begin(), mnemonic.end()};
+    CPubKey hdkey;
+    if(IsCrypted()) {
 
-      auto master_key_id_string = hdChain.masterKeyID.ToString();
-      auto master_key_id_hash = Hash(master_key_id_string.begin(), master_key_id_string.end());
+        auto p = mapCryptedKeys.find(hdChain.masterKeyID);
+        if (p == mapCryptedKeys.end()) {
+            return false;
+        }
+        hdkey = p->second.first;
 
-      std::vector<unsigned char> encrypted_mnemonic;
-      if (!EncryptSecret(master_key, secret, master_key_id_hash, encrypted_mnemonic))
-          return false;
+    } else {
+        auto p = mapKeys.find(hdChain.masterKeyID);
+        if (p == mapKeys.end()) {
+            return false;
+        }
+        hdkey = p->second.GetPubKey();
+    }
 
-      mnemonic.resize(encrypted_mnemonic.size());
-      std::copy(encrypted_mnemonic.begin(), encrypted_mnemonic.end(), mnemonic.begin());
+    //Make sure the version get's updated because older wallets may
+    //have the insecure mnemonic
+    meta.nVersion = CKeyMetadata::VERSION_WITH_SECURE_MNEMONIC;
 
-      auto hdkey = mapKeys.find(hdChain.masterKeyID);
-      if (hdkey == mapKeys.end()) {
-          return false;
-      }
-
-      //Make sure the version get's updated because older wallets may
-      //have the insecure mnemonic
-      meta.nVersion = CKeyMetadata::VERSION_WITH_SECURE_MNEMONIC;
-
-      walletdb.WriteKeyMetadata(hdkey->second.GetPubKey(), meta);
-      return true;
+    walletdb.WriteKeyMetadata(hdkey, meta);
+    return true;
 }
 
 bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
@@ -1914,7 +1925,9 @@ std::string CWallet::GetMnemonic() const
             return p->second.mnemonic;
         }
 
-        assert(!CryptedWalletNeedsNewPassphrase() && "old unencrypted mnemonics need to be crypted");
+        if(CryptedWalletNeedsNewPassphrase()) {
+            return "old unencrypted mnemonics need to be encrypted";
+        }
 
         if(IsLocked()) {
             return "locked";
