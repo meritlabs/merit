@@ -299,15 +299,17 @@ void WalletView::CheckChangePassphrase()
     if(walletModel->CryptedWalletNeedsNewPassphrase()) {
         QMessageBox msgBox{QMessageBox::Question,
             "Insecure Mnemonic", 
-            "It looks like your wallet's mnemonic was not encrypted. "
-            "We recommend you change your passphrase to encrypt it. Do "
-            "you want to change your passphrase now?",
+            "Versions prior to 0.5.2 did not properly encrypt the mnemonic. "
+            "It looks like your wallet needs to be upgraded. "
+            "We recommend you change your passphrase to secure your wallet. "
+            "Do you want to change your passphrase now?",
             QMessageBox::Yes | QMessageBox::No,
             this};
         msgBox.setStyleSheet(QString("QMessageBox { background-color: white; }"));
         auto ret = msgBox.exec();
-        if(ret != QMessageBox::Yes) {
-            return;
+        
+        if(ret == QMessageBox::Yes) {
+            changePassphrase();
         }
     }
 }

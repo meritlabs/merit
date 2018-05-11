@@ -103,7 +103,7 @@ public:
     static const int VERSION_WITH_HDDATA=10;
     static const int VERSION_WITH_MNEMONIC=11;
     static const int VERSION_WITH_SECURE_MNEMONIC=12;
-    static const int CURRENT_VERSION=VERSION_WITH_HDDATA;
+    static const int CURRENT_VERSION = VERSION_WITH_SECURE_MNEMONIC;
     int nVersion;
     int64_t nCreateTime; // 0 means unknown
     std::string hdKeypath; //optional HD/bip32 keypath
