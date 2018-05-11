@@ -38,6 +38,7 @@ public Q_SLOTS:
     void SnapshotProgress(qint64 received, qint64 total);
     void SnapshotFinished();
     void SnapshotReadyRead();
+    void StartButtonClicked();
     void SnapshotChoiceClicked();
     void PeersChoiceClicked();
     void TryAgain();
