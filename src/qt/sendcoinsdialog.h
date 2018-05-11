@@ -26,7 +26,7 @@ QT_BEGIN_NAMESPACE
 class QUrl;
 QT_END_NAMESPACE
 
-/** Dialog for sending merits */
+/** Dialog for sending merit */
 class SendCoinsDialog : public QDialog
 {
     Q_OBJECT

@@ -54,9 +54,9 @@ QString MeritUnits::description(int unit)
 {
     switch(unit)
     {
-    case MRT: return QString("Merits");
-    case mMRT: return QString("Milli-Merits (1 / 1" THIN_SP_UTF8 "000)");
-    case uMRT: return QString("Micro-Merits (1 / 1" THIN_SP_UTF8 "000" THIN_SP_UTF8 "000)");
+    case MRT: return QString("Merit");
+    case mMRT: return QString("Milli-Merit (1 / 1" THIN_SP_UTF8 "000)");
+    case uMRT: return QString("Micro-Merit (1 / 1" THIN_SP_UTF8 "000" THIN_SP_UTF8 "000)");
     case INV: return QString("Invites Used to Confirm Addresses");
     default: return QString("???");
     }
