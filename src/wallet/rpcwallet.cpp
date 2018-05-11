@@ -4147,6 +4147,16 @@ UniValue getmnemonic(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
+    if (pwallet->IsLocked()) {
+        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
+    }
+
+    if(pwallet->CryptedWalletNeedsNewPassphrase()) {
+        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, 
+                "Error: You have an encrypted wallet but your mnemonic is not"
+                " encrypted. Please change the passphrase using walletpassphrasechange to secure it.");
+    }
+
     if (request.fHelp || request.params.size() != 0)
         throw std::runtime_error(
             "getmnemonic\n"
@@ -4169,7 +4179,7 @@ UniValue getmnemonic(const JSONRPCRequest& request)
 
     CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
     if (!masterKeyID.IsNull()) {
-        std::string mnemonic = pwallet->mapKeyMetadata[masterKeyID].mnemonic;
+        auto mnemonic = pwallet->GetMnemonic();
 
         if(mnemonic.length() == 0)
             throw JSONRPCError(RPC_WALLET_NO_MNEMONIC,

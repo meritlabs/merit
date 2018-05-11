@@ -102,6 +102,7 @@ public:
     static const int VERSION_BASIC=1;
     static const int VERSION_WITH_HDDATA=10;
     static const int VERSION_WITH_MNEMONIC=11;
+    static const int VERSION_WITH_SECURE_MNEMONIC=12;
     static const int CURRENT_VERSION=VERSION_WITH_HDDATA;
     int nVersion;
     int64_t nCreateTime; // 0 means unknown
@@ -189,6 +190,7 @@ public:
     bool WriteTx(const CWalletTx& wtx);
     bool EraseTx(uint256 hash);
 
+    bool WriteKeyMetadata(const CPubKey& vchPubKey, const CKeyMetadata& keyMeta, bool overwrite = true);
     bool WriteKey(const CPubKey& vchPubKey, const CPrivKey& vchPrivKey, const CKeyMetadata &keyMeta);
     bool WriteCryptedKey(const CPubKey& vchPubKey, const std::vector<unsigned char>& vchCryptedSecret, const CKeyMetadata &keyMeta);
     bool WriteMasterKey(unsigned int nID, const CMasterKey& kMasterKey);

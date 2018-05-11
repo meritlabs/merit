@@ -151,6 +151,9 @@ void WalletView::setWalletModel(WalletModel *_walletModel)
 
         // Show progress dialog
         connect(_walletModel, SIGNAL(showProgress(QString,int)), this, SLOT(showProgress(QString,int)));
+
+        connect(_walletModel, SIGNAL(showProgress(QString,int)), this, SLOT(showProgress(QString,int)));
+        QTimer::singleShot(3000, this, SLOT(CheckChangePassphrase()));
     }
 }
 
@@ -285,6 +288,29 @@ void WalletView::changePassphrase()
     AskPassphraseDialog dlg(AskPassphraseDialog::ChangePass, this);
     dlg.setModel(walletModel);
     dlg.exec();
+}
+
+void WalletView::CheckChangePassphrase()
+{
+    assert(walletModel);
+    if(!walletModel->IsReferred()) {
+        return;
+    }
+
+    if(walletModel->CryptedWalletNeedsNewPassphrase()) {
+        QMessageBox msgBox{QMessageBox::Question,
+            "Insecure Mnemonic", 
+            "It looks like your wallet's mnemonic was not encrypted. "
+            "We recommend you change your passphrase to encrypt it. Do "
+            "you want to change your passphrase now?",
+            QMessageBox::Yes | QMessageBox::No,
+            this};
+        msgBox.setStyleSheet(QString("QMessageBox { background-color: white; }"));
+        auto ret = msgBox.exec();
+        if(ret != QMessageBox::Yes) {
+            return;
+        }
+    }
 }
 
 void WalletView::unlockWallet()
