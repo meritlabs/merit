@@ -4147,16 +4147,6 @@ UniValue getmnemonic(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (pwallet->IsLocked()) {
-        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
-    }
-
-    if(pwallet->CryptedWalletNeedsNewPassphrase()) {
-        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, 
-                "Error: You have an encrypted wallet but your mnemonic is not"
-                " encrypted. Please change the passphrase using walletpassphrasechange to secure it.");
-    }
-
     if (request.fHelp || request.params.size() != 0)
         throw std::runtime_error(
             "getmnemonic\n"
@@ -4174,6 +4164,12 @@ UniValue getmnemonic(const JSONRPCRequest& request)
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
     EnsureWalletIsUnlocked(pwallet);
+
+    if(pwallet->CryptedWalletNeedsNewPassphrase()) {
+        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, 
+                "Error: You have an encrypted wallet but your mnemonic is not"
+                " encrypted. Please change the passphrase using walletpassphrasechange to secure it.");
+    }
 
     UniValue obj(UniValue::VOBJ);
 
