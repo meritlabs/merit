@@ -27,7 +27,7 @@ QT_BEGIN_NAMESPACE
 class QModelIndex;
 QT_END_NAMESPACE
 
-/** Dialog for requesting payment of merits */
+/** Dialog for requesting payment of merit */
 class ReceiveCoinsDialog : public QDialog
 {
     Q_OBJECT

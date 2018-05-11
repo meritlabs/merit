@@ -18,7 +18,7 @@ namespace Ui {
 }
 
 /**
- * A single entry in the dialog for sending merits.
+ * A single entry in the dialog for sending merit.
  * Stacked widget, with different UIs for payment requests
  * with a strong payee identity.
  */
