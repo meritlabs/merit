@@ -13,6 +13,7 @@
 #include "walletmodel.h"
 #include "exportwalletdialog.h"
 #include "ui_exportwalletdialog.h"
+#include "util.h"
 
 ExportWalletDialog::ExportWalletDialog(QWidget *parent, WalletModel *model) :
     QDialog(parent),
@@ -34,9 +35,20 @@ ExportWalletDialog::~ExportWalletDialog()
     delete ui;
 }
 
+void ExportWalletDialog::closeEvent(QCloseEvent *event) {
+    hideCode();
+    QDialog::closeEvent(event);
+}
+
 void ExportWalletDialog::onCancelClicked()
 {
+    hideCode();
     reject();
+}
+
+void ExportWalletDialog::hideCode() {
+    qrCodeIsVisible = false;
+    setQRCodeVisibility();
 }
 
 void ExportWalletDialog::onShowClicked()
@@ -49,6 +61,12 @@ void ExportWalletDialog::setQRCodeVisibility()
 {
     if(qrCodeIsVisible)
     {
+        WalletModel::UnlockContext ctx(walletModel->requestUnlock());
+        if(!ctx.isValid()) {
+            // Unlock wallet was cancelled
+            return;
+        }
+
         ui->lblQRCode->setText("");
     #ifdef USE_QRCODE
         bool livenet = Params().NetworkIDString() == CBaseChainParams::MAIN;

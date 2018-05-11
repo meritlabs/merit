@@ -17,15 +17,18 @@ public:
     explicit ExportWalletDialog(QWidget *parent, WalletModel *model);
     ~ExportWalletDialog();
 
+protected:
+    void closeEvent(QCloseEvent *event);
+
 private Q_SLOTS:
     void onCancelClicked();
     void onShowClicked();
-
 private:
     WalletModel *walletModel;
     Ui::ExportWalletDialog *ui;
     bool qrCodeIsVisible = false;
 
+    void hideCode();
     void setQRCodeVisibility();
 };
 

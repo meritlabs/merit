@@ -15,6 +15,7 @@
 #include "guiutil.h"
 #include "enterunlockcode.h"
 #include "exportwalletdialog.h"
+#include "importwalletdialog.h"
 #include "miner.h"
 #include "modaloverlay.h"
 #include "networkstyle.h"
@@ -117,6 +118,7 @@ MeritGUI::MeritGUI(const PlatformStyle *_platformStyle, const NetworkStyle *netw
     encryptWalletAction(nullptr),
     backupWalletAction(nullptr),
     exportWalletQRAction(nullptr),
+    importWalletAction(nullptr),
     changePassphraseAction(nullptr),
     aboutQtAction(nullptr),
     openRPCConsoleAction(nullptr),
@@ -379,13 +381,21 @@ void MeritGUI::createActions()
 #ifdef USE_QRCODE
     exportWalletQRAction = new QAction(platformStyle->TextColorIcon(":/icons/filesave"), tr("&Export Wallet..."), this);
     exportWalletQRAction->setStatusTip(tr("Export wallet to another device"));
+    exportWalletQRAction->setVisible(false);
 #endif
+    importWalletAction = new QAction(platformStyle->TextColorIcon(":/icons/verify"), tr("&Import Wallet..."), this);
+    importWalletAction->setStatusTip(tr("Import wallet using Mnemonic"));
+
     changePassphraseAction = new QAction(platformStyle->TextColorIcon(":/icons/key"), tr("&Change Passphrase..."), this);
     changePassphraseAction->setStatusTip(tr("Change the passphrase used for wallet encryption"));
+
     signMessageAction = new QAction(platformStyle->TextColorIcon(":/icons/edit"), tr("Sign &message..."), this);
     signMessageAction->setStatusTip(tr("Sign messages with your Merit addresses to prove you own them"));
+    signMessageAction->setVisible(false);
+
     verifyMessageAction = new QAction(platformStyle->TextColorIcon(":/icons/verify"), tr("&Verify message..."), this);
     verifyMessageAction->setStatusTip(tr("Verify messages to ensure they were signed with specified Merit addresses"));
+    verifyMessageAction->setVisible(false);
 
     openRPCConsoleAction = new QAction(platformStyle->TextColorIcon(":/icons/debugwindow"), tr("&Debug window"), this);
     openRPCConsoleAction->setStatusTip(tr("Open debugging and diagnostic console"));
@@ -433,6 +443,7 @@ void MeritGUI::createActions()
         connect(openAction, SIGNAL(triggered()), this, SLOT(openClicked()));
         connect(startMiningAction, SIGNAL(triggered()), this, SLOT(startMiningClicked()));
         connect(stopMiningAction, SIGNAL(triggered()), this, SLOT(stopMiningClicked()));
+        connect(importWalletAction, SIGNAL(triggered()), this, SLOT(showImportWallet()));
         #ifdef USE_QRCODE
             connect(exportWalletQRAction, SIGNAL(triggered()), this, SLOT(showExportWallet()));
         #endif
@@ -458,6 +469,7 @@ void MeritGUI::createMenuBar()
     if(walletFrame)
     {
         file->addAction(openAction);
+        file->addAction(importWalletAction);
         file->addAction(backupWalletAction);
         #ifdef USE_QRCODE
             file->addAction(exportWalletQRAction);
@@ -588,13 +600,6 @@ bool MeritGUI::addWallet(const QString& name, WalletModel *_walletModel)
     walletModel = _walletModel;
     assert(walletModel);
 
-    hasMnemonic = walletModel->hasMnemonic();
-    #ifdef USE_QRCODE
-        if(hasMnemonic)
-            exportWalletDialog = new ExportWalletDialog(this, walletModel);
-        exportWalletQRAction->setVisible(hasMnemonic);
-    #endif
-
     isReferred = walletModel->IsReferred();
     setWalletActionsEnabled(true, isReferred);
     connect(walletModel, SIGNAL(isConfirmedChanged(bool)), this, SLOT(setMiningEnabled(bool)));
@@ -634,6 +639,9 @@ void MeritGUI::walletReferred()
 {
     setWalletActionsEnabled(true);
     enterUnlockCode->showHide(true, true);
+    if(walletFrame) {
+        walletFrame->UpdateOverviewPage();
+    }
 }
 #endif // ENABLE_WALLET
 
@@ -644,6 +652,16 @@ void MeritGUI::setWalletActionsEnabled(bool enabled)
 
 void MeritGUI::setWalletActionsEnabled(bool enabled, bool isReferred)
 {
+    if(walletModel) {
+        hasMnemonic = walletModel->hasMnemonic();
+#ifdef USE_QRCODE
+        if(hasMnemonic)
+            exportWalletDialog = new ExportWalletDialog(this, walletModel);
+        exportWalletQRAction->setVisible(hasMnemonic);
+#endif
+    }
+
+    importWalletAction->setVisible(!isReferred);
     overviewAction->setEnabled(enabled);
     sendCoinsAction->setEnabled(enabled && isReferred);
     sendCoinsMenuAction->setEnabled(enabled && isReferred);
@@ -767,6 +785,19 @@ void MeritGUI::showExportWallet()
     if(hasMnemonic)
         exportWalletDialog->show();
     #endif
+}
+
+void MeritGUI::showImportWallet()
+{
+    if(!walletModel) {
+        return;
+    }
+
+    ImportWalletDialog importWalletDialog{this, walletModel};
+    importWalletDialog.exec();
+    if(importWalletDialog.result() == QDialog::Accepted) {
+            walletReferred();
+    }
 }
 
 #ifdef ENABLE_WALLET

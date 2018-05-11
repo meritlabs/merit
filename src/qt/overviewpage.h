@@ -49,9 +49,9 @@ public Q_SLOTS:
             CAmount watchUnconfBalance,
             CAmount watchImmatureBalance,
             CAmount inviteBalance);
-    void setYourCommunity(
-            const QString &alias,
-            const QString &address);
+
+    void Update();
+    void UpdateCommunityView();
     void UpdateInvitationStatus();
     void UpdateInviteRequestView();
     void UpdateNetworkView();

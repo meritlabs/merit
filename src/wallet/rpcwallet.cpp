@@ -4151,6 +4151,7 @@ UniValue getmnemonic(const JSONRPCRequest& request)
         throw std::runtime_error(
             "getmnemonic\n"
             "Returns an object containing a mnemonic phrase if one exists used to recover your wallet.\n"
+            + HelpRequiringPassphrase(pwallet) + "\n"
             "\nResult:\n"
             "{\n"
             "  \"mnemonic\": xxxxx,                  (string) mnemonic phrase used to recover your wallet\n"
@@ -4162,12 +4163,19 @@ UniValue getmnemonic(const JSONRPCRequest& request)
 
     ObserveSafeMode();
     LOCK2(cs_main, pwallet->cs_wallet);
+    EnsureWalletIsUnlocked(pwallet);
+
+    if(pwallet->CryptedWalletNeedsNewPassphrase()) {
+        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, 
+                "Error: You have an encrypted wallet but your mnemonic is not"
+                " encrypted. Please change the passphrase using walletpassphrasechange to secure it.");
+    }
 
     UniValue obj(UniValue::VOBJ);
 
     CKeyID masterKeyID = pwallet->GetHDChain().masterKeyID;
     if (!masterKeyID.IsNull()) {
-        std::string mnemonic = pwallet->mapKeyMetadata[masterKeyID].mnemonic;
+        auto mnemonic = pwallet->GetMnemonic();
 
         if(mnemonic.length() == 0)
             throw JSONRPCError(RPC_WALLET_NO_MNEMONIC,
