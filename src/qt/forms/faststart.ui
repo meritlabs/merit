@@ -90,11 +90,10 @@
     </rect>
    </property>
    <property name="styleSheet">
-    <string notr="true">
-</string>
+    <string notr="true"/>
    </property>
    <property name="currentIndex">
-    <number>1</number>
+    <number>0</number>
    </property>
    <widget class="QWidget" name="choicePage">
     <widget class="QLabel" name="label_3">
@@ -107,70 +106,73 @@
       </rect>
      </property>
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:14pt; font-weight:600; color:#384c62;&quot;&gt;How you want to download&lt;br/&gt;the Merit Blockchain?&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:14pt; font-weight:600; color:#384c62;&quot;&gt;How would you like to download&lt;br/&gt;the Merit Blockchain?&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
      <property name="margin">
       <number>0</number>
      </property>
     </widget>
-    <widget class="QPushButton" name="snapshotButton">
+    <widget class="QRadioButton" name="snapshotButton">
      <property name="geometry">
       <rect>
-       <x>50</x>
+       <x>110</x>
        <y>80</y>
-       <width>221</width>
-       <height>191</height>
+       <width>171</width>
+       <height>61</height>
       </rect>
      </property>
      <property name="styleSheet">
-      <string notr="true">font: 11pt &quot;Sans Serif&quot;; color: rgb(32, 103, 209);</string>
+      <string notr="true">font: 14pt &quot;Sans Serif&quot;; color: rgb(32, 103, 209);</string>
      </property>
      <property name="text">
-      <string>QuickStart</string>
+      <string>FastSync</string>
      </property>
-     <property name="default">
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+     <property name="autoExclusive">
       <bool>true</bool>
      </property>
     </widget>
-    <widget class="QPushButton" name="peersButton">
+    <widget class="QRadioButton" name="peersButton">
      <property name="geometry">
       <rect>
-       <x>330</x>
-       <y>80</y>
-       <width>221</width>
-       <height>191</height>
+       <x>110</x>
+       <y>200</y>
+       <width>171</width>
+       <height>61</height>
       </rect>
      </property>
      <property name="font">
       <font>
        <family>Sans Serif</family>
-       <pointsize>11</pointsize>
+       <pointsize>14</pointsize>
        <weight>50</weight>
        <italic>false</italic>
        <bold>false</bold>
       </font>
      </property>
      <property name="styleSheet">
-      <string notr="true">font: 11pt &quot;Sans Serif&quot;; color: rgb(32, 103, 209);</string>
+      <string notr="true">font: 14pt &quot;Sans Serif&quot;; color: rgb(32, 103, 209);</string>
      </property>
      <property name="text">
-      <string>Standard</string>
+      <string>Peers</string>
      </property>
-     <property name="flat">
-      <bool>false</bool>
+     <property name="autoExclusive">
+      <bool>true</bool>
      </property>
     </widget>
     <widget class="QLabel" name="label_4">
      <property name="geometry">
       <rect>
-       <x>50</x>
-       <y>290</y>
-       <width>221</width>
-       <height>101</height>
+       <x>290</x>
+       <y>70</y>
+       <width>231</width>
+       <height>121</height>
       </rect>
      </property>
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;justify&quot;&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#384c62;&quot;&gt;Download a snapshot of the blockchain, and then get the most recent transactions from Community Peers.&lt;br/&gt;&lt;br/&gt;This is the fastest option.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; color:#384c62;&quot;&gt;This is the fastest option. Downloads a snapshot of the blockchain from Merit Foundation servers. &lt;br/&gt;&lt;/span&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#384c62;&quot;&gt;&lt;br/&gt;Expected Time: Less than 30 minutes.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
@@ -182,14 +184,49 @@
     <widget class="QLabel" name="label_5">
      <property name="geometry">
       <rect>
-       <x>330</x>
-       <y>290</y>
-       <width>221</width>
-       <height>81</height>
+       <x>290</x>
+       <y>200</y>
+       <width>231</width>
+       <height>121</height>
       </rect>
      </property>
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;justify&quot;&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#384c62;&quot;&gt;Download only from peers in the Merit Community.&lt;br/&gt;&lt;br/&gt;This is slower, but more decentralized.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; color:#384c62;&quot;&gt;This is the slower option, but is fully decentralized. Download only from peers in the Merit Community. &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#384c62;&quot;&gt;Expected Time: More than 5 hours.&lt;br/&gt;&lt;br/&gt;&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+     <property name="margin">
+      <number>0</number>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="startButton">
+     <property name="geometry">
+      <rect>
+       <x>39</x>
+       <y>330</y>
+       <width>521</width>
+       <height>61</height>
+      </rect>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">font: 16pt &quot;Sans Serif&quot;; color: rgb(32, 103, 209);</string>
+     </property>
+     <property name="text">
+      <string>Start Download</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_6">
+     <property name="geometry">
+      <rect>
+       <x>130</x>
+       <y>120</y>
+       <width>141</width>
+       <height>40</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt; font-weight:600; color:#384c62;&quot;&gt;(Recommended)&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>

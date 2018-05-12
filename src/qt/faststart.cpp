@@ -229,8 +229,16 @@ void FastStart::ShowDownload()
 void FastStart::ShowChoice()
 {
     ui->stack->setCurrentIndex(0);
-    connect(ui->snapshotButton, SIGNAL(clicked()), this, SLOT(SnapshotChoiceClicked()));
-    connect(ui->peersButton, SIGNAL(clicked()), this, SLOT(PeersChoiceClicked()));
+    connect(ui->startButton, SIGNAL(clicked()), this, SLOT(StartButtonClicked()));
+}
+
+void FastStart::StartButtonClicked()
+{
+    if(ui->snapshotButton->isChecked()) {
+        SnapshotChoiceClicked();
+    } else if (ui->peersButton->isChecked()) {
+        PeersChoiceClicked();
+    }
 }
 
 void FastStart::SnapshotChoiceClicked()
