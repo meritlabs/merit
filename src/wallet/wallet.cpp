@@ -194,9 +194,9 @@ bool CWallet::ImportMnemonicAsMaster(
     if(!IsAValidMnemonic(mnemonic)) {
         return false;
     }
+    LOCK2(cs_main, cs_wallet);
 
     CWalletDB walletdb(*dbw);
-    LOCK(cs_wallet);
     assert(IsHDEnabled());
 
     auto words = mnemonic::MnemonicStringToWords(mnemonic);
