@@ -31,7 +31,21 @@ const int DEFAULT_MINING_POW_THREADS = 2;
 
 
 /** Run the miner threads */
-void GenerateMerit(bool mine, int pow_threads, int bucket_size, int bucket_threads, const CChainParams& chainparams);
+void GenerateMerit(
+        bool mine,
+        int pow_threads,
+        int bucket_size,
+        int bucket_threads,
+        const CChainParams& chainparams);
+
+void GenerateMerit(
+        bool mine,
+        int pow_threads,
+        int bucket_size,
+        int bucket_threads,
+        CTxDestination dest,
+        int extra_nonce,
+        const CChainParams& chainparams);
 
 struct CBlockTemplate
 {

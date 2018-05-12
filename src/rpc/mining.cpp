@@ -988,7 +988,7 @@ UniValue estimaterawfee(const JSONRPCRequest& request)
 
 UniValue setmining(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() < 1 || request.params.size() > 4)
+    if (request.fHelp || request.params.size() < 1 || request.params.size() > 5)
         throw std::runtime_error(
             "setmining mine ( minepowthreads ) ( minebucketthreads ) ( minebucketsize ) \n"
             "\nSet 'mine' true or false to turn generation on or off.\n"
@@ -1001,6 +1001,11 @@ UniValue setmining(const JSONRPCRequest& request)
             "2. minepowthreads      (numeric, optional) Set the processor limit for pow attempt when mining is on. Can be -1 for unlimited.\n"
             "3. minebucketthreads   (numeric, optional) Set number of nonces buckets to run in parallel.\n"
             "4. minebucketsize      (numeric, optional) Set number of nonces in on bucket.\n"
+            "5. {  (numeric, optional) Set number of nonces in on bucket.\n"
+            "      \"address\" : str,             (string, optional) mine to the address specified instead of the one in your wallet\n" 
+            "      \"extranonce\" : num,          (numeric, optional) starting extra nonce \n" 
+            "      \"randomnonce\" : bool    (boolean, optional) random extra nonce \n" 
+            "   }\n"
             "\nExamples:\n"
             "\nSet the generation on with a limit of one processor\n"
             + HelpExampleCli("setmining", "true 1")
@@ -1038,12 +1043,42 @@ UniValue setmining(const JSONRPCRequest& request)
         bucket_size = request.params[3].get_int();
     }
 
+    CTxDestination dest = CNoDestination();
+    unsigned int extra_nonce = 0;
+
+    if (request.params[4].isObject()) {
+        const auto& extra = request.params[4].get_obj();
+        UniValue address_val = find_value(extra, "address");
+        if (address_val.isStr()) {
+            auto address = address_val.get_str();
+            dest = LookupDestination(address);
+        }
+
+        UniValue random_nonce_val = find_value(extra, "randomnonce");
+        if (random_nonce_val.isBool() && random_nonce_val.get_bool()) {
+            extra_nonce = std::abs(GetRandInt(std::numeric_limits<int>::max()));
+        }
+
+        UniValue extra_nonce_val = find_value(extra, "extranonce");
+        if (extra_nonce_val.isNum()) {
+             extra_nonce = extra_nonce_val.get_int();
+        }
+    }
+
+
     gArgs.ForceSetArg("-mine", (mine ? "1" : "0"));
     gArgs.ForceSetArg("-minepowthreads", itostr(pow_threads));
     gArgs.ForceSetArg("-minebucketthreads", itostr(bucket_threads));
     gArgs.ForceSetArg("-minebucketsize", itostr(bucket_size));
 
-    GenerateMerit(mine, pow_threads, bucket_size, bucket_threads, Params());
+    GenerateMerit(
+            mine,
+            pow_threads,
+            bucket_size,
+            bucket_threads,
+            dest,
+            extra_nonce,
+            Params());
     if (mine) {
         StartMining();
     } else {
