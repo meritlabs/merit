@@ -554,10 +554,24 @@ void OverviewPage::setBalance(
     UpdateInvitationStatus();
 }
 
-void OverviewPage::setYourCommunity(
-        const QString &alias,
-        const QString &address)
+void OverviewPage::Update() 
 {
+    assert(walletModel);
+
+    UpdateInvitationStatus();
+    UpdateNetworkView();
+    UpdateInviteRequestView();
+}
+
+void OverviewPage::UpdateCommunityView()
+{
+    if(!walletModel) {
+        return;
+    }
+
+    auto alias = walletModel->GetAlias();
+    auto address = walletModel->GetUnlockCode();
+
     if(alias.length() > 0)
     {
         ui->aliasTitleLabel->setHidden(false);
@@ -649,9 +663,7 @@ void OverviewPage::setWalletModel(WalletModel *model)
                 model->getWatchImmatureBalance(),
                 model->getBalance(nullptr, true));
         
-        setYourCommunity(
-                model->GetAlias(),
-                model->GetUnlockCode());
+        UpdateCommunityView();
 
         connect(
                 model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)),
@@ -746,6 +758,9 @@ void OverviewPage::UpdateInviteRequestView()
 
     assert(pendingRequestsFilter);
     assert(approvedRequestsFilter);
+    
+    pendingRequestsFilter->invalidate();
+    approvedRequestsFilter->invalidate();
 
     const bool has_requests = pendingRequestsFilter->rowCount() > 0;
     const bool has_approved = approvedRequestsFilter->rowCount() > 0;
@@ -813,9 +828,7 @@ void OverviewPage::UpdateNetworkView()
         return;
     }
 
-    setYourCommunity(
-            walletModel->GetAlias(),
-            walletModel->GetUnlockCode());
+    UpdateCommunityView();
 
     auto ref_model = walletModel->getReferralListModel();
     if(ref_model) {

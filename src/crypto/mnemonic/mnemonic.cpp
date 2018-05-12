@@ -21,6 +21,27 @@ namespace mnemonic
         }
     }
 
+    WordList MnemonicStringToWords(const std::string& mnemonic)
+    {
+        std::stringstream s;
+        s << mnemonic;
+
+        WordList words;
+        while(s.good()) {
+            std::string word;
+            s >> word;
+
+            if(!word.empty()) { 
+                words.push_back(word);
+            }
+        }
+        return words;
+    }
+
+    bool IsAValidMnemonic(const WordList& words) {
+        return words.size() == MNEMONIC_WORD_COUNT;
+    }
+
     std::array<uint8_t, SEED_LENGTH> MnemonicToSeed(const WordList& mnemonic, const std::string& passphrase)
     {
         return MnemonicToSeed(Unwords(mnemonic), passphrase);
@@ -69,6 +90,8 @@ namespace mnemonic
 
         WordList mnemonic(MNEMONIC_WORD_COUNT);
         std::transform(inds.begin(), inds.end(), mnemonic.begin(), [&dict](const int& i) { return dict[i]; });
+
+        assert(IsAValidMnemonic(mnemonic));
         return mnemonic;
     }
 }

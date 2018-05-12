@@ -900,3 +900,21 @@ bool WalletModel::getDefaultWalletRbf() const
 {
     return fWalletRbf;
 }
+
+bool WalletModel::IsAValidMnemonic(const std::string& mnemonic)
+{
+    assert(wallet);
+    return wallet->IsAValidMnemonic(mnemonic);
+}
+
+bool WalletModel::ImportMnemonicAsMaster(const std::string& mnemonic)
+{
+    assert(wallet);
+    return wallet->ImportMnemonicAsMaster(mnemonic);
+}
+
+bool WalletModel::CryptedWalletNeedsNewPassphrase() const
+{
+    assert(wallet);
+    return wallet->CryptedWalletNeedsNewPassphrase();
+}

@@ -417,7 +417,12 @@ bool BlockAssembler::CheckReferrals(
         const auto tx = it->GetEntryValue();
 
         CValidationState dummy;
-        if (!Consensus::CheckTxOutputs(tx, dummy, *prefviewcache, candidate_referrals)) {
+        if (!Consensus::CheckTxOutputs(
+                    tx,
+                    dummy,
+                    *prefviewcache,
+                    candidate_referrals,
+                    &confirmations)) {
             return false;
         }
     }
@@ -546,12 +551,15 @@ int BlockAssembler::UpdatePackagesForAdded(
 {
     int nDescendantsUpdated = 0;
     for (const CTxMemPool::txiter it : alreadyAdded) {
+
         CTxMemPool::setEntries descendants;
         mempool.CalculateDescendants(it, descendants);
         // Insert all descendants (not yet in block) into the modified set
         for (CTxMemPool::txiter desc : descendants) {
+
             if (alreadyAdded.count(desc))
                 continue;
+
             ++nDescendantsUpdated;
             modtxiter mit = mapModifiedTx.find(desc);
             if (mit == mapModifiedTx.end()) {

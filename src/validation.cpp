@@ -1296,7 +1296,9 @@ static bool AcceptToMemoryPoolWorker(
                     tx,
                     state,
                     *prefviewcache,
-                    mempoolReferral.GetReferrals())) {
+                    mempoolReferral.GetReferrals(),
+                    nullptr,
+                    true)) {
 
             return false;
         }
@@ -1820,6 +1822,9 @@ pog::AmbassadorLottery RewardAmbassadors(
     assert(height >= 0);
     assert(prefviewdb != nullptr);
 
+    const bool is_daedalus = 
+        height >= params.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block;
+
     static size_t max_embassador_lottery = 0;
     referral::AddressANVs entrants;
 
@@ -1847,7 +1852,11 @@ pog::AmbassadorLottery RewardAmbassadors(
     assert(desired_winners < 100);
 
     // Select the N winners using the previous block hash as the seed
-    auto winners = selector.Select(previous_block_hash, desired_winners);
+    auto winners = selector.Select(
+            is_daedalus,
+            *prefviewcache,
+            previous_block_hash,
+            desired_winners);
 
     assert(winners.size() == desired_winners);
 
@@ -2124,7 +2133,6 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
                 }
 
                 debug("\tWinner: %s, %d", addr.ToString(), static_cast<int>(winner.address_type));
-
                 const auto script = GetScriptForDestination(dest);
                 return CTxOut{winner.amount, script};
             });
@@ -5444,6 +5452,10 @@ bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempoo
 
     if (confirmed) {
         return true;
+    }
+
+    if(!checkMempool) { 
+        return false;
     }
 
     // check mempool for confirmation invite transaction

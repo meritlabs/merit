@@ -47,7 +47,8 @@ bool CheckTxOutputs(
         CValidationState& state,
         const referral::ReferralsViewCache& referralsCache,
         const std::vector<referral::ReferralRef>& vExtraReferrals,
-        const ConfirmationSet* block_invites = nullptr);
+        const ConfirmationSet* block_invites = nullptr,
+        bool check_mempool = false);
 } // namespace Consensus
 
 /** Auxiliary functions for transaction validation (ideally should not be exposed) */

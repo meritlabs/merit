@@ -65,6 +65,7 @@ WalletView::WalletView(const PlatformStyle *_platformStyle, QWidget *parent):
     // Clicking on a transaction on the overview pre-selects the transaction on the transaction history page
     connect(overviewPage, SIGNAL(transactionClicked(QModelIndex)), transactionView, SLOT(focusTransaction(QModelIndex)));
     connect(overviewPage, SIGNAL(outOfSyncWarningClicked()), this, SLOT(requestedSyncWarningInfo()));
+    connect(this, SIGNAL(DoUpdateOverviewPage()), overviewPage, SLOT(Update()));
 
     // Double-clicking on a transaction on the transaction history page shows details
     connect(transactionView, SIGNAL(doubleClicked(QModelIndex)), transactionView, SLOT(showDetails()));
@@ -150,6 +151,8 @@ void WalletView::setWalletModel(WalletModel *_walletModel)
 
         // Show progress dialog
         connect(_walletModel, SIGNAL(showProgress(QString,int)), this, SLOT(showProgress(QString,int)));
+
+        QTimer::singleShot(3000, this, SLOT(CheckChangePassphrase()));
     }
 }
 
@@ -286,6 +289,31 @@ void WalletView::changePassphrase()
     dlg.exec();
 }
 
+void WalletView::CheckChangePassphrase()
+{
+    assert(walletModel);
+    if(!walletModel->IsReferred()) {
+        return;
+    }
+
+    if(walletModel->CryptedWalletNeedsNewPassphrase()) {
+        QMessageBox msgBox{QMessageBox::Question,
+            "Insecure Mnemonic", 
+            "Versions prior to 0.5.2 did not properly encrypt the mnemonic. "
+            "It looks like your wallet needs to be upgraded. "
+            "We recommend you change your passphrase to secure your wallet. "
+            "Do you want to change your passphrase now?",
+            QMessageBox::Yes | QMessageBox::No,
+            this};
+        msgBox.setStyleSheet(QString("QMessageBox { background-color: white; }"));
+        auto ret = msgBox.exec();
+        
+        if(ret == QMessageBox::Yes) {
+            changePassphrase();
+        }
+    }
+}
+
 void WalletView::unlockWallet()
 {
     if(!walletModel)
@@ -345,4 +373,9 @@ void WalletView::showProgress(const QString &title, int nProgress)
 void WalletView::requestedSyncWarningInfo()
 {
     Q_EMIT outOfSyncWarningClicked();
+}
+
+void WalletView::UpdateOverviewPage()
+{
+    Q_EMIT DoUpdateOverviewPage();
 }

@@ -766,7 +766,11 @@ private:
 
     /* HD derive new child key (on internal or external chain) */
     void DeriveNewChildKey(CWalletDB& walletdb, CKeyMetadata& metadata, CKey& secret);
-    void DeriveNewBIP44ChildKey(CWalletDB &walletdb, CKeyMetadata& metadata, CKey& secret);
+    void DeriveNewBIP44ChildKey(
+            const std::string& mnemonic,
+            std::string& hdKeypath,
+            CKey& secret,
+            uint32_t& hdchain_counter);
 
     std::set<int64_t> setKeyPool;
     int64_t m_max_keypool_index;
@@ -942,6 +946,7 @@ public:
     void UnlockCoin(const COutPoint& output);
     void UnlockAllCoins();
     void ListLockedCoins(std::vector<COutPoint>& vOutpts) const;
+    bool EncryptMnemonic(CWalletDB&, CKeyingMaterial& master_key);
 
     /*
      * Rescan abort properties
@@ -955,6 +960,12 @@ public:
      * Generate a new key
      */
     CPubKey GenerateNewKey(CWalletDB& walletdb);
+
+    //! Creates a new master key with the mnemonic phrase specified
+    bool ImportMnemonicAsMaster(
+            const std::string& mnemonic,
+            const std::string& passphrase = "");
+
     //! Adds a key to the store, and saves it to disk.
     bool AddKeyPubKey(const CKey& key, const CPubKey &pubkey) override;
     bool AddKeyPubKeyWithDB(CWalletDB &walletdb,const CKey& key, const CPubKey &pubkey);
@@ -998,6 +1009,7 @@ public:
     bool Unlock(const SecureString& strWalletPassphrase);
     bool ChangeWalletPassphrase(const SecureString& strOldWalletPassphrase, const SecureString& strNewWalletPassphrase);
     bool EncryptWallet(const SecureString& strWalletPassphrase);
+    bool CryptedWalletNeedsNewPassphrase() const;
 
     void GetKeyBirthTimes(std::map<CTxDestination, int64_t> &mapKeyBirth) const;
     unsigned int ComputeTimeSmart(const CWalletTx& wtx) const;
@@ -1225,8 +1237,8 @@ public:
     void postInitProcess(CScheduler& scheduler);
 
     bool BackupWallet(const std::string& strDest);
-    bool HasMnemonic();
-    std::string GetMnemonic();
+    bool HasMnemonic() const;
+    std::string GetMnemonic() const;
 
     /* Set the HD chain model (chain child index counters) */
     bool SetHDChain(const CHDChain& chain, bool memonly);
@@ -1237,7 +1249,15 @@ public:
 
     /* Generates a new HD master key (will not be activated) */
     CPubKey GenerateNewHDMasterKey();
-    CPubKey GenerateMasterKeyFromMnemonic(const WordList& mnemonic, const std::string& passphrase = "");
+
+    CPubKey GenerateMasterKeyFromMnemonic(
+            const WordList& mnemonic,
+            const std::string& passphrase = "");
+
+    CPubKey GenerateMasterKeyFromMnemonic(
+            const WordList& mnemonic,
+            const std::string& passphrase,
+            CExtKey& extkey);
 
     /* Set the current HD master key (will reset the chain child index counters)
        Sets the master key's version based on the current wallet version (so the
@@ -1303,6 +1323,14 @@ public:
     bool IsConfirmed() const;
     referral::Address ReferralAddress() const;
     CPubKey ReferralPubKey() const;
+
+    bool IsAValidMnemonic(const std::string& mnemonic);
+
+private:
+    CPubKey SetMasterKeyMetadata(
+            const CExtKey& extkey,
+            const WordList& menmonic,
+            const CPubKey& pubkey);
 };
 
 /** A key allocated from the key pool. */
