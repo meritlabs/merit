@@ -356,7 +356,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() > 2 || request.params.empty())
         throw std::runtime_error(
-            "getblocktemplate ( TemplateRequest )\n"
+            "getblocktemplate ( TemplateRequest address)\n"
             "\nIf the request parameters include a 'mode' key, that is used to explicitly select between the default 'template' request or a 'proposal'.\n"
             "It returns data needed to construct a block to work on.\n"
 
@@ -365,7 +365,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             "     {\n"
             "       \"mode\":\"template\"   (string, optional) This must be set to \"template\", \"proposal\" (see BIP 23), or omitted\n"
             "       \"capabilities\":[      (array, optional) A list of strings\n"
-            "           \"support\"         (string) client side supported feature, 'longpoll', 'coinbasetxn', 'coinbasevalue', 'proposal', 'serverlist', 'workid'\n"
+            "           \"support\"         (string) client side supported feature, 'longpoll', 'coinbasevalue', 'proposal', 'serverlist'\n"
             "           ,...\n"
             "       ],\n"
             "       \"rules\":[             (array, optional) A list of strings\n"
@@ -406,7 +406,6 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             "      \"flags\" : \"xx\"                  (string) key name is to be ignored, and value included in scriptSig\n"
             "  },\n"
             "  \"coinbasevalue\" : n,              (numeric) maximum allowable input to coinbase transaction, including the generation award and transaction fees (in satoshis)\n"
-            "  \"coinbasetxn\" : { ... },          (json object) information for coinbase transaction\n"
             "  \"target\" : \"xxxx\",                (string) The hash target\n"
             "  \"mintime\" : xxx,                  (numeric) The minimum timestamp appropriate for next block time in seconds since epoch (Jan 1 1970 GMT)\n"
             "  \"mutable\" : [                     (array of string) list of ways the block template may be changed \n"
@@ -616,10 +615,10 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
 
         UniValue entry(UniValue::VOBJ);
 
-        entry.push_back(Pair("data", EncodeHexTx(tx)));
+        entry.push_back(Pair("data", EncodeHexTx(tx, tx.IsCoinBase() ? SERIALIZE_TRANSACTION_NO_WITNESS : 0)));
         entry.push_back(Pair("coinbase", tx.IsCoinBase()));
         entry.push_back(Pair("txid", txHash.GetHex()));
-        entry.push_back(Pair("hash", tx.GetWitnessHash().GetHex()));
+        entry.push_back(Pair("hash", tx.IsCoinBase() ? txHash.GetHex() : tx.GetWitnessHash().GetHex()));
 
         UniValue deps(UniValue::VARR);
         if(!tx.IsCoinBase()) {
