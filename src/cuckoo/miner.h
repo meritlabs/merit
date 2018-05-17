@@ -1,6 +1,14 @@
-// Copyright (c) 2017-2018 The Merit Foundation developers
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+/*
+ * Cuckoo Cycle, a memory-hard proof-of-work
+ * Copyright (c) 2013-2018 John Tromp
+ * Copyright (c) 2017-2018 The Merit Foundation developers
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the The FAIR MINING License and, alternatively,
+ * GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.  See LICENSE.md for more details.
+ **/
 
 #ifndef MERIT_CUCKOO_MINER_H
 #define MERIT_CUCKOO_MINER_H
