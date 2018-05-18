@@ -58,10 +58,11 @@ bool FindProofOfWorkAdvanced(
     std::set<uint32_t>& cycle,
     const Consensus::Params& params,
     size_t nThreads,
+    bool& cycleFound,
     ctpl::thread_pool& pool)
 {
     assert(cycle.empty());
-    bool cycleFound =
+    cycleFound =
         FindCycleAdvanced(hash, edgeBits, params.nCuckooProofSize, cycle, nThreads, pool);
 
     if (cycleFound && ::CheckProofOfWork(SerializeHash(cycle), nBits, params)) {

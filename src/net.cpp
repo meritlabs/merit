@@ -358,7 +358,8 @@ void CConnman::InitMiningStats()
     mining.active = true;
     mining.start_time = GetTimeMillis();
     mining.end_time = GetTimeMillis();
-    mining.nonces_done = 0;
+    mining.graphs_done = 0;
+    mining.cycles_done = 0;
 }
 
 void CConnman::ResetMiningStats()
@@ -366,29 +367,52 @@ void CConnman::ResetMiningStats()
     mining.active = false;
     mining.start_time = 0;
     mining.end_time = 0;
-    mining.nonces_done = 0;
+    mining.graphs_done = 0;
+    mining.cycles_done = 0;
 }
 
-int CConnman::AddCheckedNonces(int nonces)
+int CConnman::AddCheckedGraphs(int graphs)
 {
     if (mining.active) {
-        mining.nonces_done += nonces;
+        mining.graphs_done += graphs;
         mining.end_time = GetTimeMillis();
     }
 
-    return mining.nonces_done;
+    return mining.graphs_done;
 }
 
-double CConnman::GetHashPower()
+int CConnman::AddFoundCycles(int cycles)
+{
+    if (mining.active) {
+        mining.cycles_done += cycles;
+        mining.end_time = GetTimeMillis();
+    }
+
+    return mining.cycles_done;
+}
+
+double CConnman::GetGraphPower()
 {
     if (!mining.active) {
         return .0;
     }
 
     double seconds_ellapsed = (mining.end_time - mining.start_time) / 1e3;
-    double hashpower = seconds_ellapsed ? mining.nonces_done / seconds_ellapsed : 0;
+    double graphpower = seconds_ellapsed ? mining.graphs_done / seconds_ellapsed : 0;
 
-    return hashpower;
+    return graphpower;
+}
+
+double CConnman::GetCyclePower()
+{
+    if (!mining.active) {
+        return .0;
+    }
+
+    double seconds_ellapsed = (mining.end_time - mining.start_time) / 1e3;
+    double cyclepower = seconds_ellapsed ? mining.cycles_done / seconds_ellapsed : 0;
+
+    return cyclepower;
 }
 
 /** Get the bind address for a socket as CAddress */
