@@ -1,9 +1,14 @@
-// Cuckoo Cycle, a memory-hard proof-of-work
-// Copyright (c) 2013-2017 John Tromp
-// Copyright (c) 2017-2018 The Merit Foundation developers
-// Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
-// inspired by https://github.com/tromp/cuckoo/commit/65cabf4651a8e572e99714699fbeb669565910af
+/*
+ * Cuckoo Cycle, a memory-hard proof-of-work
+ * Copyright (c) 2013-2018 John Tromp
+ * Copyright (c) 2017-2018 The Merit Foundation developers
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the The FAIR MINING License and, alternatively,
+ * GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.  See src/cuckoo/LICENSE.md for more details.
+ **/
 
 #include "cuckoo.h"
 #include "consensus/consensus.h"

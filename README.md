@@ -62,7 +62,7 @@ such as any recent GCC or Clang version.
 Start Mining
 ---------------
 
-Before you can use Merit and mine you must unlock your wallet by giving it a parent key. 
+Before you can use Merit and mine, you must unlock your wallet by giving it a parent key. 
 Merit is currently invite-only and typically the parent key is owned by someone
 who is willing to invite you to merit. Once you unlock the wallet you will have
 to wait for the other person to confirm the wallet before you can mine.
@@ -76,6 +76,14 @@ Before you can unlock your wallet you must start the **meritd** daemon.
 
 Meritd will then start up and automatically connect to the main network and start
 syncing the blockchain.
+
+The wallet should be fully synched with the blockchain before unlocking because if the person
+inviting you is a more recent addition, the referral won't be found and you will get an error.
+You can monitor the block chain sync status by running:
+
+    merit-cli getblockchaininfo
+    
+blocks should match headers in the results returned from that command.
 
 You can then unlock your wallet by running the **unlockwallet** command.
 
