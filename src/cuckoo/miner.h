@@ -45,6 +45,7 @@ bool FindProofOfWorkAdvanced(
         std::set<uint32_t>& cycle,
         const Consensus::Params& params,
         size_t nThreads,
+        bool& cycleFound,
         ctpl::thread_pool& pool);
 }
 

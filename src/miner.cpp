@@ -1009,15 +1009,17 @@ void MinerWorker(int thread_id, MinerContext& ctx)
         // Search
         //
         int64_t nStart = GetTimeMillis();
-        auto nonces_checked = 0;
+        int graphs_checked = 0;
+        int cycles_found = 0;
         arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
         uint256 hash;
         std::set<uint32_t> cycle;
 
         while (ctx.alive) {
             // Check if something found
-            nonces_checked++;
+            graphs_checked++;
 
+            bool cycle_found = false;
             if (cuckoo::FindProofOfWorkAdvanced(
                         pblock->GetHash(),
                         pblock->nBits,
@@ -1025,7 +1027,11 @@ void MinerWorker(int thread_id, MinerContext& ctx)
                         cycle,
                         ctx.chainparams.GetConsensus(),
                         ctx.pow_threads,
+                        cycle_found,
                         ctx.pool)) {
+
+                cycles_found++;
+
                 // Found a solution
                 pblock->sCycle = cycle;
 
@@ -1049,6 +1055,10 @@ void MinerWorker(int thread_id, MinerContext& ctx)
                     throw boost::thread_interrupted();
 
                 break;
+            }
+
+            if(cycle_found) {
+                cycles_found++;
             }
 
             // Check for stop or if block needs to be rebuilt
@@ -1096,7 +1106,8 @@ void MinerWorker(int thread_id, MinerContext& ctx)
         }
 
         if (ctx.alive && g_connman) {
-            g_connman->AddCheckedNonces(nonces_checked);
+            g_connman->AddCheckedGraphs(graphs_checked);
+            g_connman->AddFoundCycles(cycles_found);
         }
     }
 
