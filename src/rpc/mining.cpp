@@ -90,11 +90,11 @@ UniValue GetNetworkHashPS(int lookup, int height) {
     return workDiff.getdouble() / timeDiff;
 }
 
-UniValue getnetworkhashps(const JSONRPCRequest& request)
+UniValue getnetworkcyclesps(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() > 2)
         throw std::runtime_error(
-            "getnetworkhashps ( nblocks height )\n"
+            "getnetworkcyclesps ( nblocks height )\n"
             "\nReturns the estimated network hashes per second based on the last n blocks.\n"
             "Pass in [blocks] to override # of blocks, -1 specifies since last difficulty change.\n"
             "Pass in [height] to estimate the network speed at the time when a certain block was found.\n"
@@ -104,8 +104,8 @@ UniValue getnetworkhashps(const JSONRPCRequest& request)
             "\nResult:\n"
             "x             (numeric) Hashes per second estimated\n"
             "\nExamples:\n"
-            + HelpExampleCli("getnetworkhashps", "")
-            + HelpExampleRpc("getnetworkhashps", "")
+            + HelpExampleCli("getnetworkcyclesps", "")
+            + HelpExampleRpc("getnetworkcyclesps", "")
        );
 
     LOCK(cs_main);
@@ -147,6 +147,7 @@ UniValue generateBlocks(
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
         }
 
+        bool cycle_found = false;
         std::set<uint32_t> cycle;
         while (nMaxTries > 0
                 && pblock->nNonce < nInnerLoopCount
@@ -157,6 +158,7 @@ UniValue generateBlocks(
                     cycle,
                     consensusParams,
                     nThreads,
+                    cycle_found,
                     pool)) {
 
             ++pblock->nNonce;
@@ -280,8 +282,9 @@ UniValue getmininginfo(const JSONRPCRequest& request)
     obj.push_back(Pair("minebucketsize",     gArgs.GetArg("-minebucketsize", DEFAULT_MINING_BUCKET_SIZE)));
     obj.push_back(Pair("minebucketthreads",  gArgs.GetArg("-minebucketthreads", DEFAULT_MINING_BUCKET_THREADS)));
     obj.push_back(Pair("errors",             GetWarnings("statusbar")));
-    obj.push_back(Pair("networkhashps",      getnetworkhashps(request)));
-    obj.push_back(Pair("nodehashps",         g_connman->GetHashPower()));
+    obj.push_back(Pair("networkcyclesps",    getnetworkcyclesps(request)));
+    obj.push_back(Pair("graphsps",           g_connman->GetGraphPower()));
+    obj.push_back(Pair("cyclesps",           g_connman->GetCyclePower()));
     obj.push_back(Pair("pooledtx",           (uint64_t)mempool.size()));
     obj.push_back(Pair("pooledref",          (uint64_t)mempoolReferral.Size()));
     obj.push_back(Pair("chain",              Params().NetworkIDString()));
@@ -1078,7 +1081,7 @@ UniValue getmining(const JSONRPCRequest& request)
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         argNames
   //  --------------------- ------------------------  -----------------------  ----------
-    { "mining",             "getnetworkhashps",       &getnetworkhashps,       {"nblocks","height"} },
+    { "mining",             "getnetworkcyclesps",     &getnetworkcyclesps,       {"nblocks","height"} },
     { "mining",             "getmininginfo",          &getmininginfo,          {} },
     { "mining",             "prioritisetransaction",  &prioritisetransaction,  {"txid","dummy","fee_delta"} },
     { "mining",             "getblocktemplate",       &getblocktemplate,       {"address","template_request"} },

@@ -178,8 +178,11 @@ public:
     // mining info helpers
     void InitMiningStats();
     void ResetMiningStats();
-    int AddCheckedNonces(int nonces);
-    double GetHashPower();
+    int AddCheckedGraphs(int graphs);
+    int AddFoundCycles(int cycles);
+
+    double GetGraphPower();
+    double GetCyclePower();
 
     bool ForNode(NodeId id, std::function<bool(CNode* pnode)> func);
 
@@ -313,7 +316,8 @@ private:
         bool active = false;
         std::atomic<int64_t> start_time{0};
         std::atomic<int64_t> end_time{0};
-        std::atomic<int> nonces_done{0};
+        std::atomic<int> graphs_done{0};
+        std::atomic<int> cycles_done{0};
     };
 
     MiningInfo mining;
