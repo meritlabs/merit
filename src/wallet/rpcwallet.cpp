@@ -2546,7 +2546,7 @@ UniValue sendmany(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() < 2 || request.params.size() > 8)
+    if (request.fHelp || request.params.size() < 2 || request.params.size() > 9)
         throw std::runtime_error(
             "sendmany \"fromaccount\" {\"address\":amount,...} ( minconf \"comment\" [\"address\",...] replaceable conf_target \"estimate_mode\")\n"
             "\nSend multiple times. Amounts are double-precision floating point numbers."
@@ -2574,6 +2574,7 @@ UniValue sendmany(const JSONRPCRequest& request)
             "       \"UNSET\"\n"
             "       \"ECONOMICAL\"\n"
             "       \"CONSERVATIVE\"\n"
+            "9. \"data\"             (string, optional) Additional data appended as nulldata output\n"
              "\nResult:\n"
             "\"txid\"                   (string) The transaction id for the send. Only 1 transaction is created regardless of \n"
             "                                    the number of addresses.\n"
@@ -2656,6 +2657,13 @@ UniValue sendmany(const JSONRPCRequest& request)
 
         CRecipient recipient = {scriptPubKey, nAmount, fSubtractFeeFromAmount};
         vecSend.push_back(recipient);
+    }
+
+    if (!request.params[8].isNull()) {
+        auto data_str = request.params[8].get_str();
+        if (data_str.length() > 0) {
+            vecSend.push_back({CScript() << OP_RETURN << ToByteVector(data_str), 0, false});
+        }
     }
 
     EnsureWalletIsUnlocked(pwallet);
@@ -4166,7 +4174,7 @@ UniValue getmnemonic(const JSONRPCRequest& request)
     EnsureWalletIsUnlocked(pwallet);
 
     if(pwallet->CryptedWalletNeedsNewPassphrase()) {
-        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, 
+        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED,
                 "Error: You have an encrypted wallet but your mnemonic is not"
                 " encrypted. Please change the passphrase using walletpassphrasechange to secure it.");
     }
