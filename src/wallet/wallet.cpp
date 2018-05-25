@@ -581,7 +581,7 @@ bool CWallet::LoadWatchOnly(const CScript &dest)
 bool CWallet::CryptedWalletNeedsNewPassphrase() const
 {
     const auto p = mapKeyMetadata.find(hdChain.masterKeyID);
-    return IsCrypted() && p != mapKeyMetadata.end() && 
+    return IsCrypted() && p != mapKeyMetadata.end() &&
         p->second.nVersion < CKeyMetadata::VERSION_WITH_SECURE_MNEMONIC;
 }
 
@@ -627,10 +627,10 @@ bool CWallet::ChangeWalletPassphrase(const SecureString& strOldWalletPassphrase,
                 if(!EncryptMnemonic(walletdb, _vMasterKey)) {
                     return false;
                 }
-            } 
+            }
 
             if (CCryptoKeyStore::Unlock(_vMasterKey)) {
-            
+
                 int64_t nStartTime = GetTimeMillis();
                 crypter.SetKeyFromPassphrase(strNewWalletPassphrase, pMasterKey.second.vchSalt, pMasterKey.second.nDeriveIterations, pMasterKey.second.nDerivationMethod);
                 pMasterKey.second.nDeriveIterations = pMasterKey.second.nDeriveIterations * (100 / ((double)(GetTimeMillis() - nStartTime)));
@@ -3541,10 +3541,11 @@ bool CWallet::CreateTransaction(
             nSubtractFeeFromAmount++;
 
         CTxDestination dest;
-        ExtractDestination(recipient.scriptPubKey, dest);
+        txnouttype whichType;
+        ExtractDestination(recipient.scriptPubKey, dest, whichType);
 
         //check blockchain and mempool for beacon
-        if (!CheckAddressBeaconed(dest, true)) {
+        if (whichType != TX_NULL_DATA && !CheckAddressBeaconed(dest, true)) {
             std::stringstream e;
             e << _("Transaction recipient address \"")
               << EncodeDestination(dest)
