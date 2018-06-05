@@ -28,6 +28,7 @@ namespace pog
             AnvDistribution(int height, referral::AddressANVs anvs);
             const referral::AddressANV& Sample(const uint256& hash) const;
             size_t Size() const;
+            uint64_t MaxANV() const;
 
         private:
             InvertedAnvs m_inverted;
@@ -47,6 +48,7 @@ namespace pog
                     size_t n) const;
 
             size_t Size() const;
+            uint64_t MaxANV() const;
         private:
             AnvDistribution m_distribution;
     };
@@ -63,6 +65,8 @@ namespace pog
      * Returns true if the address type is valid for ambassador lottery.
      */
     bool IsValidAmbassadorDestination(char type);
+
+    CAmount GetCachedTotalANV();
 } // namespace pog
 
 #endif //MERIT_POG_SELECT_H

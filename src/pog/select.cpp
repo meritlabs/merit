@@ -7,6 +7,7 @@
 #include "clientversion.h"
 #include <algorithm>
 #include <iterator>
+#include <thread>
 #include "referrals.h"
 
 namespace pog
@@ -170,6 +171,8 @@ namespace pog
             IntroSort(first, last, lg(last - first) * 2);
             InsertionSort(first, last);
         }
+
+        std::atomic<CAmount> cached_total_anv;
     }
 
     bool IsValidAmbassadorDestination(char type)
@@ -239,6 +242,7 @@ namespace pog
         if(!m_inverted.empty()) m_max_anv = m_inverted.back().anv;
 
         assert(m_max_anv >= 0);
+        //cached_total_anv = std::max(static_cast<CAmount>(cached_total_anv), m_max_anv);
     }
 
     const referral::AddressANV& AnvDistribution::Sample(const uint256& hash) const
@@ -267,6 +271,10 @@ namespace pog
 
     size_t AnvDistribution::Size() const {
         return m_inverted.size();
+    }
+
+    size_t AnvDistribution::MaxANV() const {
+        return m_max_anv;
     }
 
     WalletSelector::WalletSelector(int height, const referral::AddressANVs& anvs) :
@@ -306,6 +314,11 @@ namespace pog
     size_t WalletSelector::Size() const
     {
         return m_distribution.Size();
+    }
+
+    size_t WalletSelector::MaxANV() const
+    {
+        return m_distribution.MaxANV();
     }
 
     referral::ConfirmedAddresses SelectConfirmedAddresses(
@@ -362,4 +375,8 @@ namespace pog
         return addresses;
     }
 
+    CAmount GetCachedTotalANV()
+    {
+        return cached_total_anv;
+    }
 } // namespace pog

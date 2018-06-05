@@ -21,6 +21,7 @@
 
 #include "rpc/safemode.h"
 #include "pog/anv.h"
+#include "pog/select.h"
 
 #ifdef ENABLE_WALLET
 #include "wallet/rpcwallet.h"
@@ -1258,6 +1259,87 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
     return result;
 }
 
+UniValue getaddressrank(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() > 1)
+        throw std::runtime_error(
+            "getaddressrank\n"
+            "\nReturns the total rank for the address(es) specified.\n"
+            "\nArguments:\n"
+            "{\n"
+            "  \"addresses\"\n"
+            "    [\n"
+            "      \"address\"  (string) The base58check encoded address\n"
+            "      ,...\n"
+            "    ]\n"
+            "}\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"lotteryanv\"  (number) The aggregate ANV of all addresses in the lottery\n"
+            "  \"ranks\"       (number) rank information for each address specified\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getaddressrank", "'{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}'")
+            + HelpExampleRpc("getaddressrank", "{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}")
+        );
+
+    std::vector<AddressPair> addresses;
+
+    if (!getAddressesFromParams(request.params, addresses)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+    }
+
+    CAmount lottery_anv = pog::GetCachedTotalANV();
+    if(lottery_anv == 0) {
+        UniValue result(UniValue::VOBJ);
+        result.push_back(Pair("lotteryanv", 0));
+        return result;
+    }
+
+    std::vector<CAmount> anvs; 
+    for (const auto& a : addresses) {
+        auto maybe_anv = prefviewdb->GetANV(a.first);
+        if (!maybe_anv) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No anv available for address" + CMeritAddress{a.second, a.first}.ToString());
+        }
+        anvs.push_back(maybe_anv->anv);
+    }
+
+    auto ranks = ANVRanks(
+            anvs,
+            chainActive.Height(),
+            Params().GetConsensus());
+
+
+    UniValue result(UniValue::VOBJ);
+    UniValue rankarr(UniValue::VARR);
+
+    assert(anvs.size() == ranks.first.size());
+
+    for(int i = 0; i < ranks.first.size(); i++) {
+        UniValue o(UniValue::VOBJ);
+        auto r = ranks.first[i];
+
+        //percentile to two digits
+        double percentile = 
+            std::floor((static_cast<double>(r) / static_cast<double>(ranks.second)) * 10000.0) / 10.0;
+
+        o.push_back(Pair("rank", r));
+        o.push_back(Pair("percentile", percentile));
+        o.push_back(Pair("anv", anvs[i]));
+
+        double anv_percent = 
+            (static_cast<double>(anvs[i]) / static_cast<double>(lottery_anv));
+
+        o.push_back(Pair("anvpercent", anv_percent));
+    }
+
+    result.push_back(Pair("lotteryanv", lottery_anv));
+    result.push_back(Pair("lotteryentrants", ranks.second));
+
+    return result;
+}
+
 namespace {
     // (height, invite, id)
     using AddressTx = std::tuple<int, bool, std::string>;
@@ -1729,6 +1811,7 @@ static const CRPCCommand commands[] =
     { "addressindex",       "getaddresstxids",              &getaddresstxids,            {} },
     { "addressindex",       "getaddressreferrals",          &getaddressreferrals,        {} },
     { "addressindex",       "getaddressbalance",            &getaddressbalance,          {} },
+    { "addressindex",       "getaddressrank",               &getaddressrank,             {} },
     { "addressindex",       "getaddressrewards",            &getaddressrewards,          {} },
     { "addressindex",       "getaddressanv",                &getaddressanv,              {} },
 
