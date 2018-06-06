@@ -7306,13 +7306,13 @@ std::pair<Ranks, size_t> ANVRanks(
 
     max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
 
-    Ranks ranks;
-    ranks.resize(anvs.size());
-
     std::sort(entrants.begin(), entrants.end(),
             [](const referral::AddressANV& a, const referral::AddressANV& b) {
                 return a.anv < b.anv;
             });
+
+    Ranks ranks;
+    ranks.resize(anvs.size());
 
     std::transform(anvs.begin(), anvs.end(), ranks.begin(),
             [&entrants](CAmount anv) {

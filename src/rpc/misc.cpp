@@ -1322,9 +1322,9 @@ UniValue getaddressrank(const JSONRPCRequest& request)
 
         //percentile to two digits
         double percentile = 
-            std::floor((static_cast<double>(r) / static_cast<double>(ranks.second)) * 10000.0) / 10.0;
+            std::floor((static_cast<double>(r) / static_cast<double>(ranks.second)) * 10000.0) / 100.0;
 
-        o.push_back(Pair("rank", r));
+        o.push_back(Pair("rank", ranks.second - r));
         o.push_back(Pair("percentile", percentile));
         o.push_back(Pair("anv", anvs[i]));
 
@@ -1332,10 +1332,12 @@ UniValue getaddressrank(const JSONRPCRequest& request)
             (static_cast<double>(anvs[i]) / static_cast<double>(lottery_anv));
 
         o.push_back(Pair("anvpercent", anv_percent));
+        rankarr.push_back(o);
     }
 
     result.push_back(Pair("lotteryanv", lottery_anv));
     result.push_back(Pair("lotteryentrants", ranks.second));
+    result.push_back(Pair("ranks", rankarr));
 
     return result;
 }

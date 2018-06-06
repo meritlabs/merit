@@ -242,7 +242,7 @@ namespace pog
         if(!m_inverted.empty()) m_max_anv = m_inverted.back().anv;
 
         assert(m_max_anv >= 0);
-        //cached_total_anv = std::max(static_cast<CAmount>(cached_total_anv), m_max_anv);
+        cached_total_anv = std::max(static_cast<CAmount>(cached_total_anv), m_max_anv);
     }
 
     const referral::AddressANV& AnvDistribution::Sample(const uint256& hash) const
