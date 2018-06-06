@@ -150,6 +150,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "getaddressreferrals", 0, "addresses"},
     { "getaddressbalance", 0, "addresses"},
     { "getaddressrank", 0, "addresses"},
+    { "getaddressleaderboard", 0, "addresses"},
     { "getaddressdeltas", 0, "addresses"},
     { "getaddressutxos", 0, "addresses"},
     { "getaddressmempool", 0, "addresses"},

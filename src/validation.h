@@ -717,10 +717,15 @@ void DumpReferralMempool();
  * In other words, the rank is the amount of entrants that have a smaller rank
  * than you. You can figure out your percentile by calculating rank/total. 
  */
-using Rank = size_t;
+using Rank = std::pair<referral::AddressANV, size_t>;
 using Ranks = std::vector<Rank>;
 std::pair<Ranks, size_t> ANVRanks(
         const std::vector<CAmount>& anv,
+        int height,
+        const Consensus::Params& params);
+
+std::pair<Ranks, size_t> TopANVRanks(
+        size_t total,
         int height,
         const Consensus::Params& params);
 
