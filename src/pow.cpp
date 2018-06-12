@@ -21,7 +21,7 @@ PoW GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader* pbloc
     unsigned int nBitsLimit = UintToArith256(params.powLimit.uHashLimit).GetCompact();
 
     // Only change once per difficulty adjustment interval
-    if ((pindexLast->nHeight + 1) % params.DifficultyAdjustmentInterval() != 0) {
+    if ((pindexLast->nHeight + 1) % params.DifficultyAdjustmentInterval(pindexLast->nHeight) != 0) {
         if (params.fPowAllowMinDifficultyBlocks) {
             // Special difficulty rule for testnet:
             // If the new block's timestamp is more than 2 * 1 minute
@@ -31,7 +31,7 @@ PoW GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader* pbloc
             else {
                 // Return the last non-special-min-difficulty-rules-block
                 const CBlockIndex* pindex = pindexLast;
-                while (pindex->pprev && pindex->nHeight % params.DifficultyAdjustmentInterval() != 0 && pindex->nBits == nBitsLimit)
+                while (pindex->pprev && pindex->nHeight % params.DifficultyAdjustmentInterval(pindexLast->nHeight) != 0 && pindex->nBits == nBitsLimit)
                     pindex = pindex->pprev;
                 return PoW{pindex->nBits, pindex->nEdgeBits};
             }
@@ -40,7 +40,7 @@ PoW GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader* pbloc
     }
 
     // Go back by what we want to be 14 days worth of blocks
-    int nHeightFirst = pindexLast->nHeight - (params.DifficultyAdjustmentInterval() - 1);
+    int nHeightFirst = pindexLast->nHeight - (params.DifficultyAdjustmentInterval(pindexLast->nHeight) - 1);
     assert(nHeightFirst >= 0);
     const CBlockIndex* pindexFirst = pindexLast->GetAncestor(nHeightFirst);
     assert(pindexFirst);
@@ -50,17 +50,23 @@ PoW GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader* pbloc
 
 PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlockTime, const Consensus::Params& params)
 {
+    assert(pindexLast);
+
     if (params.fPowNoRetargeting)
         return PoW{pindexLast->nBits, pindexLast->nEdgeBits};
 
     int64_t nActualTimespan = pindexLast->GetBlockTime() - nFirstBlockTime;
 
+    auto pow_target_timespan = pindexLast->nHeight >= params.pog2_blockheight ? 
+        params.pog2_pow_target_timespan : params.nPowTargetTimespan;
+
     // Check if we can adjust nEdgeBits value
     uint8_t edgeBitsAdjusted = pindexLast->nEdgeBits;
-    if (nActualTimespan < params.nPowTargetTimespan / params.nEdgeBitsTargetThreshold) {
+    if (nActualTimespan < pow_target_timespan / params.nEdgeBitsTargetThreshold) {
         edgeBitsAdjusted++;
     }
-    if (nActualTimespan > params.nPowTargetTimespan * params.nEdgeBitsTargetThreshold) {
+
+    if (nActualTimespan > pow_target_timespan * params.nEdgeBitsTargetThreshold) {
         edgeBitsAdjusted--;
     }
 
@@ -71,15 +77,16 @@ PoW CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nFirstBlock
     }
 
     // Limit nBits adjustment step
-    nActualTimespan = std::max(nActualTimespan, params.nPowTargetTimespan / 4);
-    nActualTimespan = std::min(nActualTimespan, params.nPowTargetTimespan * 4);
+    nActualTimespan = std::max(nActualTimespan, pow_target_timespan / 4);
+
+    nActualTimespan = std::min(nActualTimespan, pow_target_timespan * 4);
 
     // Retarget nBits
     const arith_uint256 bnPowLimit = UintToArith256(params.powLimit.uHashLimit);
     arith_uint256 bnNew;
     bnNew.SetCompact(pindexLast->nBits);
 
-    bnNew /= params.nPowTargetTimespan;
+    bnNew /= pow_target_timespan;
     bnNew *= nActualTimespan;
 
     bnNew = std::min(bnNew, bnPowLimit);

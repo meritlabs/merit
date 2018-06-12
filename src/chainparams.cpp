@@ -178,6 +178,12 @@ public:
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_weights = {60, 40}; 
 
+        // PoG v2 settings.
+        consensus.pog2_blockheight = 300000;
+        consensus.pog2_total_winning_ambassadors = 15;
+        consensus.pog2_ambassador_percent_cut = 50;  //50%
+        consensus.pog2_pow_target_timespan = 5 * 60 * 60; // every 5 hours
+
         /**
          * The message start string is designed to be unlikely to occur in normal data.
          * The characters are rarely used upper ASCII, not valid as UTF-8, and produce
@@ -326,6 +332,12 @@ public:
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_weights = {60, 40}; 
 
+        // PoG v2 settings.
+        consensus.pog2_blockheight = 100000;
+        consensus.pog2_total_winning_ambassadors = 15;
+        consensus.pog2_ambassador_percent_cut = 50;  //50%
+        consensus.pog2_pow_target_timespan = 1 * 60 * 60; // every hour
+
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
         pchMessageStart[2] = 0x09;
@@ -451,6 +463,12 @@ public:
         consensus.imp_min_one_invite_for_every_x_blocks = 1; //invite every minute
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_weights = {60, 40}; 
+
+        // PoG v2 settings.
+        consensus.pog2_blockheight = 15;
+        consensus.pog2_total_winning_ambassadors = 15;
+        consensus.pog2_ambassador_percent_cut = 50;  //50%
+        consensus.pog2_pow_target_timespan = 30 * 60; // every 30 min
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;
