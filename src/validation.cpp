@@ -1813,7 +1813,7 @@ bool IsValidAmbassadorDestination(const CTxDestination& dest)
 
 int max_embassador_lottery = 0;
 
-pog::AmbassadorLottery RewardAmbassadors(
+pog::AmbassadorLottery Pog1RewardAmbassadors(
         int height,
         const uint256& previous_block_hash,
         CAmount total,
@@ -1868,6 +1868,75 @@ pog::AmbassadorLottery RewardAmbassadors(
     assert(rewards.remainder >= 0);
 
     return rewards;
+}
+
+pog::AmbassadorLottery Pog2RewardAmbassadors(
+        int height,
+        const uint256& previous_block_hash,
+        CAmount total,
+        const Consensus::Params& params)
+{
+    assert(height >= params.pog2_blockheight);
+    assert(prefviewdb != nullptr);
+
+    const bool IS_DAEDALUS = true;
+
+    static size_t max_embassador_lottery = 0;
+    referral::AddressANVs entrants;
+
+    // unlikely that the candidates grew over 50% since last time.
+    auto reserve_size = max_embassador_lottery * 1.5;
+    entrants.reserve(reserve_size);
+
+    pog::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
+
+    max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
+
+    // Wallet selector will create a distribution from all the keys
+    pog::WalletSelector selector{height, entrants};
+
+    // We may have fewer keys in the distribution than the expected winners,
+    // so just pick smallest of the two.
+    const auto desired_winners = std::min(
+            params.pog2_total_winning_ambassadors,
+            static_cast<uint64_t>(selector.Size()));
+
+    // If we have an empty distribution, for example in some of the unit
+    // tests, we return the whole ambassador amount back to the miner
+    if (desired_winners == 0) return {{}, total};
+
+    // validate sane winner amount
+    assert(desired_winners > 0);
+    assert(desired_winners < 100);
+
+    // Select the N winners using the previous block hash as the seed
+    auto winners = selector.Select(
+            IS_DAEDALUS,
+            *prefviewcache,
+            previous_block_hash,
+            desired_winners);
+
+    assert(winners.size() == desired_winners);
+
+    // Compute reward for all the winners
+    auto rewards = pog::RewardAmbassadors(height, winners, total);
+
+    // Return the remainder which will be given to the miner;
+    assert(rewards.remainder <= total);
+    assert(rewards.remainder >= 0);
+
+    return rewards;
+}
+
+pog::AmbassadorLottery RewardAmbassadors(
+        int height,
+        const uint256& previous_block_hash,
+        CAmount total,
+        const Consensus::Params& params)
+{
+    return height >= params.pog2_blockheight ? 
+        Pog2RewardAmbassadors(height, previous_block_hash, total, params) :
+        Pog1RewardAmbassadors(height, previous_block_hash, total, params);
 }
 
 bool OldComputeInviteLotteryParams(
