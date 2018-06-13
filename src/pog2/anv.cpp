@@ -72,21 +72,23 @@ namespace pog2
     };
 
     using Coins = std::vector<Coin>;
-    using AddressIndexPair = std::pair<CAddressIndexKey, CAmount>;
+    using UnspentPair = std::pair<CAddressUnspentKey, CAddressUnspentValue>;
 
     Coins GetCoins(char address_type, const referral::Address& address) {
-        std::vector<AddressIndexPair> address_index;
-        if (!GetAddressIndex(address, address_type, false, address_index)) {
-            return {};
+        Coins cs;
+        std::vector<UnspentPair> unspent;
+        if (!GetAddressUnspent(address, address_type, false, unspent)) {
+            return cs;
         }
 
-        Coins cs;
-        cs.reserve(address_index.size());
-        for(const auto& p : address_index) {
-            if(p.first.type == 0 || p.second < 0) {
+        cs.reserve(unspent.size());
+        for(const auto& p : unspent) {
+            if(p.first.type == 0 || p.first.isInvite) {
                 continue;
             }
-            cs.push_back({p.first.blockHeight, p.second});
+            assert(p.second.satoshis >= 0);
+
+            cs.push_back({p.second.blockHeight, p.second.satoshis});
         }
 
         return cs;
@@ -100,11 +102,12 @@ namespace pog2
     }
 
     const double ONE_DAY = 24*60;
+    const double ONE_MONTH = 30 * ONE_DAY;
     double AgeScale(int height, const Coin& c) {
         assert(height >= 0);
         assert(c.height <= height);
 
-        double age = Age(height, c) / ONE_DAY;
+        double age = Age(height, c) / ONE_MONTH;
         assert(age >= 0);
 
         double scale =  1.0 - (1.0 / (std::pow(age, 2) + 1.0));
@@ -114,9 +117,10 @@ namespace pog2
         return scale;
     }
 
-    CAmount AgedBalance(int height, const Coin& c) {
+    double AgedBalance(int height, const Coin& c) {
         assert(height >= 0);
         assert(c.height <= height);
+        assert(c.amount >= 0);
 
         double age_scale = AgeScale(height, c);
         CAmount amount = std::floor(age_scale * c.amount);
@@ -126,11 +130,11 @@ namespace pog2
         return amount;
     }
 
-    CAmount AgedBalance(int height, const Coins& cs) {
+    double AgedBalance(int height, const Coins& cs) {
         assert(height >= 0);
 
-        return std::accumulate(cs.begin(), cs.end(), CAmount{0}, 
-                [height](int amount, const Coin& c) {
+        return std::accumulate(cs.begin(), cs.end(), double{0}, 
+                [height](double amount, const Coin& c) {
                     return amount + AgedBalance(height, c);
                 });
     }
@@ -139,7 +143,7 @@ namespace pog2
     {
         char address_type;
         referral::Address address;
-        int level;
+        double level;
     };
 
     using TreeNodeQueue = std::deque<TreeNode>; 
@@ -151,6 +155,7 @@ namespace pog2
     {
         auto children = db.GetChildren(n.address);
         for(const auto& address : children) {
+
             auto maybe_ref = db.GetReferral(address);
             if(!maybe_ref) { 
                 continue;
@@ -171,8 +176,10 @@ namespace pog2
     {
         auto coins = GetCoins(address_type, address);
         auto balance = AgedBalance(height, coins);
+        assert(balance >= 0);
 
         CAmount gcs = std::floor(balance * 0.75);
+        assert(gcs >= 0);
 
         TreeNodeQueue q;
 
@@ -184,6 +191,7 @@ namespace pog2
             q.pop_front();
             auto node_coins = GetCoins(n.address_type, n.address);
             auto node_balance = AgedBalance(height, node_coins);
+            assert(node_balance >=0);
             gcs += node_balance / n.level;
 
             PushChildren(db, n, q);

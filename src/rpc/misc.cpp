@@ -1270,7 +1270,10 @@ UniValue RanksToUniValue(CAmount lottery_anv, const Ranks& ranks, size_t total) 
         double percentile = 
             std::floor((static_cast<double>(r.second) / static_cast<double>(total)) * 10000.0) / 100.0;
 
+        auto alias = FindAliasForAddress(r.first.address);
+
         o.push_back(Pair("address", CMeritAddress{r.first.address_type, r.first.address}.ToString()));
+        o.push_back(Pair("alias", alias));
         o.push_back(Pair("rank", total - r.second));
         o.push_back(Pair("percentile", percentile));
         o.push_back(Pair("anv", r.first.anv));
@@ -1368,9 +1371,10 @@ UniValue getaddressrank(const JSONRPCRequest& request)
 
     UniValue result(UniValue::VOBJ);
     UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
-    UniValue gcs_rankarr = RanksToUniValue(lottery_anv, gcs_ranks.first, gcs_ranks.second);
+    UniValue gcs_rankarr = RanksToUniValue(lottery_gcs, gcs_ranks.first, gcs_ranks.second);
 
     result.push_back(Pair("lotteryanv", lottery_anv));
+    result.push_back(Pair("lotterygcs", lottery_gcs));
     result.push_back(Pair("lotteryentrants", ranks.second));
     result.push_back(Pair("ranks", rankarr));
     result.push_back(Pair("gcs_ranks", gcs_rankarr));
@@ -1419,12 +1423,22 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
             chainActive.Height(),
             Params().GetConsensus());
 
+    CAmount lottery_gcs = 0;
+    auto gcs_ranks = TopGCSRanks(
+            total,
+            chainActive.Height(),
+            Params().GetConsensus(),
+            lottery_gcs);
+
     UniValue result(UniValue::VOBJ);
     UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
+    UniValue gcs_rankarr = RanksToUniValue(lottery_gcs, gcs_ranks.first, gcs_ranks.second);
 
     result.push_back(Pair("lotteryanv", lottery_anv));
+    result.push_back(Pair("lotterygcs", lottery_gcs));
     result.push_back(Pair("lotteryentrants", ranks.second));
     result.push_back(Pair("ranks", rankarr));
+    result.push_back(Pair("gcs_ranks", gcs_rankarr));
 
     return result;
 }
