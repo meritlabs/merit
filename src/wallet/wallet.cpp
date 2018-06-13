@@ -1881,7 +1881,7 @@ CPubKey CWallet::SetMasterKeyMetadata(
 
 }
 
-CPubKey CWallet::GenerateMasterKeyFromMnemonic(
+void CWallet::GenerateMasterKeyFromMnemonic(
         const WordList& mnemonic,
         const std::string& passphrase,
         CExtKey& extkey)

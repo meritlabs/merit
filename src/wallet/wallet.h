@@ -1254,7 +1254,7 @@ public:
             const WordList& mnemonic,
             const std::string& passphrase = "");
 
-    CPubKey GenerateMasterKeyFromMnemonic(
+    void GenerateMasterKeyFromMnemonic(
             const WordList& mnemonic,
             const std::string& passphrase,
             CExtKey& extkey);
