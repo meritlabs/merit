@@ -8,6 +8,7 @@
 #include "primitives/referral.h"
 #include "consensus/params.h"
 #include "refdb.h"
+#include "coins.h"
 
 #include <vector>
 
@@ -32,6 +33,12 @@ namespace pog2
             const Consensus::Params&,
             int height,
             referral::AddressANVs&);
+
+    referral::MaybeAddressANV ComputeCGS(
+            int height,
+            char address_type,
+            const referral::Address& address,
+            const referral::ReferralsViewDB& db);
 
 } // namespace pog2
 
