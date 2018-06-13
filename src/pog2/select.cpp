@@ -100,14 +100,14 @@ namespace pog2
         return m_inverted.size();
     }
 
-    WalletSelector::WalletSelector(int height, const referral::AddressANVs& anvs) :
+    AddressSelector::AddressSelector(int height, const referral::AddressANVs& anvs) :
         m_distribution{height, anvs} {}
 
     /**
      * Selecting winners from the distribution is deterministic and will return the same
      * N samples given the same input hash.
      */
-    referral::AddressANVs WalletSelector::Select(
+    referral::AddressANVs AddressSelector::Select(
             bool check_confirmations,
             const referral::ReferralsViewCache& referrals,
             uint256 hash,
@@ -134,7 +134,7 @@ namespace pog2
         return samples;
     }
 
-    size_t WalletSelector::Size() const
+    size_t AddressSelector::Size() const
     {
         return m_distribution.Size();
     }
