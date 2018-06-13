@@ -21,6 +21,7 @@
 
 #include "rpc/safemode.h"
 #include "pog/anv.h"
+#include "pog2/anv.h"
 #include "pog/select.h"
 
 #ifdef ENABLE_WALLET
@@ -1269,6 +1270,7 @@ UniValue RanksToUniValue(CAmount lottery_anv, const Ranks& ranks, size_t total) 
         double percentile = 
             std::floor((static_cast<double>(r.second) / static_cast<double>(total)) * 10000.0) / 100.0;
 
+        o.push_back(Pair("address", CMeritAddress{r.first.address_type, r.first.address}.ToString()));
         o.push_back(Pair("rank", total - r.second));
         o.push_back(Pair("percentile", percentile));
         o.push_back(Pair("anv", r.first.anv));
@@ -1328,10 +1330,30 @@ UniValue getaddressrank(const JSONRPCRequest& request)
         anvs.push_back(maybe_anv->anv);
     }
 
+    std::vector<CAmount> gcs; 
+    for (const auto& a : addresses) {
+     auto maybe_gcs = pog2::ComputeCGS(
+            chainActive.Height(),
+            a.second,
+            a.first,
+            *prefviewdb);
+        if (!maybe_gcs) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No anv available for address" + CMeritAddress{a.second, a.first}.ToString());
+        }
+        gcs.push_back(maybe_gcs->anv);
+    }
+
     auto ranks = ANVRanks(
             anvs,
             chainActive.Height(),
             Params().GetConsensus());
+
+    CAmount lottery_gcs = 0;
+    auto gcs_ranks = GCSRanks(
+            gcs,
+            chainActive.Height(),
+            Params().GetConsensus(),
+            lottery_gcs);
 
     assert(ranks.first.size() == addresses.size());
 
@@ -1340,14 +1362,18 @@ UniValue getaddressrank(const JSONRPCRequest& request)
     for(size_t i = 0; i < addresses.size(); i++) {
         ranks.first[i].first.address = addresses[i].first;
         ranks.first[i].first.address_type = addresses[i].second;
+        gcs_ranks.first[i].first.address = addresses[i].first;
+        gcs_ranks.first[i].first.address_type = addresses[i].second;
     }
 
     UniValue result(UniValue::VOBJ);
     UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
+    UniValue gcs_rankarr = RanksToUniValue(lottery_anv, gcs_ranks.first, gcs_ranks.second);
 
     result.push_back(Pair("lotteryanv", lottery_anv));
     result.push_back(Pair("lotteryentrants", ranks.second));
     result.push_back(Pair("ranks", rankarr));
+    result.push_back(Pair("gcs_ranks", gcs_rankarr));
 
     return result;
 }

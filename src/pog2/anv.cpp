@@ -35,6 +35,17 @@ namespace pog2
             referral::AddressANVs& entrants)
     {
         db.GetAllRewardableANVs(params, height, entrants);
+
+        for(auto& e : entrants) {
+            auto maybe_gcs = ComputeCGS(
+                    height,
+                    e.address_type,
+                    e.address,
+                    db);
+            if(maybe_gcs) { 
+                e.anv = maybe_gcs->anv;
+            }
+        }
     }
 
     referral::AddressANVs GetANVs(
@@ -69,13 +80,15 @@ namespace pog2
             return {};
         }
 
-        Coins cs(address_index.size());
-        std::transform(address_index.begin(), address_index.end(), cs.begin(),
-                [](const AddressIndexPair& p) {
-                    return Coin {
-                        p.first.blockHeight,
-                        p.second};
-                });
+        Coins cs;
+        cs.reserve(address_index.size());
+        for(const auto& p : address_index) {
+            if(p.first.type == 0 || p.second < 0) {
+                continue;
+            }
+            cs.push_back({p.first.blockHeight, p.second});
+        }
+
         return cs;
     }
 
@@ -94,7 +107,7 @@ namespace pog2
         double age = Age(height, c) / ONE_DAY;
         assert(age >= 0);
 
-        double scale =  1.0 - (1.0 / std::pow(age, 2) + 1);
+        double scale =  1.0 - (1.0 / (std::pow(age, 2) + 1.0));
 
         assert(scale >= 0);
         assert(scale <= 1);

@@ -729,4 +729,15 @@ std::pair<Ranks, size_t> TopANVRanks(
         int height,
         const Consensus::Params& params);
 
+std::pair<Ranks, size_t> GCSRanks(
+        const std::vector<CAmount>& gcs,
+        int height,
+        const Consensus::Params& params,
+        CAmount& lottery_gcs);
+
+std::pair<Ranks, size_t> TopGCSRanks(
+        size_t total,
+        int height,
+        const Consensus::Params& params,
+        CAmount& lottery_gcs);
 #endif // MERIT_VALIDATION_H
