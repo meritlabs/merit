@@ -7355,3 +7355,80 @@ public:
         mapBlockIndex.clear();
     }
 } instance_of_cmaincleanup;
+
+std::pair<Ranks, size_t> ANVRanks(
+        const std::vector<CAmount>& anvs,
+        int height,
+        const Consensus::Params& params)
+{
+    assert(height >= 0);
+    assert(prefviewdb != nullptr);
+
+    static size_t max_embassador_lottery = 0;
+    referral::AddressANVs entrants;
+
+    // unlikely that the candidates grew over 50% since last time.
+    auto reserve_size = max_embassador_lottery * 1.5;
+    entrants.reserve(reserve_size);
+
+    pog::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
+
+    max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
+
+    std::sort(entrants.begin(), entrants.end(),
+            [](const referral::AddressANV& a, const referral::AddressANV& b) {
+                return a.anv < b.anv;
+            });
+
+    Ranks ranks;
+    ranks.resize(anvs.size());
+
+    std::transform(anvs.begin(), anvs.end(), ranks.begin(),
+            [&entrants](CAmount anv) {
+                auto pos = std::lower_bound(entrants.begin(), entrants.end(), anv,
+                        [](const referral::AddressANV& a, CAmount anv) {
+                            return a.anv < anv;
+                        });
+                return std::make_pair(*pos, std::distance(entrants.begin(), pos));
+            });
+
+    size_t total = entrants.size();
+    return {ranks, total};
+}
+
+std::pair<Ranks, size_t> TopANVRanks(
+        size_t total,
+        int height,
+        const Consensus::Params& params)
+{
+    assert(height >= 0);
+    assert(prefviewdb != nullptr);
+
+    static size_t max_embassador_lottery = 0;
+    referral::AddressANVs entrants;
+
+    // unlikely that the candidates grew over 50% since last time.
+    auto reserve_size = max_embassador_lottery * 1.5;
+    entrants.reserve(reserve_size);
+
+    pog::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
+
+    max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
+    total = std::min(total, entrants.size());
+
+    std::partial_sort(entrants.begin(), entrants.begin() + total, entrants.end(),
+            [](const referral::AddressANV& a, const referral::AddressANV& b) {
+                return a.anv > b.anv;
+            });
+
+    Ranks ranks;
+    ranks.resize(total);
+
+    int pos = 1;
+    std::transform(entrants.begin(), entrants.begin() + total, ranks.begin(),
+            [&pos,&entrants](const referral::AddressANV& e) {
+                return std::make_pair(e, entrants.size() - pos++);
+            });
+
+    return {ranks, entrants.size()};
+}

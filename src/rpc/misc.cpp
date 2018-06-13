@@ -21,6 +21,7 @@
 
 #include "rpc/safemode.h"
 #include "pog/anv.h"
+#include "pog/select.h"
 
 #ifdef ENABLE_WALLET
 #include "wallet/rpcwallet.h"
@@ -1258,6 +1259,150 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
     return result;
 }
 
+UniValue RanksToUniValue(CAmount lottery_anv, const Ranks& ranks, size_t total) {
+
+    UniValue rankarr(UniValue::VARR);
+    for(const auto& r : ranks) {
+        UniValue o(UniValue::VOBJ);
+
+        //percentile to two digits
+        double percentile = 
+            std::floor((static_cast<double>(r.second) / static_cast<double>(total)) * 10000.0) / 100.0;
+
+        o.push_back(Pair("rank", total - r.second));
+        o.push_back(Pair("percentile", percentile));
+        o.push_back(Pair("anv", r.first.anv));
+
+        double anv_percent = 
+            (static_cast<double>(r.first.anv) / static_cast<double>(lottery_anv));
+
+        o.push_back(Pair("anvpercent", anv_percent));
+        rankarr.push_back(o);
+    }
+    return rankarr;
+}
+
+UniValue getaddressrank(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() > 1)
+        throw std::runtime_error(
+            "getaddressrank \"addresses\" \n"
+            "\nReturns the total rank for the address(es) specified.\n"
+            "\nArguments:\n"
+            "{\n"
+            "  \"addresses\"\n"
+            "    [\n"
+            "      \"address\"  (string) The base58check encoded address\n"
+            "      ,...\n"
+            "    ]\n"
+            "}\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"lotteryanv\"  (number) The aggregate ANV of all addresses in the lottery\n"
+            "  \"ranks\"       (number) rank information for each address specified\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getaddressrank", "'{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}'")
+            + HelpExampleRpc("getaddressrank", "{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}")
+        );
+
+    std::vector<AddressPair> addresses;
+
+    if (!getAddressesFromParams(request.params, addresses)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
+    }
+
+    CAmount lottery_anv = pog::GetCachedTotalANV();
+    if(lottery_anv == 0) {
+        UniValue result(UniValue::VOBJ);
+        result.push_back(Pair("lotteryanv", 0));
+        return result;
+    }
+
+    std::vector<CAmount> anvs; 
+    for (const auto& a : addresses) {
+        auto maybe_anv = prefviewdb->GetANV(a.first);
+        if (!maybe_anv) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No anv available for address" + CMeritAddress{a.second, a.first}.ToString());
+        }
+        anvs.push_back(maybe_anv->anv);
+    }
+
+    auto ranks = ANVRanks(
+            anvs,
+            chainActive.Height(),
+            Params().GetConsensus());
+
+    assert(ranks.first.size() == addresses.size());
+
+    //Hack to keep ANVRanks  (2nlog(n)) vs (nlogn + n) we rewrite the address
+    //because among addresses of equal rank, ANVRAnks may return an entry with a different address.
+    for(size_t i = 0; i < addresses.size(); i++) {
+        ranks.first[i].first.address = addresses[i].first;
+        ranks.first[i].first.address_type = addresses[i].second;
+    }
+
+    UniValue result(UniValue::VOBJ);
+    UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
+
+    result.push_back(Pair("lotteryanv", lottery_anv));
+    result.push_back(Pair("lotteryentrants", ranks.second));
+    result.push_back(Pair("ranks", rankarr));
+
+    return result;
+}
+
+UniValue getaddressleaderboard(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() > 1)
+        throw std::runtime_error(
+            "getaddressleaderboard \"total\" \n"
+            "\nReturns the top X addresses by rank.\n"
+            "\nArguments:\n"
+            "\"total\"  (number) Top total to return\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"lotteryanv\"  (number) The aggregate ANV of all addresses in the lottery\n"
+            "   addresses: [\n"
+            "       {\n"
+            "           \"address\"  (string) Address\n"
+            "           \"anv\"      (number) anv\n"
+            "       },\n"
+            "       ...\n"
+            "   ]\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getaddressleaderboard", "4")
+            + HelpExampleRpc("getaddressleaderboard", "100")
+        );
+
+    CAmount lottery_anv = pog::GetCachedTotalANV();
+    if(lottery_anv == 0) {
+        UniValue result(UniValue::VOBJ);
+        result.push_back(Pair("lotteryanv", 0));
+        return result;
+    }
+
+    int total = 100;
+    if (request.params[0].isNum()) {
+        total = std::max(1, request.params[0].get_int());
+    }
+
+    auto ranks = TopANVRanks(
+            total,
+            chainActive.Height(),
+            Params().GetConsensus());
+
+    UniValue result(UniValue::VOBJ);
+    UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
+
+    result.push_back(Pair("lotteryanv", lottery_anv));
+    result.push_back(Pair("lotteryentrants", ranks.second));
+    result.push_back(Pair("ranks", rankarr));
+
+    return result;
+}
+
 namespace {
     // (height, invite, id)
     using AddressTx = std::tuple<int, bool, std::string>;
@@ -1729,6 +1874,8 @@ static const CRPCCommand commands[] =
     { "addressindex",       "getaddresstxids",              &getaddresstxids,            {} },
     { "addressindex",       "getaddressreferrals",          &getaddressreferrals,        {} },
     { "addressindex",       "getaddressbalance",            &getaddressbalance,          {} },
+    { "addressindex",       "getaddressrank",               &getaddressrank,             {} },
+    { "addressindex",       "getaddressleaderboard",        &getaddressleaderboard,      {} },
     { "addressindex",       "getaddressrewards",            &getaddressrewards,          {} },
     { "addressindex",       "getaddressanv",                &getaddressanv,              {} },
 
