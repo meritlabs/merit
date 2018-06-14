@@ -7435,44 +7435,44 @@ std::pair<Ranks, size_t> TopANVRanks(
     return {ranks, entrants.size()};
 }
 
-std::pair<Ranks, size_t> GCSRanks(
-        const std::vector<CAmount>& gcs,
+std::pair<Pog2Ranks, size_t> CGSRanks(
+        const std::vector<CAmount>& cgs,
         int height,
         const Consensus::Params& params,
-        CAmount& lottery_gcs)
+        CAmount& lottery_cgs)
 {
     assert(height >= 0);
     assert(prefviewdb != nullptr);
 
     static size_t max_embassador_lottery = 0;
-    referral::AddressANVs entrants;
+    pog2::Entrants entrants;
 
     // unlikely that the candidates grew over 50% since last time.
     auto reserve_size = max_embassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
-    pog2::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
+    pog2::GetAllRewardableEntrants(*prefviewdb, params, height, entrants);
 
     max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
 
-    lottery_gcs = std::accumulate(entrants.begin(), entrants.end(), CAmount{0},
-            [](CAmount acc, const referral::AddressANV& e) {
-                return acc + e.anv;
+    lottery_cgs = std::accumulate(entrants.begin(), entrants.end(), CAmount{0},
+            [](CAmount acc, const pog2::Entrant& e) {
+                return acc + e.cgs;
             });
 
     std::sort(entrants.begin(), entrants.end(),
-            [](const referral::AddressANV& a, const referral::AddressANV& b) {
-                return a.anv < b.anv;
+            [](const pog2::Entrant& a, const pog2::Entrant& b) {
+                return a.cgs < b.cgs;
             });
 
-    Ranks ranks;
-    ranks.resize(gcs.size());
+    Pog2Ranks ranks;
+    ranks.resize(cgs.size());
 
-    std::transform(gcs.begin(), gcs.end(), ranks.begin(),
-            [&entrants](CAmount anv) {
-                auto pos = std::lower_bound(entrants.begin(), entrants.end(), anv,
-                        [](const referral::AddressANV& a, CAmount anv) {
-                            return a.anv < anv;
+    std::transform(cgs.begin(), cgs.end(), ranks.begin(),
+            [&entrants](CAmount cgs) {
+                auto pos = std::lower_bound(entrants.begin(), entrants.end(), cgs,
+                        [](const pog2::Entrant& a, CAmount cgs) {
+                            return a.cgs < cgs;
                         });
                 return std::make_pair(*pos, std::distance(entrants.begin(), pos));
             });
@@ -7481,43 +7481,43 @@ std::pair<Ranks, size_t> GCSRanks(
     return {ranks, total};
 }
 
-std::pair<Ranks, size_t> TopGCSRanks(
+std::pair<Pog2Ranks, size_t> TopCGSRanks(
         size_t total,
         int height,
         const Consensus::Params& params,
-        CAmount& lottery_gcs)
+        CAmount& lottery_cgs)
 {
     assert(height >= 0);
     assert(prefviewdb != nullptr);
 
     static size_t max_embassador_lottery = 0;
-    referral::AddressANVs entrants;
+    pog2::Entrants entrants;
 
     // unlikely that the candidates grew over 50% since last time.
     auto reserve_size = max_embassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
-    pog2::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
+    pog2::GetAllRewardableEntrants(*prefviewdb, params, height, entrants);
 
-    lottery_gcs = std::accumulate(entrants.begin(), entrants.end(), CAmount{0},
-            [](CAmount acc, const referral::AddressANV& e) {
-                return acc + e.anv;
+    lottery_cgs = std::accumulate(entrants.begin(), entrants.end(), CAmount{0},
+            [](CAmount acc, const pog2::Entrant& e) {
+                return acc + e.cgs;
             });
 
     max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
     total = std::min(total, entrants.size());
 
     std::partial_sort(entrants.begin(), entrants.begin() + total, entrants.end(),
-            [](const referral::AddressANV& a, const referral::AddressANV& b) {
-                return a.anv > b.anv;
+            [](const pog2::Entrant& a, const pog2::Entrant& b) {
+                return a.cgs > b.cgs;
             });
 
-    Ranks ranks;
+    Pog2Ranks ranks;
     ranks.resize(total);
 
     int pos = 1;
     std::transform(entrants.begin(), entrants.begin() + total, ranks.begin(),
-            [&pos,&entrants](const referral::AddressANV& e) {
+            [&pos,&entrants](const pog2::Entrant& e) {
                 return std::make_pair(e, entrants.size() - pos++);
             });
 

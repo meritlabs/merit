@@ -12,57 +12,25 @@
 
 namespace pog2
 {
-    /**
-     * This version simply pulls the ANV from the DB. ReferralsViewDB::UpdateANV
-     * incrementally updates an ANV for an address and all parents.
-     */
-    referral::MaybeAddressANV ComputeANV(
-            const referral::Address& address_id,
-            const referral::ReferralsViewDB& db)
-    {
-        return db.GetANV(address_id);
-    }
-
-    referral::AddressANVs GetAllANVs(const referral::ReferralsViewDB& db)
-    {
-        return db.GetAllANVs();
-    }
-
-    void GetAllRewardableANVs(
+    void GetAllRewardableEntrants(
             const referral::ReferralsViewDB& db,
             const Consensus::Params& params,
             int height,
-            referral::AddressANVs& entrants)
+            Entrants& entrants)
     {
-        db.GetAllRewardableANVs(params, height, entrants);
+        referral::AddressANVs anv_entrants;
+        db.GetAllRewardableANVs(params, height, anv_entrants);
 
-        for(auto& e : entrants) {
-            auto maybe_gcs = ComputeCGS(
-                    height,
-                    e.address_type,
-                    e.address,
-                    db);
-            if(maybe_gcs) { 
-                e.anv = maybe_gcs->anv;
-            }
-        }
-    }
+        entrants.resize(anv_entrants.size());
 
-    referral::AddressANVs GetANVs(
-            const referral::Addresses& addresses,
-            const referral::ReferralsViewDB& db)
-    {
-        referral::AddressANVs r;
-        r.reserve(addresses.size());
-
-        for(const auto& a : addresses) {
-            if(auto maybe_anv = ComputeANV(a, db)) {
-                r.push_back(*maybe_anv);
-            }
-        }
-
-        assert(r.size() <= addresses.size());
-        return r;
+        std::transform(anv_entrants.begin(), anv_entrants.end(), entrants.begin(),
+                [height, &db](const referral::AddressANV& a) {
+                    return ComputeCGS(
+                            height,
+                            a.address_type,
+                            a.address,
+                            db);
+                });
     }
 
     struct Coin
@@ -102,12 +70,12 @@ namespace pog2
     }
 
     const double ONE_DAY = 24*60;
-    const double ONE_WEEK = 7 * ONE_DAY;
+    const double TWO_DAYS = 2 * ONE_DAY;
     double AgeScale(int height, const Coin& c) {
         assert(height >= 0);
         assert(c.height <= height);
 
-        double age = Age(height, c) / ONE_WEEK;
+        double age = Age(height, c) / TWO_DAYS;
         assert(age >= 0);
 
         double scale =  1.0 - (1.0 / (std::pow(age, 2) + 1.0));
@@ -139,21 +107,15 @@ namespace pog2
                 });
     }
 
-    struct TreeNode
-    {
-        char address_type;
-        referral::Address address;
-        double level;
-    };
-
-    using TreeNodeQueue = std::deque<TreeNode>; 
+    using EntrantQueue = std::deque<Entrant>; 
 
     void PushChildren(
             const referral::ReferralsViewDB& db,
-            const TreeNode& n,
-            TreeNodeQueue& q) 
+            Entrant& n,
+            EntrantQueue& q) 
     {
         auto children = db.GetChildren(n.address);
+        n.children = children.size();
         for(const auto& address : children) {
 
             auto maybe_ref = db.GetReferral(address);
@@ -164,11 +126,14 @@ namespace pog2
             q.push_back({
                     maybe_ref->addressType,
                     maybe_ref->GetAddress(),
-                    n.level + 1});
+                    0,
+                    n.level + 1,
+                    0,
+                    0});
         }
     }
 
-    referral::MaybeAddressANV ComputeCGS(
+    Entrant ComputeCGS(
             int height,
             char address_type,
             const referral::Address& address,
@@ -178,26 +143,29 @@ namespace pog2
         auto balance = AgedBalance(height, coins);
         assert(balance >= 0);
 
-        CAmount gcs = std::floor(balance * 0.75);
-        assert(gcs >= 0);
+        CAmount cgs = std::floor(balance * 0.75);
+        assert(cgs >= 0);
 
-        TreeNodeQueue q;
+        EntrantQueue q;
 
-        TreeNode root{address_type, address, 1};
+        Entrant root{address_type, address, cgs, 1, 0};
         PushChildren(db, root, q);
 
         while(!q.empty()) {
             auto n = q.front();
             q.pop_front();
-            auto node_coins = GetCoins(n.address_type, n.address);
-            auto node_balance = AgedBalance(height, node_coins);
-            assert(node_balance >=0);
-            gcs += node_balance / n.level;
+
+            root.network_size++;
+
+            auto entrant_coins = GetCoins(n.address_type, n.address);
+            auto entrant_balance = AgedBalance(height, entrant_coins);
+            assert(entrant_balance >=0);
+            root.cgs += entrant_balance / n.level;
 
             PushChildren(db, n, q);
         }
 
-        return referral::AddressANV{address_type, address, gcs};
+        return root;
     }
 
 } // namespace pog2

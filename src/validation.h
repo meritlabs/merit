@@ -24,6 +24,7 @@
 #include "addressindex.h"
 #include "timestampindex.h"
 #include "pog/reward.h"
+#include "pog2/anv.h"
 #include "script/standard.h"
 
 #include <algorithm>
@@ -719,6 +720,10 @@ void DumpReferralMempool();
  */
 using Rank = std::pair<referral::AddressANV, size_t>;
 using Ranks = std::vector<Rank>;
+
+using Pog2Rank = std::pair<pog2::Entrant, size_t>;
+using Pog2Ranks = std::vector<Pog2Rank>;
+
 std::pair<Ranks, size_t> ANVRanks(
         const std::vector<CAmount>& anv,
         int height,
@@ -729,15 +734,15 @@ std::pair<Ranks, size_t> TopANVRanks(
         int height,
         const Consensus::Params& params);
 
-std::pair<Ranks, size_t> GCSRanks(
-        const std::vector<CAmount>& gcs,
+std::pair<Pog2Ranks, size_t> CGSRanks(
+        const std::vector<CAmount>& cgs,
         int height,
         const Consensus::Params& params,
-        CAmount& lottery_gcs);
+        CAmount& lottery_cgs);
 
-std::pair<Ranks, size_t> TopGCSRanks(
+std::pair<Pog2Ranks, size_t> TopCGSRanks(
         size_t total,
         int height,
         const Consensus::Params& params,
-        CAmount& lottery_gcs);
+        CAmount& lottery_cgs);
 #endif // MERIT_VALIDATION_H

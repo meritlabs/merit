@@ -14,27 +14,25 @@
 
 namespace pog2
 {
-    /**
-     * Aggregate Network Value is computed by walking the referral tree down from the 
-     * key_id specified and aggregating each child's ANV.
-     */
-    referral::MaybeAddressANV ComputeANV(
-            const referral::Address&,
-            const referral::ReferralsViewDB&);
+    struct Entrant
+    {
+        char address_type;
+        referral::Address address;
+        CAmount cgs;
+        double level;
+        int children;
+        int network_size;
+    };
 
-    referral::AddressANVs GetANVs(
-            const referral::Addresses& addresses,
-            const referral::ReferralsViewDB&);
+    using Entrants = std::vector<Entrant>;
 
-    referral::AddressANVs GetAllANVs(const referral::ReferralsViewDB&);
-
-    void GetAllRewardableANVs(
+    void GetAllRewardableEntrants(
             const referral::ReferralsViewDB&,
             const Consensus::Params&,
             int height,
-            referral::AddressANVs&);
+            Entrants&);
 
-    referral::MaybeAddressANV ComputeCGS(
+    Entrant ComputeCGS(
             int height,
             char address_type,
             const referral::Address& address,

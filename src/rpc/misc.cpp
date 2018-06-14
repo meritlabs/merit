@@ -1287,6 +1287,36 @@ UniValue RanksToUniValue(CAmount lottery_anv, const Ranks& ranks, size_t total) 
     return rankarr;
 }
 
+UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t total) {
+
+    UniValue rankarr(UniValue::VARR);
+    for(const auto& r : ranks) {
+        UniValue o(UniValue::VOBJ);
+
+        //percentile to two digits
+        double percentile = 
+            std::floor((static_cast<double>(r.second) / static_cast<double>(total)) * 10000.0) / 100.0;
+
+        auto alias = FindAliasForAddress(r.first.address);
+
+        o.push_back(Pair("address", CMeritAddress{r.first.address_type, r.first.address}.ToString()));
+        o.push_back(Pair("alias", alias));
+        o.push_back(Pair("networksize", r.first.network_size));
+        o.push_back(Pair("children", r.first.children));
+        o.push_back(Pair("rank", total - r.second));
+        o.push_back(Pair("percentile", percentile));
+        o.push_back(Pair("cgs", r.first.cgs));
+
+        double cgs_percent = 
+            (static_cast<double>(r.first.cgs) / static_cast<double>(lottery_cgs));
+
+        o.push_back(Pair("gcspercent", cgs_percent));
+        rankarr.push_back(o);
+    }
+    return rankarr;
+}
+
+
 UniValue getaddressrank(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() > 1)
@@ -1333,17 +1363,14 @@ UniValue getaddressrank(const JSONRPCRequest& request)
         anvs.push_back(maybe_anv->anv);
     }
 
-    std::vector<CAmount> gcs; 
+    std::vector<CAmount> cgs; 
     for (const auto& a : addresses) {
-     auto maybe_gcs = pog2::ComputeCGS(
+     auto node = pog2::ComputeCGS(
             chainActive.Height(),
             a.second,
             a.first,
             *prefviewdb);
-        if (!maybe_gcs) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No anv available for address" + CMeritAddress{a.second, a.first}.ToString());
-        }
-        gcs.push_back(maybe_gcs->anv);
+        cgs.push_back(node.cgs);
     }
 
     auto ranks = ANVRanks(
@@ -1351,12 +1378,12 @@ UniValue getaddressrank(const JSONRPCRequest& request)
             chainActive.Height(),
             Params().GetConsensus());
 
-    CAmount lottery_gcs = 0;
-    auto gcs_ranks = GCSRanks(
-            gcs,
+    CAmount lottery_cgs = 0;
+    auto cgs_ranks = CGSRanks(
+            cgs,
             chainActive.Height(),
             Params().GetConsensus(),
-            lottery_gcs);
+            lottery_cgs);
 
     assert(ranks.first.size() == addresses.size());
 
@@ -1365,19 +1392,19 @@ UniValue getaddressrank(const JSONRPCRequest& request)
     for(size_t i = 0; i < addresses.size(); i++) {
         ranks.first[i].first.address = addresses[i].first;
         ranks.first[i].first.address_type = addresses[i].second;
-        gcs_ranks.first[i].first.address = addresses[i].first;
-        gcs_ranks.first[i].first.address_type = addresses[i].second;
+        cgs_ranks.first[i].first.address = addresses[i].first;
+        cgs_ranks.first[i].first.address_type = addresses[i].second;
     }
 
     UniValue result(UniValue::VOBJ);
     UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
-    UniValue gcs_rankarr = RanksToUniValue(lottery_gcs, gcs_ranks.first, gcs_ranks.second);
+    UniValue cgs_rankarr = RanksToUniValue(lottery_cgs, cgs_ranks.first, cgs_ranks.second);
 
     result.push_back(Pair("lotteryanv", lottery_anv));
-    result.push_back(Pair("lotterygcs", lottery_gcs));
+    result.push_back(Pair("lotterycgs", lottery_cgs));
     result.push_back(Pair("lotteryentrants", ranks.second));
     result.push_back(Pair("ranks", rankarr));
-    result.push_back(Pair("gcs_ranks", gcs_rankarr));
+    result.push_back(Pair("cgs_ranks", cgs_rankarr));
 
     return result;
 }
@@ -1423,22 +1450,22 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
             chainActive.Height(),
             Params().GetConsensus());
 
-    CAmount lottery_gcs = 0;
-    auto gcs_ranks = TopGCSRanks(
+    CAmount lottery_cgs = 0;
+    auto cgs_ranks = TopCGSRanks(
             total,
             chainActive.Height(),
             Params().GetConsensus(),
-            lottery_gcs);
+            lottery_cgs);
 
     UniValue result(UniValue::VOBJ);
     UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
-    UniValue gcs_rankarr = RanksToUniValue(lottery_gcs, gcs_ranks.first, gcs_ranks.second);
+    UniValue cgs_rankarr = RanksToUniValue(lottery_cgs, cgs_ranks.first, cgs_ranks.second);
 
     result.push_back(Pair("lotteryanv", lottery_anv));
-    result.push_back(Pair("lotterygcs", lottery_gcs));
+    result.push_back(Pair("lotterycgs", lottery_cgs));
     result.push_back(Pair("lotteryentrants", ranks.second));
     result.push_back(Pair("ranks", rankarr));
-    result.push_back(Pair("gcs_ranks", gcs_rankarr));
+    result.push_back(Pair("cgs_ranks", cgs_rankarr));
 
     return result;
 }
