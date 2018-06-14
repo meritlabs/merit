@@ -102,12 +102,12 @@ namespace pog2
     }
 
     const double ONE_DAY = 24*60;
-    const double ONE_MONTH = 30 * ONE_DAY;
+    const double ONE_WEEK = 7 * ONE_DAY;
     double AgeScale(int height, const Coin& c) {
         assert(height >= 0);
         assert(c.height <= height);
 
-        double age = Age(height, c) / ONE_MONTH;
+        double age = Age(height, c) / ONE_WEEK;
         assert(age >= 0);
 
         double scale =  1.0 - (1.0 / (std::pow(age, 2) + 1.0));
