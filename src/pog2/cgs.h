@@ -22,6 +22,7 @@ namespace pog2
         double level;
         int children;
         int network_size;
+        int beacon_height;
     };
 
     using Entrants = std::vector<Entrant>;

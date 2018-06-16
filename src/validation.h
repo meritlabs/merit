@@ -24,7 +24,7 @@
 #include "addressindex.h"
 #include "timestampindex.h"
 #include "pog/reward.h"
-#include "pog2/anv.h"
+#include "pog2/cgs.h"
 #include "script/standard.h"
 
 #include <algorithm>

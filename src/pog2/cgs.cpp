@@ -2,7 +2,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "pog2/anv.h"
+#include "pog2/cgs.h"
 #include "addressindex.h"
 #include "validation.h"
 
@@ -25,11 +25,19 @@ namespace pog2
 
         std::transform(anv_entrants.begin(), anv_entrants.end(), entrants.begin(),
                 [height, &db](const referral::AddressANV& a) {
-                    return ComputeCGS(
+                    auto beacon = db.GetReferral(a.address);
+                    auto entrant = ComputeCGS(
                             height,
                             a.address_type,
                             a.address,
                             db);
+
+                    //TODO: Determine beacon height. 
+                    // 1. Determine block hash
+                    // 2. Search block hash in pindex
+                    // 3. get block height.
+                    entrant.beacon_height = 0;
+                    return entrant;
                 });
     }
 

@@ -21,7 +21,7 @@
 
 #include "rpc/safemode.h"
 #include "pog/anv.h"
-#include "pog2/anv.h"
+#include "pog2/cgs.h"
 #include "pog/select.h"
 
 #ifdef ENABLE_WALLET

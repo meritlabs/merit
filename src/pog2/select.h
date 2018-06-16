@@ -7,8 +7,9 @@
 
 #include "hash.h"
 #include "amount.h"
-#include "pog2/anv.h"
+#include "pog2/cgs.h"
 #include <boost/multiprecision/cpp_dec_float.hpp>
+#include <memory>
 
 #include <map>
 
@@ -19,38 +20,51 @@ namespace referral
 
 namespace pog2
 {
-    using InvertedAnvs = referral::AddressANVs;
-    using AddressToAnv = std::map<referral::Address, referral::AddressANV>;
+    using InvertedEntrants = pog2::Entrants;
+    using AddressToEntrant = std::map<referral::Address, pog2::Entrant>;
     using SampledAddresses = std::set<referral::Address>;
 
-    class AnvDistribution
+    class CgsDistribution
     {
         public:
-            AnvDistribution(int height, referral::AddressANVs anvs);
-            const referral::AddressANV& Sample(const uint256& hash) const;
+            CgsDistribution(pog2::Entrants entrants);
+            const pog2::Entrant& Sample(const uint256& hash) const;
             size_t Size() const;
 
         private:
-            InvertedAnvs m_inverted;
-            AddressToAnv m_anvs;
+            InvertedEntrants m_inverted;
+            AddressToEntrant m_cgses;
             SampledAddresses m_sampled;
-            CAmount m_max_anv = 0;
+            CAmount m_max_cgs = 0;
     };
+
+    using CgsDistributionPtr = std::unique_ptr<CgsDistribution>;
 
     class AddressSelector
     {
         public:
-            AddressSelector(int height, const referral::AddressANVs& anvs);
+            AddressSelector(int height, const pog2::Entrants& entrants);
 
-            referral::AddressANVs Select(
-                    bool check_confirmations,
+            pog2::Entrants SelectOld(
+                    const referral::ReferralsViewCache& referrals,
+                    uint256 hash,
+                    size_t n) const;
+
+            pog2::Entrants SelectNew(
                     const referral::ReferralsViewCache& referrals,
                     uint256 hash,
                     size_t n) const;
 
             size_t Size() const;
         private:
-            AnvDistribution m_distribution;
+            pog2::Entrants Select(
+                    const referral::ReferralsViewCache& referrals,
+                    uint256 hash,
+                    size_t n,
+                    const CgsDistribution& distribution) const;
+
+            CgsDistributionPtr m_old_distribution;
+            CgsDistributionPtr m_new_distribution;
     };
 
     referral::ConfirmedAddresses SelectConfirmedAddresses(
