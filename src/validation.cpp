@@ -1872,7 +1872,7 @@ pog::AmbassadorLottery Pog1RewardAmbassadors(
     return rewards;
 }
 
-pog::AmbassadorLottery Pog2RewardAmbassadors(
+pog2::AmbassadorLottery Pog2RewardAmbassadors(
         int height,
         const uint256& previous_block_hash,
         CAmount total,
@@ -1881,21 +1881,19 @@ pog::AmbassadorLottery Pog2RewardAmbassadors(
     assert(height >= params.pog2_blockheight);
     assert(prefviewdb != nullptr);
 
-    const bool IS_DAEDALUS = true;
-
     static size_t max_embassador_lottery = 0;
-    referral::AddressANVs entrants;
+    pog2::Entrants entrants;
 
     // unlikely that the candidates grew over 50% since last time.
     auto reserve_size = max_embassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
-    pog::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
+    pog2::GetAllRewardableEntrants(*prefviewdb, params, height, entrants);
 
     max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
 
     // Wallet selector will create a distribution from all the keys
-    pog::WalletSelector selector{height, entrants};
+    pog2::AddressSelector selector{height, entrants};
 
     // We may have fewer keys in the distribution than the expected winners,
     // so just pick smallest of the two.
@@ -1908,20 +1906,28 @@ pog::AmbassadorLottery Pog2RewardAmbassadors(
     if (desired_winners == 0) return {{}, total};
 
     // validate sane winner amount
-    assert(desired_winners > 0);
+    assert(desired_winners > 2);
     assert(desired_winners < 100);
 
+    auto desired_new_winners = 2;
+    auto desired_old_winners = desired_winners - desired_new_winners;
+
     // Select the N winners using the previous block hash as the seed
-    auto winners = selector.Select(
-            IS_DAEDALUS,
+    auto old_winners = selector.SelectOld(
             *prefviewcache,
             previous_block_hash,
-            desired_winners);
+            desired_old_winners);
 
-    assert(winners.size() == desired_winners);
+    auto new_winners = selector.SelectNew(
+            *prefviewcache,
+            previous_block_hash,
+            desired_new_winners);
+
+
+    assert(old_winners.size() + new_winners.size() == desired_winners);
 
     // Compute reward for all the winners
-    auto rewards = pog::RewardAmbassadors(height, winners, total);
+    auto rewards = pog2::RewardAmbassadors(height, old_winners, new_winners, total);
 
     // Return the remainder which will be given to the miner;
     assert(rewards.remainder <= total);
@@ -1936,9 +1942,23 @@ pog::AmbassadorLottery RewardAmbassadors(
         CAmount total,
         const Consensus::Params& params)
 {
-    return height >= params.pog2_blockheight ? 
-        Pog2RewardAmbassadors(height, previous_block_hash, total, params) :
-        Pog1RewardAmbassadors(height, previous_block_hash, total, params);
+    if(height >= params.pog2_blockheight) {
+        const auto pog2_lottery = 
+            Pog2RewardAmbassadors(height, previous_block_hash, total, params);
+        pog::Rewards winners(pog2_lottery.winners.size()); 
+        std::transform(
+                pog2_lottery.winners.begin(), pog2_lottery.winners.end(), winners.begin(),
+                [](const pog2::AmbassadorReward& r) {
+                    return pog::AmbassadorReward{
+                        r.address_type,
+                        r.address,
+                        r.amount
+                    };
+                });
+
+        return {winners, pog2_lottery.remainder};
+    }
+    return Pog1RewardAmbassadors(height, previous_block_hash, total, params);
 }
 
 bool OldComputeInviteLotteryParams(

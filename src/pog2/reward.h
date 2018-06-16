@@ -6,6 +6,7 @@
 #define MERIT_POG2_REWARD_H
 
 #include "refdb.h"
+#include "pog2/cgs.h"
 #include "consensus/params.h"
 
 namespace pog2
@@ -33,7 +34,9 @@ namespace pog2
 
     AmbassadorLottery RewardAmbassadors(
             int height,
-            const referral::AddressANVs& winners, CAmount total);
+            const Entrants& old_winners,
+            const Entrants& new_winners,
+            CAmount total);
 
     struct InviteReward
     {
