@@ -1872,7 +1872,7 @@ pog::AmbassadorLottery Pog1RewardAmbassadors(
     return rewards;
 }
 
-pog2::AmbassadorLottery Pog2RewardAmbassadors(
+pog::AmbassadorLottery Pog2RewardAmbassadors(
         int height,
         const uint256& previous_block_hash,
         CAmount total,
@@ -1943,20 +1943,7 @@ pog::AmbassadorLottery RewardAmbassadors(
         const Consensus::Params& params)
 {
     if(height >= params.pog2_blockheight) {
-        const auto pog2_lottery = 
-            Pog2RewardAmbassadors(height, previous_block_hash, total, params);
-        pog::Rewards winners(pog2_lottery.winners.size()); 
-        std::transform(
-                pog2_lottery.winners.begin(), pog2_lottery.winners.end(), winners.begin(),
-                [](const pog2::AmbassadorReward& r) {
-                    return pog::AmbassadorReward{
-                        r.address_type,
-                        r.address,
-                        r.amount
-                    };
-                });
-
-        return {winners, pog2_lottery.remainder};
+        return Pog2RewardAmbassadors(height, previous_block_hash, total, params);
     }
     return Pog1RewardAmbassadors(height, previous_block_hash, total, params);
 }
