@@ -1652,8 +1652,10 @@ bool GetTransaction(
 }
 
 /** Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock */
-bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock)
+bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock, CBlockIndex*& pindex)
 {
+    pindex = nullptr;
+
     referral::ReferralRef mempoolref = mempoolReferral.Get(hash);
     if (mempoolref) {
         refOut = mempoolref;
@@ -1685,6 +1687,19 @@ bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &ha
                     __func__,
                     hash.GetHex().c_str(),
                     refOut->GetHash().GetHex().c_str());
+
+        //Find the height based on the block hash 
+        auto bi = mapBlockIndex.find(hashBlock);
+        if (bi != mapBlockIndex.end()) {
+            pindex = bi->second;
+        }
+
+        if(pindex && pindex->nHeight > 0) {
+            auto height = prefviewdb->GetReferralHeight(refOut->GetAddress());
+            if(height > 0) {
+                prefviewdb->SetReferralHeight(pindex->nHeight, refOut->GetAddress());
+            }
+        }
 
         return true;
     }
@@ -2145,7 +2160,10 @@ bool RewardInvites(
         return false;
     }
 
-    const auto total_winners =
+    const bool pog2 = height >= params.pog2_blockheight;
+
+    const auto total_winners = pog2 ? 
+        pog2::ComputeTotalInviteLotteryWinners(lottery_params, params) :
         pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
 
     if (total_winners == 0) {
@@ -2178,7 +2196,15 @@ bool RewardInvites(
         }
     }
 
-    const auto winners = pog::SelectConfirmedAddresses(
+    const auto winners = pog2 ? 
+        pog2::SelectConfirmedAddresses(
+            *prefviewdb,
+            previous_block_hash,
+            params.genesis_address,
+            total_winners,
+            unconfirmed_invites,
+            params.daedalus_max_outstanding_invites_per_address) :
+        pog::SelectConfirmedAddresses(
             *prefviewdb,
             previous_block_hash,
             params.genesis_address,
@@ -2915,6 +2941,7 @@ bool UpdateANV(const CBlock& block, CCoinsViewCache& view) {
 }
 
 bool IndexReferrals(
+        int height,
         const referral::ReferralRefs ordered_referrals,
         bool allow_no_parent,
         bool normalize_alias)
@@ -2923,7 +2950,7 @@ bool IndexReferrals(
 
     // Update offset and Record referrals into the referral DB
     for (const auto& rtx : ordered_referrals) {
-        if (!prefviewdb->InsertReferral(*rtx, allow_no_parent, normalize_alias)) {
+        if (!prefviewdb->InsertReferral(height, *rtx, allow_no_parent, normalize_alias)) {
             return false;
         }
     }
@@ -3831,7 +3858,7 @@ static bool ConnectBlock(
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if (!IndexReferrals(block.m_vRef, true, false)) {
+            if (!IndexReferrals(0, block.m_vRef, true, false)) {
                 return AbortNode(state, "Failed to write referral index");
             }
 
@@ -4296,6 +4323,7 @@ static bool ConnectBlock(
     //the referral tree is updated to be correct before we debit/credit
     //the ANV to the appropriate addresses.
     if (!IndexReferrals(
+                pindex->nHeight,
                 ordered_referrals,
                 false,
                 pindex->nHeight >= chainparams.GetConsensus().safer_alias_blockheight)) {
@@ -6769,7 +6797,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if (!IndexReferrals(block.m_vRef, true, false)) {
+            if (!IndexReferrals(0, block.m_vRef, true, false)) {
                 return error("%s: IndexReferrals failed", __func__);
             }
 

@@ -30,6 +30,7 @@ namespace referral
         const char DB_CONFIRMATION_TOTAL = 'u';
         const char DB_PRE_DAEDALUS_CONFIRMED = 'd';
         const char DB_ALIAS = 'l';
+        const char DB_HEIGHT = 'b';
 
         const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
     }
@@ -144,10 +145,12 @@ namespace referral
     }
 
     bool ReferralsViewDB::InsertReferral(
+            int height,
             const Referral& referral,
             bool allow_no_parent,
             bool normalize_alias)
     {
+        assert(height >= 0);
         debug("Inserting referral %s parent %s",
                 CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
                 referral.parentAddress.GetHex());
@@ -162,6 +165,11 @@ namespace referral
 
         //write referral by code hash
         if (!m_db.Write(std::make_pair(DB_REFERRALS, referral.GetAddress()), referral)) {
+            return false;
+        }
+
+        //write referral height by code hash
+        if (!m_db.Write(std::make_pair(DB_HEIGHT, referral.GetAddress()), height)) {
             return false;
         }
 
@@ -237,6 +245,10 @@ namespace referral
             return false;
         }
 
+        if (!m_db.Erase(std::make_pair(DB_HEIGHT, referral.GetAddress()))) {
+            return false;
+        }
+
         if (!m_db.Erase(std::make_pair(DB_HASH, referral.GetHash()))) {
             return false;
         }
@@ -261,6 +273,19 @@ namespace referral
         }
 
         return true;
+    }
+
+    int ReferralsViewDB::GetReferralHeight(const Address& address)
+    {
+        int height = -1;
+        m_db.Read(std::make_pair(DB_HEIGHT, address), height);
+        return height;
+    }
+
+    bool ReferralsViewDB::SetReferralHeight(int height, const Address& address)
+    {
+        assert(height >= 0);
+        return m_db.Write(std::make_pair(DB_HEIGHT, address), height);
     }
 
     /**

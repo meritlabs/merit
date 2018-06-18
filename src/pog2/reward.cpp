@@ -61,7 +61,6 @@ namespace pog2
             const Entrants& new_winners,
             CAmount total_reward)
     {
-        //TODO: Figure out the proportion of new vs old winners.
         auto total_new_reward = std::floor(total_reward * 0.20);
         auto total_old_reward = total_reward - total_new_reward;
 

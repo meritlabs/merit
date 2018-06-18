@@ -105,11 +105,15 @@ public:
     bool OrderReferrals(referral::ReferralRefs& refs);
 
     bool InsertReferral(
+            int height,
             const Referral&,
             bool allow_no_parent,
             bool normalize_alias);
 
     bool RemoveReferral(const Referral&);
+
+    int GetReferralHeight(const Address&);
+    bool SetReferralHeight(int height, const Address& ref);
 
     void GetAllRewardableANVs(
             const Consensus::Params& params,

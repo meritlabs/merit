@@ -12,12 +12,15 @@
 
 namespace pog2
 {
+
     void GetAllRewardableEntrants(
             const referral::ReferralsViewDB& db,
             const Consensus::Params& params,
             int height,
             Entrants& entrants)
     {
+        assert(prefviewdb);
+
         referral::AddressANVs anv_entrants;
         db.GetAllRewardableANVs(params, height, anv_entrants);
 
@@ -25,18 +28,30 @@ namespace pog2
 
         std::transform(anv_entrants.begin(), anv_entrants.end(), entrants.begin(),
                 [height, &db](const referral::AddressANV& a) {
-                    auto beacon = db.GetReferral(a.address);
                     auto entrant = ComputeCGS(
                             height,
                             a.address_type,
                             a.address,
                             db);
 
-                    //TODO: Determine beacon height. 
-                    // 1. Determine block hash
-                    // 2. Search block hash in pindex
-                    // 3. get block height.
-                    entrant.beacon_height = 0;
+                    auto height = prefviewdb->GetReferralHeight(a.address);
+                    if (height < 0) {
+                        auto beacon = db.GetReferral(a.address);
+                        assert(beacon);
+
+                        uint256 hashBlock;
+                        CBlockIndex* pindex = nullptr;
+                        
+                        referral::ReferralRef beacon_out;
+                        if(GetReferral(beacon->GetHash(), beacon_out, hashBlock, pindex)) {
+                            assert(pindex);
+                            height = pindex->nHeight;
+                        }
+                    }
+
+                    assert(height > 0);
+
+                    entrant.beacon_height = height;
                     return entrant;
                 });
     }
