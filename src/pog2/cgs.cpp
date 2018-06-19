@@ -5,6 +5,7 @@
 #include "pog2/cgs.h"
 #include "addressindex.h"
 #include "validation.h"
+#include "referrals.h"
 
 #include <stack>
 #include <deque>
@@ -19,7 +20,7 @@ namespace pog2
             int height,
             Entrants& entrants)
     {
-        assert(prefviewdb);
+        assert(prefviewcache);
 
         referral::AddressANVs anv_entrants;
         db.GetAllRewardableANVs(params, height, anv_entrants);
@@ -34,7 +35,7 @@ namespace pog2
                             a.address,
                             db);
 
-                    auto height = prefviewdb->GetReferralHeight(a.address);
+                    auto height = prefviewcache->GetReferralHeight(a.address);
                     if (height < 0) {
                         auto beacon = db.GetReferral(a.address);
                         assert(beacon);
@@ -46,6 +47,9 @@ namespace pog2
                         if(GetReferral(beacon->GetHash(), beacon_out, hashBlock, pindex)) {
                             assert(pindex);
                             height = pindex->nHeight;
+                            if(height > 0) {
+                                prefviewcache->SetReferralHeight(height, a.address);
+                            }
                         }
                     }
 

@@ -110,6 +110,24 @@ MaybeReferral ReferralsViewCache::GetReferral(const ReferralId& id, bool normali
     return boost::apply_visitor(ReferralIdVisitor{this, normalize_alias}, id);
 }
 
+int ReferralsViewCache::GetReferralHeight(const Address& address) const {
+    const auto height_p = height_index.find(address);
+    if(height_p != height_index.end()) {
+        return height_p->second;
+    }
+
+    const auto height = m_db->GetReferralHeight(address);
+    if(height > 0) {
+        height_index[address] = height;
+    }
+    return height;
+}
+
+bool ReferralsViewCache::SetReferralHeight(int height, const Address& address) {
+    height_index[address] = height;
+    return m_db->SetReferralHeight(height, address);
+}
+
 bool ReferralsViewCache::Exists(const uint256& hash) const
 {
     {
@@ -175,7 +193,11 @@ bool ReferralsViewCache::Exists(const std::string& alias, bool normalize_alias) 
 void ReferralsViewCache::InsertReferralIntoCache(const Referral& ref) const
 {
     LOCK(m_cs_cache);
+    const auto height = m_db->GetReferralHeight(ref.GetAddress());
     referrals_index.insert(ref);
+    if(height > 0) {
+        height_index[ref.GetAddress()] = height;
+    }
 }
 
 void ReferralsViewCache::RemoveAliasFromCache(const Referral& ref) const {
@@ -190,6 +212,7 @@ void ReferralsViewCache::RemoveAliasFromCache(const Referral& ref) const {
 bool ReferralsViewCache::RemoveReferral(const Referral& ref) const
 {
     referrals_index.erase(ref.GetAddress());
+    height_index.erase(ref.GetAddress());
     RemoveAliasFromCache(ref);
 
     return m_db->RemoveReferral(ref);

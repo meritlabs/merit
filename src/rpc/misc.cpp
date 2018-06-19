@@ -1298,11 +1298,13 @@ UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t tot
             std::floor((static_cast<double>(r.second) / static_cast<double>(total)) * 10000.0) / 100.0;
 
         auto alias = FindAliasForAddress(r.first.address);
+        auto beacon_age = chainActive.Height() - r.first.beacon_height;
 
         o.push_back(Pair("address", CMeritAddress{r.first.address_type, r.first.address}.ToString()));
         o.push_back(Pair("alias", alias));
         o.push_back(Pair("networksize", r.first.network_size));
         o.push_back(Pair("children", r.first.children));
+        o.push_back(Pair("beacon_age", beacon_age));
         o.push_back(Pair("rank", total - r.second));
         o.push_back(Pair("percentile", percentile));
         o.push_back(Pair("cgs", r.first.cgs));
