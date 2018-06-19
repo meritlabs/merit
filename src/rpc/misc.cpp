@@ -38,6 +38,8 @@
 
 #include <univalue.h>
 
+#include <boost/format.hpp>
+
 /**
  * @note Do not add or change anything in the information returned by this
  * method. `getinfo` exists for backwards-compatibility only. It combines
@@ -1262,19 +1264,19 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
 UniValue RanksToUniValue(CAmount lottery_anv, const Ranks& ranks, size_t total) {
 
     UniValue rankarr(UniValue::VARR);
-    for(const auto& r : ranks) {
+    for (const auto& r : ranks) {
         UniValue o(UniValue::VOBJ);
 
         //percentile to two digits
         double percentile = 
-            std::floor((static_cast<double>(r.second) / static_cast<double>(total)) * 10000.0) / 100.0;
+            (static_cast<double>(r.second) / static_cast<double>(total)) * 100.0;
 
         const auto alias = FindAliasForAddress(r.first.address);
 
         o.push_back(Pair("address", CMeritAddress{r.first.address_type, r.first.address}.ToString()));
         o.push_back(Pair("alias", alias));
         o.push_back(Pair("rank", total - r.second));
-        o.push_back(Pair("percentile", percentile));
+        o.push_back(Pair("percentile", (boost::format("%1$.2f") % percentile).str()));
         o.push_back(Pair("anv", r.first.anv));
 
         double anv_percent = 
@@ -1284,6 +1286,12 @@ UniValue RanksToUniValue(CAmount lottery_anv, const Ranks& ranks, size_t total) 
         rankarr.push_back(o);
     }
     return rankarr;
+}
+
+UniValue RankComputationsNotReady() {
+    UniValue result(UniValue::VOBJ);
+    result.push_back(Pair("lotteryanv", 0));
+    return result;
 }
 
 UniValue getaddressrank(const JSONRPCRequest& request)
@@ -1317,10 +1325,8 @@ UniValue getaddressrank(const JSONRPCRequest& request)
     }
 
     CAmount lottery_anv = pog::GetCachedTotalANV();
-    if(lottery_anv == 0) {
-        UniValue result(UniValue::VOBJ);
-        result.push_back(Pair("lotteryanv", 0));
-        return result;
+    if (lottery_anv == 0) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "getaddressrank not ready.");
     }
 
     std::vector<CAmount> anvs; 
@@ -1381,10 +1387,8 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
         );
 
     CAmount lottery_anv = pog::GetCachedTotalANV();
-    if(lottery_anv == 0) {
-        UniValue result(UniValue::VOBJ);
-        result.push_back(Pair("lotteryanv", 0));
-        return result;
+    if (lottery_anv == 0) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "getaddressleaderboard not ready.");
     }
 
     int total = 100;
