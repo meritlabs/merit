@@ -1828,7 +1828,7 @@ bool IsValidAmbassadorDestination(const CTxDestination& dest)
     return pog::IsValidAmbassadorDestination(which);
 }
 
-int max_embassador_lottery = 0;
+int max_ambassador_lottery = 0;
 
 pog::AmbassadorLottery Pog1RewardAmbassadors(
         int height,
@@ -1842,16 +1842,16 @@ pog::AmbassadorLottery Pog1RewardAmbassadors(
     const bool is_daedalus = 
         height >= params.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block;
 
-    static size_t max_embassador_lottery = 0;
+    static size_t max_ambassador_lottery = 0;
     referral::AddressANVs entrants;
 
     // unlikely that the candidates grew over 50% since last time.
-    auto reserve_size = max_embassador_lottery * 1.5;
+    auto reserve_size = max_ambassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
     pog::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
 
-    max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
+    max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
 
     // Wallet selector will create a distribution from all the keys
     pog::WalletSelector selector{height, entrants};
@@ -7401,16 +7401,16 @@ std::pair<Ranks, size_t> ANVRanks(
     assert(height >= 0);
     assert(prefviewdb != nullptr);
 
-    static size_t max_embassador_lottery = 0;
+    static size_t max_ambassador_lottery = 0;
     referral::AddressANVs entrants;
 
     // unlikely that the candidates grew over 50% since last time.
-    auto reserve_size = max_embassador_lottery * 1.5;
+    auto reserve_size = max_ambassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
     pog::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
 
-    max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
+    max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
 
     std::sort(entrants.begin(), entrants.end(),
             [](const referral::AddressANV& a, const referral::AddressANV& b) {
@@ -7441,16 +7441,16 @@ std::pair<Ranks, size_t> TopANVRanks(
     assert(height >= 0);
     assert(prefviewdb != nullptr);
 
-    static size_t max_embassador_lottery = 0;
+    static size_t max_ambassador_lottery = 0;
     referral::AddressANVs entrants;
 
     // unlikely that the candidates grew over 50% since last time.
-    auto reserve_size = max_embassador_lottery * 1.5;
+    auto reserve_size = max_ambassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
     pog::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
 
-    max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
+    max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
     total = std::min(total, entrants.size());
 
     std::partial_sort(entrants.begin(), entrants.begin() + total, entrants.end(),
