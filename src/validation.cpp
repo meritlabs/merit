@@ -1908,7 +1908,7 @@ pog::AmbassadorLottery Pog2RewardAmbassadors(
     max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
 
     // Wallet selector will create a distribution from all the keys
-    pog2::AddressSelector selector{height, entrants};
+    pog2::AddressSelector selector{height, entrants, params};
 
     // We may have fewer keys in the distribution than the expected winners,
     // so just pick smallest of the two.
@@ -1921,11 +1921,10 @@ pog::AmbassadorLottery Pog2RewardAmbassadors(
     if (desired_winners == 0) return {{}, total};
 
     // validate sane winner amount
-    assert(desired_winners > 2);
     assert(desired_winners < 100);
 
-    auto desired_new_winners = 2;
-    auto desired_old_winners = desired_winners - desired_new_winners;
+    auto desired_new_winners = std::min(uint64_t{2}, desired_winners);
+    auto desired_old_winners = std::max(uint64_t{0}, desired_winners - desired_new_winners);
 
     // Select the N winners using the previous block hash as the seed
     auto old_winners = selector.SelectOld(
@@ -1937,7 +1936,6 @@ pog::AmbassadorLottery Pog2RewardAmbassadors(
             *prefviewcache,
             previous_block_hash,
             desired_new_winners);
-
 
     assert(old_winners.size() + new_winners.size() == desired_winners);
 
@@ -2233,7 +2231,7 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
                 const auto dest = addr.Get();
 
                 if (!addr.IsValid() || !IsValidAmbassadorDestination(dest)) {
-                    throw std::runtime_error{"invalid ambassador"};
+                    throw std::runtime_error{"invalid ambassador for rewards"};
                 }
 
                 debug("\tWinner: %s, %d", addr.ToString(), static_cast<int>(winner.address_type));
@@ -2259,7 +2257,7 @@ void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& t
                 const auto dest = addr.Get();
 
                 if (!addr.IsValid() || !IsValidAmbassadorDestination(dest)) {
-                    throw std::runtime_error{"invalid ambassador"};
+                    throw std::runtime_error{"invalid ambassador for invites"};
                 }
 
                 debug("\tWinner: %s, %d", addr.ToString(), static_cast<int>(reward.address_type));

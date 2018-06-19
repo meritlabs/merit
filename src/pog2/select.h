@@ -8,9 +8,11 @@
 #include "hash.h"
 #include "amount.h"
 #include "pog2/cgs.h"
-#include <boost/multiprecision/cpp_dec_float.hpp>
-#include <memory>
+#include "consensus/params.h"
 
+#include <boost/multiprecision/cpp_dec_float.hpp>
+
+#include <memory>
 #include <map>
 
 namespace referral
@@ -43,7 +45,10 @@ namespace pog2
     class AddressSelector
     {
         public:
-            AddressSelector(int height, const pog2::Entrants& entrants);
+            AddressSelector(
+                    int height,
+                    const pog2::Entrants& entrants,
+                    const Consensus::Params&);
 
             pog2::Entrants SelectOld(
                     const referral::ReferralsViewCache& referrals,

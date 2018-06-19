@@ -28,8 +28,9 @@ namespace pog2
     CAmount ProportionalRewards(pog::Rewards& rewards, CAmount total_reward, const Entrants& winners) {
         auto total_cgs = TotalCgs(winners);
 
-        rewards.resize(winners.size());
-        std::transform(std::begin(winners), std::end(winners), std::back_inserter(rewards),
+        pog::Rewards unfiltered_rewards;
+        unfiltered_rewards.resize(winners.size());
+        std::transform(std::begin(winners), std::end(winners), std::back_inserter(unfiltered_rewards),
                 [total_reward, total_cgs](const Entrant& v)
                 {
                     double percent = (v.cgs*FIXED_PRECISION) / total_cgs;
@@ -38,16 +39,15 @@ namespace pog2
                     return pog::AmbassadorReward{v.address_type, v.address, reward};
                 });
 
-        pog::Rewards filtered_rewards;
-        filtered_rewards.reserve(rewards.size());
-        std::copy_if(std::begin(rewards), std::end(rewards),
-                std::back_inserter(filtered_rewards),
+        rewards.reserve(unfiltered_rewards.size());
+        std::copy_if(std::begin(unfiltered_rewards), std::end(unfiltered_rewards),
+                std::back_inserter(rewards),
                 [](const pog::AmbassadorReward& reward) {
                     return reward.amount > 0;
                 });
 
         return 
-            std::accumulate(std::begin(filtered_rewards), std::end(filtered_rewards), CAmount{0},
+            std::accumulate(std::begin(rewards), std::end(rewards), CAmount{0},
                     [](CAmount acc, const pog::AmbassadorReward& reward)
                     {
                         return acc + reward.amount;

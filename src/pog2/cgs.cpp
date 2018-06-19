@@ -13,6 +13,10 @@
 
 namespace pog2
 {
+    namespace
+    {
+        const int NO_GENESIS = 13500;
+    }
 
     void GetAllRewardableEntrants(
             const referral::ReferralsViewCache& db,
@@ -23,7 +27,8 @@ namespace pog2
         assert(prefviewcache);
 
         referral::AddressANVs anv_entrants;
-        db.GetAllRewardableANVs(params, height, anv_entrants);
+
+        db.GetAllRewardableANVs(params, NO_GENESIS, anv_entrants);
 
         entrants.resize(anv_entrants.size());
 
@@ -53,7 +58,7 @@ namespace pog2
                         }
                     }
 
-                    assert(height > 0);
+                    assert(height >= 0);
 
                     entrant.beacon_height = height;
                     return entrant;
@@ -156,6 +161,7 @@ namespace pog2
                     0,
                     n.level + 1,
                     0,
+                    0,
                     0});
         }
     }
@@ -175,7 +181,7 @@ namespace pog2
 
         EntrantQueue q;
 
-        Entrant root{address_type, address, cgs, 1, 0};
+        Entrant root{address_type, address, cgs, 1, 0, 0, 0};
         PushChildren(db, root, q);
 
         while(!q.empty()) {

@@ -97,21 +97,23 @@ namespace pog2
         return m_inverted.size();
     }
 
-    const double ONE_DAY = 24 * 60;
-    CAmount ScaledCgs(int height, int beacon_height, CAmount cgs)
+    CAmount ScaledCgs(int height, int beacon_height, CAmount cgs, double age_scale)
     {
-        const double age = height - beacon_height / ONE_DAY;
+        const double age = (height - beacon_height) / age_scale;
         const double scale =  1.0 / (std::pow(age, 2) + 1.0);
         return std::floor(cgs * scale);
     }
 
-    AddressSelector::AddressSelector(int height, const pog2::Entrants& entrants)
+    AddressSelector::AddressSelector(
+            int height,
+            const pog2::Entrants& entrants,
+            const Consensus::Params& params)
     {
         m_old_distribution.reset(new CgsDistribution{entrants});
 
         pog2::Entrants scaled_entrants = entrants;
         for(auto& e : scaled_entrants) {
-            e.cgs = ScaledCgs(height, e.beacon_height, e.cgs);
+            e.cgs = ScaledCgs(height, e.beacon_height, e.cgs, params.pog2_new_distribution_scale);
         }
         m_new_distribution.reset(new CgsDistribution{scaled_entrants});
 
@@ -132,7 +134,8 @@ namespace pog2
         assert(n <= Size());
         pog2::Entrants samples;
 
-        while(n--) {
+        auto max_tries = std::min(std::max(n, distribution.Size() / 2), distribution.Size());
+        while(n-- && max_tries--) {
             const auto& sampled = distribution.Sample(hash);
 
             //combine hashes and hash to get next sampling value

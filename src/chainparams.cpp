@@ -183,6 +183,7 @@ public:
         consensus.pog2_total_winning_ambassadors = 15;
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 5 * 60 * 60; // every 5 hours
+        consensus.pog2_new_distribution_scale = 24*60; // one day
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -337,6 +338,7 @@ public:
         consensus.pog2_total_winning_ambassadors = 15;
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 1 * 60 * 60; // every hour
+        consensus.pog2_new_distribution_scale = 24*60; // one day
 
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
@@ -445,7 +447,7 @@ public:
         consensus.daedalus_max_outstanding_invites_per_address = 3;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 10;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 5;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = std::numeric_limits<int>::max();
 
         // The best chain should have at least this much work.
@@ -455,20 +457,21 @@ public:
         consensus.defaultAssumeValid = uint256S("0x00");
 
         // Block where safer aliases are enabled.
-        consensus.safer_alias_blockheight = 20;
+        consensus.safer_alias_blockheight = 5;
 
         // Block where improved invites turn on
-        consensus.imp_invites_blockheight = 12;
+        consensus.imp_invites_blockheight = 8;
         consensus.imp_block_window = 4;
         consensus.imp_min_one_invite_for_every_x_blocks = 1; //invite every minute
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_weights = {60, 40}; 
 
         // PoG v2 settings.
-        consensus.pog2_blockheight = 15;
+        consensus.pog2_blockheight = 10;
         consensus.pog2_total_winning_ambassadors = 15;
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 30 * 60; // every 30 min
+        consensus.pog2_new_distribution_scale = 10; // 10 seconds
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;
