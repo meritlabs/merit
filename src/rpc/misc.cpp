@@ -1269,6 +1269,10 @@ UniValue RanksToUniValue(CAmount lottery_anv, const Ranks& ranks, size_t total) 
         double percentile = 
             std::floor((static_cast<double>(r.second) / static_cast<double>(total)) * 10000.0) / 100.0;
 
+        const auto alias = FindAliasForAddress(r.first.address);
+
+        o.push_back(Pair("address", CMeritAddress{r.first.address_type, r.first.address}.ToString()));
+        o.push_back(Pair("alias", alias));
         o.push_back(Pair("rank", total - r.second));
         o.push_back(Pair("percentile", percentile));
         o.push_back(Pair("anv", r.first.anv));
