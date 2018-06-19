@@ -15,7 +15,7 @@ namespace pog2
 {
 
     void GetAllRewardableEntrants(
-            const referral::ReferralsViewDB& db,
+            const referral::ReferralsViewCache& db,
             const Consensus::Params& params,
             int height,
             Entrants& entrants)
@@ -35,7 +35,7 @@ namespace pog2
                             a.address,
                             db);
 
-                    auto height = prefviewcache->GetReferralHeight(a.address);
+                    auto height = db.GetReferralHeight(a.address);
                     if (height < 0) {
                         auto beacon = db.GetReferral(a.address);
                         assert(beacon);
@@ -137,7 +137,7 @@ namespace pog2
     using EntrantQueue = std::deque<Entrant>; 
 
     void PushChildren(
-            const referral::ReferralsViewDB& db,
+            const referral::ReferralsViewCache& db,
             Entrant& n,
             EntrantQueue& q) 
     {
@@ -164,7 +164,7 @@ namespace pog2
             int height,
             char address_type,
             const referral::Address& address,
-            const referral::ReferralsViewDB& db)
+            const referral::ReferralsViewCache& db)
     {
         auto coins = GetCoins(address_type, address);
         auto balance = AgedBalance(height, coins);

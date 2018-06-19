@@ -1371,7 +1371,7 @@ UniValue getaddressrank(const JSONRPCRequest& request)
             chainActive.Height(),
             a.second,
             a.first,
-            *prefviewdb);
+            *prefviewcache);
         cgs.push_back(node.cgs);
     }
 

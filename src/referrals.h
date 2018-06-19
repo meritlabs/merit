@@ -123,6 +123,13 @@ public:
 
     // Get address confirmations
     MaybeConfirmedAddress GetConfirmation(const Address& address) const;
+
+    void GetAllRewardableANVs(
+            const Consensus::Params& params,
+            int height,
+            AddressANVs&) const;
+
+    ChildAddresses GetChildren(const Address&) const;
 };
 
 } // namespace referral

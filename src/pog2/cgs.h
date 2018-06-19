@@ -7,7 +7,7 @@
 
 #include "primitives/referral.h"
 #include "consensus/params.h"
-#include "refdb.h"
+#include "referrals.h"
 #include "coins.h"
 
 #include <vector>
@@ -28,7 +28,7 @@ namespace pog2
     using Entrants = std::vector<Entrant>;
 
     void GetAllRewardableEntrants(
-            const referral::ReferralsViewDB&,
+            const referral::ReferralsViewCache&,
             const Consensus::Params&,
             int height,
             Entrants&);
@@ -37,7 +37,7 @@ namespace pog2
             int height,
             char address_type,
             const referral::Address& address,
-            const referral::ReferralsViewDB& db);
+            const referral::ReferralsViewCache& db);
 
 } // namespace pog2
 

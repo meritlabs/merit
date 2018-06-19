@@ -292,5 +292,17 @@ MaybeConfirmedAddress ReferralsViewCache::GetConfirmation(const Address& address
     return m_db->GetConfirmation(ref->addressType, address);
 }
 
+void ReferralsViewCache::GetAllRewardableANVs(
+        const Consensus::Params& params,
+        int height,
+        AddressANVs& anvs) const
+{
+    m_db->GetAllRewardableANVs(params, height, anvs);
+}
+
+ChildAddresses ReferralsViewCache::GetChildren(const Address& address) const
+{
+    return m_db->GetChildren(address);
+}
 
 }
