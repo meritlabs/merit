@@ -1937,10 +1937,15 @@ pog::AmbassadorLottery Pog2RewardAmbassadors(
             previous_block_hash,
             desired_new_winners);
 
+    pog2::Entrants winners;
+    winners.reserve(old_winners.size() + new_winners.size());
+    winners.insert(winners.end(), old_winners.begin(), old_winners.end());
+    winners.insert(winners.end(), new_winners.begin(), new_winners.end());
+
     assert(old_winners.size() + new_winners.size() == desired_winners);
 
     // Compute reward for all the winners
-    auto rewards = pog2::RewardAmbassadors(height, old_winners, new_winners, total);
+    auto rewards = pog2::RewardAmbassadors(height, winners, total);
 
     // Return the remainder which will be given to the miner;
     assert(rewards.remainder <= total);

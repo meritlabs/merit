@@ -57,35 +57,18 @@ namespace pog2
 
     pog::AmbassadorLottery RewardAmbassadors(
             int height,
-            const Entrants& old_winners,
-            const Entrants& new_winners,
+            const Entrants& winners,
             CAmount total_reward)
     {
-        auto total_new_reward = std::floor(total_reward * 0.20);
-        auto total_old_reward = total_reward - total_new_reward;
+        pog::Rewards rewards;
+        auto total_rewarded = ProportionalRewards(rewards, total_reward, winners);
 
-        assert(total_old_reward > total_new_reward);
+        assert(total_rewarded <= total_reward);
 
-        pog::Rewards old_rewards;
-        auto total_old_rewarded = ProportionalRewards(old_rewards, total_old_reward, old_winners);
-
-        pog::Rewards new_rewards;
-        auto total_new_rewarded = ProportionalRewards(new_rewards, total_new_reward, new_winners);
-
-        assert(total_old_rewarded >= 0);
-        assert(total_old_rewarded <= total_reward);
-        assert(total_new_rewarded >= 0);
-        assert(total_new_rewarded <= total_reward - total_old_rewarded);
-
-        auto remainder = total_reward - total_old_rewarded - total_new_rewarded;
+        auto remainder = total_reward - total_rewarded;
 
         assert(remainder >= 0);
         assert(remainder <= total_reward);
-
-        pog::Rewards rewards;
-        rewards.reserve(old_rewards.size() + new_rewards.size());
-        rewards.insert(rewards.end(), old_rewards.begin(), old_rewards.end());
-        rewards.insert(rewards.end(), new_rewards.begin(), new_rewards.end());
 
         return {rewards, remainder};
     }

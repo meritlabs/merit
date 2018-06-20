@@ -107,7 +107,7 @@ struct Params {
     uint64_t pog2_total_winning_ambassadors;
     int64_t pog2_ambassador_percent_cut;
     int64_t pog2_pow_target_timespan;
-    int64_t pog2_new_distribution_scale;
+    int pog2_new_distribution_age;
 
 };
 } // namespace Consensus

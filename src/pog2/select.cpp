@@ -97,13 +97,6 @@ namespace pog2
         return m_inverted.size();
     }
 
-    CAmount ScaledCgs(int height, int beacon_height, CAmount cgs, double age_scale)
-    {
-        const double age = (height - beacon_height) / age_scale;
-        const double scale =  1.0 / (std::pow(age, 2) + 1.0);
-        return std::floor(cgs * scale);
-    }
-
     AddressSelector::AddressSelector(
             int height,
             const pog2::Entrants& entrants,
@@ -111,11 +104,15 @@ namespace pog2
     {
         m_old_distribution.reset(new CgsDistribution{entrants});
 
-        pog2::Entrants scaled_entrants = entrants;
-        for(auto& e : scaled_entrants) {
-            e.cgs = ScaledCgs(height, e.beacon_height, e.cgs, params.pog2_new_distribution_scale);
-        }
-        m_new_distribution.reset(new CgsDistribution{scaled_entrants});
+        pog2::Entrants new_entrants;
+        std::copy_if(entrants.begin(), entrants.end(), std::back_inserter(new_entrants),
+                [height,&params](const Entrant& e) {
+                    assert(height >= e.beacon_height);
+                    const double age = height - e.beacon_height;
+                    return age < params.pog2_new_distribution_age;
+
+                });
+        m_new_distribution.reset(new CgsDistribution{new_entrants});
 
         assert(m_old_distribution);
         assert(m_new_distribution);

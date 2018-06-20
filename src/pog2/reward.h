@@ -14,8 +14,7 @@ namespace pog2
 {
     pog::AmbassadorLottery RewardAmbassadors(
             int height,
-            const Entrants& old_winners,
-            const Entrants& new_winners,
+            const Entrants& winners,
             CAmount total);
 
     double ComputeUsedInviteMean(const pog::InviteLotteryParams& lottery);
