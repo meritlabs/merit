@@ -245,19 +245,21 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
             previousBlockHash,
             subsidy.ambassador,
             chain_params);
-    assert(lottery.remainder >= 0);
+    assert(lottery.first.remainder >= 0);
+
+    auto cgs_selector = lottery.second;
 
     /**
      * Update the coinbase transaction vout with rewards.
      */
-    PayAmbassadors(lottery, coinbaseTx);
+    PayAmbassadors(lottery.first, coinbaseTx);
 
     /**
      * The miner recieves their subsidy and any remaining subsidy that was left
      * over from paying the ambassadors. The reason there is a remaining subsidy
      * is because we use integer math.
      */
-    const auto miner_subsidy = subsidy.miner + lottery.remainder;
+    const auto miner_subsidy = subsidy.miner + lottery.first.remainder;
     assert(miner_subsidy > 0);
 
     coinbaseTx.vout[0].nValue = nFees + miner_subsidy;
@@ -300,6 +302,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         }
 
         RewardInvites(
+                cgs_selector,
                 nHeight,
                 pindexPrev,
                 previousBlockHash,

@@ -11,6 +11,29 @@
 
 namespace pog2
 {
+    namespace
+    {
+        enum PoolType {
+            CGS,
+            NEW,
+            ANY,
+        };
+
+        struct InvitePool
+        {
+            PoolType type;
+            double probability;
+        };
+
+        using InvitePoolDitributions = std::vector<InvitePool>;
+
+        const InvitePoolDitributions INVITE_POOLS = {
+            {CGS, 0.5},
+            {NEW, 0.3},
+            {ANY, 0.2}
+        };
+    }
+
     bool IsValidAmbassadorDestination(char type)
     {
         //KeyID or ScriptID
@@ -177,7 +200,76 @@ namespace pog2
         return m_old_distribution->Size();
     }
 
-    referral::ConfirmedAddresses SelectConfirmedAddresses(
+    referral::MaybeConfirmedAddress SelectInviteAddressFromNewPool(
+            const referral::ReferralsViewDB& db,
+            uint64_t total_beacons,
+            uint256 hash,
+            const uint160& genesis_address,
+            std::set<referral::Address> &unconfirmed_invites,
+            int max_outstanding_invites)
+    {
+        //TODO: Select the oldest address with no invites.
+        // Such an address can only be selected once to prevent highjacking
+        return {}; 
+    }
+
+    referral::MaybeConfirmedAddress SelectInviteAddressFromCgsPool(
+            const referral::ReferralsViewDB& db,
+            const AddressSelector& cgs_selector,
+            uint256 hash,
+            const uint160& genesis_address,
+            std::set<referral::Address> &unconfirmed_invites,
+            int max_outstanding_invites)
+    {
+        //TODO: Select an address based on the CGS. It samples from the same
+        // distribution as the ambassador lottery hence rewarding those that
+        // grow the community with more invites.
+        return {}; 
+    }
+
+    referral::MaybeConfirmedAddress SelectInviteAddressFromAnyPool(
+            const referral::ReferralsViewDB& db,
+            uint64_t total_beacons,
+            uint256 hash,
+            const uint160& genesis_address,
+            std::set<referral::Address> &unconfirmed_invites,
+            int max_outstanding_invites)
+    {
+        assert(total_beacons > 0);
+
+        auto max_tries = std::min(total_beacons / 10, total_beacons);
+
+        referral::ConfirmedAddresses addresses;
+
+        while(max_tries--) {
+            const auto selected_idx = SipHashUint256(0, 0, hash) % total_beacons;
+            const auto sampled = db.GetConfirmation(selected_idx);
+
+            if(!sampled) {
+                return {};
+            }
+
+            if (!IsValidAmbassadorDestination(sampled->address_type) ||
+                    sampled->invites == 0 ||
+                    sampled->invites > max_outstanding_invites ||
+                    sampled->address == genesis_address ||
+                    unconfirmed_invites.count(sampled->address)) {
+                // DO NOTHING
+            } else {
+                return *sampled;
+            }
+
+            CHashWriter hasher{SER_DISK, CLIENT_VERSION};
+            hasher << hash << sampled->address;
+            hash = hasher.GetHash();
+        }
+
+        return {};
+    }
+
+
+    referral::ConfirmedAddresses SelectInviteAddresses(
+            const AddressSelector& cgs_selector,
             const referral::ReferralsViewDB& db,
             uint256 hash,
             const uint160& genesis_address,
@@ -190,41 +282,69 @@ namespace pog2
 
         auto requested = n;
 
-        const auto total = db.GetTotalConfirmations();
-        auto max_tries = std::min(std::max(static_cast<uint64_t>(n), total / 10), total);
-        assert(total > 0);
+        const auto total_beacons = db.GetTotalConfirmations();
+        auto max_tries = std::min(std::max(static_cast<uint64_t>(n), total_beacons / 10), total_beacons);
 
         referral::ConfirmedAddresses addresses;
 
         while(n-- && max_tries--) {
-            const auto selected_idx = SipHashUint256(0, 0, hash) % total;
-            const auto sampled = db.GetConfirmation(selected_idx);
+            const auto selected_idx = SipHashUint256(0, 0, hash) % total_beacons;
+            const double rand_val = static_cast<double>(selected_idx) / static_cast<double>(total_beacons);
 
-            if(!sampled) {
-                return {};
-            }
+            CHashWriter hasher_a{SER_DISK, CLIENT_VERSION};
+            hasher_a << hash << hash;
+            hash = hasher_a.GetHash();
 
-            if (!IsValidAmbassadorDestination(sampled->address_type)) {
-                n++;
-            } else if (sampled->invites == 0) {
-                n++;
-            } else if (sampled->invites > max_outstanding_invites) {
-                n++;
-            } else if (sampled->address == genesis_address) {
-                n++;
-            } else if (unconfirmed_invites.count(sampled->address)) {
-                n++;
+            const auto& selected_pool = INVITE_POOLS[SipHashUint256(0, 0, hash) % INVITE_POOLS.size()];
+
+            if(rand_val < selected_pool.probability) {
+                referral::MaybeConfirmedAddress maybe_address;
+                switch(selected_pool.type) {
+                    case PoolType::CGS: 
+                        maybe_address = SelectInviteAddressFromCgsPool(
+                                db,
+                                cgs_selector,
+                                hash,
+                                genesis_address,
+                                unconfirmed_invites,
+                                max_outstanding_invites);
+                        break;
+                    case PoolType::NEW: 
+                        maybe_address = SelectInviteAddressFromNewPool(
+                                db,
+                                total_beacons,
+                                hash,
+                                genesis_address,
+                                unconfirmed_invites,
+                                max_outstanding_invites);
+                        break;
+                    case PoolType::ANY: 
+                        maybe_address = SelectInviteAddressFromAnyPool(
+                                db,
+                                total_beacons,
+                                hash,
+                                genesis_address,
+                                unconfirmed_invites,
+                                max_outstanding_invites);
+                        break;
+                }
+
+                if(maybe_address) {
+                    addresses.push_back(*maybe_address);
+                } else {
+                    n++;
+                }
             } else {
-                addresses.push_back(*sampled);
+                n++;
             }
 
-            CHashWriter hasher{SER_DISK, CLIENT_VERSION};
-            hasher << hash << sampled->address;
-            hash = hasher.GetHash();
+            CHashWriter hasher_b{SER_DISK, CLIENT_VERSION};
+            hasher_b << hash << hash;
+            hash = hasher_b.GetHash();
         }
 
         if(requested > 0) {
-            LogPrintf("Selected %d addresses (requested %d) for the invite lottery from a pool of %d\n", addresses.size(), requested, total);
+            LogPrintf("Selected %d addresses (requested %d) for the invite lottery from a pool of %d\n", addresses.size(), requested, total_beacons);
         }
 
         assert(addresses.size() <= requested);

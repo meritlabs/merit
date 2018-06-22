@@ -1887,7 +1887,7 @@ pog::AmbassadorLottery Pog1RewardAmbassadors(
     return rewards;
 }
 
-pog::AmbassadorLottery Pog2RewardAmbassadors(
+std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassadors(
         int height,
         const uint256& previous_block_hash,
         CAmount total,
@@ -1908,17 +1908,19 @@ pog::AmbassadorLottery Pog2RewardAmbassadors(
     max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
 
     // Wallet selector will create a distribution from all the keys
-    pog2::AddressSelector selector{height, entrants, params};
+    auto selector = std::make_shared<pog2::AddressSelector>(height, entrants, params);
 
     // We may have fewer keys in the distribution than the expected winners,
     // so just pick smallest of the two.
     const auto desired_winners = std::min(
             params.pog2_total_winning_ambassadors,
-            static_cast<uint64_t>(selector.Size()));
+            static_cast<uint64_t>(selector->Size()));
 
     // If we have an empty distribution, for example in some of the unit
     // tests, we return the whole ambassador amount back to the miner
-    if (desired_winners == 0) return {{}, total};
+    if (desired_winners == 0) {
+        return std::make_pair(pog::AmbassadorLottery{{}, total}, selector);
+    }
 
     // validate sane winner amount
     assert(desired_winners < 100);
@@ -1927,12 +1929,12 @@ pog::AmbassadorLottery Pog2RewardAmbassadors(
     auto desired_old_winners = std::max(uint64_t{0}, desired_winners - desired_new_winners);
 
     // Select the N winners using the previous block hash as the seed
-    auto old_winners = selector.SelectOld(
+    auto old_winners = selector->SelectOld(
             *prefviewcache,
             previous_block_hash,
             desired_old_winners);
 
-    auto new_winners = selector.SelectNew(
+    auto new_winners = selector->SelectNew(
             *prefviewcache,
             previous_block_hash,
             desired_new_winners);
@@ -1951,10 +1953,10 @@ pog::AmbassadorLottery Pog2RewardAmbassadors(
     assert(rewards.remainder <= total);
     assert(rewards.remainder >= 0);
 
-    return rewards;
+    return std::make_pair(rewards, selector);
 }
 
-pog::AmbassadorLottery RewardAmbassadors(
+std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> RewardAmbassadors(
         int height,
         const uint256& previous_block_hash,
         CAmount total,
@@ -1963,7 +1965,10 @@ pog::AmbassadorLottery RewardAmbassadors(
     if(height >= params.pog2_blockheight) {
         return Pog2RewardAmbassadors(height, previous_block_hash, total, params);
     }
-    return Pog1RewardAmbassadors(height, previous_block_hash, total, params);
+
+    return std::make_pair(
+            Pog1RewardAmbassadors(height, previous_block_hash, total, params),
+            pog2::AddressSelectorPtr{});
 }
 
 bool OldComputeInviteLotteryParams(
@@ -2140,6 +2145,7 @@ bool ComputeInviteLotteryParams(
 }
 
 bool RewardInvites(
+        pog2::AddressSelectorPtr cgs_selector,
         int height,
         CBlockIndex* pindexPrev,
         const uint256& previous_block_hash,
@@ -2164,6 +2170,7 @@ bool RewardInvites(
     }
 
     const bool pog2 = height >= params.pog2_blockheight;
+    assert(!pog2 || cgs_selector);
 
     const auto total_winners = pog2 ? 
         pog2::ComputeTotalInviteLotteryWinners(lottery_params, params) :
@@ -2200,7 +2207,8 @@ bool RewardInvites(
     }
 
     const auto winners = pog2 ? 
-        pog2::SelectConfirmedAddresses(
+        pog2::SelectInviteAddresses(
+            *cgs_selector,
             *prefviewdb,
             previous_block_hash,
             params.genesis_address,
@@ -4224,9 +4232,11 @@ static bool ConnectBlock(
                 hashPrevBlock,
                 subsidy.ambassador,
                 chainparams.GetConsensus());
-        assert(lottery.remainder >= 0);
+        assert(lottery.first.remainder >= 0);
 
-        if (!AreExpectedLotteryWinnersPaid(lottery, coinbase_tx)) {
+        auto cgs_selector = lottery.second;
+
+        if (!AreExpectedLotteryWinnersPaid(lottery.first, coinbase_tx)) {
             return state.DoS(100,
                     error("ConnectBlock(): coinbase did not pay the expected ambassadors."),
                     REJECT_INVALID, "bad-cb-bad-ambassadors");
@@ -4242,6 +4252,7 @@ static bool ConnectBlock(
         if (block.IsDaedalus()) {
             pog::InviteRewards invite_rewards;
             if (!RewardInvites(
+                        cgs_selector,
                         pindex->nHeight,
                         pindex->pprev,
                         hashPrevBlock,

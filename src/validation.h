@@ -25,6 +25,7 @@
 #include "timestampindex.h"
 #include "pog/reward.h"
 #include "pog2/cgs.h"
+#include "pog2/select.h"
 #include "script/standard.h"
 
 #include <algorithm>
@@ -354,13 +355,14 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
  * with part of the block subsidy based on a deterministic lottery. RewardAmbassadors
  * returns a vector of key -> reward pairs. Any remainder not allocated is returned.
  */
-pog::AmbassadorLottery RewardAmbassadors(
+std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> RewardAmbassadors(
         int height,
         const uint256& previous_block_hash,
         CAmount total,
         const Consensus::Params&);
 
 bool RewardInvites(
+        pog2::AddressSelectorPtr,
         int height,
         CBlockIndex* pindexPrev,
         const uint256& previous_block_hash,

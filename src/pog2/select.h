@@ -72,7 +72,10 @@ namespace pog2
             CgsDistributionPtr m_new_distribution;
     };
 
-    referral::ConfirmedAddresses SelectConfirmedAddresses(
+    using AddressSelectorPtr = std::shared_ptr<AddressSelector>;
+
+    referral::ConfirmedAddresses SelectInviteAddresses(
+            const AddressSelector&,
             const referral::ReferralsViewDB& db,
             uint256 hash,
             const uint160& genesis_address,
