@@ -1069,4 +1069,24 @@ namespace referral
         return MaybeConfirmedAddress{{address_type, address, pair.second}};
     }
 
+    bool ReferralsViewDB::GetInviteLotteryOldestSmallestPos() const
+    {
+        //TODO: Here we return the last position of the invite lottery oldest
+        //smallest last sampled. This is the position of the oldest address with 
+        //only 1 invite (the confirmation) and was last sampled in the invite lottery.
+        //The invite lottery gives invites via several pools and one of the pools is
+        //the pool of oldest addresses that haven't won an invite. 
+        //Since confirmations are ordered in time, this position should only go up. 
+        //And logically anything prior cannot be sampled again. The gaurentees
+        //that old ones with 1 invite only win once at most in that pool.
+        
+
+        //We store that pos here.
+    }
+
+    bool ReferralsViewDB::SetInviteLotteryOldestSmallestPos(uint64_t idx) const
+    {
+
+    }
+
 } //namespace referral

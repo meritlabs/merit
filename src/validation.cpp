@@ -2157,6 +2157,7 @@ bool RewardInvites(
 {
     assert(height >= 0);
     assert(prefviewdb != nullptr);
+    assert(prefviewcache != nullptr);
 
     pog::InviteLotteryParamsVec lottery_params;
     if (!ComputeInviteLotteryParams(
@@ -2209,7 +2210,7 @@ bool RewardInvites(
     const auto winners = pog2 ? 
         pog2::SelectInviteAddresses(
             *cgs_selector,
-            *prefviewdb,
+            *prefviewcache,
             previous_block_hash,
             params.genesis_address,
             total_winners,

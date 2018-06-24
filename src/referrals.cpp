@@ -277,6 +277,8 @@ bool ReferralsViewCache::IsConfirmed(const std::string& alias, bool normalize_al
 
 MaybeConfirmedAddress ReferralsViewCache::GetConfirmation(const Address& address) const
 {
+    assert(m_db);
+
     const auto ref = GetReferral(address);
 
     if (!ref) {
@@ -292,17 +294,37 @@ MaybeConfirmedAddress ReferralsViewCache::GetConfirmation(const Address& address
     return m_db->GetConfirmation(ref->addressType, address);
 }
 
+MaybeConfirmedAddress ReferralsViewCache::GetConfirmation(uint64_t idx) const
+{
+    assert(m_db);
+    return m_db->GetConfirmation(idx);
+}
+
+MaybeConfirmedAddress ReferralsViewCache::GetConfirmation(char address_type, const Address& address) const
+{
+    assert(m_db);
+    return m_db->GetConfirmation(address_type, address);
+}
+
 void ReferralsViewCache::GetAllRewardableANVs(
         const Consensus::Params& params,
         int height,
         AddressANVs& anvs) const
 {
+    assert(m_db);
     m_db->GetAllRewardableANVs(params, height, anvs);
 }
 
 ChildAddresses ReferralsViewCache::GetChildren(const Address& address) const
 {
+    assert(m_db);
     return m_db->GetChildren(address);
+}
+
+uint64_t ReferralsViewCache::GetTotalConfirmations() const
+{
+    assert(m_db);
+    return m_db->GetTotalConfirmations();
 }
 
 }

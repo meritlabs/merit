@@ -121,8 +121,13 @@ public:
     /** Check if an address is confirmed */
     bool IsConfirmed(const std::string& alias, bool normalize_alias) const;
 
+    /** Returns total confirmed beacons*/
+    uint64_t GetTotalConfirmations() const;
+
     // Get address confirmations
     MaybeConfirmedAddress GetConfirmation(const Address& address) const;
+    MaybeConfirmedAddress GetConfirmation(uint64_t idx) const;
+    MaybeConfirmedAddress GetConfirmation(char address_type, const Address& address) const;
 
     void GetAllRewardableANVs(
             const Consensus::Params& params,

@@ -29,8 +29,8 @@ namespace pog2
 
         const InvitePoolDitributions INVITE_POOLS = {
             {CGS, 0.5},
-            {NEW, 0.3},
-            {ANY, 0.2}
+            {NEW, 0.4},
+            {ANY, 0.1}
         };
     }
 
@@ -132,7 +132,7 @@ namespace pog2
                 [height,&params](const Entrant& e) {
                     assert(height >= e.beacon_height);
                     const double age = height - e.beacon_height;
-                    return age < params.pog2_new_distribution_age;
+                    return age <= params.pog2_new_distribution_age;
 
                 });
         m_new_distribution.reset(new CgsDistribution{new_entrants});
@@ -149,7 +149,7 @@ namespace pog2
             const referral::ReferralsViewCache& referrals,
             uint256 hash,
             size_t n,
-            const CgsDistribution& distribution) const
+            const CgsDistribution& distribution)
     {
         assert(n <= Size());
         pog2::Entrants samples;
@@ -163,7 +163,10 @@ namespace pog2
             hasher << hash << sampled.address;
             hash = hasher.GetHash();
 
-            if(referrals.IsConfirmed(sampled.address)) {
+            const bool not_sampled = m_sampled.count(sampled.address) == 0;
+
+            if( not_sampled && referrals.IsConfirmed(sampled.address)) {
+                m_sampled.insert(sampled.address);
                 samples.push_back(sampled);
             } else {
                 n++;
@@ -176,7 +179,7 @@ namespace pog2
     pog2::Entrants AddressSelector::SelectOld(
             const referral::ReferralsViewCache& referrals,
             uint256 hash,
-            size_t n) const
+            size_t n)
     {
         assert(m_old_distribution);
         return Select( referrals, hash, n, *m_old_distribution);
@@ -185,7 +188,7 @@ namespace pog2
     pog2::Entrants AddressSelector::SelectNew(
             const referral::ReferralsViewCache& referrals,
             uint256 hash,
-            size_t n) const
+            size_t n)
     {
         assert(m_new_distribution);
         return Select( referrals, hash, n, *m_new_distribution);
@@ -201,7 +204,7 @@ namespace pog2
     }
 
     referral::MaybeConfirmedAddress SelectInviteAddressFromNewPool(
-            const referral::ReferralsViewDB& db,
+            const referral::ReferralsViewCache& db,
             uint64_t total_beacons,
             uint256 hash,
             const uint160& genesis_address,
@@ -214,21 +217,26 @@ namespace pog2
     }
 
     referral::MaybeConfirmedAddress SelectInviteAddressFromCgsPool(
-            const referral::ReferralsViewDB& db,
-            const AddressSelector& cgs_selector,
+            const referral::ReferralsViewCache& db,
+            AddressSelector& cgs_selector,
             uint256 hash,
             const uint160& genesis_address,
             std::set<referral::Address> &unconfirmed_invites,
             int max_outstanding_invites)
     {
-        //TODO: Select an address based on the CGS. It samples from the same
-        // distribution as the ambassador lottery hence rewarding those that
-        // grow the community with more invites.
-        return {}; 
+        const auto sampled = cgs_selector.SelectOld(db, hash, 1);
+        if(sampled.empty()) {
+            return {};
+        }
+        assert(sampled.size() == 1);
+
+        const auto& entrant = sampled[0];
+
+        return db.GetConfirmation(entrant.address_type, entrant.address);
     }
 
     referral::MaybeConfirmedAddress SelectInviteAddressFromAnyPool(
-            const referral::ReferralsViewDB& db,
+            const referral::ReferralsViewCache& db,
             uint64_t total_beacons,
             uint256 hash,
             const uint160& genesis_address,
@@ -269,8 +277,8 @@ namespace pog2
 
 
     referral::ConfirmedAddresses SelectInviteAddresses(
-            const AddressSelector& cgs_selector,
-            const referral::ReferralsViewDB& db,
+            AddressSelector& cgs_selector,
+            const referral::ReferralsViewCache& db,
             uint256 hash,
             const uint160& genesis_address,
             size_t n,

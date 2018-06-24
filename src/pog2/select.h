@@ -36,7 +36,6 @@ namespace pog2
         private:
             InvertedEntrants m_inverted;
             AddressToEntrant m_cgses;
-            SampledAddresses m_sampled;
             CAmount m_max_cgs = 0;
     };
 
@@ -53,12 +52,12 @@ namespace pog2
             pog2::Entrants SelectOld(
                     const referral::ReferralsViewCache& referrals,
                     uint256 hash,
-                    size_t n) const;
+                    size_t n);
 
             pog2::Entrants SelectNew(
                     const referral::ReferralsViewCache& referrals,
                     uint256 hash,
-                    size_t n) const;
+                    size_t n);
 
             size_t Size() const;
         private:
@@ -66,17 +65,18 @@ namespace pog2
                     const referral::ReferralsViewCache& referrals,
                     uint256 hash,
                     size_t n,
-                    const CgsDistribution& distribution) const;
+                    const CgsDistribution& distribution);
 
             CgsDistributionPtr m_old_distribution;
             CgsDistributionPtr m_new_distribution;
+            SampledAddresses m_sampled;
     };
 
     using AddressSelectorPtr = std::shared_ptr<AddressSelector>;
 
     referral::ConfirmedAddresses SelectInviteAddresses(
-            const AddressSelector&,
-            const referral::ReferralsViewDB& db,
+            AddressSelector&,
+            const referral::ReferralsViewCache& db,
             uint256 hash,
             const uint160& genesis_address,
             size_t n,

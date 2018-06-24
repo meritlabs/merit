@@ -150,6 +150,9 @@ public:
     MaybeConfirmedAddress GetConfirmation(uint64_t idx) const;
     MaybeConfirmedAddress GetConfirmation(char address_type, const Address& address) const;
 
+    bool GetInviteLotteryOldestSmallestPos() const;
+    bool SetInviteLotteryOldestSmallestPos(uint64_t idx) const;
+
 
 private:
     uint64_t GetLotteryHeapSize() const;
