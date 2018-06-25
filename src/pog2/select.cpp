@@ -203,6 +203,35 @@ namespace pog2
         return m_old_distribution->Size();
     }
 
+    referral::MaybeConfirmedAddress FindNextNovite(const referral::ReferralsViewCache& db) {
+        const auto total = db.GetTotalConfirmations();
+        for(auto idx = db.GetOldestNoviteIdx() + 1; idx < total; idx++) {
+            auto c = db.GetConfirmation(idx);
+            if(c && c->invites == 1) {
+                db.SetOldestNoviteIdx(idx);
+                return c;
+            }
+        }
+        return {};
+    }
+
+    referral::MaybeConfirmedAddress FindPrevNovite(const referral::ReferralsViewCache& db) {
+        auto idx = db.GetOldestNoviteIdx();
+        if(idx == 0) { 
+            return {};
+        }
+
+        idx--;
+        for(; idx >= 0; idx--) {
+            auto c = db.GetConfirmation(idx);
+            if(c && c->invites == 1) {
+                db.SetOldestNoviteIdx(idx);
+                return c;
+            }
+        }
+        return {};
+    }
+
     referral::MaybeConfirmedAddress SelectInviteAddressFromNewPool(
             const referral::ReferralsViewCache& db,
             uint64_t total_beacons,
@@ -211,9 +240,8 @@ namespace pog2
             std::set<referral::Address> &unconfirmed_invites,
             int max_outstanding_invites)
     {
-        //TODO: Select the oldest address with no invites.
-        // Such an address can only be selected once to prevent highjacking
-        return {}; 
+        //TODO: Make sure to count these per block so you can undo them on disconnect.
+        return FindNextNovite(db);
     }
 
     referral::MaybeConfirmedAddress SelectInviteAddressFromCgsPool(

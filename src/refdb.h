@@ -150,8 +150,9 @@ public:
     MaybeConfirmedAddress GetConfirmation(uint64_t idx) const;
     MaybeConfirmedAddress GetConfirmation(char address_type, const Address& address) const;
 
-    bool GetInviteLotteryOldestSmallestPos() const;
-    bool SetInviteLotteryOldestSmallestPos(uint64_t idx) const;
+    /** A novite is the oldest beacon with 1 invite.  */
+    uint64_t GetOldestNoviteIdx() const;
+    bool SetOldestNoviteIdx(uint64_t idx) const;
 
 
 private:

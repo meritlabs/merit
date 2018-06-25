@@ -135,6 +135,10 @@ public:
             AddressANVs&) const;
 
     ChildAddresses GetChildren(const Address&) const;
+
+    /** A novite is the oldest beacon with 1 invite. */
+    uint64_t GetOldestNoviteIdx() const;
+    bool SetOldestNoviteIdx(uint64_t idx) const;
 };
 
 } // namespace referral

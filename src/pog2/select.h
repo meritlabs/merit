@@ -87,6 +87,9 @@ namespace pog2
      * Returns true if the address type is valid for ambassador lottery.
      */
     bool IsValidAmbassadorDestination(char type);
+
+    referral::MaybeConfirmedAddress FindNextNovite(const referral::ReferralsViewCache& db);
+    referral::MaybeConfirmedAddress FindPrevNovite(const referral::ReferralsViewCache& db);
 } // namespace pog2
 
 #endif //MERIT_POG2_SELECT_H
