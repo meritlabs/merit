@@ -5,183 +5,179 @@
 #include "pog/select.h"
 #include "base58.h"
 #include "clientversion.h"
+#include "referrals.h"
 #include <algorithm>
 #include <iterator>
 #include <thread>
-#include "referrals.h"
 
 namespace pog
 {
-    namespace
-    {
-        bool LegacyAnvCmp(
-                const referral::AddressANV& a,
-                const referral::AddressANV& b)
-        {
-            return a.anv < b.anv;
-        };
+namespace
+{
+bool LegacyAnvCmp(
+    const referral::AddressANV& a,
+    const referral::AddressANV& b)
+{
+    return a.anv < b.anv;
+};
 
-        void MoveMedian(
-                referral::AddressANVs::iterator result,
-                referral::AddressANVs::iterator a,
-                referral::AddressANVs::iterator b,
-                referral::AddressANVs::iterator c)
-        {
-            if (LegacyAnvCmp(*a, *b)) {
-                if (LegacyAnvCmp(*b, *c)) {
-                    std::iter_swap(result, b);
-                }
-                else if (LegacyAnvCmp(*a, *c)) {
-                    std::iter_swap(result, c);
-                } else {
-                    std::iter_swap(result, a);
-                }
-            }
-            else if (LegacyAnvCmp(*a, *c)) {
-                std::iter_swap(result, a);
-            } else if (LegacyAnvCmp(*b, *c)) {
-                std::iter_swap(result, c);
-            } else {
-                std::iter_swap(result, b);
-            }
+void MoveMedian(
+    referral::AddressANVs::iterator result,
+    referral::AddressANVs::iterator a,
+    referral::AddressANVs::iterator b,
+    referral::AddressANVs::iterator c)
+{
+    if (LegacyAnvCmp(*a, *b)) {
+        if (LegacyAnvCmp(*b, *c)) {
+            std::iter_swap(result, b);
+        } else if (LegacyAnvCmp(*a, *c)) {
+            std::iter_swap(result, c);
+        } else {
+            std::iter_swap(result, a);
+        }
+    } else if (LegacyAnvCmp(*a, *c)) {
+        std::iter_swap(result, a);
+    } else if (LegacyAnvCmp(*b, *c)) {
+        std::iter_swap(result, c);
+    } else {
+        std::iter_swap(result, b);
+    }
+}
+
+referral::AddressANVs::iterator PartitionAroundPivot(
+    referral::AddressANVs::iterator first,
+    referral::AddressANVs::iterator last,
+    referral::AddressANVs::iterator pivot)
+{
+    while (true) {
+        while (LegacyAnvCmp(*first, *pivot)) {
+            ++first;
         }
 
-        referral::AddressANVs::iterator PartitionAroundPivot(
-                referral::AddressANVs::iterator first,
-                referral::AddressANVs::iterator last,
-                referral::AddressANVs::iterator pivot)
-        {
-            while (true)
-            {
-                while (LegacyAnvCmp(*first, *pivot)) {
-                    ++first;
-                }
+        --last;
 
-                --last;
-
-                while (LegacyAnvCmp(*pivot, *last)) {
-                    --last;
-                }
-
-                if (!(first < last)) {
-                    return first;
-                }
-
-                std::iter_swap(first, last);
-                ++first;
-            }
+        while (LegacyAnvCmp(*pivot, *last)) {
+            --last;
         }
 
-        referral::AddressANVs::iterator PartitionPivot(
-                referral::AddressANVs::iterator first,
-                referral::AddressANVs::iterator last)
-        {
-            auto m = first + (last - first) / 2;
-            MoveMedian(first, first + 1, m, last - 1);
-            return PartitionAroundPivot(first + 1, last, first);
+        if (!(first < last)) {
+            return first;
         }
 
-        void IntroSort(
-                referral::AddressANVs::iterator first,
-                referral::AddressANVs::iterator last,
-                int limit)
-        {
-            while (last - first > int(16)) {
-                if (limit == 0) {
-                    std::partial_sort(first, last, last, LegacyAnvCmp);
-                    return;
-                }
+        std::iter_swap(first, last);
+        ++first;
+    }
+}
 
-                --limit;
+referral::AddressANVs::iterator PartitionPivot(
+    referral::AddressANVs::iterator first,
+    referral::AddressANVs::iterator last)
+{
+    auto m = first + (last - first) / 2;
+    MoveMedian(first, first + 1, m, last - 1);
+    return PartitionAroundPivot(first + 1, last, first);
+}
 
-                auto cut = PartitionPivot(first, last);
-                IntroSort(cut, last, limit);
-                last = cut;
-            }
+void IntroSort(
+    referral::AddressANVs::iterator first,
+    referral::AddressANVs::iterator last,
+    int limit)
+{
+    while (last - first > int(16)) {
+        if (limit == 0) {
+            std::partial_sort(first, last, last, LegacyAnvCmp);
+            return;
         }
 
-        void LinearInsert(referral::AddressANVs::iterator last)
-        {
-            const auto val = *last;
-            auto next = last;
-            --next;
+        --limit;
 
-            while (LegacyAnvCmp(val, *next)) {
-                *last = std::move(*next);
-                last = next;
-                --next;
-            }
-            *last = val;
+        auto cut = PartitionPivot(first, last);
+        IntroSort(cut, last, limit);
+        last = cut;
+    }
+}
+
+void LinearInsert(referral::AddressANVs::iterator last)
+{
+    const auto val = *last;
+    auto next = last;
+    --next;
+
+    while (LegacyAnvCmp(val, *next)) {
+        *last = std::move(*next);
+        last = next;
+        --next;
+    }
+    *last = val;
+}
+
+void InsertionSortInner(
+    referral::AddressANVs::iterator first,
+    referral::AddressANVs::iterator last)
+{
+    if (first == last) {
+        return;
+    }
+
+    for (auto i = first + 1; i != last; ++i) {
+        if (LegacyAnvCmp(*i, *first)) {
+            auto val = std::move(*i);
+            std::move_backward(first, i, i + 1);
+            *first = std::move(val);
+        } else {
+            LinearInsert(i);
         }
+    }
+}
 
-        void InsertionSortInner(
-                referral::AddressANVs::iterator first,
-                referral::AddressANVs::iterator last)
-        {
-            if (first == last) {
-                return;
-            }
-
-            for (auto i = first + 1; i != last; ++i) {
-                if (LegacyAnvCmp(*i, *first)) {
-                    auto val = std::move(*i);
-                    std::move_backward(first, i, i + 1);
-                    *first = std::move(val);
-                } else {
-                    LinearInsert(i);
-                }
-            }
+void InsertionSort(
+    referral::AddressANVs::iterator first,
+    referral::AddressANVs::iterator last)
+{
+    if (last - first > int(16)) {
+        InsertionSortInner(first, first + int(16));
+        for (auto i = first + int(16); i != last; ++i) {
+            LinearInsert(i);
         }
+    } else {
+        InsertionSortInner(first, last);
+    }
+}
 
-        void InsertionSort(
-                referral::AddressANVs::iterator first,
-                referral::AddressANVs::iterator last)
-        {
-            if (last - first > int(16))
-            {
-                InsertionSortInner(first, first + int(16));
-                for (auto i = first + int(16); i != last; ++i) {
-                    LinearInsert(i);
-                }
-            } else {
-                InsertionSortInner(first, last);
-            }
-        }
+size_t lg(size_t n)
+{
+    return sizeof(size_t) * __CHAR_BIT__ - 1 - __builtin_clzll(n);
+}
 
-        size_t lg(size_t n)
-        {
-            return sizeof(size_t) * __CHAR_BIT__ - 1 - __builtin_clzll(n);
-        }
-
-        /**
+/**
          * A GCC compatible Sort algorithm used prior to 16000. The LegacyAnvCmp was
          * defective because it did not compare addresses when the ANV was the
          * same. A GCC compatible sort is implemented here so that the algorithm has
          * the same expected order for entries with the same ANV but different
          * address.
          */
-        void LegacySort(
-                referral::AddressANVs::iterator first,
-                referral::AddressANVs::iterator last)
-        {
-            if(first == last) {
-                return;
-            }
-
-            IntroSort(first, last, lg(last - first) * 2);
-            InsertionSort(first, last);
-        }
-
-        std::atomic<CAmount> cached_total_anv;
+void LegacySort(
+    referral::AddressANVs::iterator first,
+    referral::AddressANVs::iterator last)
+{
+    if (first == last) {
+        return;
     }
 
-    bool IsValidAmbassadorDestination(char type)
-    {
-        //KeyID or ScriptID
-        return type == 1 || type == 2;
-    }
+    IntroSort(first, last, lg(last - first) * 2);
+    InsertionSort(first, last);
+}
 
-    /**
+std::atomic<CAmount> cached_total_anv;
+} // namespace
+
+bool IsValidAmbassadorDestination(char type)
+{
+    //KeyID or ScriptID
+    return type == 1 || type == 2;
+}
+
+/**
      * AnvDistribution uses Inverse Transform Sampling. Computing the
      * CDF is trivial for the ANV discrete distribution by simply sorting and
      * adding up all the ANVs of the addresss provided.
@@ -195,188 +191,188 @@ namespace pog
      * However, since the number of ANVs is fixed no matter how large the
      * blockchain gets, then there should be no issue handling growth.
      */
-    AnvDistribution::AnvDistribution(int height, referral::AddressANVs anvs) :
-        m_inverted(anvs.size())
-    {
-        //index anvs by address id for convenience.
-        std::transform(
-                std::begin(anvs),
-                std::end(anvs),
-                std::inserter(m_anvs, std::begin(m_anvs)),
+AnvDistribution::AnvDistribution(int height, referral::AddressANVs anvs) : m_inverted(anvs.size())
+{
+    //index anvs by address id for convenience.
+    std::transform(
+        std::begin(anvs),
+        std::end(anvs),
+        std::inserter(m_anvs, std::begin(m_anvs)),
 
-                [](const referral::AddressANV& v) {
-                    assert(v.anv >= 0);
-                    return std::make_pair(v.address, v);
-                });
+        [](const referral::AddressANV& v) {
+            assert(v.anv >= 0);
+            return std::make_pair(v.address, v);
+        });
 
-        assert(m_anvs.size() == anvs.size());
+    assert(m_anvs.size() == anvs.size());
 
-        /**
+    /**
          * Prior to block 16000 the sort algorithm was defective because of the
          * comparator. Use legacy sort for old blocks and new sort after 16000
          */
-        if(height < 16000) {
-            LegacySort(std::begin(anvs), std::end(anvs));
-        } else {
-            std::sort(std::begin(anvs), std::end(anvs),
-                    [](const referral::AddressANV& a, const referral::AddressANV& b) {
-                        if(a.anv == b.anv) {
-                            return a.address < b.address;
-                        }
-                        return a.anv < b.anv;
-                    });
-        }
-
-        assert(m_inverted.size() == anvs.size());
-
-        //compute CDF by adding up all the ANVs
-        CAmount previous_anv = 0;
-        std::transform(std::begin(anvs), std::end(anvs), std::begin(m_inverted),
-                [&previous_anv](referral::AddressANV w) {
-                    w.anv += previous_anv;
-                    previous_anv = w.anv;
-                    return w;
-                });
-
-        //back will always return because we assume m_anvs is non-empty
-        if(!m_inverted.empty()) m_max_anv = m_inverted.back().anv;
-
-        assert(m_max_anv >= 0);
-        cached_total_anv = std::max(static_cast<CAmount>(cached_total_anv), m_max_anv);
+    if (height < 16000) {
+        LegacySort(std::begin(anvs), std::end(anvs));
+    } else {
+        std::sort(std::begin(anvs), std::end(anvs),
+            [](const referral::AddressANV& a, const referral::AddressANV& b) {
+                if (a.anv == b.anv) {
+                    return a.address < b.address;
+                }
+                return a.anv < b.anv;
+            });
     }
 
-    const referral::AddressANV& AnvDistribution::Sample(const uint256& hash) const
-    {
-        //It doesn't make sense to sample from an empty distribution.
-        assert(m_inverted.empty() == false);
+    assert(m_inverted.size() == anvs.size());
 
-        const auto selected_anv = SipHashUint256(0, 0, hash) % m_max_anv;
+    //compute CDF by adding up all the ANVs
+    CAmount previous_anv = 0;
+    std::transform(std::begin(anvs), std::end(anvs), std::begin(m_inverted),
+        [&previous_anv](referral::AddressANV w) {
+            w.anv += previous_anv;
+            previous_anv = w.anv;
+            return w;
+        });
 
-        auto pos = std::lower_bound(std::begin(m_inverted), std::end(m_inverted),
-                selected_anv,
-                [](const referral::AddressANV& a, CAmount selected) {
-                    return a.anv < selected;
-                });
+    //back will always return because we assume m_anvs is non-empty
+    if (!m_inverted.empty()) m_max_anv = m_inverted.back().anv;
 
-        assert(m_max_anv >= 0);
-        assert(selected_anv < static_cast<uint64_t>(m_max_anv));
-        assert(pos != std::end(m_inverted)); //it should be impossible to not find an anv
-                                             //because selected_anv must be less than max
-        auto selected_address = m_anvs.find(pos->address);
+    assert(m_max_anv >= 0);
+    cached_total_anv = std::max(static_cast<CAmount>(cached_total_anv), m_max_anv);
+}
 
-        assert(selected_address != std::end(m_anvs)); //all anvs in m_inverted must be in
-                                                    //our index
-        return selected_address->second;
-    }
+const referral::AddressANV& AnvDistribution::Sample(const uint256& hash) const
+{
+    //It doesn't make sense to sample from an empty distribution.
+    assert(m_inverted.empty() == false);
 
-    size_t AnvDistribution::Size() const {
-        return m_inverted.size();
-    }
+    const auto selected_anv = SipHashUint256(0, 0, hash) % m_max_anv;
 
-    size_t AnvDistribution::MaxANV() const {
-        return m_max_anv;
-    }
+    auto pos = std::lower_bound(std::begin(m_inverted), std::end(m_inverted),
+        selected_anv,
+        [](const referral::AddressANV& a, CAmount selected) {
+            return a.anv < selected;
+        });
 
-    WalletSelector::WalletSelector(int height, const referral::AddressANVs& anvs) :
-        m_distribution{height, anvs} {}
+    assert(m_max_anv >= 0);
+    assert(selected_anv < static_cast<uint64_t>(m_max_anv));
+    assert(pos != std::end(m_inverted)); //it should be impossible to not find an anv
+                                         //because selected_anv must be less than max
+    auto selected_address = m_anvs.find(pos->address);
 
-    /**
+    assert(selected_address != std::end(m_anvs)); //all anvs in m_inverted must be in
+                                                  //our index
+    return selected_address->second;
+}
+
+size_t AnvDistribution::Size() const
+{
+    return m_inverted.size();
+}
+
+size_t AnvDistribution::MaxANV() const
+{
+    return m_max_anv;
+}
+
+WalletSelector::WalletSelector(int height, const referral::AddressANVs& anvs) : m_distribution{height, anvs} {}
+
+/**
      * Selecting winners from the distribution is deterministic and will return the same
      * N samples given the same input hash.
      */
-    referral::AddressANVs WalletSelector::Select(
-            bool check_confirmations,
-            const referral::ReferralsViewCache& referrals,
-            uint256 hash,
-            size_t n) const
-    {
-        assert(n <= m_distribution.Size());
-        referral::AddressANVs samples;
+referral::AddressANVs WalletSelector::Select(
+    bool check_confirmations,
+    const referral::ReferralsViewCache& referrals,
+    uint256 hash,
+    size_t n) const
+{
+    assert(n <= m_distribution.Size());
+    referral::AddressANVs samples;
 
-        while(n--) {
-            const auto& sampled = m_distribution.Sample(hash);
+    while (n--) {
+        const auto& sampled = m_distribution.Sample(hash);
 
-            //combine hashes and hash to get next sampling value
-            CHashWriter hasher{SER_DISK, CLIENT_VERSION};
-            hasher << hash << sampled.address;
-            hash = hasher.GetHash();
+        //combine hashes and hash to get next sampling value
+        CHashWriter hasher{SER_DISK, CLIENT_VERSION};
+        hasher << hash << sampled.address;
+        hash = hasher.GetHash();
 
-            if(!check_confirmations || referrals.IsConfirmed(sampled.address)) {
-                samples.push_back(sampled);
-            } else {
-                n++;
-            }
+        if (!check_confirmations || referrals.IsConfirmed(sampled.address)) {
+            samples.push_back(sampled);
+        } else {
+            n++;
+        }
+    }
+
+    return samples;
+}
+
+uint64_t WalletSelector::Size() const
+{
+    return m_distribution.Size();
+}
+
+uint64_t WalletSelector::MaxANV() const
+{
+    return m_distribution.MaxANV();
+}
+
+referral::ConfirmedAddresses SelectConfirmedAddresses(
+    const referral::ReferralsViewDB& db,
+    uint256 hash,
+    const uint160& genesis_address,
+    size_t n,
+    std::set<referral::Address>& unconfirmed_invites,
+    int max_outstanding_invites)
+{
+    assert(n > 0);
+    assert(max_outstanding_invites > 0);
+
+    auto requested = n;
+
+    const auto total = db.GetTotalConfirmations();
+    auto max_tries = std::min(std::max(static_cast<uint64_t>(n), total / 10), total);
+    assert(total > 0);
+
+    referral::ConfirmedAddresses addresses;
+
+    while (n-- && max_tries--) {
+        const auto selected_idx = SipHashUint256(0, 0, hash) % total;
+        const auto sampled = db.GetConfirmation(selected_idx);
+
+        if (!sampled) {
+            return {};
         }
 
-        return samples;
-    }
-
-    size_t WalletSelector::Size() const
-    {
-        return m_distribution.Size();
-    }
-
-    size_t WalletSelector::MaxANV() const
-    {
-        return m_distribution.MaxANV();
-    }
-
-    referral::ConfirmedAddresses SelectConfirmedAddresses(
-            const referral::ReferralsViewDB& db,
-            uint256 hash,
-            const uint160& genesis_address,
-            size_t n,
-            std::set<referral::Address> &unconfirmed_invites,
-            int max_outstanding_invites)
-    {
-        assert(n > 0);
-        assert(max_outstanding_invites > 0);
-
-        auto requested = n;
-
-        const auto total = db.GetTotalConfirmations();
-        auto max_tries = std::min(std::max(static_cast<uint64_t>(n), total / 10), total);
-        assert(total > 0);
-
-        referral::ConfirmedAddresses addresses;
-
-        while(n-- && max_tries--) {
-            const auto selected_idx = SipHashUint256(0, 0, hash) % total;
-            const auto sampled = db.GetConfirmation(selected_idx);
-
-            if(!sampled) {
-                return {};
-            }
-
-            if (!IsValidAmbassadorDestination(sampled->address_type)) {
-                n++;
-            } else if (sampled->invites == 0) {
-                n++;
-            } else if (sampled->invites > max_outstanding_invites) {
-                n++;
-            } else if (sampled->address == genesis_address) {
-                n++;
-            } else if (unconfirmed_invites.count(sampled->address)) {
-                n++;
-            } else {
-                addresses.push_back(*sampled);
-            }
-
-            CHashWriter hasher{SER_DISK, CLIENT_VERSION};
-            hasher << hash << sampled->address;
-            hash = hasher.GetHash();
+        if (!IsValidAmbassadorDestination(sampled->address_type)) {
+            n++;
+        } else if (sampled->invites == 0) {
+            n++;
+        } else if (sampled->invites > max_outstanding_invites) {
+            n++;
+        } else if (sampled->address == genesis_address) {
+            n++;
+        } else if (unconfirmed_invites.count(sampled->address)) {
+            n++;
+        } else {
+            addresses.push_back(*sampled);
         }
 
-        if(requested > 0) {
-            LogPrintf("Selected %d addresses (requested %d) for the invite lottery from a pool of %d\n", addresses.size(), requested, total);
-        }
-
-        assert(addresses.size() <= requested);
-        return addresses;
+        CHashWriter hasher{SER_DISK, CLIENT_VERSION};
+        hasher << hash << sampled->address;
+        hash = hasher.GetHash();
     }
 
-    CAmount GetCachedTotalANV()
-    {
-        return cached_total_anv;
+    if (requested > 0) {
+        LogPrintf("Selected %d addresses (requested %d) for the invite lottery from a pool of %d\n", addresses.size(), requested, total);
     }
+
+    assert(addresses.size() <= requested);
+    return addresses;
+}
+
+CAmount GetCachedTotalANV()
+{
+    return cached_total_anv;
+}
 } // namespace pog
