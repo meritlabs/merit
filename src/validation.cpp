@@ -296,6 +296,10 @@ namespace
         return !sample || sample_count <= 0 || GetRand(sample_count) == 0;
     }
 
+    bool valid_range(const referral::NoviteRange& r)
+    {
+        return r.first > 0 && r.second >= r.first;
+    }
 } // namespace
 
 
@@ -2153,6 +2157,7 @@ bool RewardInvites(
         const DebitsAndCredits &debits_and_credits,
         const Consensus::Params& params,
         CValidationState& state,
+        referral::NoviteRange& novite_range,
         pog::InviteRewards& rewards)
 {
     assert(height >= 0);
@@ -2209,7 +2214,9 @@ bool RewardInvites(
 
     const auto winners = pog2 ? 
         pog2::SelectInviteAddresses(
+            novite_range,
             *cgs_selector,
+            height,
             *prefviewcache,
             previous_block_hash,
             params.genesis_address,
@@ -3347,6 +3354,12 @@ static DisconnectResult DisconnectBlock(
         return DISCONNECT_FAILED;
     }
 
+    auto novite_range = prefviewdb->GetNoviteRange(pindex->nHeight);
+    if(valid_range(novite_range)) {
+        prefviewdb->RemoveNoviteRange(pindex->nHeight);
+        prefviewdb->SetMaxNoviteIdx(novite_range.first);
+    }
+
     if (!UndoLotteryEntrants(
                 block_undo,
                 consensus_params.max_lottery_reservoir_size)) {
@@ -4152,7 +4165,11 @@ static bool ConnectBlock(
     }
 
     int64_t nTime7 = GetTimeMicros();
-    if (validate) {
+
+    referral::NoviteRange novite_range{0,0};
+    const bool pog2 = pindex->nHeight >= chainparams.GetConsensus().pog2_blockheight; 
+
+    if (validate || pog2) {
         for (const auto& ref: block.m_vRef) {
             if (CheckAddressBeaconed(ref->GetAddress(), false)) {
                 return state.DoS(100,
@@ -4261,6 +4278,7 @@ static bool ConnectBlock(
                         invite_debits_and_credits,
                         chainparams.GetConsensus(),
                         state,
+                        novite_range,
                         invite_rewards)) {
 
                 return error("ConnectBlock(): Error computing invite rewards");
@@ -4314,7 +4332,6 @@ static bool ConnectBlock(
             }
 
         }
-
     }
 
     //order referrals so they are inserted into database in correct order.
@@ -4368,6 +4385,11 @@ static bool ConnectBlock(
                 chainparams.GetConsensus(),
                 blockundo)){
         return AbortNode(state, "Failed to write lottery entrants");
+    }
+
+    if(valid_range(novite_range)) {
+        prefviewdb->SetNoviteRange(pindex->nHeight, novite_range);
+        prefviewdb->SetMaxNoviteIdx(novite_range.second);
     }
 
     // Write undo information to disk

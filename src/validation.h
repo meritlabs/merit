@@ -370,6 +370,7 @@ bool RewardInvites(
         const DebitsAndCredits& debits_and_credits,
         const Consensus::Params& params,
         CValidationState& state,
+        referral::NoviteRange& novite_range,
         pog::InviteRewards& rewards);
 
 /**

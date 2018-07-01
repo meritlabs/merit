@@ -301,6 +301,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
             GetDebitsAndCredits(debits_and_credits, **it, *pcoinsTip);
         }
 
+        referral::NoviteRange dummy_range;
         RewardInvites(
                 cgs_selector,
                 nHeight,
@@ -310,6 +311,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
                 debits_and_credits,
                 chain_params,
                 state,
+                dummy_range,
                 invites);
 
         if (invites.empty() && !miner_reward_block) {

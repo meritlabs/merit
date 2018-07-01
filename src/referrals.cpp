@@ -327,16 +327,16 @@ uint64_t ReferralsViewCache::GetTotalConfirmations() const
     return m_db->GetTotalConfirmations();
 }
 
-uint64_t ReferralsViewCache::GetOldestNoviteIdx() const
+uint64_t ReferralsViewCache::GetMaxNoviteIdx() const
 {
     assert(m_db);
-    return m_db->GetOldestNoviteIdx();
+    return m_db->GetMaxNoviteIdx();
 }
 
-bool ReferralsViewCache::SetOldestNoviteIdx(uint64_t idx) const
+bool ReferralsViewCache::SetMaxNoviteIdx(uint64_t idx) const
 {
     assert(m_db);
-    return m_db->SetOldestNoviteIdx(idx);
+    return m_db->SetMaxNoviteIdx(idx);
 }
 
 }

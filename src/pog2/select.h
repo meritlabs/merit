@@ -75,12 +75,14 @@ namespace pog2
     using AddressSelectorPtr = std::shared_ptr<AddressSelector>;
 
     referral::ConfirmedAddresses SelectInviteAddresses(
+            referral::NoviteRange&,
             AddressSelector&,
+            int height,
             const referral::ReferralsViewCache& db,
             uint256 hash,
             const uint160& genesis_address,
             size_t n,
-            std::set<referral::Address> &unconfirmed_invites,
+            const std::set<referral::Address> &unconfirmed_invites,
             int max_outstanding_invites);
 
     /**
