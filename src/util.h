@@ -105,6 +105,7 @@ namespace BCLog {
         REFMEMPOOL  = (1 << 21),
         VALIDATION  = (1 << 22),
         POG         = (1 << 23),
+        BEACONS     = (1 << 24),
         ALL         = ~(uint32_t)0,
     };
 }

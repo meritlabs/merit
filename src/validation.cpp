@@ -1048,7 +1048,7 @@ static bool AcceptToMemoryPoolWorker(
                 // then it's a move invite tx. do not check alias for uniqueness
                 // otherwise it is a confirmation tx
                 if (prefviewcache->Exists(address_pair.first)) {
-                    debug("Invite destination is already in chain");
+                    LogPrint(BCLog::BEACONS, "Invite destination is already in chain");
                     continue;
                 }
 
@@ -1088,7 +1088,7 @@ static bool AcceptToMemoryPoolWorker(
                             // if address is of invite tx and it is out,
                             // then we found confirmation invite in mempool ==> duplicate
                             if (address.first.invite && address.second.prevhash.IsNull()) {
-                                debug("Found confirmation tx in mempool for same alias \"%s\"", referral->alias);
+                                LogPrint(BCLog::BEACONS, "Found confirmation tx in mempool for same alias \"%s\"", referral->alias);
                                 return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
                             }
                         }
@@ -2264,7 +2264,7 @@ bool RewardInvites(
 
 void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx)
 {
-    debug("Lottery Results");
+    LogPrint(BCLog::POG, "Lottery Results");
 
     // Pay them by adding a txout to the coinbase transaction;
     std::transform(
@@ -2280,7 +2280,7 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
                     throw std::runtime_error{"invalid ambassador for rewards"};
                 }
 
-                debug("\tWinner: %s, %d", addr.ToString(), static_cast<int>(winner.address_type));
+                LogPrint(BCLog::POG, "\tWinner: %s, %d", addr.ToString(), static_cast<int>(winner.address_type));
                 const auto script = GetScriptForDestination(dest);
                 return CTxOut{winner.amount, script};
             });
@@ -2290,7 +2290,7 @@ void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& t
 {
     assert(tx.IsInvite());
 
-    debug("Invite Lottery Results: %d", rewards.size());
+    LogPrint(BCLog::POG, "Invite Lottery Results: %d", rewards.size());
 
     // Pay them by adding a txout to the coinbase transaction;
     std::transform(
@@ -2306,7 +2306,7 @@ void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& t
                     throw std::runtime_error{"invalid ambassador for invites"};
                 }
 
-                debug("\tWinner: %s, %d", addr.ToString(), static_cast<int>(reward.address_type));
+                LogPrint(BCLog::POG, "\tWinner: %s, %d", addr.ToString(), static_cast<int>(reward.address_type));
 
                 const auto script = GetScriptForDestination(dest);
                 return CTxOut{reward.invites, script};
@@ -3519,7 +3519,7 @@ bool ConfirmAllPreDaedalusAddresses(
         return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
     }
 
-    debug("Confirming all pre-daedalus addresses");
+    LogPrint(BCLog::BEACONS, "Confirming all pre-daedalus addresses");
 
     // One time confirmation of all addresses before the daedalus block
     return prefviewdb->ConfirmAllPreDaedalusAddresses();
