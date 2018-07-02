@@ -1327,7 +1327,7 @@ public:
     bool IsAValidMnemonic(const std::string& mnemonic);
 
 private:
-    CPubKey SetMasterKeyMetadata(
+    void SetMasterKeyMetadata(
             const CExtKey& extkey,
             const WordList& menmonic,
             const CPubKey& pubkey);
