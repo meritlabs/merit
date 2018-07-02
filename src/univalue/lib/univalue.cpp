@@ -138,7 +138,7 @@ bool UniValue::setInt(int64_t val_)
     return setNumStr(oss.str());
 }
 
-bool UniValue::setInt(size_t val_)
+bool UniValue::setInt(std::size_t val_)
 {
     ostringstream oss;
 

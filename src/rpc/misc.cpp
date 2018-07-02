@@ -23,11 +23,6 @@
 #include "pog/select.h"
 #include "rpc/safemode.h"
 
-// #ifdef ENABLE_WALLET
-// #include "wallet/rpcwallet.h"
-// #include "wallet/wallet.h"
-// #include "wallet/walletdb.h"
-// #endif
 #include "warnings.h"
 
 #include <numeric>

@@ -41,7 +41,7 @@ public:
     UniValue(double val_) {
         setFloat(val_);
     }
-    UniValue(size_t val_) {
+    UniValue(std::size_t val_) {
         setInt(val_);
     }
     UniValue(const std::string& val_) {
@@ -60,7 +60,7 @@ public:
     bool setNumStr(const std::string& val);
     bool setInt(uint64_t val);
     bool setInt(int64_t val);
-    bool setInt(size_t val);
+    bool setInt(std::size_t val);
     bool setInt(int val_) { return setInt((int64_t)val_); }
     bool setFloat(double val);
     bool setStr(const std::string& val);
@@ -219,7 +219,7 @@ static inline std::pair<std::string,UniValue> Pair(const char *cKey, double dVal
     return std::make_pair(key, uVal);
 }
 
-static inline std::pair<std::string,UniValue> Pair(const char *cKey, size_t sVal)
+static inline std::pair<std::string,UniValue> Pair(const char *cKey, std::size_t sVal)
 {
     std::string key(cKey);
     UniValue uVal(sVal);
