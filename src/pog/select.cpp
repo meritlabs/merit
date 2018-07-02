@@ -269,7 +269,7 @@ size_t AnvDistribution::Size() const
     return m_inverted.size();
 }
 
-size_t AnvDistribution::MaxANV() const
+uint64_t AnvDistribution::MaxANV() const
 {
     return m_max_anv;
 }
@@ -307,7 +307,7 @@ referral::AddressANVs WalletSelector::Select(
     return samples;
 }
 
-uint64_t WalletSelector::Size() const
+size_t WalletSelector::Size() const
 {
     return m_distribution.Size();
 }

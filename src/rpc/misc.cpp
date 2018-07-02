@@ -2,7 +2,6 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "rpc/misc.h"
 #include "base58.h"
 #include "chain.h"
 #include "clientversion.h"
@@ -12,6 +11,7 @@
 #include "net.h"
 #include "netbase.h"
 #include "rpc/blockchain.h"
+#include "rpc/misc.h"
 #include "rpc/server.h"
 #include "timedata.h"
 #include "txmempool.h"
@@ -23,11 +23,11 @@
 #include "pog/select.h"
 #include "rpc/safemode.h"
 
-#ifdef ENABLE_WALLET
-#include "wallet/rpcwallet.h"
-#include "wallet/wallet.h"
-#include "wallet/walletdb.h"
-#endif
+// #ifdef ENABLE_WALLET
+// #include "wallet/rpcwallet.h"
+// #include "wallet/wallet.h"
+// #include "wallet/walletdb.h"
+// #endif
 #include "warnings.h"
 
 #include <numeric>
@@ -212,7 +212,8 @@ UniValue validateaddress(const JSONRPCRequest& request)
             ret.push_back(Pair("ismine", bool(mine & ISMINE_SPENDABLE)));
             ret.push_back(Pair("iswatchonly", bool(mine & ISMINE_WATCH_ONLY)));
         }
-        UniValue detail = boost::apply_visitor(DescribeAddressVisitor(pwallet), dest);
+        const DescribeAddressVisitor addressVisitor(pwallet);
+        UniValue detail = boost::apply_visitor(addressVisitor, dest);
         ret.pushKVs(detail);
         if (pwallet) {
             const auto& meta = pwallet->mapKeyMetadata;
