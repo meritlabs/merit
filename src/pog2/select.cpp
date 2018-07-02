@@ -5,6 +5,8 @@
 #include "pog2/select.h"
 #include "base58.h"
 #include "clientversion.h"
+#include "util.h"
+
 #include <algorithm>
 #include <iterator>
 #include "referrals.h"
@@ -285,6 +287,8 @@ namespace pog2
         uint64_t novite_idx = db.GetMaxNoviteIdx();
         novite_range.first = novite_idx;
 
+        LogPrint(BCLog::POG, "%s: Selecting %d: Max: %d Out of: %d noviteidx: %d\n", __func__, n, max_tries, total_beacons, novite_idx);
+
         while(n-- && max_tries--) {
             const auto selected_idx = SipHashUint256(0, 0, hash) % total_beacons;
             const double rand_val = static_cast<double>(selected_idx) / static_cast<double>(total_beacons);
@@ -294,6 +298,14 @@ namespace pog2
             hash = hasher_a.GetHash();
 
             const auto& selected_pool = INVITE_POOLS[SipHashUint256(0, 0, hash) % INVITE_POOLS.size()];
+
+            LogPrint(BCLog::POG, "%s: \tsampling pool: %d randval: %d poolprob: %d n: %d maxtries: %d\n",
+                    __func__,
+                    static_cast<int>(selected_pool.type),
+                    rand_val,
+                    selected_pool.probability,
+                    n,
+                    max_tries);
 
             if(rand_val < selected_pool.probability) {
                 referral::MaybeConfirmedAddress maybe_address;
@@ -310,7 +322,6 @@ namespace pog2
                             novite_idx = std::max(novite_idx, novite.second);
                             maybe_address = novite.first;
                         }
-
                         break;
                     case PoolType::ANY: 
                         maybe_address = SelectInviteAddressFromAnyPool(
@@ -320,17 +331,54 @@ namespace pog2
                         break;
                 }
 
-                if(!maybe_address ||
-                        !IsValidAmbassadorDestination(maybe_address->address_type) |
-                        maybe_address->invites > max_outstanding_invites ||
-                        maybe_address->address == genesis_address ||
-                        unconfirmed_invites.count(maybe_address->address)) {
+                if(maybe_address) {
+                    LogPrint(BCLog::POG, "%s: \t%d %s invites: %d\n",
+                            __func__,
+                            static_cast<int>(selected_pool.type),
+                            CMeritAddress{maybe_address->address_type, maybe_address->address}.ToString(),
+                            maybe_address->invites);
+
+                }
+
+                if (!maybe_address) {
+                    LogPrint(BCLog::POG, "%s: \tskipping no address: %d\n",
+                            __func__,
+                            static_cast<int>(selected_pool.type));
+                    n++;
+                } else if (!IsValidAmbassadorDestination(maybe_address->address_type)) {
+                    LogPrint(BCLog::POG, "%s: \tskipping invalid address: %d %s invites: %d\n",
+                            __func__,
+                            static_cast<int>(selected_pool.type),
+                            CMeritAddress{maybe_address->address_type, maybe_address->address}.ToString(),
+                            maybe_address->invites);
+                    n++;
+                } else if (maybe_address->invites > max_outstanding_invites) {
+                    LogPrint(BCLog::POG, "%s: \tskipping max invites: %d %s invites: %d\n",
+                            __func__,
+                            static_cast<int>(selected_pool.type),
+                            CMeritAddress{maybe_address->address_type, maybe_address->address}.ToString(),
+                            maybe_address->invites);
+                    n++;
+                } else if (maybe_address->address == genesis_address) {
+                    LogPrint(BCLog::POG, "%s: \tskipping genesis: %d %s invites: %d\n",
+                            __func__,
+                            static_cast<int>(selected_pool.type),
+                            CMeritAddress{maybe_address->address_type, maybe_address->address}.ToString(),
+                            maybe_address->invites);
+                    n++;
+                } else if ( unconfirmed_invites.count(maybe_address->address)) {
+                    LogPrint(BCLog::POG, "%s: \tskipping unconfirmed: %d %s invites: %d\n",
+                            __func__,
+                            static_cast<int>(selected_pool.type),
+                            CMeritAddress{maybe_address->address_type, maybe_address->address}.ToString(),
+                            maybe_address->invites);
                     n++;
                 } else {
                     addresses.push_back(*maybe_address);
                 }
             } else {
                 n++;
+                max_tries++;
             }
 
             CHashWriter hasher_b{SER_DISK, CLIENT_VERSION};
@@ -338,6 +386,7 @@ namespace pog2
             hash = hasher_b.GetHash();
         }
 
+        LogPrint(BCLog::POG, "%s: Selected %d: noviteidx: %d\n", __func__, addresses.size(), novite_idx);
         novite_range.second = novite_idx;
 
         if(requested > 0) {

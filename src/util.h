@@ -104,6 +104,7 @@ namespace BCLog {
         LEVELDB     = (1 << 20),
         REFMEMPOOL  = (1 << 21),
         VALIDATION  = (1 << 22),
+        POG         = (1 << 23),
         ALL         = ~(uint32_t)0,
     };
 }

@@ -298,7 +298,7 @@ namespace
 
     bool valid_range(const referral::NoviteRange& r)
     {
-        return r.first > 0 && r.second >= r.first;
+        return r.second > 0 && r.second >= r.first;
     }
 } // namespace
 
@@ -1891,6 +1891,19 @@ pog::AmbassadorLottery Pog1RewardAmbassadors(
     return rewards;
 }
 
+void LogWinners(const pog2::Entrants& es)
+{
+    for(const auto& e : es) {
+        LogPrint(BCLog::POG, "%s: \t%s: cgs: %d children: %d level: %d netsize: %d\n",
+                __func__, 
+                CMeritAddress{e.address_type, e.address}.ToString(),
+                e.cgs,
+                e.children,
+                e.level,
+                e.network_size);
+    }
+}
+
 std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassadors(
         int height,
         const uint256& previous_block_hash,
@@ -1920,6 +1933,8 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
             params.pog2_total_winning_ambassadors,
             static_cast<uint64_t>(selector->Size()));
 
+    LogPrint(BCLog::POG, "%s: Desired winners: %d\n", __func__, desired_winners);
+
     // If we have an empty distribution, for example in some of the unit
     // tests, we return the whole ambassador amount back to the miner
     if (desired_winners == 0) {
@@ -1932,6 +1947,8 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
     auto desired_new_winners = std::min(uint64_t{2}, desired_winners);
     auto desired_old_winners = std::max(uint64_t{0}, desired_winners - desired_new_winners);
 
+    LogPrint(BCLog::POG, "%s: Desired new winners: %d Desired old winners: %d\n", __func__, desired_new_winners, desired_old_winners);
+
     // Select the N winners using the previous block hash as the seed
     auto old_winners = selector->SelectOld(
             *prefviewcache,
@@ -1942,6 +1959,11 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
             *prefviewcache,
             previous_block_hash,
             desired_new_winners);
+
+    LogPrint(BCLog::POG, "%s: Old winners: %d\n", __func__, old_winners.size());
+    LogWinners(old_winners);
+    LogPrint(BCLog::POG, "%s: New winners: %d\n", __func__, new_winners.size());
+    LogWinners(new_winners);
 
     pog2::Entrants winners;
     winners.reserve(old_winners.size() + new_winners.size());
@@ -2204,7 +2226,7 @@ bool RewardInvites(
     for (const auto& amt: in_block_amounts) {
         if (auto confirmation = prefviewcache->GetConfirmation(amt.first)) {
             if (-amt.second == confirmation->invites) {
-                LogPrintf("\t\t%s: Referral with address \"%s\" is going to be unconfirmed. Skip it in invites lottery\n",
+                LogPrint(BCLog::POG, "\t\t%s: Referral with address \"%s\" is going to be unconfirmed. Skip it in invites lottery\n",
                         __func__,
                         CMeritAddress{confirmation->address_type, confirmation->address}.ToString());
                 unconfirmed_invites.insert(amt.first);
@@ -2234,6 +2256,9 @@ bool RewardInvites(
     assert(winners.size() <= static_cast<size_t>(total_winners));
 
     rewards = pog::RewardInvites(winners);
+    LogPrint(BCLog::POG, "%s: Invite Rewards %d\n",
+            __func__,
+            rewards.size());
     return true;
 }
 
