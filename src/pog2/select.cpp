@@ -198,7 +198,6 @@ namespace pog2
     {
         assert(m_old_distribution);
         assert(m_new_distribution);
-        assert(m_old_distribution->Size() == m_new_distribution->Size());
 
         return m_old_distribution->Size();
     }

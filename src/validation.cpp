@@ -1948,7 +1948,7 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
     winners.insert(winners.end(), old_winners.begin(), old_winners.end());
     winners.insert(winners.end(), new_winners.begin(), new_winners.end());
 
-    assert(old_winners.size() + new_winners.size() == desired_winners);
+    assert(old_winners.size() + new_winners.size() <= (desired_old_winners + desired_new_winners));
 
     // Compute reward for all the winners
     auto rewards = pog2::RewardAmbassadors(height, winners, total);
