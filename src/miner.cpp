@@ -410,7 +410,7 @@ bool BlockAssembler::CheckReferrals(
         if (pblock->IsDaedalus()) {
             // Check package for confirmation for give referral
             if (confirmations.count(referral->GetAddress()) == 0) {
-                debug("WARNING: Referral confirmation not found: %s",
+                LogPrint(BCLog::BEACONS, "WARNING: Referral confirmation not found: %s",
                         CMeritAddress{referral->addressType, referral->GetAddress()}.ToString());
                 return false;
             }
@@ -495,7 +495,7 @@ void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 {
     const auto& tx = iter->GetEntryValue();
     if(tx.IsInvite()) {
-        debug("Miner Assembler: adding invite transaction to block");
+        LogPrint(BCLog::BEACONS, "Miner Assembler: adding invite transaction to block");
         pblock->invites.emplace_back(iter->GetSharedEntryValue());
     } else {
         pblock->vtx.emplace_back(iter->GetSharedEntryValue());
@@ -528,7 +528,7 @@ void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::RefIter ite
     assert(ref);
 
     if (refsInBlock.count(iter)) {
-        debug("\t%s: Referral %s is already in block\n", __func__,
+        LogPrint(BCLog::BEACONS, "\t%s: Referral %s is already in block\n", __func__,
                 ref->GetHash().GetHex());
         return;
     }
@@ -624,7 +624,7 @@ void BlockAssembler::AddReferrals()
         const auto ref = it->GetSharedEntryValue();
 
         if (refsInBlock.count(it)) {
-            debug("\t%s: referral for %s is already in block", __func__, CMeritAddress{ref->addressType, ref->GetAddress()}.ToString());
+            LogPrint(BCLog::BEACONS, "\t%s: referral for %s is already in block", __func__, CMeritAddress{ref->addressType, ref->GetAddress()}.ToString());
             continue;
         }
 
@@ -636,7 +636,7 @@ void BlockAssembler::AddReferrals()
         if (pblock->IsDaedalus()) {
             // Check package for confirmation for give referral
             if (confirmations.count(ref->GetAddress()) == 0) {
-                debug("\t%s: confirmation for %s not found. Skipping", __func__, CMeritAddress{ref->addressType, ref->GetAddress()}.ToString());
+                LogPrint(BCLog::BEACONS, "\t%s: confirmation for %s not found. Skipping", __func__, CMeritAddress{ref->addressType, ref->GetAddress()}.ToString());
                 continue;
             }
         }

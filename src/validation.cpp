@@ -2280,7 +2280,7 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
                     throw std::runtime_error{"invalid ambassador for rewards"};
                 }
 
-                LogPrint(BCLog::POG, "\tWinner: %s, %d", addr.ToString(), static_cast<int>(winner.address_type));
+                LogPrint(BCLog::POG, "\tWinner: %s, %d\n", addr.ToString(), static_cast<int>(winner.address_type));
                 const auto script = GetScriptForDestination(dest);
                 return CTxOut{winner.amount, script};
             });
@@ -2306,7 +2306,7 @@ void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& t
                     throw std::runtime_error{"invalid ambassador for invites"};
                 }
 
-                LogPrint(BCLog::POG, "\tWinner: %s, %d", addr.ToString(), static_cast<int>(reward.address_type));
+                LogPrint(BCLog::POG, "\tWinner: %s, %d\n", addr.ToString(), static_cast<int>(reward.address_type));
 
                 const auto script = GetScriptForDestination(dest);
                 return CTxOut{reward.invites, script};
