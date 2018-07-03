@@ -32,9 +32,11 @@ namespace pog2
 
         entrants.resize(anv_entrants.size());
 
+        CGSContext context;
         std::transform(anv_entrants.begin(), anv_entrants.end(), entrants.begin(),
-                [height, &db](const referral::AddressANV& a) {
+                [height, &db, &context](const referral::AddressANV& a) {
                     auto entrant = ComputeCGS(
+                            context,
                             height,
                             a.address_type,
                             a.address,
@@ -159,6 +161,7 @@ namespace pog2
                     maybe_ref->addressType,
                     maybe_ref->GetAddress(),
                     0,
+                    0,
                     n.level + 1,
                     0,
                     0,
@@ -166,14 +169,32 @@ namespace pog2
         }
     }
 
+    CAmount GetAgedBalance(
+            CGSContext& context,
+            int height,
+            char address_type,
+            const referral::Address& address)
+    {
+        auto cached_balance = context.aged_balance.find(address);
+
+        if(cached_balance == context.aged_balance.end()) {
+            auto coins = GetCoins(address_type, address);
+            auto balance = AgedBalance(height, coins);
+            context.aged_balance[address] = balance;
+            return balance;
+        } 
+        return cached_balance->second;
+    }
+
+
     Entrant ComputeCGS(
+            CGSContext& context,
             int height,
             char address_type,
             const referral::Address& address,
             const referral::ReferralsViewCache& db)
     {
-        auto coins = GetCoins(address_type, address);
-        auto balance = AgedBalance(height, coins);
+        auto balance = GetAgedBalance(context, height, address_type, address);
         assert(balance >= 0);
 
         CAmount cgs = std::floor(balance * 0.75);
@@ -181,7 +202,7 @@ namespace pog2
 
         EntrantQueue q;
 
-        Entrant root{address_type, address, cgs, 1, 0, 0, 0};
+        Entrant root{address_type, address, balance, cgs, 1, 0, 0, 0};
         PushChildren(db, root, q);
 
         while(!q.empty()) {
@@ -190,8 +211,12 @@ namespace pog2
 
             root.network_size++;
 
-            auto entrant_coins = GetCoins(n.address_type, n.address);
-            auto entrant_balance = AgedBalance(height, entrant_coins);
+            auto entrant_balance = GetAgedBalance(
+                    context,
+                    height,
+                    n.address_type,
+                    n.address);
+
             assert(entrant_balance >=0);
             root.cgs += entrant_balance / n.level;
 

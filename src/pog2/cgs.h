@@ -14,10 +14,12 @@
 
 namespace pog2
 {
+
     struct Entrant
     {
         char address_type;
         referral::Address address;
+        CAmount aged_balance;
         CAmount cgs;
         double level;
         int children;
@@ -33,7 +35,13 @@ namespace pog2
             int height,
             Entrants&);
 
+    struct CGSContext
+    {
+        std::map<referral::Address, CAmount> aged_balance;
+    };
+
     Entrant ComputeCGS(
+            CGSContext& context,
             int height,
             char address_type,
             const referral::Address& address,
