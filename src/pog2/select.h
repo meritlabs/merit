@@ -70,6 +70,7 @@ namespace pog2
             CgsDistributionPtr m_old_distribution;
             CgsDistributionPtr m_new_distribution;
             SampledAddresses m_sampled;
+            const CAmount m_stake_minumum;
     };
 
     using AddressSelectorPtr = std::shared_ptr<AddressSelector>;

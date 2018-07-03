@@ -153,7 +153,7 @@ namespace referral
             bool normalize_alias)
     {
         assert(height >= 0);
-        LogPrint(BCLog::BEACONS, "Inserting referral %s parent %s",
+        LogPrint(BCLog::BEACONS, "Inserting referral %s parent %s\n",
                 CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
                 referral.parentAddress.GetHex());
 
@@ -204,7 +204,7 @@ namespace referral
         // be able to find the parent referral. We can then write the child->parent
         // mapping of public addresses
         if (auto parent_referral = GetReferral(referral.parentAddress)) {
-            LogPrint(BCLog::BEACONS, "\tInserting parent reference %s parent %s",
+            LogPrint(BCLog::BEACONS, "\tInserting parent reference %s parent %s\n",
                     CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
                     CMeritAddress{parent_referral->addressType, parent_referral->GetAddress()}.ToString());
 
@@ -223,7 +223,7 @@ namespace referral
             if (!m_db.Write(std::make_pair(DB_CHILDREN, referral.parentAddress), children))
                 return false;
 
-            LogPrint(BCLog::BEACONS, "Inserted referral %s parent %s",
+            LogPrint(BCLog::BEACONS, "Inserted referral %s parent %s\n",
                     CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
                     CMeritAddress{parent_referral->addressType, referral.parentAddress}.ToString());
 
@@ -231,7 +231,7 @@ namespace referral
             assert(false && "parent referral missing");
             return false;
         } else {
-            LogPrint(BCLog::BEACONS, "\tWarning Parent missing for address %s. Parent: %s",
+            LogPrint(BCLog::BEACONS, "\tWarning Parent missing for address %s. Parent: %s\n",
                     CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
                     referral.parentAddress.GetHex());
         }
@@ -241,7 +241,7 @@ namespace referral
 
     bool ReferralsViewDB::RemoveReferral(const Referral& referral)
     {
-        LogPrint(BCLog::BEACONS, "Removing Referral %d", CMeritAddress{referral.addressType, referral.GetAddress()}.ToString());
+        LogPrint(BCLog::BEACONS, "Removing Referral %d\n", CMeritAddress{referral.addressType, referral.GetAddress()}.ToString());
 
         if (!m_db.Erase(std::make_pair(DB_REFERRALS, referral.GetAddress()))) {
             return false;
@@ -307,7 +307,7 @@ namespace referral
     {
         AnvRat change_rat = change;
 
-        LogPrint(BCLog::BEACONS, "\tUpdateANV: %s + %d",
+        LogPrint(BCLog::BEACONS, "\tUpdateANV: %s + %d\n",
                 CMeritAddress(address_type, start_address).ToString(), change);
 
         MaybeAddress address = start_address;
@@ -318,7 +318,7 @@ namespace referral
             //it's possible address didn't exist yet so an ANV of 0 is assumed.
             ANVTuple anv;
             if (!m_db.Read(std::make_pair(DB_ANV, *address), anv)) {
-                LogPrint(BCLog::BEACONS, "\tFailed to read ANV for %s", address->GetHex());
+                LogPrint(BCLog::BEACONS, "\tFailed to read ANV for %s\n", address->GetHex());
                 return false;
             }
 
@@ -326,7 +326,7 @@ namespace referral
             assert(!std::get<1>(anv).IsNull());
 
             LogPrint(BCLog::BEACONS, 
-                    "\t\t %d %s %d/%d + %d",
+                    "\t\t %d %s %d/%d + %d\n",
                     level,
                     CMeritAddress(std::get<0>(anv), std::get<1>(anv)).ToString(),
                     std::get<0>((std::get<2>(anv))),
@@ -527,7 +527,7 @@ namespace referral
             const auto weighted_key = pog::WeightedKeyForSampling(rand_value, maybe_anv->anv);
             const auto heap_size = GetLotteryHeapSize();
 
-            LogPrint(BCLog::BEACONS, "Lottery: Attempting to add %s with weighted Key %d",
+            LogPrint(BCLog::BEACONS, "Lottery: Attempting to add %s with weighted Key %d\n",
                     CMeritAddress(address_type, *address).ToString(),
                     static_cast<double>(weighted_key));
 
@@ -559,7 +559,7 @@ namespace referral
 
                     undos.emplace_back(undo);
                 } else {
-                    LogPrint(BCLog::BEACONS, "\tLottery: %s is already in the lottery.",
+                    LogPrint(BCLog::BEACONS, "\tLottery: %s is already in the lottery.\n",
                             CMeritAddress(address_type, *address).ToString());
                 }
             } else {
@@ -601,11 +601,11 @@ namespace referral
 
                         undos.emplace_back(undo);
                     } else {
-                        LogPrint(BCLog::BEACONS, "\tLottery: %s is already in the lottery.",
+                        LogPrint(BCLog::BEACONS, "\tLottery: %s is already in the lottery.\n",
                                 CMeritAddress(address_type, *address).ToString());
                     }
                 } else {
-                    LogPrint(BCLog::BEACONS, "\tLottery: %s didn't make the cut with key %d, min %d",
+                    LogPrint(BCLog::BEACONS, "\tLottery: %s didn't make the cut with key %d, min %d\n",
                             CMeritAddress(address_type, *address).ToString(),
                             static_cast<double>(weighted_key),
                             static_cast<double>(min_weighted_key));
@@ -707,7 +707,7 @@ namespace referral
         }
 
         //write final value
-        LogPrint(BCLog::BEACONS, "\tAdding to Reservoir %s at pos %d", CMeritAddress(address_type, address).ToString(), pos);
+        LogPrint(BCLog::BEACONS, "\tAdding to Reservoir %s at pos %d\n", CMeritAddress(address_type, address).ToString(), pos);
         if (!m_db.Write(std::make_pair(DB_LOT_VAL, pos), std::make_tuple(key, address_type, address))) {
             return false;
         }
@@ -736,7 +736,7 @@ namespace referral
 
     bool ReferralsViewDB::RemoveFromLottery(uint64_t current)
     {
-        LogPrint(BCLog::BEACONS, "\tPopping from lottery reservoir position %d", current);
+        LogPrint(BCLog::BEACONS, "\tPopping from lottery reservoir position %d\n", current);
         auto heap_size = GetLotteryHeapSize();
         if (heap_size == 0) return false;
 
@@ -801,7 +801,7 @@ namespace referral
             return false;
         }
 
-        LogPrint(BCLog::BEACONS, "\tPopped from lottery reservoir, last ended up at %d", current);
+        LogPrint(BCLog::BEACONS, "\tPopped from lottery reservoir, last ended up at %d\n", current);
         return true;
     }
 
@@ -1006,7 +1006,7 @@ namespace referral
             iter->Next();
         }
 
-        LogPrint(BCLog::BEACONS, "Confirming %d pre daedalus addresses", addresses.size());
+        LogPrint(BCLog::BEACONS, "Confirming %d pre daedalus addresses\n", addresses.size());
         std::sort(addresses.begin(), addresses.end(),
                 [](const AddressPair& a, const AddressPair& b) {
                 return a.second < b.second;
@@ -1014,7 +1014,7 @@ namespace referral
 
         CAmount dummy;
         for(const auto& addr : addresses) {
-            LogPrint(BCLog::BEACONS, "\tConfirming %s address", CMeritAddress{addr.first, addr.second}.ToString());
+            LogPrint(BCLog::BEACONS, "\tConfirming %s address\n", CMeritAddress{addr.first, addr.second}.ToString());
             if (!UpdateConfirmation(addr.first, addr.second, 1, dummy)) {
                 return false;
             }

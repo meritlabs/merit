@@ -1309,6 +1309,8 @@ UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t tot
         o.push_back(Pair("beacon_age", beacon_age));
         o.push_back(Pair("rank", total - r.second));
         o.push_back(Pair("percentile", (boost::format("%1$.2f") % percentile).str()));
+        o.push_back(Pair("balance", r.first.balance));
+        o.push_back(Pair("aged_balance", r.first.aged_balance));
         o.push_back(Pair("cgs", r.first.cgs));
 
         double cgs_percent = 

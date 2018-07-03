@@ -8,6 +8,7 @@
 #define MERIT_CONSENSUS_PARAMS_H
 
 #include "uint256.h"
+#include "amount.h"
 #include <map>
 #include <set>
 #include <string>
@@ -108,6 +109,7 @@ struct Params {
     int64_t pog2_ambassador_percent_cut;
     int64_t pog2_pow_target_timespan;
     int pog2_new_distribution_age;
+    CAmount pog2_initial_ambassador_stake;
 
 };
 } // namespace Consensus

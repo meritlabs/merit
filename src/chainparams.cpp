@@ -184,6 +184,7 @@ public:
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 5 * 60 * 60; // every 5 hours
         consensus.pog2_new_distribution_age = 2*24*60; // two days
+        consensus.pog2_initial_ambassador_stake = 20_merit;
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -339,6 +340,7 @@ public:
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 1 * 60 * 60; // every hour
         consensus.pog2_new_distribution_age = 2*24*60; // two days
+        consensus.pog2_initial_ambassador_stake = 20_merit;
 
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
@@ -444,7 +446,7 @@ public:
         consensus.daedalus_max_invites_per_block = 10;
         consensus.daedalus_block_window = 4;
         consensus.daedalus_min_one_invite_for_every_x_blocks = 1;
-        consensus.daedalus_max_outstanding_invites_per_address = 3;
+        consensus.daedalus_max_outstanding_invites_per_address = 100;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 5;
@@ -472,6 +474,7 @@ public:
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 30 * 60; // every 30 min
         consensus.pog2_new_distribution_age = 10; // 10 seconds
+        consensus.pog2_initial_ambassador_stake = 20_merit;
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;

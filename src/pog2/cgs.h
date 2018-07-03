@@ -19,6 +19,7 @@ namespace pog2
     {
         char address_type;
         referral::Address address;
+        CAmount balance;
         CAmount aged_balance;
         CAmount cgs;
         double level;
@@ -35,9 +36,13 @@ namespace pog2
             int height,
             Entrants&);
 
+    //Aged and non-aged balance.
+    using BalancePair = std::pair<double, CAmount>;
+    using BalancePairs = std::vector<BalancePair>;
+
     struct CGSContext
     {
-        std::map<referral::Address, CAmount> aged_balance;
+        std::map<referral::Address, BalancePair> balances;
     };
 
     Entrant ComputeCGS(

@@ -115,11 +115,11 @@ namespace pog2
         double scale =  1.0 - (1.0 / (std::pow(age, 2) + 1.0));
 
         assert(scale >= 0);
-        assert(scale <= 1);
+        assert(scale <= 1.001);
         return scale;
     }
 
-    double AgedBalance(int height, const Coin& c) {
+    BalancePair AgedBalance(int height, const Coin& c) {
         assert(height >= 0);
         assert(c.height <= height);
         assert(c.amount >= 0);
@@ -129,16 +129,27 @@ namespace pog2
 
         assert(amount >= 0);
         assert(amount <= c.amount);
-        return amount;
+        return BalancePair{amount, c.amount};
     }
 
-    double AgedBalance(int height, const Coins& cs) {
+    BalancePair AgedBalance(int height, const Coins& cs) {
         assert(height >= 0);
 
-        return std::accumulate(cs.begin(), cs.end(), double{0}, 
-                [height](double amount, const Coin& c) {
-                    return amount + AgedBalance(height, c);
+        BalancePairs balances(cs.size());
+        std::transform(cs.begin(), cs.end(), balances.begin(),
+                [height](const Coin& c) {
+                    return AgedBalance(height, c);
                 });
+        
+        return BalancePair{
+            std::accumulate(balances.begin(), balances.end(), double{0}, 
+                [](double amount, const BalancePair& b) {
+                    return amount + b.first;
+                }),
+            std::accumulate(balances.begin(), balances.end(), double{0}, 
+                [](double amount, const BalancePair& b) {
+                    return amount + b.second;
+                })};
     }
 
     using EntrantQueue = std::deque<Entrant>; 
@@ -153,34 +164,33 @@ namespace pog2
         for(const auto& address : children) {
 
             auto maybe_ref = db.GetReferral(address);
-            if(!maybe_ref) { 
-                continue;
+            if(maybe_ref) { 
+                q.push_back({
+                        maybe_ref->addressType,
+                        maybe_ref->GetAddress(),
+                        0,
+                        0,
+                        0,
+                        n.level + 1,
+                        0,
+                        0,
+                        0});
             }
-
-            q.push_back({
-                    maybe_ref->addressType,
-                    maybe_ref->GetAddress(),
-                    0,
-                    0,
-                    n.level + 1,
-                    0,
-                    0,
-                    0});
         }
     }
 
-    CAmount GetAgedBalance(
+    BalancePair GetAgedBalance(
             CGSContext& context,
             int height,
             char address_type,
             const referral::Address& address)
     {
-        auto cached_balance = context.aged_balance.find(address);
+        auto cached_balance = context.balances.find(address);
 
-        if(cached_balance == context.aged_balance.end()) {
+        if(cached_balance == context.balances.end()) {
             auto coins = GetCoins(address_type, address);
             auto balance = AgedBalance(height, coins);
-            context.aged_balance[address] = balance;
+            context.balances[address] = balance;
             return balance;
         } 
         return cached_balance->second;
@@ -194,15 +204,16 @@ namespace pog2
             const referral::Address& address,
             const referral::ReferralsViewCache& db)
     {
-        auto balance = GetAgedBalance(context, height, address_type, address);
-        assert(balance >= 0);
+        auto balance_pair = GetAgedBalance(context, height, address_type, address);
+        assert(balance_pair.first >= 0);
+        assert(balance_pair.second >= 0);
 
-        CAmount cgs = std::floor(balance * 0.75);
+        CAmount cgs = std::floor(balance_pair.first * 0.75);
         assert(cgs >= 0);
 
         EntrantQueue q;
 
-        Entrant root{address_type, address, balance, cgs, 1, 0, 0, 0};
+        Entrant root{address_type, address, balance_pair.second, balance_pair.first, cgs, 1, 0, 0, 0};
         PushChildren(db, root, q);
 
         while(!q.empty()) {
@@ -217,8 +228,8 @@ namespace pog2
                     n.address_type,
                     n.address);
 
-            assert(entrant_balance >=0);
-            root.cgs += entrant_balance / n.level;
+            assert(entrant_balance.first >=0);
+            root.cgs += entrant_balance.first / n.level;
 
             PushChildren(db, n, q);
         }
