@@ -6,11 +6,9 @@
 #include "wallet/rpcwallet.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
-#endif
 
 #include <univalue.h>
 
-#ifdef ENABLE_WALLET
 class DescribeAddressVisitor : public boost::static_visitor<UniValue>
 {
 public:
