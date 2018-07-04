@@ -71,7 +71,7 @@ int CopyData(struct archive *ar, struct archive *aw)
 {
   const void* buff = nullptr;
   size_t size = 0;
-  la_int64_t offset = 0;
+  int64_t offset = 0;
 
   while (true) {
     auto r = archive_read_data_block(ar, &buff, &size, &offset);
