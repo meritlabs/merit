@@ -76,7 +76,7 @@ namespace pog2
     using Coins = std::vector<Coin>;
     using UnspentPair = std::pair<CAddressUnspentKey, CAddressUnspentValue>;
 
-    Coins GetCoins(char address_type, const referral::Address& address) {
+    Coins GetCoins(int height, char address_type, const referral::Address& address) {
         Coins cs;
         std::vector<UnspentPair> unspent;
         if (!GetAddressUnspent(address, address_type, false, unspent)) {
@@ -90,7 +90,7 @@ namespace pog2
             }
             assert(p.second.satoshis >= 0);
 
-            cs.push_back({p.second.blockHeight, p.second.satoshis});
+            cs.push_back({std::min(p.second.blockHeight, height), p.second.satoshis});
         }
 
         return cs;
@@ -188,7 +188,7 @@ namespace pog2
         auto cached_balance = context.balances.find(address);
 
         if(cached_balance == context.balances.end()) {
-            auto coins = GetCoins(address_type, address);
+            auto coins = GetCoins(height, address_type, address);
             auto balance = AgedBalance(height, coins);
             context.balances[address] = balance;
             return balance;
@@ -213,7 +213,16 @@ namespace pog2
 
         EntrantQueue q;
 
-        Entrant root{address_type, address, balance_pair.second, balance_pair.first, cgs, 1, 0, 0, 0};
+        Entrant root{
+            address_type,
+                address,
+                balance_pair.second,
+                static_cast<CAmount>(balance_pair.first),
+                cgs,
+                1,
+                0,
+                0,
+                0};
         PushChildren(db, root, q);
 
         while(!q.empty()) {

@@ -1368,6 +1368,8 @@ UniValue getaddressrank(const JSONRPCRequest& request)
         anvs.push_back(maybe_anv->anv);
     }
 
+    LOCK(cs_main);
+
     std::vector<CAmount> cgs; 
     pog2::CGSContext context;
     for (const auto& a : addresses) {
@@ -1428,11 +1430,13 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
             + HelpExampleRpc("getaddressleaderboard", "100")
         );
 
+
     int total = 100;
     if (request.params[0].isNum()) {
         total = std::max(1, request.params[0].get_int());
     }
 
+    LOCK(cs_main);
     CAmount lottery_cgs = 0;
     auto cgs_ranks = TopCGSRanks(
             total,
