@@ -1359,11 +1359,6 @@ UniValue getaddressrank(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
 
-    CAmount lottery_anv = pog::GetCachedTotalANV();
-    if (lottery_anv == 0) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "getaddressrank not ready.");
-    }
-
     std::vector<CAmount> anvs; 
     for (const auto& a : addresses) {
         auto maybe_anv = prefviewdb->GetANV(a.first);
@@ -1385,11 +1380,6 @@ UniValue getaddressrank(const JSONRPCRequest& request)
         cgs.push_back(node.cgs);
     }
 
-    auto ranks = ANVRanks(
-            anvs,
-            chainActive.Height(),
-            Params().GetConsensus());
-
     CAmount lottery_cgs = 0;
     auto cgs_ranks = CGSRanks(
             cgs,
@@ -1397,25 +1387,18 @@ UniValue getaddressrank(const JSONRPCRequest& request)
             Params().GetConsensus(),
             lottery_cgs);
 
-    assert(ranks.first.size() == addresses.size());
-
     //Hack to keep ANVRanks  (2nlog(n)) vs (nlogn + n) we rewrite the address
     //because among addresses of equal rank, ANVRAnks may return an entry with a different address.
     for(size_t i = 0; i < addresses.size(); i++) {
-        ranks.first[i].first.address = addresses[i].first;
-        ranks.first[i].first.address_type = addresses[i].second;
         cgs_ranks.first[i].first.address = addresses[i].first;
         cgs_ranks.first[i].first.address_type = addresses[i].second;
     }
 
     UniValue result(UniValue::VOBJ);
-    UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
     UniValue cgs_rankarr = RanksToUniValue(lottery_cgs, cgs_ranks.first, cgs_ranks.second);
 
-    result.push_back(Pair("lotteryanv", lottery_anv));
     result.push_back(Pair("lotterycgs", lottery_cgs));
-    result.push_back(Pair("lotteryentrants", ranks.second));
-    result.push_back(Pair("ranks", rankarr));
+    result.push_back(Pair("lotteryentrants", cgs_ranks.second));
     result.push_back(Pair("cgs_ranks", cgs_rankarr));
 
     return result;
@@ -1445,20 +1428,10 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
             + HelpExampleRpc("getaddressleaderboard", "100")
         );
 
-    CAmount lottery_anv = pog::GetCachedTotalANV();
-    if (lottery_anv == 0) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "getaddressleaderboard not ready.");
-    }
-
     int total = 100;
     if (request.params[0].isNum()) {
         total = std::max(1, request.params[0].get_int());
     }
-
-    auto ranks = TopANVRanks(
-            total,
-            chainActive.Height(),
-            Params().GetConsensus());
 
     CAmount lottery_cgs = 0;
     auto cgs_ranks = TopCGSRanks(
@@ -1468,13 +1441,10 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
             lottery_cgs);
 
     UniValue result(UniValue::VOBJ);
-    UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
     UniValue cgs_rankarr = RanksToUniValue(lottery_cgs, cgs_ranks.first, cgs_ranks.second);
 
-    result.push_back(Pair("lotteryanv", lottery_anv));
     result.push_back(Pair("lotterycgs", lottery_cgs));
-    result.push_back(Pair("lotteryentrants", ranks.second));
-    result.push_back(Pair("ranks", rankarr));
+    result.push_back(Pair("lotteryentrants", cgs_ranks.second));
     result.push_back(Pair("cgs_ranks", cgs_rankarr));
 
     return result;
