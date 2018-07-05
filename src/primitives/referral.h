@@ -72,6 +72,9 @@ public:
     // referral alias aka name
     const std::string alias;
 
+    // private message to the referrer
+    const std::string msgToInviter;
+
 private:
     const Address address;
 
@@ -147,6 +150,7 @@ public:
     CPubKey pubkey;
     valtype signature;
     std::string alias;
+    const std::string msgToInviter;
 
     MutableReferral(int32_t versionIn = Referral::CURRENT_VERSION) : version(versionIn),
                                                                      addressType{0},
@@ -160,7 +164,8 @@ public:
         const CPubKey& pubkeyIn,
         const Address& parentAddressIn,
         std::string aliasIn = "",
-        int32_t versionIn = Referral::CURRENT_VERSION);
+        int32_t versionIn = Referral::CURRENT_VERSION,
+        const std::string& msgToInviterIn = "");
 
     Address GetAddress() const;
 
@@ -224,6 +229,7 @@ inline void UnserializeReferral(RefType& ref, Stream& s)
     if (ref.version >= Referral::INVITE_VERSION) {
         s >> LIMITED_STRING(ref.alias, MAX_ALIAS_LENGTH);
     }
+//    s >> ref.msgToInviter;
 
     if(!ref.pubkey.IsValid()) {
         throw std::runtime_error{"invalid referral pubkey"};
@@ -245,6 +251,7 @@ inline void SerializeReferral(const RefType& ref, Stream& s)
     if (ref.version >= Referral::INVITE_VERSION) {
         s << LIMITED_STRING(ref.alias, MAX_ALIAS_LENGTH);
     }
+//    s << ref.msgToInviter;
 }
 
 typedef std::shared_ptr<const Referral> ReferralRef;

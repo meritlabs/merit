@@ -237,7 +237,7 @@ bool CWallet::ImportMnemonicAsMaster(
     return true;
 }
 
-referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, std::string alias)
+referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, std::string alias, std::string msg_to_inviter)
 {
     // check wallet is not unlocked yet
     if (IsReferred()) {
@@ -280,7 +280,7 @@ referral::ReferralRef CWallet::Unlock(const referral::Address& parentAddress, st
     CKeyPool keypool(pubkey, true);
 
     // generate new referral associated with new pubkey
-    auto referral = GenerateNewReferral(pubkey, parentAddress, alias);
+    auto referral = GenerateNewReferral(pubkey, parentAddress, alias, CKey{}, msg_to_inviter);
 
     LogPrintf("Generated new unlock referral. Address: %s\n", referral->GetAddress().ToString());
 
@@ -1981,7 +1981,8 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const CPubKey& signPubKey,
         const referral::Address& parentAddress,
         std::string alias,
-        CKey key)
+        CKey key,
+        const std::string& msg_to_inviter)
 {
     if (!signPubKey.IsValid()) {
         throw std::runtime_error("Cannot generate referral, the public key used is invalid");
@@ -1999,7 +2000,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
     auto referral =
         referral::MakeReferralRef(
                 referral::MutableReferral(
-                    addressType, address, signPubKey, parentAddress, alias, referral_version));
+                    addressType, address, signPubKey, parentAddress, alias, referral_version, msg_to_inviter));
 
     AddReferralAddressPubKey(referral->GetAddress(), signPubKey.GetID());
 
@@ -2024,28 +2025,31 @@ referral::ReferralRef CWallet::GenerateNewReferral(
         const CScriptID& id,
         const referral::Address& parentAddress,
         const CPubKey& signPubKey,
-        const std::string alias)
+        const std::string alias,
+        const std::string& msg_to_inviter)
 {
-    return GenerateNewReferral(2, id, signPubKey, parentAddress, alias);
+    return GenerateNewReferral(2, id, signPubKey, parentAddress, alias, CKey{}, msg_to_inviter);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CParamScriptID& id,
         const referral::Address& parentAddress,
         const CPubKey& signPubKey,
-        const std::string alias)
+        const std::string alias,
+        const std::string& msg_to_inviter)
 {
-    return GenerateNewReferral(3, id, signPubKey, parentAddress, alias);
+    return GenerateNewReferral(3, id, signPubKey, parentAddress, alias, CKey{}, msg_to_inviter);
 }
 
 referral::ReferralRef CWallet::GenerateNewReferral(
         const CPubKey& pubkey,
         const referral::Address& parentAddress,
         const std::string alias,
-        CKey key)
+        CKey key,
+        const std::string& msg_to_inviter)
 {
     const referral::Address key_id = pubkey.GetID();
-    return GenerateNewReferral(1, key_id, pubkey, parentAddress, alias, key);
+    return GenerateNewReferral(1, key_id, pubkey, parentAddress, alias, key, msg_to_inviter);
 }
 
 CTransactionRef CWallet::SendInviteTo(const CScript& scriptPubKey, int amount)
