@@ -5115,7 +5115,7 @@ UniValue unlockwallet(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() < 1 || request.params[0].get_str().empty() || request.params.size() > 2) {
+    if (request.fHelp || request.params.size() < 1 || request.params[0].get_str().empty() || request.params.size() > 3) {
         throw std::runtime_error(
             "unlockwallet \"inviteraddress\" (\"alias\") (\"message\") \n"
             "Updates the wallet with referral code and beacons first key with associated referral.\n"
