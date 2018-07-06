@@ -22,7 +22,7 @@ static const CAmount CENT = 1000000;
  */
 constexpr CAmount operator "" _merit(unsigned long long int a)
 {
-    return a * QUANT;
+    return a * COIN;
 }
 
 /** No amount larger than this (in micro) is valid.
