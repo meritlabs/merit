@@ -14,6 +14,7 @@ typedef int64_t CAmount;
 
 
 static const CAmount COIN = 100000000;
+static const CAmount QUANT = 1000000;
 static const CAmount CENT = 1000000;
 
 /**
@@ -21,7 +22,7 @@ static const CAmount CENT = 1000000;
  */
 constexpr CAmount operator "" _merit(unsigned long long int a)
 {
-    return a * COIN;
+    return a * QUANT;
 }
 
 /** No amount larger than this (in micro) is valid.
