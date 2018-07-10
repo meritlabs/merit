@@ -1832,7 +1832,7 @@ pog::AmbassadorLottery RewardAmbassadors(
     auto reserve_size = max_ambassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
-    pog::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
+    pog::GetAllRewardableANVs(*prefviewcache, params, height, entrants);
 
     max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
 
@@ -7302,7 +7302,7 @@ std::pair<Ranks, size_t> ANVRanks(
     auto reserve_size = max_ambassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
-    pog::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
+    pog::GetAllRewardableANVs(*prefviewcache, params, height, entrants, true);
 
     max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
 
@@ -7342,7 +7342,7 @@ std::pair<Ranks, size_t> TopANVRanks(
     auto reserve_size = max_ambassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
-    pog::GetAllRewardableANVs(*prefviewdb, params, height, entrants);
+    pog::GetAllRewardableANVs(*prefviewcache, params, height, entrants, true);
 
     max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
     total = std::min(total, entrants.size());

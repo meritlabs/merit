@@ -152,10 +152,6 @@ UniValue validateaddress(const JSONRPCRequest& request)
 
 #ifdef ENABLE_WALLET
     CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
-
-    LOCK2(cs_main, pwallet ? &pwallet->cs_wallet : nullptr);
-#else
-    LOCK(cs_main);
 #endif
     const auto intput_id = request.params[0].get_str();
 
