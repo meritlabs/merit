@@ -30,6 +30,7 @@ namespace referral
         const char DB_CONFIRMATION_TOTAL = 'u';
         const char DB_PRE_DAEDALUS_CONFIRMED = 'd';
         const char DB_ALIAS = 'l';
+        const char DB_LOT_INV = 'L';
 
         const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
     }
@@ -432,6 +433,10 @@ namespace referral
 
     bool ReferralsViewDB::FindLotteryPos(const Address& address, uint64_t& pos) const
     {
+        if (m_db.Read(std::make_pair(DB_LOT_INV, address), pos)) {
+            return true;
+        }
+
         const auto heap_size = GetLotteryHeapSize();
         for (uint64_t i = 0; i < heap_size; i++) {
             LotteryEntrant v;
@@ -441,11 +446,15 @@ namespace referral
 
             if (std::get<2>(v) == address) {
                 pos = i;
+                if (!m_db.Write(std::make_tuple(DB_LOT_INV, address), pos)) {
+                    return false;
+                }
                 return true;
             }
         }
 
         pos = heap_size;
+
         return true;
     }
 
@@ -676,12 +685,20 @@ namespace referral
                 return false;
             }
 
+            if (!m_db.Write(std::make_tuple(DB_LOT_INV, std::get<2>(parent_value)), pos)) {
+                return false;
+            }
+
             pos = parent_pos;
         }
 
         //write final value
         debug("\tAdding to Reservoir %s at pos %d", CMeritAddress(address_type, address).ToString(), pos);
         if (!m_db.Write(std::make_pair(DB_LOT_VAL, pos), std::make_tuple(key, address_type, address))) {
+            return false;
+        }
+
+        if (!m_db.Write(std::make_tuple(DB_LOT_INV, address), pos)) {
             return false;
         }
 
@@ -715,6 +732,15 @@ namespace referral
 
         LotteryEntrant last;
         if (!m_db.Read(std::make_pair(DB_LOT_VAL, heap_size - 1), last)) {
+            return false;
+        }
+
+        LotteryEntrant current_val;
+        if (!m_db.Read(std::make_pair(DB_LOT_VAL, current), current_val)) {
+            return false;
+        }
+
+        if (!m_db.Erase(std::make_tuple(DB_LOT_INV, std::get<2>(current_val)))) {
             return false;
         }
 
@@ -756,6 +782,10 @@ namespace referral
                     return false;
                 }
 
+                if (!m_db.Write(std::make_tuple(DB_LOT_INV, std::get<2>(smallest_val)), current)) {
+                        return false;
+                }
+
                 //now go down the smallest path
                 current = smallest;
             } else {
@@ -766,6 +796,10 @@ namespace referral
         //finally write the value in the correct spot and reduce the heap
         //size by 1
         if (!m_db.Write(std::make_pair(DB_LOT_VAL, current), last)) {
+            return false;
+        }
+
+        if (!m_db.Write(std::make_tuple(DB_LOT_INV, std::get<2>(last)), current)) {
             return false;
         }
 
