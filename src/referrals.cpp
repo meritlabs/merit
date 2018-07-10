@@ -269,5 +269,21 @@ MaybeConfirmedAddress ReferralsViewCache::GetConfirmation(const Address& address
     return m_db->GetConfirmation(ref->addressType, address);
 }
 
+void ReferralsViewCache::GetAllRewardableANVs(
+        const Consensus::Params& params,
+        int height,
+        AddressANVs& anvs,
+        bool cached) const
+{
+    std::lock_guard<std::mutex> lock(cache_mutex);
+    if(cached && !all_rewardable_anvs.empty()) {
+        anvs = all_rewardable_anvs; 
+        return;
+    } 
+
+    assert(m_db);
+    m_db->GetAllRewardableANVs(params, height, anvs);
+    all_rewardable_anvs = anvs;
+}
 
 }

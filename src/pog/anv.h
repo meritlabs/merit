@@ -8,6 +8,7 @@
 #include "primitives/referral.h"
 #include "consensus/params.h"
 #include "refdb.h"
+#include "referrals.h"
 
 #include <vector>
 
@@ -28,10 +29,11 @@ namespace pog
     referral::AddressANVs GetAllANVs(const referral::ReferralsViewDB&);
 
     void GetAllRewardableANVs(
-            const referral::ReferralsViewDB&,
+            const referral::ReferralsViewCache&,
             const Consensus::Params&,
             int height,
-            referral::AddressANVs&);
+            referral::AddressANVs&, 
+            bool cached = false);
 
 } // namespace pog
 
