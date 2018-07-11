@@ -891,6 +891,7 @@ UniValue processMempoolReferral(const referral::ReferralTxMemPool::RefIter entry
     delta.push_back(Pair("timestamp", entryit->GetTime()));
     delta.push_back(Pair("raw", EncodeHexRef(*referral)));
 
+    delta.push_back(Pair("message", (*referral).GetMessage()));
     return delta;
 }
 
@@ -1528,6 +1529,7 @@ UniValue getaddressreferrals(const JSONRPCRequest& request)
                 UniValue item(UniValue::VOBJ);
                 item.push_back(Pair("refid", child_referral->GetHash().GetHex()));
                 item.push_back(Pair("raw", EncodeHexRef(*child_referral)));
+                item.push_back(Pair("message", child_referral->msgToInviter));
                 result.push_back(item);
             }
         }

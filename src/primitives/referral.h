@@ -109,6 +109,11 @@ public:
         return address;
     }
 
+    std::string GetMessage() const
+    {
+        return msgToInviter;
+    }
+
     std::string GetAlias() const;
 
     /**
@@ -154,7 +159,8 @@ public:
 
     MutableReferral(int32_t versionIn = Referral::CURRENT_VERSION) : version(versionIn),
                                                                      addressType{0},
-                                                                     alias{""} {}
+                                                                     alias{""},
+                                                                     msgToInviter{""}{}
 
     MutableReferral(const Referral& ref);
 
@@ -189,6 +195,8 @@ public:
     }
 
     std::string GetAlias() const;
+
+    std::string GetMessage() const { return msgToInviter; }
 
     /**
      * Compute the hash of this MutableReferral. This is computed on the

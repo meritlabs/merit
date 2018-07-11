@@ -181,6 +181,7 @@ void RefToUniv(const referral::Referral& ref, const uint256& hashBlock, UniValue
     entry.pushKV("address", CMeritAddress{ref.addressType, ref.GetAddress()}.ToString());
     entry.pushKV("parentAddress", EncodeDestination(CMeritAddress{ref.addressType, ref.parentAddress}.Get()));
     entry.pushKV("alias", ref.alias);
+    entry.pushKV("message", HexStr(ref.msgToInviter));
     entry.pushKV("pubkey", HexStr(ref.pubkey));
     entry.pushKV("signature", HexStr(ref.signature));
 
