@@ -1176,11 +1176,22 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
             "      \"address\"  (string) The base58check encoded address\n"
             "      ,...\n"
             "    ]\n"
+            "  \"invites\" (bool) if to count invites or normal txs\n"
+            "  \"detailed\" (bool) true to show detailed balance\n"
             "}\n"
             "\nResult:\n"
             "{\n"
-            "  \"balance\"  (string) The current balance in satoshis\n"
-            "  \"received\"  (string) The total number of satoshis received (including change)\n"
+            "  \"balance\"  (string) The current balance in micros\n"
+            "  \"received\"  (string) The total number of micros received (including change)\n"
+            "}\n"
+            "\nDetailed Result:\n"
+            "{\n"
+            "  \"totalAmount\"                 (number) Total amount of utxos in micros\n"
+            "  \"totalPendingCoinbaseAmount\"  (number) Number of pending coinbase.\n"
+            "  \"totalConfirmedAmount\"        (number) Number of confirmed micros.\n"
+            "  \"byAddress\": [\n"
+            "   { \"address\", \"amount\"}\n"
+            "  ]\n"
             "}\n"
             "\nExamples:\n" +
             HelpExampleCli("getaddressbalance", "'{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}'") + HelpExampleRpc("getaddressbalance", "{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}"));
@@ -1216,8 +1227,6 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
         CAmount total_amount = 0;
         CAmount total_pending_coinbase_amount = 0;
         CAmount total_confirmed_amount = 0;
-        CAmount available_amount = 0;
-        CAmount available_confirmed_amount = 0;
 
         const auto chain_height = chainActive.Height();
         const int blocks_to_maturity = Params().GetConsensus().nBlocksToMaturity;
@@ -1250,14 +1259,9 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
         }
 
         // same because we are not computing 'locked' utxos
-        available_amount = total_amount;
-        available_confirmed_amount = total_confirmed_amount;
-
         result.push_back(Pair("totalAmount", total_amount));
         result.push_back(Pair("totalPendingCoinbaseAmount", total_pending_coinbase_amount));
         result.push_back(Pair("totalConfirmedAmount", total_confirmed_amount));
-        result.push_back(Pair("availableAmount", available_amount));
-        result.push_back(Pair("availableConfirmedAmount", available_confirmed_amount));
 
         UniValue by_address_val(UniValue::VARR);
         for(const auto& p : by_address) {
