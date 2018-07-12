@@ -1178,6 +1178,7 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
             "    ]\n"
             "  \"invites\" (bool) if to count invites or normal txs\n"
             "  \"detailed\" (bool) true to show detailed balance\n"
+            "  \"mempool\" (bool) show check mempool for spent utxos\n"
             "}\n"
             "\nResult:\n"
             "{\n"
@@ -1198,6 +1199,7 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
 
     bool request_invites = false;
     bool do_detailed = false;
+    bool check_mempool = false;
     if (request.params[0].isObject()) {
         const auto obj = request.params[0].get_obj();
         UniValue invites = find_value(obj, "invites");
@@ -1205,6 +1207,9 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
 
         UniValue detailed = find_value(obj, "detailed");
         do_detailed = detailed.isBool() && detailed.get_bool();
+
+        UniValue mempoolv = find_value(obj, "mempool");
+        check_mempool = mempoolv.isBool() && mempoolv.get_bool();
     }
 
     std::vector<AddressPair> addresses;
@@ -1232,7 +1237,14 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
         const int blocks_to_maturity = Params().GetConsensus().nBlocksToMaturity;
 
         for (std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>::const_iterator it = unspentOutputs.begin(); it != unspentOutputs.end(); it++) {
-            UniValue output(UniValue::VOBJ);
+            if(check_mempool) {
+                //skip any spent utxos in mempool.
+                CSpentIndexValue val;
+                if(mempool.getSpentIndex({it->first.txhash, it->first.index}, val)) {
+                    continue;
+                }
+            }
+
             std::string address;
             if (!getAddressFromIndex(it->first.type, it->first.hashBytes, address)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unknown address type");
