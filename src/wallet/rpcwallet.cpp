@@ -5172,6 +5172,10 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     auto msg_to_inviter = request.params[2].isNull() ? "" : request.params[2].get_str();
 
+    if(msg_to_inviter.size() > referral::MAX_MESSAGE_LENGTH) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("You message is too long. It should be no longer than %d symbols", referral::MAX_MESSAGE_LENGTH));
+    }
+
     referral::ReferralRef referral = pwallet->Unlock(parentAddressUint160, alias, msg_to_inviter);
 
     UniValue obj(UniValue::VOBJ);
