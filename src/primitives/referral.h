@@ -32,6 +32,8 @@ static const int MAX_ALIAS_LENGTH = 20;
 //the other 2 characters. So the ultimate length stays the same.
 static const int SAFER_MAX_ALIAS_LENGTH = 18;
 
+static const int MAX_MESSAGE_LENGTH = 100;
+
 struct MutableReferral;
 
 /** The basic referral that is broadcast on the network and contained in
@@ -46,12 +48,13 @@ public:
     // Default referral version.
     static const int32_t CURRENT_VERSION = 0;
     static const int32_t INVITE_VERSION = 1;
+    static const int32_t MESSAGE_VERSION = 2;
 
     // Changing the default referral version requires a two step process: first
     // adapting relay policy by bumping MAX_STANDARD_VERSION, and then later date
     // bumping the default CURRENT_VERSION at which point both CURRENT_VERSION and
     // MAX_STANDARD_VERSION will be equal.
-    static const int32_t MAX_STANDARD_VERSION = 1;
+    static const int32_t MAX_STANDARD_VERSION = 2;
 
     const int32_t version;
 
@@ -237,7 +240,10 @@ inline void UnserializeReferral(RefType& ref, Stream& s)
     if (ref.version >= Referral::INVITE_VERSION) {
         s >> LIMITED_STRING(ref.alias, MAX_ALIAS_LENGTH);
     }
-//    s >> ref.msgToInviter;
+
+    if(ref.version >= Referral::MESSAGE_VERSION){
+        s >> LIMITED_STRING(ref.msgToInviter, MAX_MESSAGE_LENGTH);
+    }
 
     if(!ref.pubkey.IsValid()) {
         throw std::runtime_error{"invalid referral pubkey"};
@@ -259,7 +265,10 @@ inline void SerializeReferral(const RefType& ref, Stream& s)
     if (ref.version >= Referral::INVITE_VERSION) {
         s << LIMITED_STRING(ref.alias, MAX_ALIAS_LENGTH);
     }
-//    s << ref.msgToInviter;
+
+    if(ref.version >= Referral::MESSAGE_VERSION){
+        s << LIMITED_STRING(ref.msgToInviter, MAX_MESSAGE_LENGTH);
+    }
 }
 
 typedef std::shared_ptr<const Referral> ReferralRef;

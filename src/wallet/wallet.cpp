@@ -1991,7 +1991,7 @@ referral::ReferralRef CWallet::GenerateNewReferral(
     // check if we need to set new version of referrals
     auto referral_version =
         Daedalus() ?
-        referral::Referral::INVITE_VERSION :
+        referral::Referral::MESSAGE_VERSION :
         referral::Referral::CURRENT_VERSION;
 
     referral::CleanupAlias(alias);
