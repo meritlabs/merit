@@ -1288,7 +1288,7 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
         std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
 
         for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
-            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex)) {
+            if (!GetAddressIndex((*it).first, (*it).second, request_invites, addressIndex)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
             }
         }
