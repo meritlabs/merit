@@ -66,11 +66,11 @@ qint64 MeritUnits::factor(int unit)
 {
     switch(unit)
     {
-    case MRT:  return 100000000;
+    case MRT:  return 1000000;
     case mMRT: return 100000;
     case uMRT: return 100;
     case INV:  return 1;
-    default:   return 100000000;
+    default:   return 1000000;
     }
 }
 
@@ -78,7 +78,7 @@ int MeritUnits::decimals(int unit)
 {
     switch(unit)
     {
-    case MRT: return 8;
+    case MRT: return 6;
     case mMRT: return 5;
     case uMRT: return 2;
     case INV: return 0;
