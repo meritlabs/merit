@@ -110,6 +110,8 @@ struct Params {
     int64_t pog2_pow_target_timespan;
     int pog2_new_distribution_age;
     CAmount pog2_initial_ambassador_stake;
+    int pog2_coin_maturity;
+    int pog2_child_coin_maturity;
 
 };
 } // namespace Consensus

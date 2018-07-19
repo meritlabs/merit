@@ -1418,12 +1418,21 @@ UniValue getaddressrank(const JSONRPCRequest& request)
 
     LOCK(cs_main);
 
+    
+    pog2::Entrants all_entrants;
+    pog2::GetAllRewardableEntrants(*prefviewcache, Params().GetConsensus(), chainActive.Height(), all_entrants);
+
+    const auto aged_network_size = pog2::AgedNetworkSize(chainActive.Height(), Params().GetConsensus(), *prefviewcache);
+
     std::vector<CAmount> cgs; 
     pog2::CGSContext context;
     for (const auto& a : addresses) {
      auto node = pog2::ComputeCGS(
             context,
+            aged_network_size,
             chainActive.Height(),
+            Params().GetConsensus().pog2_coin_maturity,
+            Params().GetConsensus().pog2_child_coin_maturity,
             a.second,
             a.first,
             *prefviewcache);
@@ -1496,7 +1505,6 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
     result.push_back(Pair("lotterycgs", lottery_cgs));
     result.push_back(Pair("lotteryentrants", cgs_ranks.second));
     result.push_back(Pair("cgs_ranks", cgs_rankarr));
-
     return result;
 }
 

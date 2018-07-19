@@ -7620,3 +7620,4 @@ std::pair<Pog2Ranks, size_t> TopCGSRanks(
 
     return {ranks, entrants.size()};
 }
+

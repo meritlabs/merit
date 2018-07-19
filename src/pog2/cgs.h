@@ -31,7 +31,7 @@ namespace pog2
     using Entrants = std::vector<Entrant>;
 
     void GetAllRewardableEntrants(
-            const referral::ReferralsViewCache&,
+            referral::ReferralsViewCache&,
             const Consensus::Params&,
             int height,
             Entrants&);
@@ -43,14 +43,24 @@ namespace pog2
     struct CGSContext
     {
         std::map<referral::Address, BalancePair> balances;
+        std::map<referral::Address, BalancePair> child_balances;
+        std::map<referral::Address, Entrant> entrant_cgs;
     };
 
     Entrant ComputeCGS(
             CGSContext& context,
+            double total_aged_network,
             int height,
+            int coin_maturity,
+            int child_coin_maturity,
             char address_type,
             const referral::Address& address,
-            const referral::ReferralsViewCache& db);
+            referral::ReferralsViewCache& db);
+
+    double AgedNetworkSize(
+            int tip_height,
+            const Consensus::Params& params, 
+            referral::ReferralsViewCache& db);
 
 } // namespace pog2
 
