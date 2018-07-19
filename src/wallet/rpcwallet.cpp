@@ -40,6 +40,7 @@
 #include <sstream>
 
 static const std::string WALLET_ENDPOINT_BASE = "/wallet/";
+using null_data = std::vector<unsigned char>;
 
 namespace
 {
@@ -403,7 +404,8 @@ static void SendMoney(
         CAmount nValue,
         bool fSubtractFeeFromAmount,
         CWalletTx& wtxNew,
-        const CCoinControl& coin_control)
+        const CCoinControl& coin_control,
+        null_data *data = nullptr)
 {
     CAmount curBalance = pwallet->GetBalance();
 
@@ -426,6 +428,9 @@ static void SendMoney(
     int nChangePosRet = -1;
     CRecipient recipient = {scriptPubKey, nValue, fSubtractFeeFromAmount};
     vecSend.push_back(recipient);
+    if (data != nullptr && data->size() > 0) {
+        vecSend.push_back({CScript() << OP_RETURN << *data, 0, false});
+    }
     if (!pwallet->CreateTransaction(vecSend, wtxNew, reservekey, nFeeRequired, nChangePosRet, strError, coin_control)) {
         if (!fSubtractFeeFromAmount && nValue + nFeeRequired > curBalance)
             strError = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
@@ -444,7 +449,8 @@ static void SendMoneyToDest(
         CAmount nValue,
         bool fSubtractFeeFromAmount,
         CWalletTx& wtxNew,
-        const CCoinControl& coin_control)
+        const CCoinControl& coin_control,
+        null_data *data = nullptr)
 {
     // Parse Merit address
     CScript scriptPubKey = GetScriptForDestination(address);
@@ -454,7 +460,8 @@ static void SendMoneyToDest(
             nValue,
             fSubtractFeeFromAmount,
             wtxNew,
-            coin_control);
+            coin_control,
+            data);
 }
 
 
@@ -811,9 +818,9 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() < 2 || request.params.size() > 8)
+    if (request.fHelp || request.params.size() < 2 || request.params.size() > 9)
         throw std::runtime_error(
-            "sendtoaddress \"address\" amount ( \"comment\" \"comment_to\" subtractfeefromamount replaceable conf_target \"estimate_mode\")\n"
+            "sendtoaddress \"address\" amount ( \"comment\" \"comment_to\" subtractfeefromamount replaceable conf_target \"estimate_mode\") \"data\")\n"
             "\nSend an amount to a given address.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
@@ -832,6 +839,7 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
             "       \"UNSET\"\n"
             "       \"ECONOMICAL\"\n"
             "       \"CONSERVATIVE\"\n"
+            "9. \"data\"             (string, optional) Additional data appended as nulldata output\n"
             "\nResult:\n"
             "\"txid\"                  (string) The transaction id.\n"
             "\nExamples:\n"
@@ -881,10 +889,14 @@ UniValue sendtoaddress(const JSONRPCRequest& request)
         }
     }
 
+    null_data data;
+    if (!request.params[8].isNull() && !request.params[8].get_str().empty()) {
+        data = ToByteVector(request.params[8].get_str());
+    }
 
     EnsureWalletIsUnlocked(pwallet);
 
-    SendMoneyToDest(pwallet, dest, nAmount, fSubtractFeeFromAmount, wtx, coin_control);
+    SendMoneyToDest(pwallet, dest, nAmount, fSubtractFeeFromAmount, wtx, coin_control, &data);
 
     return wtx.GetHash().GetHex();
 }
@@ -2548,7 +2560,7 @@ UniValue sendmany(const JSONRPCRequest& request)
 
     if (request.fHelp || request.params.size() < 2 || request.params.size() > 9)
         throw std::runtime_error(
-            "sendmany \"fromaccount\" {\"address\":amount,...} ( minconf \"comment\" [\"address\",...] replaceable conf_target \"estimate_mode\")\n"
+            "sendmany \"fromaccount\" {\"address\":amount,...} ( minconf \"comment\" [\"address\",...] replaceable conf_target \"estimate_mode\") \"data\")\n"
             "\nSend multiple times. Amounts are double-precision floating point numbers."
             + HelpRequiringPassphrase(pwallet) + "\n"
             "\nArguments:\n"

@@ -306,15 +306,6 @@ MaybeConfirmedAddress ReferralsViewCache::GetConfirmation(char address_type, con
     return m_db->GetConfirmation(address_type, address);
 }
 
-void ReferralsViewCache::GetAllRewardableANVs(
-        const Consensus::Params& params,
-        int height,
-        AddressANVs& anvs) const
-{
-    assert(m_db);
-    m_db->GetAllRewardableANVs(params, height, anvs);
-}
-
 ChildAddresses ReferralsViewCache::GetChildren(const Address& address) const
 {
     assert(m_db);
@@ -337,6 +328,23 @@ bool ReferralsViewCache::SetMaxNoviteIdx(uint64_t idx) const
 {
     assert(m_db);
     return m_db->SetMaxNoviteIdx(idx);
+}
+
+void ReferralsViewCache::GetAllRewardableANVs(
+        const Consensus::Params& params,
+        int height,
+        AddressANVs& anvs,
+        bool cached) const
+{
+    std::lock_guard<std::mutex> lock(cache_mutex);
+    if(cached && !all_rewardable_anvs.empty()) {
+        anvs = all_rewardable_anvs; 
+        return;
+    } 
+
+    assert(m_db);
+    m_db->GetAllRewardableANVs(params, height, anvs);
+    all_rewardable_anvs = anvs;
 }
 
 }

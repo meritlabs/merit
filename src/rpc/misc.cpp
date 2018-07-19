@@ -153,10 +153,6 @@ UniValue validateaddress(const JSONRPCRequest& request)
 
 #ifdef ENABLE_WALLET
     CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
-
-    LOCK2(cs_main, pwallet ? &pwallet->cs_wallet : nullptr);
-#else
-    LOCK(cs_main);
 #endif
     const auto intput_id = request.params[0].get_str();
 
@@ -986,15 +982,13 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
     bool includeChainInfo = false;
     bool request_invites = false;
     if (request.params[0].isObject()) {
-        UniValue chainInfo = find_value(request.params[0].get_obj(), "chainInfo");
-        if (chainInfo.isBool()) {
-            includeChainInfo = chainInfo.get_bool();
-        }
+        const auto obj = request.params[0].get_obj();
 
-        UniValue invites = find_value(request.params[0].get_obj(), "invites");
-        if (invites.isBool()) {
-            request_invites = invites.get_bool();
-        }
+        UniValue chainInfo = find_value(obj, "chainInfo");
+        includeChainInfo = chainInfo.isBool() && chainInfo.get_bool();
+
+        UniValue invites = find_value(obj, "invites");
+        request_invites = invites.isBool() && invites.get_bool();
     }
 
     std::vector<AddressPair> addresses;
@@ -1183,42 +1177,137 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
             "      \"address\"  (string) The base58check encoded address\n"
             "      ,...\n"
             "    ]\n"
+            "  \"invites\" (bool) if to count invites or normal txs\n"
+            "  \"detailed\" (bool) true to show detailed balance\n"
+            "  \"mempool\" (bool) show check mempool for spent utxos\n"
             "}\n"
             "\nResult:\n"
             "{\n"
-            "  \"balance\"  (string) The current balance in satoshis\n"
-            "  \"received\"  (string) The total number of satoshis received (including change)\n"
+            "  \"balance\"  (string) The current balance in micros\n"
+            "  \"received\"  (string) The total number of micros received (including change)\n"
+            "}\n"
+            "\nDetailed Result:\n"
+            "{\n"
+            "  \"totalAmount\"                 (number) Total amount of utxos in micros\n"
+            "  \"totalPendingCoinbaseAmount\"  (number) Number of pending coinbase.\n"
+            "  \"totalConfirmedAmount\"        (number) Number of confirmed micros.\n"
+            "  \"byAddress\": [\n"
+            "   { \"address\", \"amount\"}\n"
+            "  ]\n"
             "}\n"
             "\nExamples:\n" +
             HelpExampleCli("getaddressbalance", "'{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}'") + HelpExampleRpc("getaddressbalance", "{\"addresses\": [\"12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX\"]}"));
 
-    std::vector<AddressPair> addresses;
+    bool request_invites = false;
+    bool do_detailed = false;
+    bool check_mempool = false;
+    if (request.params[0].isObject()) {
+        const auto obj = request.params[0].get_obj();
+        UniValue invites = find_value(obj, "invites");
+        request_invites = invites.isBool() && invites.get_bool();
 
+        UniValue detailed = find_value(obj, "detailed");
+        do_detailed = detailed.isBool() && detailed.get_bool();
+
+        UniValue mempoolv = find_value(obj, "mempool");
+        check_mempool = mempoolv.isBool() && mempoolv.get_bool();
+    }
+
+    std::vector<AddressPair> addresses;
     if (!getAddressesFromParams(request.params, addresses)) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
 
-    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
-
-    for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
-        if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
-        }
-    }
-
-    CAmount balance = 0;
-    CAmount received = 0;
-
-    for (std::vector<std::pair<CAddressIndexKey, CAmount>>::const_iterator it = addressIndex.begin(); it != addressIndex.end(); it++) {
-        if (it->second > 0) {
-            received += it->second;
-        }
-        balance += it->second;
-    }
-
     UniValue result(UniValue::VOBJ);
-    result.push_back(Pair("balance", balance));
-    result.push_back(Pair("received", received));
+
+    if(do_detailed) {
+        std::map<std::string, CAmount> by_address;
+
+        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>> unspentOutputs;
+        for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
+            if (!GetAddressUnspent((*it).first, (*it).second, request_invites, unspentOutputs)) {
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+            }
+        }
+
+        CAmount total_amount = 0;
+        CAmount total_pending_coinbase_amount = 0;
+        CAmount total_confirmed_amount = 0;
+
+        const auto chain_height = chainActive.Height();
+        const int blocks_to_maturity = Params().GetConsensus().nBlocksToMaturity;
+
+        for (std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>::const_iterator it = unspentOutputs.begin(); it != unspentOutputs.end(); it++) {
+            if(check_mempool) {
+                //skip any spent utxos in mempool.
+                CSpentIndexValue val;
+                if(mempool.getSpentIndex({it->first.txhash, it->first.index}, val)) {
+                    continue;
+                }
+            }
+
+            std::string address;
+            if (!getAddressFromIndex(it->first.type, it->first.hashBytes, address)) {
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unknown address type");
+            }
+
+            const auto amount = it->second.satoshis;
+            const auto height = it->second.blockHeight;
+            const auto confirmations = chain_height - height;
+            const bool is_mature = confirmations >= blocks_to_maturity;
+            const bool is_coinbase = it->first.isCoinbase;
+            const bool is_pending = is_coinbase && !is_mature;
+            const bool is_confirmed = (is_coinbase && is_mature) || (!is_coinbase && confirmations > 0);
+
+            by_address[address] += amount;
+
+            total_amount += amount;
+            if(is_pending) {
+                total_pending_coinbase_amount += amount;
+            }
+
+            if(is_confirmed) {
+                total_confirmed_amount += amount;
+            }
+        }
+
+        // same because we are not computing 'locked' utxos
+        result.push_back(Pair("totalAmount", total_amount));
+        result.push_back(Pair("totalPendingCoinbaseAmount", total_pending_coinbase_amount));
+        result.push_back(Pair("totalConfirmedAmount", total_confirmed_amount));
+
+        UniValue by_address_val(UniValue::VARR);
+        for(const auto& p : by_address) {
+            UniValue o(UniValue::VOBJ);
+            o.push_back(Pair("address", p.first));
+            o.push_back(Pair("amount", p.second));
+            by_address_val.push_back(o);
+        }
+        result.push_back(Pair("byAddress", by_address_val));
+
+    } else {
+        std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
+
+        for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
+            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex)) {
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+            }
+        }
+
+        CAmount balance = 0;
+        CAmount received = 0;
+
+        for (std::vector<std::pair<CAddressIndexKey, CAmount>>::const_iterator it = addressIndex.begin(); it != addressIndex.end(); it++) {
+            if (it->second > 0) {
+                received += it->second;
+            }
+            balance += it->second;
+        }
+
+        result.push_back(Pair("balance", balance));
+        result.push_back(Pair("received", received));
+    }
+
 
     return result;
 }

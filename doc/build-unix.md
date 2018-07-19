@@ -14,18 +14,6 @@ for example, when specifying the path of the dependency:
 Here BDB_PREFIX must be an absolute path - it is defined using $(pwd) which ensures
 the usage of the absolute path.
 
-To Build
----------------------
-
-```bash
-./autogen.sh
-./configure
-cd src && make obj/build.h && cd .. && make
-make install # optional
-```
-
-This will build merit-qt as well if the dependencies are met.
-
 Dependencies
 ---------------------
 
@@ -52,6 +40,18 @@ Optional dependencies:
 
 
 For the versions used in the release, see [release-process.md](release-process.md) under *Fetch and build inputs*.
+
+To Build
+---------------------
+
+```bash
+./autogen.sh
+./configure
+cd src && make obj/build.h && cd .. && make
+make install # optional
+```
+
+This will build merit-qt as well if the dependencies are met.
 
 Memory Requirements
 --------------------

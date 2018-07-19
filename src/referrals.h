@@ -21,6 +21,7 @@
 #include <boost/multi_index_container.hpp>
 #include <boost/optional.hpp>
 #include <unordered_map>
+#include <mutex>
 
 using namespace boost::multi_index;
 
@@ -72,6 +73,8 @@ private:
     mutable AliasIndex alias_index;
     mutable ConfirmationsIndex confirmations_index;
     mutable ConfirmationsIndex height_index;
+    mutable AddressANVs all_rewardable_anvs;
+    mutable std::mutex cache_mutex;
 
     void InsertReferralIntoCache(const Referral&) const;
     void RemoveAliasFromCache(const Referral&) const;
@@ -132,7 +135,8 @@ public:
     void GetAllRewardableANVs(
             const Consensus::Params& params,
             int height,
-            AddressANVs&) const;
+            AddressANVs&,
+            bool cached = false) const;
 
     ChildAddresses GetChildren(const Address&) const;
 
