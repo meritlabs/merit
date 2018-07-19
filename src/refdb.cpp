@@ -31,9 +31,8 @@ namespace referral
         const char DB_PRE_DAEDALUS_CONFIRMED = 'd';
         const char DB_ALIAS = 'l';
         const char DB_HEIGHT = 'b';
-        const char DB_NOVITE_RANGE = 'o';
-        const char DB_MAX_NOVITE = 'm';
         const char DB_LOT_INV = 'L';
+        const char DB_NEW_INVITE_REWARD = 'N';
 
         const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
     }
@@ -1105,33 +1104,18 @@ namespace referral
         return MaybeConfirmedAddress{{address_type, address, pair.second}};
     }
 
-    NoviteRange ReferralsViewDB::GetNoviteRange(int height) const
+    bool ReferralsViewDB::SetNewInviteRewardedHeight(const Address& a, int height)
     {
-        NoviteRange r{0,0};
-        m_db.Read(std::make_pair(DB_NOVITE_RANGE, height), r);
-        return r;
+        return height > 0 ? 
+            m_db.Write(std::make_pair(DB_NEW_INVITE_REWARD, a), height) :
+            m_db.Erase(std::make_pair(DB_NEW_INVITE_REWARD, a));
     }
 
-    bool ReferralsViewDB::SetNoviteRange(int height, const NoviteRange& r)
+    int ReferralsViewDB::GetNewInviteRewardedHeight(const Address& a) const
     {
-        return m_db.Write(std::make_pair(DB_NOVITE_RANGE, height), r);
-    }
-
-    bool ReferralsViewDB::RemoveNoviteRange(int height)
-    {
-        return m_db.Erase(std::make_pair(DB_NOVITE_RANGE, height));
-    }
-
-    uint64_t ReferralsViewDB::GetMaxNoviteIdx() const
-    {
-        uint64_t idx = 0;;
-        m_db.Read(DB_MAX_NOVITE, idx);
-        return idx;
-    }
-
-    bool ReferralsViewDB::SetMaxNoviteIdx(uint64_t idx)
-    {
-        return m_db.Write(DB_MAX_NOVITE, idx);
+        int height = 0;
+        m_db.Read(std::make_pair(DB_NEW_INVITE_REWARD, a), height);
+        return height;
     }
 
 } //namespace referral

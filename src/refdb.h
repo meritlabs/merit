@@ -72,7 +72,6 @@ struct LotteryUndo
 };
 
 using LotteryUndos = std::vector<LotteryUndo>;
-using NoviteRange = std::pair<uint64_t, uint64_t>;
 
 class ReferralsViewDB
 {
@@ -151,14 +150,8 @@ public:
     MaybeConfirmedAddress GetConfirmation(uint64_t idx) const;
     MaybeConfirmedAddress GetConfirmation(char address_type, const Address& address) const;
 
-    /** A novite is the oldest beacon with 1 invite.  */
-    NoviteRange GetNoviteRange(int height) const;
-    bool SetNoviteRange(int height, const NoviteRange&);
-    bool RemoveNoviteRange(int height);
-
-    uint64_t GetMaxNoviteIdx() const;
-    bool SetMaxNoviteIdx(uint64_t idx);
-
+    bool SetNewInviteRewardedHeight(const Address&, int height);
+    int GetNewInviteRewardedHeight(const Address&) const;
 
 private:
     uint64_t GetLotteryHeapSize() const;

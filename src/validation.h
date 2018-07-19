@@ -370,8 +370,8 @@ bool RewardInvites(
         const DebitsAndCredits& debits_and_credits,
         const Consensus::Params& params,
         CValidationState& state,
-        referral::NoviteRange& novite_range,
-        pog::InviteRewards& rewards);
+        pog::InviteRewards& rewards,
+        referral::ConfirmedAddresses& selected_new_pool_addresses);
 
 /**
  * Include ambassadors into the coinbase transaction and split the total payment between them.

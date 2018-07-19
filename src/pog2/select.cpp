@@ -129,10 +129,16 @@ namespace pog2
         return m_inverted.size();
     }
 
+    const pog2::Entrants& CgsDistribution::Entrants() const
+    {
+        return m_entrants;
+    }
+
     AddressSelector::AddressSelector(
             int height,
             const pog2::Entrants& entrants,
             const Consensus::Params& params) :
+        m_entrants{entrants},
         m_stake_minumum{GetAmbassadorMinumumStake(height, params)}
     {
         m_old_distribution.reset(new CgsDistribution{entrants});
@@ -149,6 +155,11 @@ namespace pog2
 
         assert(m_old_distribution);
         assert(m_new_distribution);
+    }
+
+    const pog2::Entrants& AddressSelector::Entrants() const
+    {
+        return m_entrants;
     }
 
     /**
@@ -222,54 +233,74 @@ namespace pog2
         return Select( referrals, hash, n, *m_new_distribution);
     }
 
+    const pog2::Entrants& AddressSelector::OldEntrants() const
+    {
+        assert(m_old_distribution);
+        return m_old_distribution->Entrants();
+    }
+
+    const pog2::Entrants& AddressSelector::NewEntrants() const
+    {
+        assert(m_new_distribution);
+        return m_new_distribution->Entrants();
+    }
+
     size_t AddressSelector::Size() const
     {
         assert(m_old_distribution);
         assert(m_new_distribution);
 
-        return m_old_distribution->Size();
+        return m_old_distribution->Size() + m_new_distribution->Size();
     }
 
-    using Novite = std::pair<referral::MaybeConfirmedAddress,uint64_t>;
-
-    Novite FindNextNovite(const referral::ReferralsViewCache& db, uint64_t idx) {
-        const auto total = db.GetTotalConfirmations();
-        idx++;
-        for(; idx < total; idx++) {
-            auto c = db.GetConfirmation(idx);
-            if(c && c->invites == 1) {
-                return {c, idx};
-            }
-        }
-        return {{}, 0};
-    }
-
-    Novite FindPrevNovite(const referral::ReferralsViewCache& db, uint64_t idx) {
-        if(idx == 0) { 
-            return {{}, 0};
-        }
-
-        idx--;
-        for(; idx >= 0; idx--) {
-            auto c = db.GetConfirmation(idx);
-            if(c && c->invites == 1) {
-                return {c, idx};
-            }
-        }
-        return {{}, 0};
-    }
-
-    Novite SelectInviteAddressFromNewPool(const referral::ReferralsViewCache& db, uint64_t idx)
+    void GetConfirmedAddressesForNewPool(
+            uint64_t total_beacons,
+            const referral::ReferralsViewCache& db,
+            referral::ConfirmedAddresses& cas)
     {
-        return FindNextNovite(db, idx);
+        for(uint64_t i = 0; i < total_beacons; i++) {
+            const auto c = db.GetConfirmation(i);
+            if (!c || c->invites > 1) {
+                continue;
+            }
+
+            const int height = db.GetNewInviteRewardedHeight(c->address);
+            if (height > 0) {
+                continue;
+            }
+
+            cas.emplace_back(*c);
+        }
+    }
+
+    referral::MaybeConfirmedAddress SelectInviteAddressFromNewPool(
+            const referral::ReferralsViewCache& db,
+            referral::ConfirmedAddresses& new_pool,
+            referral::ConfirmedAddresses& selected_new,
+            uint256 hash)
+    {
+        if (new_pool.empty()) {
+            return {};
+        }
+
+        const auto selected_idx = SipHashUint256(0, 0, hash) % new_pool.size();
+        const auto selected =  new_pool[selected_idx];
+
+        //remove entry by swapping with the last entry and removing from end.
+        const auto last_idx = new_pool.size() - 1;
+        std::swap(new_pool[selected_idx], new_pool[last_idx]);
+        new_pool.erase(new_pool.begin()+last_idx);
+
+        //insert into our selected set.
+        selected_new.emplace_back(selected);
     }
 
     referral::MaybeConfirmedAddress SelectInviteAddressFromCgsPool(
             const referral::ReferralsViewCache& db,
-            AddressSelector& cgs_selector,
+            AddressSelector& selector,
             uint256 hash)
     {
-        const auto sampled = cgs_selector.SelectOld(db, hash, 1);
+        const auto sampled = selector.SelectOld(db, hash, 1);
         if(sampled.empty()) {
             return {};
         }
@@ -291,15 +322,15 @@ namespace pog2
 
 
     referral::ConfirmedAddresses SelectInviteAddresses(
-            referral::NoviteRange& novite_range,
-            AddressSelector& cgs_selector,
+            AddressSelector& selector,
             int height,
             const referral::ReferralsViewCache& db,
             uint256 hash,
             const uint160& genesis_address,
             size_t n,
             const std::set<referral::Address> &unconfirmed_invites,
-            int max_outstanding_invites)
+            int max_outstanding_invites,
+            referral::ConfirmedAddresses& selected_new_pool_addresses)
     {
         assert(n > 0);
         assert(max_outstanding_invites > 0);
@@ -310,10 +341,10 @@ namespace pog2
         auto max_tries = std::min(std::max(static_cast<uint64_t>(n), total_beacons / 10), total_beacons);
 
         referral::ConfirmedAddresses addresses;
-        uint64_t novite_idx = db.GetMaxNoviteIdx();
-        novite_range.first = novite_idx;
+        referral::ConfirmedAddresses new_pool_addresses;
+        GetConfirmedAddressesForNewPool(total_beacons, db, new_pool_addresses);
 
-        LogPrint(BCLog::POG, "%s: Selecting %d: Max: %d Out of: %d noviteidx: %d\n", __func__, n, max_tries, total_beacons, novite_idx);
+        LogPrint(BCLog::POG, "%s: Selecting %d: Max: %d Out of: %d\n", __func__, n, max_tries, total_beacons);
 
         while(n-- && max_tries--) {
             const auto selected_idx = SipHashUint256(0, 0, hash) % total_beacons;
@@ -339,15 +370,16 @@ namespace pog2
                     case PoolType::CGS: 
                         maybe_address = SelectInviteAddressFromCgsPool(
                                 db,
-                                cgs_selector,
+                                selector,
                                 hash);
                         break;
                     case PoolType::NEW: 
-                        {
-                            auto novite = SelectInviteAddressFromNewPool(db, novite_idx);
-                            novite_idx = std::max(novite_idx, novite.second);
-                            maybe_address = novite.first;
-                        }
+                            maybe_address =
+                                SelectInviteAddressFromNewPool(
+                                        db,
+                                        new_pool_addresses,
+                                        selected_new_pool_addresses,
+                                        hash);
                         break;
                     case PoolType::ANY: 
                         maybe_address = SelectInviteAddressFromAnyPool(
@@ -412,8 +444,7 @@ namespace pog2
             hash = hasher_b.GetHash();
         }
 
-        LogPrint(BCLog::POG, "%s: Selected %d: noviteidx: %d\n", __func__, addresses.size(), novite_idx);
-        novite_range.second = novite_idx;
+        LogPrint(BCLog::POG, "%s: Selected %d:\n", __func__, addresses.size());
 
         if(requested > 0) {
             LogPrintf("Selected %d addresses (requested %d) for the invite lottery from a pool of %d\n", addresses.size(), requested, total_beacons);

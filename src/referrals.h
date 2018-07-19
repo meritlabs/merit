@@ -140,9 +140,8 @@ public:
 
     ChildAddresses GetChildren(const Address&) const;
 
-    /** A novite is the oldest beacon with 1 invite. */
-    uint64_t GetMaxNoviteIdx() const;
-    bool SetMaxNoviteIdx(uint64_t idx) const;
+    bool SetNewInviteRewardedHeight(const Address&, int height);
+    int GetNewInviteRewardedHeight(const Address&) const;
 };
 
 } // namespace referral

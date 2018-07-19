@@ -296,10 +296,6 @@ namespace
         return !sample || sample_count <= 0 || GetRand(sample_count) == 0;
     }
 
-    bool valid_range(const referral::NoviteRange& r)
-    {
-        return r.second > 0 && r.second >= r.first;
-    }
 } // namespace
 
 
@@ -1930,8 +1926,8 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
     // We may have fewer keys in the distribution than the expected winners,
     // so just pick smallest of the two.
     const auto desired_winners = std::min(
-            params.pog2_total_winning_ambassadors,
-            static_cast<uint64_t>(selector->Size()));
+            params.pog2_total_winning_ambassadors + params.pog2_total_new_winning_ambassadors,
+            static_cast<int64_t>(selector->Size()));
 
     LogPrint(BCLog::POG, "%s: Desired winners: %d\n", __func__, desired_winners);
 
@@ -1944,8 +1940,8 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
     // validate sane winner amount
     assert(desired_winners < 100);
 
-    auto desired_new_winners = std::min(uint64_t{2}, desired_winners);
-    auto desired_old_winners = std::max(uint64_t{0}, desired_winners - desired_new_winners);
+    auto desired_old_winners = std::min(params.pog2_total_winning_ambassadors, desired_winners);
+    auto desired_new_winners = std::max(int64_t{0}, desired_winners - desired_old_winners);
 
     LogPrint(BCLog::POG, "%s: Desired new winners: %d Desired old winners: %d\n", __func__, desired_new_winners, desired_old_winners);
 
@@ -2179,8 +2175,8 @@ bool RewardInvites(
         const DebitsAndCredits &debits_and_credits,
         const Consensus::Params& params,
         CValidationState& state,
-        referral::NoviteRange& novite_range,
-        pog::InviteRewards& rewards)
+        pog::InviteRewards& rewards,
+        referral::ConfirmedAddresses& selected_new_pool_addresses)
 {
     assert(height >= 0);
     assert(prefviewdb != nullptr);
@@ -2236,7 +2232,6 @@ bool RewardInvites(
 
     const auto winners = pog2 ? 
         pog2::SelectInviteAddresses(
-            novite_range,
             *cgs_selector,
             height,
             *prefviewcache,
@@ -2244,7 +2239,8 @@ bool RewardInvites(
             params.genesis_address,
             total_winners,
             unconfirmed_invites,
-            params.daedalus_max_outstanding_invites_per_address) :
+            params.daedalus_max_outstanding_invites_per_address,
+            selected_new_pool_addresses) :
         pog::SelectConfirmedAddresses(
             *prefviewdb,
             previous_block_hash,
@@ -3079,6 +3075,45 @@ bool UndoLotteryEntrants(const CBlockUndo& undo, const size_t max_reservoir_size
     return true;
 }
 
+bool RecordNewPoolInviteRewards(
+        int height,
+        referral::ReferralsViewCache& db,
+        referral::ConfirmedAddresses& addresses)
+{
+    for (const auto& a : addresses) { 
+        if (!db.SetNewInviteRewardedHeight(a.address, height)) { 
+            return false;
+        }
+    }
+    return true;
+}
+
+bool UndoNewPoolInviteRewards(
+        int height,
+        referral::ReferralsViewCache& db,
+        const DebitsAndCredits debits_and_credits)
+{
+
+    for (const auto& entry : debits_and_credits) { 
+        const auto& address = std::get<1>(entry);
+        const CAmount amount = std::get<2>(entry);
+
+        //credits were debits during connect block so we skip credits here
+        //since we only care about credits during connect block.
+        if(amount >=0) {
+            continue;
+        }
+
+        auto recorded_height = db.GetNewInviteRewardedHeight(address);
+        if(recorded_height == height) {
+            if (!db.SetNewInviteRewardedHeight(address, 0)) { 
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 void UnIndexTransactions(
         const CBlockIndex *pindex,
         CCoinsViewCache& view,
@@ -3363,6 +3398,15 @@ static DisconnectResult DisconnectBlock(
             error("DisconnectBlock(): unable to undo confirmations");
             return DISCONNECT_FAILED;
         }
+
+        if(!UndoNewPoolInviteRewards(
+                    pindex->nHeight,
+                    *prefviewcache,
+                    invite_debits_and_credits)) {
+            error("DisconnectBlock(): unable to undo new invite pool rewards");
+            return DISCONNECT_FAILED;
+        }
+
     }
 
     // The order here is important. The ANV values must be updated
@@ -3377,12 +3421,6 @@ static DisconnectResult DisconnectBlock(
     if (!RemoveReferrals(block)){
         error("DisconnectBlock(): unable to undo referrals");
         return DISCONNECT_FAILED;
-    }
-
-    auto novite_range = prefviewdb->GetNoviteRange(pindex->nHeight);
-    if(valid_range(novite_range)) {
-        prefviewdb->RemoveNoviteRange(pindex->nHeight);
-        prefviewdb->SetMaxNoviteIdx(novite_range.first);
     }
 
     if (!UndoLotteryEntrants(
@@ -4191,10 +4229,9 @@ static bool ConnectBlock(
 
     int64_t nTime7 = GetTimeMicros();
 
-    referral::NoviteRange novite_range{0,0};
-    const bool pog2 = pindex->nHeight >= chainparams.GetConsensus().pog2_blockheight; 
+    referral::ConfirmedAddresses selected_new_pool_addresses;
 
-    if (validate || pog2) {
+    if (validate) {
         for (const auto& ref: block.m_vRef) {
             if (CheckAddressBeaconed(ref->GetAddress(), false)) {
                 return state.DoS(100,
@@ -4303,8 +4340,8 @@ static bool ConnectBlock(
                         invite_debits_and_credits,
                         chainparams.GetConsensus(),
                         state,
-                        novite_range,
-                        invite_rewards)) {
+                        invite_rewards,
+                        selected_new_pool_addresses)) {
 
                 return error("ConnectBlock(): Error computing invite rewards");
             }
@@ -4412,9 +4449,11 @@ static bool ConnectBlock(
         return AbortNode(state, "Failed to write lottery entrants");
     }
 
-    if(valid_range(novite_range)) {
-        prefviewdb->SetNoviteRange(pindex->nHeight, novite_range);
-        prefviewdb->SetMaxNoviteIdx(novite_range.second);
+    if (!RecordNewPoolInviteRewards(
+                pindex->nHeight,
+                *prefviewcache,
+                selected_new_pool_addresses)) { 
+        return AbortNode(state, "Failed to write new pool invite rewards");
     }
 
     // Write undo information to disk

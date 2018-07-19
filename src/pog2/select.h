@@ -32,8 +32,11 @@ namespace pog2
             CgsDistribution(pog2::Entrants entrants);
             const pog2::Entrant& Sample(const uint256& hash) const;
             size_t Size() const;
+            const pog2::Entrants& Entrants() const;
 
         private:
+
+            const pog2::Entrants m_entrants;
             InvertedEntrants m_inverted;
             AddressToEntrant m_cgses;
             CAmount m_max_cgs = 0;
@@ -49,6 +52,8 @@ namespace pog2
                     const pog2::Entrants& entrants,
                     const Consensus::Params&);
 
+            const pog2::Entrants& Entrants() const;
+
             pog2::Entrants SelectOld(
                     const referral::ReferralsViewCache& referrals,
                     uint256 hash,
@@ -59,6 +64,9 @@ namespace pog2
                     uint256 hash,
                     size_t n);
 
+            const pog2::Entrants& OldEntrants() const;
+            const pog2::Entrants& NewEntrants() const;
+
             size_t Size() const;
         private:
             pog2::Entrants Select(
@@ -67,6 +75,7 @@ namespace pog2
                     size_t n,
                     const CgsDistribution& distribution);
 
+            const pog2::Entrants m_entrants;
             CgsDistributionPtr m_old_distribution;
             CgsDistributionPtr m_new_distribution;
             SampledAddresses m_sampled;
@@ -76,7 +85,6 @@ namespace pog2
     using AddressSelectorPtr = std::shared_ptr<AddressSelector>;
 
     referral::ConfirmedAddresses SelectInviteAddresses(
-            referral::NoviteRange&,
             AddressSelector&,
             int height,
             const referral::ReferralsViewCache& db,
@@ -84,15 +92,14 @@ namespace pog2
             const uint160& genesis_address,
             size_t n,
             const std::set<referral::Address> &unconfirmed_invites,
-            int max_outstanding_invites);
+            int max_outstanding_invites,
+            referral::ConfirmedAddresses& confirmed_new_pool);
 
     /**
      * Returns true if the address type is valid for ambassador lottery.
      */
     bool IsValidAmbassadorDestination(char type);
 
-    referral::MaybeConfirmedAddress FindNextNovite(const referral::ReferralsViewCache& db);
-    referral::MaybeConfirmedAddress FindPrevNovite(const referral::ReferralsViewCache& db);
 } // namespace pog2
 
 #endif //MERIT_POG2_SELECT_H
