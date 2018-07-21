@@ -168,7 +168,7 @@ void LegacySort(
     InsertionSort(first, last);
 }
 
-std::atomic<CAmount> cached_total_anv;
+StackedAmount cached_total_anv = 0;
 } // namespace
 
 bool IsValidAmbassadorDestination(char type)
@@ -225,19 +225,22 @@ AnvDistribution::AnvDistribution(int height, referral::AddressANVs anvs) : m_inv
     assert(m_inverted.size() == anvs.size());
 
     //compute CDF by adding up all the ANVs
-    CAmount previous_anv = 0;
+    StackedAmount previous_anv = 0;
     std::transform(std::begin(anvs), std::end(anvs), std::begin(m_inverted),
         [&previous_anv](referral::AddressANV w) {
-            w.anv += previous_anv;
-            previous_anv = w.anv;
-            return w;
+            previous_anv += w.anv;
+            return StackedAddressANV { 
+                w.address_type,
+                w.address,
+                previous_anv,
+            };
         });
 
     //back will always return because we assume m_anvs is non-empty
     if (!m_inverted.empty()) m_max_anv = m_inverted.back().anv;
 
     assert(m_max_anv >= 0);
-    cached_total_anv = std::max(static_cast<CAmount>(cached_total_anv), m_max_anv);
+    cached_total_anv = std::max(cached_total_anv, m_max_anv);
 }
 
 const referral::AddressANV& AnvDistribution::Sample(const uint256& hash) const
@@ -249,12 +252,12 @@ const referral::AddressANV& AnvDistribution::Sample(const uint256& hash) const
 
     auto pos = std::lower_bound(std::begin(m_inverted), std::end(m_inverted),
         selected_anv,
-        [](const referral::AddressANV& a, CAmount selected) {
+        [](const StackedAddressANV& a, StackedAmount selected) {
             return a.anv < selected;
         });
 
     assert(m_max_anv >= 0);
-    assert(selected_anv < static_cast<uint64_t>(m_max_anv));
+    assert(selected_anv < m_max_anv);
     assert(pos != std::end(m_inverted)); //it should be impossible to not find an anv
                                          //because selected_anv must be less than max
     auto selected_address = m_anvs.find(pos->address);
@@ -269,7 +272,7 @@ size_t AnvDistribution::Size() const
     return m_inverted.size();
 }
 
-uint64_t AnvDistribution::MaxANV() const
+StackedAmount AnvDistribution::MaxANV() const
 {
     return m_max_anv;
 }
@@ -312,7 +315,7 @@ size_t WalletSelector::Size() const
     return m_distribution.Size();
 }
 
-uint64_t WalletSelector::MaxANV() const
+StackedAmount WalletSelector::MaxANV() const
 {
     return m_distribution.MaxANV();
 }
@@ -371,7 +374,7 @@ referral::ConfirmedAddresses SelectConfirmedAddresses(
     return addresses;
 }
 
-CAmount GetCachedTotalANV()
+StackedAmount GetCachedTotalANV()
 {
     return cached_total_anv;
 }

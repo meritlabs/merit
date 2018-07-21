@@ -23,6 +23,7 @@
 #include <vector>
 #include <array>
 #include <boost/multiprecision/cpp_dec_float.hpp> 
+#include <boost/multiprecision/cpp_int.hpp> 
 
 #include "prevector.h"
 
@@ -91,6 +92,21 @@ template<typename Stream> inline void ser_writedata64(Stream &s, uint64_t obj)
     obj = htole64(obj);
     s.write((char*)&obj, 8);
 }
+
+template<typename Stream> inline void ser_writedata128(Stream &s, boost::multiprecision::int128_t obj)
+{
+    if(boost::multiprecision::abs(obj) >= boost::multiprecision::int128_t{std::numeric_limits<int64_t>::max()}) {
+        int64_t low = htole64(std::numeric_limits<int64_t>::max());
+        s.write((char*)&low, 8);
+        obj = obj >= 0 ? 
+            obj - std::numeric_limits<int64_t>::max():
+            obj + std::numeric_limits<int64_t>::max();
+    } 
+
+    auto val = htole64(static_cast<int64_t>(obj));
+    s.write((char*)&val, 8);
+}
+
 template<typename Stream> inline uint8_t ser_readdata8(Stream &s)
 {
     uint8_t obj = 0;
@@ -121,6 +137,21 @@ template<typename Stream> inline uint64_t ser_readdata64(Stream &s)
     s.read((char*)&obj, 8);
     return le64toh(obj);
 }
+
+template<typename Stream> inline boost::multiprecision::int128_t ser_readdata128(Stream &s)
+{
+    uint64_t l = 0;
+    s.read((char*)&l, 8);
+    boost::multiprecision::int128_t low = static_cast<int64_t>(le64toh(l));
+    if(low == std::numeric_limits<int64_t>::max()) {
+        uint64_t h = 0;
+        s.read((char*)&h, 8);
+        boost::multiprecision::int128_t high = static_cast<int64_t>(le64toh(h));
+        return high >= 0 ? low + high : high - low;
+    } 
+    return low;
+}
+
 inline uint64_t ser_double_to_uint64(double x)
 {
     union { double x; uint64_t y; } tmp;
@@ -191,6 +222,7 @@ template<typename Stream> inline void Serialize(Stream& s, int32_t a ) { ser_wri
 template<typename Stream> inline void Serialize(Stream& s, uint32_t a) { ser_writedata32(s, a); }
 template<typename Stream> inline void Serialize(Stream& s, int64_t a ) { ser_writedata64(s, a); }
 template<typename Stream> inline void Serialize(Stream& s, uint64_t a) { ser_writedata64(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, boost::multiprecision::int128_t a) { ser_writedata128(s, a); }
 template<typename Stream> inline void Serialize(Stream& s, float a   ) { ser_writedata32(s, ser_float_to_uint32(a)); }
 template<typename Stream> inline void Serialize(Stream& s, double a  ) { ser_writedata64(s, ser_double_to_uint64(a)); }
 
@@ -240,6 +272,7 @@ template<typename Stream> inline void Unserialize(Stream& s, int32_t& a ) { a = 
 template<typename Stream> inline void Unserialize(Stream& s, uint32_t& a) { a = ser_readdata32(s); }
 template<typename Stream> inline void Unserialize(Stream& s, int64_t& a ) { a = ser_readdata64(s); }
 template<typename Stream> inline void Unserialize(Stream& s, uint64_t& a) { a = ser_readdata64(s); }
+template<typename Stream> inline void Unserialize(Stream& s, boost::multiprecision::int128_t& a) { a = ser_readdata128(s); }
 template<typename Stream> inline void Unserialize(Stream& s, float& a   ) { a = ser_uint32_to_float(ser_readdata32(s)); }
 template<typename Stream> inline void Unserialize(Stream& s, double& a  ) { a = ser_uint64_to_double(ser_readdata64(s)); }
 

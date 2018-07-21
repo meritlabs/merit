@@ -3221,7 +3221,7 @@ static DisconnectResult DisconnectBlock(
     // correct addresses because RemoveReferrals will change referral
     // tree.
     if (!UpdateANV(debits_and_credits)) {
-        error("DisconnectBlock(): unable to undo referrals");
+        error("DisconnectBlock(): unable to undo anv updates");
         return DISCONNECT_FAILED;
     }
 
