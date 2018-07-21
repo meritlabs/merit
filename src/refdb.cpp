@@ -281,7 +281,8 @@ namespace referral
             const Address& start_address,
             CAmount change)
     {
-        AnvRat change_rat = change;
+
+        AnvRat change_rat = int128_t{change};
 
         debug("\tUpdateANV: %s + %d",
                 CMeritAddress(address_type, start_address).ToString(), change);
