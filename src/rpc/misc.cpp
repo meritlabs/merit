@@ -1311,7 +1311,7 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
     return result;
 }
 
-UniValue RanksToUniValue(CAmount lottery_anv, const Ranks& ranks, size_t total)
+UniValue RanksToUniValue(pog::StackedAmount lottery_anv, const Ranks& ranks, size_t total)
 {
     UniValue rankarr(UniValue::VARR);
     for (const auto& r : ranks) {
@@ -1373,7 +1373,7 @@ UniValue getaddressrank(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
 
-    CAmount lottery_anv = pog::GetCachedTotalANV();
+    auto lottery_anv = pog::GetCachedTotalANV();
     if (lottery_anv == 0) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "getaddressrank not ready.");
     }
@@ -1404,7 +1404,7 @@ UniValue getaddressrank(const JSONRPCRequest& request)
     UniValue result(UniValue::VOBJ);
     UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
 
-    result.push_back(Pair("lotteryanv", lottery_anv));
+    result.push_back(Pair("lotteryanv", boost::lexical_cast<std::string>(lottery_anv)));
     result.push_back(Pair("lotteryentrants", ranks.second));
     result.push_back(Pair("ranks", rankarr));
 
@@ -1433,7 +1433,7 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
             "\nExamples:\n" +
             HelpExampleCli("getaddressleaderboard", "4") + HelpExampleRpc("getaddressleaderboard", "100"));
 
-    CAmount lottery_anv = pog::GetCachedTotalANV();
+    auto lottery_anv = pog::GetCachedTotalANV();
     if (lottery_anv == 0) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "getaddressleaderboard not ready.");
     }
@@ -1451,7 +1451,7 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
     UniValue result(UniValue::VOBJ);
     UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
 
-    result.push_back(Pair("lotteryanv", lottery_anv));
+    result.push_back(Pair("lotteryanv", boost::lexical_cast<std::string>(lottery_anv)));
     result.push_back(Pair("lotteryentrants", ranks.second));
     result.push_back(Pair("ranks", rankarr));
 
