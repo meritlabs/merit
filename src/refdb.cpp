@@ -6,6 +6,7 @@
 
 #include "base58.h"
 #include <boost/rational.hpp>
+#include <boost/multiprecision/cpp_int.hpp>
 #include <limits>
 
 namespace pog
@@ -38,7 +39,8 @@ namespace referral
     //stores ANV internally as a rational number with numerator/denominator
     using AnvInternal = std::pair<CAmount, CAmount>;
     using ANVTuple = std::tuple<char, Address, AnvInternal>;
-    using AnvRat = boost::rational<CAmount>;
+    using int128_t = boost::multiprecision::int128_t;
+    using AnvRat = boost::rational<int128_t>;
     using TransactionOutIndex = int;
     using ConfirmationVal = std::pair<char, Address>;
 
@@ -313,8 +315,12 @@ namespace referral
 
             anv_rat += change_rat;
 
-            anv_in.first = anv_rat.numerator();
-            anv_in.second = anv_rat.denominator();
+            //boost rational stores the values in normalized form and these sould not overflow
+            anv_in.first = static_cast<CAmount>(anv_rat.numerator());
+            anv_in.second = static_cast<CAmount>(anv_rat.denominator());
+
+            assert(anv_in.first >= 0);
+            assert(anv_in.second > 0);
 
             if (!m_db.Write(std::make_pair(DB_ANV, *address), anv)) {
                 //TODO: Do we rollback anv computation for already processed address?
