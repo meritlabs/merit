@@ -98,16 +98,13 @@ template<typename Stream> inline void ser_writedata128(Stream &s, boost::multipr
     if(boost::multiprecision::abs(obj) >= boost::multiprecision::int128_t{std::numeric_limits<int64_t>::max()}) {
         int64_t low = htole64(std::numeric_limits<int64_t>::max());
         s.write((char*)&low, 8);
-        auto diff = obj >= 0 ? 
+        obj = obj >= 0 ? 
             obj - std::numeric_limits<int64_t>::max():
             obj + std::numeric_limits<int64_t>::max();
+    } 
 
-        int64_t high = htole64(static_cast<int64_t>(diff));
-        s.write((char*)&high, 8);
-    } else {
-        auto val = htole64(static_cast<int64_t>(obj));
-        s.write((char*)&val, 8);
-    }
+    auto val = htole64(static_cast<int64_t>(obj));
+    s.write((char*)&val, 8);
 }
 
 template<typename Stream> inline uint8_t ser_readdata8(Stream &s)
@@ -145,17 +142,14 @@ template<typename Stream> inline boost::multiprecision::int128_t ser_readdata128
 {
     uint64_t l = 0;
     s.read((char*)&l, 8);
-    boost::multiprecision::int128_t low = le64toh(l);
+    boost::multiprecision::int128_t low = static_cast<int64_t>(le64toh(l));
     if(low == std::numeric_limits<int64_t>::max()) {
         uint64_t h = 0;
         s.read((char*)&h, 8);
-        boost::multiprecision::int128_t high = le64toh(h);
+        boost::multiprecision::int128_t high = static_cast<int64_t>(le64toh(h));
         return high >= 0 ? low + high : high - low;
-    } else {
-        uint64_t v = 0;
-        s.read((char*)&v, 8);
-        return le64toh(v);
-    }
+    } 
+    return low;
 }
 
 inline uint64_t ser_double_to_uint64(double x)
