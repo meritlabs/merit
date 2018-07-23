@@ -291,12 +291,9 @@ namespace pog2
             return cached_entrant->second;
         }
 
-        double total_cgs = 0;
-
         const auto child_addresses = db.GetChildren(address);
         Entrants cgs_children;
 
-        double aged_network_size = 1.0;
         for(const auto& child_address : child_addresses) {
             auto maybe_ref = db.GetReferral(child_address);
 
@@ -311,36 +308,22 @@ namespace pog2
                         maybe_ref->GetAddress(),
                         db);
 
-            auto child_height = GetReferralHeight(db, child_address);
-            double age_scale = AgeScale(child_height, tip_height, child_coin_maturity);
-            aged_network_size += age_scale;
-
-            total_cgs += c_cgs.cgs;
             cgs_children.emplace_back(c_cgs);
         }
+        
+        const auto beacon_height = GetReferralHeight(db, address);
+        const auto self_age_scale = 1.0 - AgeScale(beacon_height, tip_height, coin_maturity);
 
         double child_cgs = 0 ;
         size_t network_size = 1;
         for(const auto& c : cgs_children) { 
+            const auto child_height = GetReferralHeight(db, address);
+            const auto child_age_scale = 1.0 - AgeScale(child_height, tip_height, child_coin_maturity);
 
-            auto entrant_balance = GetChildAgedBalance(
-                    context,
-                    tip_height,
-                    child_coin_maturity,
-                    c.address_type,
-                    c.address);
-
-            //const double weighted_cgs = total_cgs > 0 ? c.cgs / (1+cgs_children.size()) : 0;
-            const double weighted_cgs = c.cgs;
-            child_cgs += weighted_cgs;
+            child_cgs += self_age_scale * c.cgs;
             network_size += c.network_size;
         }
 
-        if(child_cgs > 0) {
-            std::cerr << child_cgs << std::endl;
-        }
-
-        const auto beacon_height = GetReferralHeight(db, address);
         const auto balance_pair = GetAgedBalance(
                 context,
                 tip_height,
