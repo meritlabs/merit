@@ -3021,7 +3021,7 @@ void CWallet::AvailableCoins(
             if (!CheckFinalTx(*pcoin))
                 continue;
 
-            if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0 && !invite)
+            if (pcoin->IsCoinBase() && pcoin->GetBlocksToMaturity() > 0)
                 continue;
 
             const bool is_invite = pcoin->IsInvite();

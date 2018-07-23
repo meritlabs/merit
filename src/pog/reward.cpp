@@ -7,17 +7,22 @@
 #include <algorithm>
 #include <numeric>
 
+#include <boost/multiprecision/cpp_int.hpp>
+
 namespace pog
 {
+    using int128_t = boost::multiprecision::int128_t;
+
     AmbassadorLottery RewardAmbassadors(
             int height,
             const referral::AddressANVs& winners,
-            CAmount total_reward)
+            CAmount total_reward_0)
     {
         /**
          * Increase ANV precision on block 16000
          */
-        CAmount fixed_precision = height < 16000 ? 100 : 1000;
+        int128_t fixed_precision = height < 16000 ? 100 : 1000;
+        int128_t total_reward = total_reward_0;
 
         CAmount total_anv =
             std::accumulate(std::begin(winners), std::end(winners), CAmount{0},
@@ -30,10 +35,11 @@ namespace pog
         std::transform(std::begin(winners), std::end(winners), std::begin(rewards),
                 [total_reward, total_anv, fixed_precision](const referral::AddressANV& v)
                 {
-                    double percent = (v.anv*fixed_precision) / total_anv;
-                    CAmount reward = (total_reward * percent) / fixed_precision;
+                    int128_t percent = (v.anv*fixed_precision) / total_anv;
+                    int128_t reward = (total_reward * percent) / fixed_precision;
                     assert(reward <= total_reward);
-                    return AmbassadorReward{v.address_type, v.address, reward};
+                    return AmbassadorReward{
+                        v.address_type, v.address, static_cast<CAmount>(reward)};
                 });
 
         Rewards filtered_rewards;
@@ -52,12 +58,12 @@ namespace pog
                     });
 
         assert(total_rewarded >= 0);
-        assert(total_rewarded <= total_reward);
+        assert(total_rewarded <= total_reward_0);
 
-        auto remainder = total_reward - total_rewarded;
+        auto remainder = total_reward_0 - total_rewarded;
 
         assert(remainder >= 0);
-        assert(remainder <= total_reward);
+        assert(remainder <= total_reward_0);
 
         return {filtered_rewards, remainder};
     }

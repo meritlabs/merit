@@ -1289,7 +1289,7 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
         std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
 
         for (std::vector<AddressPair>::iterator it = addresses.begin(); it != addresses.end(); it++) {
-            if (!GetAddressIndex((*it).first, (*it).second, false, addressIndex)) {
+            if (!GetAddressIndex((*it).first, (*it).second, request_invites, addressIndex)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
             }
         }
@@ -1312,7 +1312,7 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
     return result;
 }
 
-UniValue RanksToUniValue(CAmount lottery_anv, const Ranks& ranks, size_t total)
+UniValue RanksToUniValue(pog::StackedAmount lottery_anv, const Ranks& ranks, size_t total)
 {
     UniValue rankarr(UniValue::VARR);
     for (const auto& r : ranks) {
@@ -1407,15 +1407,6 @@ UniValue getaddressrank(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
 
-    std::vector<CAmount> anvs; 
-    for (const auto& a : addresses) {
-        auto maybe_anv = prefviewdb->GetANV(a.first);
-        if (!maybe_anv) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No anv available for address" + CMeritAddress{a.second, a.first}.ToString());
-        }
-        anvs.push_back(maybe_anv->anv);
-    }
-
     LOCK(cs_main);
 
     
@@ -1484,7 +1475,6 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
             "}\n"
             "\nExamples:\n" +
             HelpExampleCli("getaddressleaderboard", "4") + HelpExampleRpc("getaddressleaderboard", "100"));
-
 
     int total = 100;
     if (request.params[0].isNum()) {

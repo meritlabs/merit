@@ -355,7 +355,7 @@ namespace pog2
         assert(self_cgs >= 0);
 
         const double S[] = {0.25, 0.75};
-        const double cgs = ((S[0] * self_cgs) + (S[1] * child_cgs);
+        const double cgs = ((S[0] * self_cgs) + (S[1] * child_cgs));
 
         Entrant root{
             address_type,

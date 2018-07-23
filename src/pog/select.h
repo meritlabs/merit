@@ -19,7 +19,16 @@ namespace referral
 
 namespace pog
 {
-    using InvertedAnvs = referral::AddressANVs;
+    using StackedAmount = boost::multiprecision::int128_t;
+
+    struct StackedAddressANV
+    {
+        char address_type;
+        referral::Address address;
+        StackedAmount anv;
+    };
+
+    using InvertedAnvs = std::vector<StackedAddressANV>;
     using WalletToAnv = std::map<referral::Address, referral::AddressANV>;
 
     class AnvDistribution
@@ -28,12 +37,12 @@ namespace pog
             AnvDistribution(int height, referral::AddressANVs anvs);
             const referral::AddressANV& Sample(const uint256& hash) const;
             size_t Size() const;
-            uint64_t MaxANV() const;
+            StackedAmount MaxANV() const;
 
         private:
             InvertedAnvs m_inverted;
             WalletToAnv m_anvs;
-            CAmount m_max_anv = 0;
+            StackedAmount m_max_anv = 0;
     };
 
     class WalletSelector
@@ -48,7 +57,7 @@ namespace pog
                     size_t n) const;
 
             size_t Size() const;
-            uint64_t MaxANV() const;
+            StackedAmount MaxANV() const;
         private:
             AnvDistribution m_distribution;
     };
@@ -66,7 +75,7 @@ namespace pog
      */
     bool IsValidAmbassadorDestination(char type);
 
-    CAmount GetCachedTotalANV();
+    StackedAmount GetCachedTotalANV();
 } // namespace pog
 
 #endif //MERIT_POG_SELECT_H
