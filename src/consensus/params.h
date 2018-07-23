@@ -113,6 +113,7 @@ struct Params {
     CAmount pog2_initial_ambassador_stake;
     int pog2_coin_maturity;
     int pog2_child_coin_maturity;
+    int pog2_max_outstanding_invites_per_address;
 
 };
 } // namespace Consensus

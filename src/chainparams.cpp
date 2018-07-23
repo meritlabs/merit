@@ -191,8 +191,9 @@ public:
         consensus.pog2_initial_ambassador_stake = 20_merit;
         //consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Two weeks for coin maturity
         //consensus.pog2_child_coin_maturity = blocks_per_minute * 60 * 24 * 7; //One week for coin maturity
-        consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 14; //Two weeks for coin maturity
+        consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Two weeks for coin maturity
         consensus.pog2_child_coin_maturity = blocks_per_minute * 60 * 24 * 30; //One week for coin maturity
+        consensus.pog2_max_outstanding_invites_per_address = 20;
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -354,6 +355,7 @@ public:
         consensus.pog2_initial_ambassador_stake = 20_merit;
         consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 1; //One day for coin maturity
         consensus.pog2_child_coin_maturity = blocks_per_minute * 60 * 12; //half day for maturity
+        consensus.pog2_max_outstanding_invites_per_address = 20;
 
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
@@ -493,6 +495,7 @@ public:
         consensus.pog2_initial_ambassador_stake = 20_merit;
         consensus.pog2_coin_maturity = blocks_per_minute * 20; //20 minutes for coin maturity
         consensus.pog2_child_coin_maturity = blocks_per_minute * 10; //10 minutes for coin maturity
+        consensus.pog2_max_outstanding_invites_per_address = 20;
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;

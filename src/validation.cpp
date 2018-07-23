@@ -2239,7 +2239,7 @@ bool RewardInvites(
             params.genesis_address,
             total_winners,
             unconfirmed_invites,
-            params.daedalus_max_outstanding_invites_per_address,
+            params.pog2_max_outstanding_invites_per_address,
             selected_new_pool_addresses) :
         pog::SelectConfirmedAddresses(
             *prefviewdb,
