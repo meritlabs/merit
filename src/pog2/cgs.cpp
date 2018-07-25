@@ -146,7 +146,11 @@ namespace pog2
                 });
     }
 
-    Coins GetCoins(int height, char address_type, const referral::Address& address) {
+    Coins GetCoins(
+            int height,
+            char address_type,
+            const referral::Address& address,
+            bool filter_coinbase = true) {
         Coins cs;
         std::vector<UnspentPair> unspent;
         if (!GetAddressUnspent(address, address_type, false, unspent)) {
@@ -155,7 +159,7 @@ namespace pog2
 
         cs.reserve(unspent.size());
         for(const auto& p : unspent) {
-            if(p.first.type == 0 || p.first.isInvite || p.first.isCoinbase) {
+            if(p.first.type == 0 || p.first.isInvite || (filter_coinbase && p.first.isCoinbase)) {
                 continue;
             }
             assert(p.second.satoshis >= 0);
@@ -268,7 +272,7 @@ namespace pog2
         auto cached_balance = context.child_balances.find(address);
 
         if(cached_balance == context.child_balances.end()) {
-            auto coins = GetCoins(tip_height, address_type, address);
+            auto coins = GetCoins(tip_height, address_type, address, false);
             auto balance = AgedBalance(tip_height, coins, maturity, CChildAgedBalance);
             context.child_balances[address] = balance;
             return balance;
@@ -276,7 +280,7 @@ namespace pog2
         return cached_balance->second;
     }
 
-    Entrant ComputeCGS04(
+    Entrant ComputeCGS(
             CGSContext& context,
             double total_aged_network,
             int tip_height,
@@ -298,7 +302,7 @@ namespace pog2
             auto maybe_ref = db.GetReferral(child_address);
 
             auto c_cgs = 
-                ComputeCGS04(
+                ComputeCGS(
                         context,
                         total_aged_network,
                         tip_height,
@@ -311,16 +315,25 @@ namespace pog2
             cgs_children.emplace_back(c_cgs);
         }
         
-        const auto beacon_height = GetReferralHeight(db, address);
-        const auto self_age_scale = 1.0 - AgeScale(beacon_height, tip_height, coin_maturity);
-
         double child_cgs = 0 ;
         size_t network_size = 1;
         for(const auto& c : cgs_children) { 
-            const auto child_height = GetReferralHeight(db, address);
+
+            const auto child_balance = GetChildAgedBalance(
+                    context,
+                    tip_height,
+                    child_coin_maturity,
+                    c.address_type,
+                    c.address);
+
+            const auto child_height = GetReferralHeight(db, c.address);
             const auto child_age_scale = 1.0 - AgeScale(child_height, tip_height, child_coin_maturity);
 
-            child_cgs += self_age_scale * c.cgs;
+            const double ccgs =  (child_age_scale * child_balance.first) + c.cgs;
+            assert(ccgs >= 0);
+
+            child_cgs += ccgs;
+            assert(child_cgs >= 0);
             network_size += c.network_size;
         }
 
@@ -337,7 +350,7 @@ namespace pog2
         CAmount self_cgs = balance_pair.first;
         assert(self_cgs >= 0);
 
-        const double S[] = {0.25, 0.75};
+        const double S[] = {0.10, 0.90};
         const double cgs = ((S[0] * self_cgs) + (S[1] * child_cgs));
 
         Entrant root{
@@ -345,244 +358,19 @@ namespace pog2
                 address,
                 balance_pair.second,
                 static_cast<CAmount>(balance_pair.first),
-                cgs,
+                static_cast<CAmount>(std::ceil(cgs)),
                 1,
                 cgs_children.size(),
                 network_size,
-                beacon_height};
+                GetReferralHeight(db, address),
+                S[0]*self_cgs,
+                S[1]*child_cgs,
+                (S[0]*self_cgs) / cgs,
+                (S[1]*child_cgs) / cgs,
+        };
 
         context.entrant_cgs[address] = root;
         return root;
     }
-
-    Entrant ComputeCGS03(
-            CGSContext& context,
-            double total_aged_network,
-            int tip_height,
-            int coin_maturity,
-            int child_coin_maturity,
-            char address_type,
-            const referral::Address& address,
-            referral::ReferralsViewCache& db)
-    {
-        auto cached_entrant = context.entrant_cgs.find(address);
-        if(cached_entrant != context.entrant_cgs.end()) {
-            return cached_entrant->second;
-        }
-
-        auto balance_pair = GetAgedBalance(
-                context,
-                tip_height,
-                coin_maturity,
-                address_type,
-                address);
-        assert(balance_pair.first >= 0);
-        assert(balance_pair.second >= 0);
-
-        CAmount self_cgs = balance_pair.first;
-        assert(self_cgs >= 0);
-
-        CAmount child_cgs = 0;
-        double scaled_network_size = 0;
-
-        EntrantQueue q;
-
-        Entrant root{
-            address_type,
-                address,
-                balance_pair.second,
-                static_cast<CAmount>(balance_pair.first),
-                0,
-                1,
-                0,
-                0,
-                0};
-        PushChildren(db, root, q);
-
-        while(!q.empty()) {
-            auto n = q.front();
-            q.pop_front();
-
-            if (n.address_type != 1) {
-                continue;
-            }
-
-            root.network_size++;
-            auto entrant_balance = GetChildAgedBalance(
-                    context,
-                    tip_height,
-                    child_coin_maturity,
-                    n.address_type,
-                    n.address);
-
-
-            auto beacon_height = GetReferralHeight(db, n.address);
-            const auto size_scale = 1.0 - AgeScale(beacon_height, tip_height, child_coin_maturity);
-
-            child_cgs += (size_scale * entrant_balance.first) / std::pow(2,n.level);
-
-            scaled_network_size += (size_scale / std::pow(2, static_cast<double>(n.level)));
-
-            PushChildren(db, n, q);
-        }
-
-        const double S[] = {0.25, 0.75};
-        const double cgs = (S[0] *self_cgs) + (S[1]*child_cgs);
-
-        root.cgs = cgs;
-        root.network_size = scaled_network_size;
-
-        context.entrant_cgs[address] = root;
-        return root;
-    }
-
-    Entrant ComputeCGS02(
-            CGSContext& context,
-            double total_aged_network,
-            int tip_height,
-            int coin_maturity,
-            int child_coin_maturity,
-            char address_type,
-            const referral::Address& address,
-            referral::ReferralsViewCache& db)
-    {
-        auto balance_pair = GetAgedBalance(
-                context,
-                tip_height,
-                coin_maturity,
-                address_type,
-                address);
-        assert(balance_pair.first >= 0);
-        assert(balance_pair.second >= 0);
-
-        CAmount self_cgs = balance_pair.first;
-        assert(self_cgs >= 0);
-
-        CAmount child_cgs = 0;
-        double scaled_network_size = 0;
-
-        EntrantQueue q;
-
-        Entrant root{
-            address_type,
-                address,
-                balance_pair.second,
-                static_cast<CAmount>(balance_pair.first),
-                0,
-                1,
-                0,
-                0,
-                0};
-        PushChildren(db, root, q);
-
-        while(!q.empty()) {
-            auto n = q.front();
-            q.pop_front();
-
-            if (n.address_type != 1) {
-                continue;
-            }
-
-            root.network_size++;
-
-            auto entrant_balance = GetChildAgedBalance(
-                    context,
-                    tip_height,
-                    child_coin_maturity,
-                    n.address_type,
-                    n.address);
-
-            child_cgs += entrant_balance.first / std::pow(2,n.level);
-
-            PushChildren(db, n, q);
-        }
-
-        const double S[] = {0.25, 0.75} ;
-        root.cgs = (S[0] *self_cgs) + (S[1]*child_cgs);
-        return root;
-    }
-
-    Entrant ComputeCGS01(
-            CGSContext& context,
-            double total_aged_network,
-            int tip_height,
-            int coin_maturity,
-            int child_coin_maturity,
-            char address_type,
-            const referral::Address& address,
-            referral::ReferralsViewCache& db)
-    {
-        auto balance_pair = GetAgedBalance(
-                context,
-                tip_height,
-                coin_maturity,
-                address_type,
-                address);
-        assert(balance_pair.first >= 0);
-        assert(balance_pair.second >= 0);
-
-        CAmount self_cgs = std::floor(balance_pair.first * 0.75);
-        assert(self_cgs >= 0);
-
-        EntrantQueue q;
-
-        Entrant root{
-            address_type,
-                address,
-                balance_pair.second,
-                static_cast<CAmount>(balance_pair.first),
-                self_cgs,
-                1,
-                0,
-                0,
-                0};
-        PushChildren(db, root, q);
-
-        while(!q.empty()) {
-            auto n = q.front();
-            q.pop_front();
-
-            if (n.address_type != 1) {
-                continue;
-            }
-
-            root.network_size++;
-
-            auto entrant_balance = GetChildAgedBalance(
-                    context,
-                    tip_height,
-                    child_coin_maturity,
-                    n.address_type,
-                    n.address);
-
-            root.cgs += entrant_balance.first / std::pow(2, n.level);
-
-            PushChildren(db, n, q);
-        }
-
-        return root;
-    }
-
-    Entrant ComputeCGS(
-            CGSContext& context,
-            double total_aged_network,
-            int tip_height,
-            int coin_maturity,
-            int child_coin_maturity,
-            char address_type,
-            const referral::Address& address,
-            referral::ReferralsViewCache& db)
-    {
-        return ComputeCGS04(
-                context,
-                total_aged_network,
-                tip_height,
-                coin_maturity,
-                child_coin_maturity,
-                address_type,
-                address,
-                db);
-    }
-
 
 } // namespace pog2

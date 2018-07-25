@@ -23,9 +23,13 @@ namespace pog2
         CAmount aged_balance;
         CAmount cgs;
         double level;
-        int children;
-        int network_size;
+        size_t children;
+        size_t network_size;
         int beacon_height;
+        double self_cgs;
+        double child_cgs;
+        double self_cgs_pt;
+        double child_cgs_pt;
     };
 
     using Entrants = std::vector<Entrant>;
