@@ -350,8 +350,10 @@ namespace pog2
         CAmount self_cgs = balance_pair.first;
         assert(self_cgs >= 0);
 
-        const double S[] = {0.10, 0.90};
-        const double cgs = ((S[0] * self_cgs) + (S[1] * child_cgs));
+        const double S = 0.10;
+        const double w_self_cgs = S * self_cgs;
+        const double w_child_cgs = (1.0 - S) * child_cgs;
+        const double cgs =  w_self_cgs + w_child_cgs;
 
         Entrant root{
             address_type,
@@ -363,10 +365,10 @@ namespace pog2
                 cgs_children.size(),
                 network_size,
                 GetReferralHeight(db, address),
-                S[0]*self_cgs,
-                S[1]*child_cgs,
-                (S[0]*self_cgs) / cgs,
-                (S[1]*child_cgs) / cgs,
+                w_self_cgs,
+                w_child_cgs,
+                w_self_cgs / cgs,
+                w_child_cgs / cgs,
         };
 
         context.entrant_cgs[address] = root;
