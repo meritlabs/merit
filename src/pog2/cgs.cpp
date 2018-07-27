@@ -188,9 +188,18 @@ namespace pog2
         return cached_balance->second;
     }
 
+    //Note that if C0 > C1 and you have A within [0, 1] then 
+    //ConvexF(C0 + A) - ConvexF(C0) > ConvexF(C1 + A) - ConvexF(C1);
     template <class V>
     V ConvexF(V c, V B, V S) { 
-        return B*c + (V{1} - B)*boost::multiprecision::pow(c, V{1} + S);
+        assert(c >= V{0});
+        assert(c <= V{1.01});
+        assert(B >= V{0});
+        assert(B <= V{1.01});
+        assert(S >= V{0});
+        assert(S <= V{1.01});
+
+        return (B*c) + ((V{1} - B)*boost::multiprecision::pow(c, V{1} + S));
     }
 
     template <class V>
@@ -215,15 +224,23 @@ namespace pog2
                 address_type,
                 address);
 
-        const auto height = GetReferralHeight(db, address);
+        const auto height = std::min(GetReferralHeight(db, address), context.tip_height);
+        assert(height >= 0);
+        assert(height <= context.tip_height);
+
         const auto age_scale = 1.0 - AgeScale(height, context.tip_height, context.child_coin_maturity);
 
+        assert(age_scale >= 0);
+        assert(age_scale <= 1.01);
+
         const V contribution = 1_merit + ((age_scale * fresh.second) + old.first);
+
         context.contribution[address] = contribution;
         return contribution;
     }
 
-    //TODO: Implement iterative form
+    //TODO: Implement iterative form and validate it using this recursive form.
+    //The recursive version cannot go into production.
     template< class V>
     std::pair<V, size_t> ContributionSubtree(
             CGSContext& context,
@@ -242,7 +259,7 @@ namespace pog2
         size_t tree_size = 1;
         for(const auto& c:  children) {
             const auto maybe_ref = db.GetReferral(c);
-            if(!maybe_ref) {
+            if(!maybe_ref || maybe_ref->addressType != 1) {
                 continue;
             }
 
@@ -274,12 +291,20 @@ namespace pog2
             const referral::Address& address,
             referral::ReferralsViewCache& db)
     {
-        return ConvexF<V>(
-                ContributionSubtree<V>(
+        assert(context.tree_contribution >= 0);
+        
+        const auto subtree_contribution = 
+            ContributionSubtree<V>(
                     context,
                     address_type,
                     address,
-                    db).first / context.tree_contribution,
+                    db).first;
+
+        assert(subtree_contribution >= 0);
+        assert(subtree_contribution <= context.tree_contribution);
+
+        return ConvexF<V>(
+                subtree_contribution / context.tree_contribution,
                 context.B,
                 context.S);
     }
@@ -365,7 +390,7 @@ namespace pog2
             int height,
             Entrants& entrants)
     {
-        assert(prefviewcache);
+        assert(height >= 0);
 
         referral::AddressANVs anv_entrants;
 

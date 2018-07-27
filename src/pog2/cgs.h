@@ -69,11 +69,6 @@ namespace pog2
             const referral::Address& address,
             referral::ReferralsViewCache& db);
 
-    double AgedNetworkSize(
-            int tip_height,
-            const Consensus::Params& params, 
-            referral::ReferralsViewCache& db);
-
     void TestChain();
 
 } // namespace pog2
