@@ -1916,7 +1916,8 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
     auto reserve_size = max_embassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
-    pog2::GetAllRewardableEntrants(*prefviewcache, params, height, entrants);
+    pog2::CGSContext context;
+    pog2::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
 
     max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
 
@@ -7587,7 +7588,8 @@ std::pair<Pog2Ranks, size_t> CGSRanks(
     auto reserve_size = max_embassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
-    pog2::GetAllRewardableEntrants(*prefviewcache, params, height, entrants);
+    pog2::CGSContext context;
+    pog2::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
 
     max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
 
@@ -7633,7 +7635,8 @@ std::pair<Pog2Ranks, size_t> TopCGSRanks(
     auto reserve_size = max_embassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
-    pog2::GetAllRewardableEntrants(*prefviewcache, params, height, entrants);
+    pog2::CGSContext context;
+    pog2::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
 
     lottery_cgs = std::accumulate(entrants.begin(), entrants.end(), CAmount{0},
             [](CAmount acc, const pog2::Entrant& e) {

@@ -191,8 +191,8 @@ public:
         consensus.pog2_initial_ambassador_stake = 20_merit;
         //consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Two weeks for coin maturity
         //consensus.pog2_child_coin_maturity = blocks_per_minute * 60 * 24 * 7; //One week for coin maturity
-        consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Two weeks for coin maturity
-        consensus.pog2_child_coin_maturity = blocks_per_minute * 60 * 24 * 30; //One week for coin maturity
+        consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 15; //Two weeks for coin maturity
+        consensus.pog2_child_coin_maturity = blocks_per_minute * 60 * 24 * 15; //One week for coin maturity
         consensus.pog2_max_outstanding_invites_per_address = 20;
 
         /**

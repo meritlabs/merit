@@ -9,6 +9,7 @@
 
 #include <stack>
 #include <deque>
+#include <stack>
 #include <numeric>
 
 namespace pog2
@@ -83,69 +84,6 @@ namespace pog2
         return height;
     }
 
-    double AgedNetworkSize(
-            int tip_height,
-            const Consensus::Params& params, 
-            referral::ReferralsViewCache& db,
-            const referral::AddressANVs& all_entrants) {
-
-        double aged_network_size = 0.0;
-        for(const auto& e: all_entrants) {
-            const auto height = GetReferralHeight(db, e.address);
-            const auto scaled_size = 1.0 - AgeScale(height, tip_height, params.pog2_coin_maturity);   
-            aged_network_size += scaled_size;   
-        }
-
-        return aged_network_size;
-    }
-
-    double AgedNetworkSize(
-            int tip_height,
-            const Consensus::Params& params, 
-            referral::ReferralsViewCache& db) {
-
-        referral::AddressANVs all_entrants;
-        db.GetAllRewardableANVs(params, NO_GENESIS, all_entrants);
-        return AgedNetworkSize(tip_height, params, db, all_entrants);
-    }
-
-
-    void GetAllRewardableEntrants(
-            referral::ReferralsViewCache& db,
-            const Consensus::Params& params,
-            int height,
-            Entrants& entrants)
-    {
-        assert(prefviewcache);
-
-        referral::AddressANVs anv_entrants;
-
-        db.GetAllRewardableANVs(params, NO_GENESIS, anv_entrants);
-
-        const auto aged_network_size = AgedNetworkSize(height, params, db, anv_entrants);
-
-        entrants.resize(anv_entrants.size());
-
-        CGSContext context;
-        std::transform(anv_entrants.begin(), anv_entrants.end(), entrants.begin(),
-                [height, &db, &context, &params, aged_network_size](const referral::AddressANV& a) {
-                    auto entrant = ComputeCGS(
-                            context,
-                            aged_network_size,
-                            height,
-                            params.pog2_coin_maturity,
-                            params.pog2_child_coin_maturity,
-                            a.address_type,
-                            a.address,
-                            db);
-
-                    auto height = GetReferralHeight(db, a.address);
-                    assert(height >= 0);
-                    entrant.beacon_height = height;
-                    return entrant;
-                });
-    }
-
     Coins GetCoins(
             int height,
             char address_type,
@@ -217,6 +155,244 @@ namespace pog2
                 })};
     }
 
+    BalancePair GetAgedBalance(
+            CGSContext& context,
+            char address_type,
+            const referral::Address& address)
+    {
+        auto cached_balance = context.balances.find(address);
+
+        if(cached_balance == context.balances.end()) {
+            auto coins = GetCoins(context.tip_height, address_type, address);
+            auto balance = AgedBalance(context.tip_height, coins, context.coin_maturity, SelfAgedBalance);
+            context.balances[address] = balance;
+            return balance;
+        } 
+        return cached_balance->second;
+    }
+
+
+    BalancePair GetChildAgedBalance(
+            CGSContext& context,
+            char address_type,
+            const referral::Address& address)
+    {
+        auto cached_balance = context.child_balances.find(address);
+
+        if(cached_balance == context.child_balances.end()) {
+            auto coins = GetCoins(context.tip_height, address_type, address, false);
+            auto balance = AgedBalance(context.tip_height, coins, context.child_coin_maturity, CChildAgedBalance);
+            context.child_balances[address] = balance;
+            return balance;
+        } 
+        return cached_balance->second;
+    }
+
+    template <class V>
+    V ConvexF(V c, V B, V S) { 
+        return B*c + (V{1} - B)*boost::multiprecision::pow(c, V{1} + S);
+    }
+
+    template <class V>
+    V ContributionNode(
+            CGSContext& context,
+            char address_type,
+            const referral::Address& address,
+            referral::ReferralsViewCache& db)
+    {
+        const auto n = context.contribution.find(address);
+        if(n != context.contribution.end()) {
+            return n->second;
+        }
+
+        const auto old = GetAgedBalance(
+                context,
+                address_type,
+                address);
+
+        const auto fresh = GetChildAgedBalance(
+                context,
+                address_type,
+                address);
+
+        const auto height = GetReferralHeight(db, address);
+        const auto age_scale = 1.0 - AgeScale(height, context.tip_height, context.child_coin_maturity);
+
+        const V contribution = 1_merit + ((age_scale * fresh.second) + old.first);
+        context.contribution[address] = contribution;
+        return contribution;
+    }
+
+    //TODO: Implement iterative form
+    template< class V>
+    std::pair<V, size_t> ContributionSubtree(
+            CGSContext& context,
+            char address_type,
+            const referral::Address& address,
+            referral::ReferralsViewCache& db)
+    {
+        const auto c = context.subtree_contribution.find(address);
+        if (c != context.subtree_contribution.end()) {
+            return c->second;
+        }
+
+        V contribution = 0;
+        const auto children = db.GetChildren(address);
+
+        size_t tree_size = 1;
+        for(const auto& c:  children) {
+            const auto maybe_ref = db.GetReferral(c);
+            if(!maybe_ref) {
+                continue;
+            }
+
+            const auto child_subtree = ContributionSubtree<V>(
+                    context,
+                    maybe_ref->addressType,
+                    maybe_ref->GetAddress(),
+                    db);
+
+            contribution += child_subtree.first;
+            tree_size += child_subtree.second;
+        }
+
+        contribution += ContributionNode<V>(
+                context,
+                address_type,
+                address,
+                db);
+
+        const auto res = std::make_pair(contribution, tree_size);
+        context.subtree_contribution[address] = res;
+        return res;
+    }
+
+    template<class V>
+    V WeightedScore(
+            CGSContext& context,
+            char address_type,
+            const referral::Address& address,
+            referral::ReferralsViewCache& db)
+    {
+        return ConvexF<V>(
+                ContributionSubtree<V>(
+                    context,
+                    address_type,
+                    address,
+                    db).first / context.tree_contribution,
+                context.B,
+                context.S);
+    }
+
+    template<class V>
+        V ExpectedValue(
+            CGSContext& context,
+            char address_type,
+            const referral::Address& address,
+            referral::ReferralsViewCache& db)
+        {
+
+            V child_scores = 0;
+            const auto children = db.GetChildren(address);
+
+            for(const auto& c:  children) {
+                auto maybe_ref = db.GetReferral(c);
+                if(!maybe_ref) {
+                    continue;
+                }
+
+                child_scores += WeightedScore<V>(
+                        context,
+                        maybe_ref->addressType,
+                        maybe_ref->GetAddress(),
+                        db);
+            }
+
+            return WeightedScore<V>(
+                    context,
+                    address_type,
+                    address,
+                    db) - child_scores;
+        }
+
+    Entrant ComputeCGS1(
+            CGSContext& context,
+            char address_type,
+            const referral::Address& address,
+            referral::ReferralsViewCache& db)
+    {
+        context.B = 0.5;
+        context.S = 0.16;
+
+        const auto balance = GetAgedBalance(
+                context,
+                address_type,
+                address);
+
+        const auto children = db.GetChildren(address);
+        const auto height = GetReferralHeight(db, address);
+        const auto cgs = context.tree_contribution * ExpectedValue<BigFloat>(
+                context,
+                address_type,
+                address,
+                db);
+
+        const auto contribution =
+            ContributionNode<BigFloat>(context, address_type, address, db);
+
+        const auto subtree_contribution =
+            ContributionSubtree<BigFloat>(context, address_type, address, db);
+
+        return Entrant{
+            address_type,
+                address,
+                balance.second,
+                balance.first,
+                static_cast<CAmount>(cgs),
+                1,
+                children.size(),
+                subtree_contribution.second,
+                height,
+                static_cast<double>(contribution),
+                std::max(0.0, static_cast<double>(subtree_contribution.first) - static_cast<double>(contribution))
+        };
+    }
+
+    void GetAllRewardableEntrants(
+            CGSContext& context,
+            referral::ReferralsViewCache& db,
+            const Consensus::Params& params,
+            int height,
+            Entrants& entrants)
+    {
+        assert(prefviewcache);
+
+        referral::AddressANVs anv_entrants;
+
+        db.GetAllRewardableANVs(params, NO_GENESIS, anv_entrants);
+
+        entrants.resize(anv_entrants.size());
+
+        context.tip_height = height;
+        context.coin_maturity = params.pog2_coin_maturity;
+        context.child_coin_maturity = params.pog2_child_coin_maturity;
+        context.tree_contribution = ContributionSubtree<BigFloat>(context, 2, params.genesis_address, db).first;
+
+        std::transform(anv_entrants.begin(), anv_entrants.end(), entrants.begin(),
+                [height, &db, &context, &params](const referral::AddressANV& a) {
+                    auto entrant = ComputeCGS(
+                            context,
+                            a.address_type,
+                            a.address,
+                            db);
+
+                    auto height = GetReferralHeight(db, a.address);
+                    assert(height >= 0);
+                    entrant.beacon_height = height;
+                    return entrant;
+                });
+    }
+
     using EntrantQueue = std::deque<Entrant>; 
 
     void PushChildren(
@@ -244,48 +420,8 @@ namespace pog2
         }
     }
 
-    BalancePair GetAgedBalance(
+    Entrant ComputeCGS0(
             CGSContext& context,
-            int tip_height,
-            int maturity,
-            char address_type,
-            const referral::Address& address)
-    {
-        auto cached_balance = context.balances.find(address);
-
-        if(cached_balance == context.balances.end()) {
-            auto coins = GetCoins(tip_height, address_type, address);
-            auto balance = AgedBalance(tip_height, coins, maturity, SelfAgedBalance);
-            context.balances[address] = balance;
-            return balance;
-        } 
-        return cached_balance->second;
-    }
-
-    BalancePair GetChildAgedBalance(
-            CGSContext& context,
-            int tip_height,
-            int maturity,
-            char address_type,
-            const referral::Address& address)
-    {
-        auto cached_balance = context.child_balances.find(address);
-
-        if(cached_balance == context.child_balances.end()) {
-            auto coins = GetCoins(tip_height, address_type, address, false);
-            auto balance = AgedBalance(tip_height, coins, maturity, CChildAgedBalance);
-            context.child_balances[address] = balance;
-            return balance;
-        } 
-        return cached_balance->second;
-    }
-
-    Entrant ComputeCGS(
-            CGSContext& context,
-            double total_aged_network,
-            int tip_height,
-            int coin_maturity,
-            int child_coin_maturity,
             char address_type,
             const referral::Address& address,
             referral::ReferralsViewCache& db)
@@ -302,12 +438,8 @@ namespace pog2
             auto maybe_ref = db.GetReferral(child_address);
 
             auto c_cgs = 
-                ComputeCGS(
+                ComputeCGS0(
                         context,
-                        total_aged_network,
-                        tip_height,
-                        coin_maturity,
-                        child_coin_maturity,
                         maybe_ref->addressType,
                         maybe_ref->GetAddress(),
                         db);
@@ -321,13 +453,15 @@ namespace pog2
 
             const auto child_balance = GetChildAgedBalance(
                     context,
-                    tip_height,
-                    child_coin_maturity,
                     c.address_type,
                     c.address);
 
             const auto child_height = GetReferralHeight(db, c.address);
-            const auto child_age_scale = 1.0 - AgeScale(child_height, tip_height, child_coin_maturity);
+            const auto child_age_scale = 
+                1.0 - AgeScale(
+                    child_height,
+                    context.tip_height,
+                    context.child_coin_maturity);
 
             const double ccgs =  (child_age_scale * child_balance.first) + c.cgs;
             assert(ccgs >= 0);
@@ -339,8 +473,6 @@ namespace pog2
 
         const auto balance_pair = GetAgedBalance(
                 context,
-                tip_height,
-                coin_maturity,
                 address_type,
                 address);
 
@@ -350,9 +482,9 @@ namespace pog2
         CAmount self_cgs = balance_pair.first;
         assert(self_cgs >= 0);
 
-        const double S = 0.10;
+        const double S = 0.50;
         const double w_self_cgs = S * self_cgs;
-        const double w_child_cgs = (1.0 - S) * child_cgs;
+        const double w_child_cgs = std::min(1.0, self_cgs / (1 + (0.1 * child_cgs))) * (1.0 - S) * child_cgs;
         const double cgs =  w_self_cgs + w_child_cgs;
 
         Entrant root{
@@ -365,14 +497,52 @@ namespace pog2
                 cgs_children.size(),
                 network_size,
                 GetReferralHeight(db, address),
-                w_self_cgs,
-                w_child_cgs,
-                w_self_cgs / cgs,
-                w_child_cgs / cgs,
+                self_cgs,
+                child_cgs
         };
 
         context.entrant_cgs[address] = root;
         return root;
     }
 
+    Entrant ComputeCGS(
+            CGSContext& context,
+            char address_type,
+            const referral::Address& address,
+            referral::ReferralsViewCache& db)
+    {
+        return ComputeCGS1(
+                context,
+                address_type,
+                address,
+                db);
+    }
+
+    void TestChain() {
+        BigFloat B = 0.5;
+        BigFloat S = 0.16;
+
+        std::vector<BigFloat> chain = {50.0, 25.0, 23.0, 2.0};
+        std::vector<BigFloat> ev;
+
+        BigFloat total = std::accumulate(chain.begin(), chain.end(), BigFloat{0}, [](BigFloat a, BigFloat v) { return a + v;});
+        BigFloat contrib = 0.0;
+
+        for(auto v : chain) {
+            auto child_weight = ConvexF<BigFloat>(contrib / total, B, S);
+            contrib += v;
+            auto weight = ConvexF<BigFloat>(contrib / total, B, S);
+            std::cerr << "c: " << child_weight << " w: " << weight << " d: " << weight-child_weight << std::endl;
+            ev.push_back(weight - child_weight);
+        }
+
+        std::cout << "EXPECTED VAL " << ConvexF<BigFloat>(1, B, S) << std::endl;
+        std::cout << "expected chain value: ";
+        for(auto v : ev) std::cout << v << " ";
+        std::cout << std::endl;
+        BigFloat chain_total = std::accumulate(ev.begin(), ev.end(), BigFloat{0}, [](BigFloat a, BigFloat v) { return a + v;});
+        std::cout << "CHAIN VAL: " << chain_total << std::endl;
+
+
+    }
 } // namespace pog2

@@ -1362,10 +1362,8 @@ UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t tot
         o.push_back(Pair("balance", r.first.balance));
         o.push_back(Pair("aged_balance", r.first.aged_balance));
         o.push_back(Pair("cgs", r.first.cgs));
-        o.push_back(Pair("selfcgs", r.first.self_cgs));
-        o.push_back(Pair("childcgs", r.first.child_cgs));
-        o.push_back(Pair("selfcgspt", r.first.self_cgs_pt));
-        o.push_back(Pair("childcgspt", r.first.child_cgs_pt));
+        o.push_back(Pair("contribution", r.first.contribution));
+        o.push_back(Pair("subtreecontribution", r.first.subtree_contribution));
 
         double cgs_percent = 
             (static_cast<double>(r.first.cgs) / static_cast<double>(lottery_cgs));
@@ -1413,21 +1411,16 @@ UniValue getaddressrank(const JSONRPCRequest& request)
 
     LOCK(cs_main);
 
+    const auto params = Params().GetConsensus();
     
     pog2::Entrants all_entrants;
-    pog2::GetAllRewardableEntrants(*prefviewcache, Params().GetConsensus(), chainActive.Height(), all_entrants);
-
-    const auto aged_network_size = pog2::AgedNetworkSize(chainActive.Height(), Params().GetConsensus(), *prefviewcache);
+    pog2::CGSContext context;
+    pog2::GetAllRewardableEntrants(context, *prefviewcache, params, chainActive.Height(), all_entrants);
 
     std::vector<CAmount> cgs; 
-    pog2::CGSContext context;
     for (const auto& a : addresses) {
      auto node = pog2::ComputeCGS(
             context,
-            aged_network_size,
-            chainActive.Height(),
-            Params().GetConsensus().pog2_coin_maturity,
-            Params().GetConsensus().pog2_child_coin_maturity,
             a.second,
             a.first,
             *prefviewcache);

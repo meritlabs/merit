@@ -8,6 +8,7 @@
 #include "primitives/referral.h"
 #include "consensus/params.h"
 #include "referrals.h"
+#include "pog2/wrs.h"
 #include "coins.h"
 
 #include <vector>
@@ -26,19 +27,9 @@ namespace pog2
         size_t children;
         size_t network_size;
         int beacon_height;
-        double self_cgs;
-        double child_cgs;
-        double self_cgs_pt;
-        double child_cgs_pt;
+        double contribution;
+        double subtree_contribution;
     };
-
-    using Entrants = std::vector<Entrant>;
-
-    void GetAllRewardableEntrants(
-            referral::ReferralsViewCache&,
-            const Consensus::Params&,
-            int height,
-            Entrants&);
 
     //Aged and non-aged balance.
     using BalancePair = std::pair<double, CAmount>;
@@ -46,17 +37,34 @@ namespace pog2
 
     struct CGSContext
     {
+        int tip_height;
+        int coin_maturity;
+        int child_coin_maturity;
+        BigFloat tree_contribution; 
+
+        std::map<referral::Address, BigFloat> contribution;
+        std::map<referral::Address, std::pair<BigFloat, size_t>> subtree_contribution;
+
         std::map<referral::Address, BalancePair> balances;
         std::map<referral::Address, BalancePair> child_balances;
         std::map<referral::Address, Entrant> entrant_cgs;
+
+        double B;
+        double S;
     };
+
+    using Entrants = std::vector<Entrant>;
+
+    void GetAllRewardableEntrants(
+            CGSContext& context,
+            referral::ReferralsViewCache&,
+            const Consensus::Params&,
+            int height,
+            Entrants&);
+
 
     Entrant ComputeCGS(
             CGSContext& context,
-            double total_aged_network,
-            int height,
-            int coin_maturity,
-            int child_coin_maturity,
             char address_type,
             const referral::Address& address,
             referral::ReferralsViewCache& db);
@@ -65,6 +73,8 @@ namespace pog2
             int tip_height,
             const Consensus::Params& params, 
             referral::ReferralsViewCache& db);
+
+    void TestChain();
 
 } // namespace pog2
 
