@@ -35,14 +35,8 @@ struct CAddressUnspentKey {
     template<typename Stream>
     void Unserialize(Stream& s) {
         unsigned int encoded_type = ser_readdata8(s);
-
-        if(encoded_type >= 10) {
-            type = encoded_type - 10;
-            isInvite = true;
-        } else {
-            type = encoded_type;
-            isInvite = false;
-        }
+        isInvite = encoded_type >= 10;
+        type = isInvite ? encoded_type - 10 : encoded_type;
 
         hashBytes.Unserialize(s);
         txhash.Unserialize(s);
