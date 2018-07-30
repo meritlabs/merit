@@ -225,7 +225,10 @@ namespace pog2
                 address);
 
         const auto height = std::min(GetReferralHeight(db, address), context.tip_height);
-        assert(height >= 0);
+        if(height < 0 ) {
+            return V{0.0};
+        }
+
         assert(height <= context.tip_height);
 
         const auto age_scale = 1.0 - AgeScale(height, context.tip_height, context.child_coin_maturity);
@@ -234,6 +237,7 @@ namespace pog2
         assert(age_scale <= 1.01);
 
         const V contribution = 1_merit + ((age_scale * fresh.second) + old.first);
+        //const V contribution = std::sqrt(old.first)*std::log1p(old.first);
 
         context.contribution[address] = contribution;
         return contribution;
@@ -259,7 +263,7 @@ namespace pog2
         size_t tree_size = 1;
         for(const auto& c:  children) {
             const auto maybe_ref = db.GetReferral(c);
-            if(!maybe_ref || maybe_ref->addressType != 1) {
+            if(!maybe_ref) {
                 continue;
             }
 
@@ -272,6 +276,7 @@ namespace pog2
             contribution += child_subtree.first;
             tree_size += child_subtree.second;
         }
+        std::cerr << "CHILD: " << contribution << std::endl;
 
         contribution += ContributionNode<V>(
                 context,
@@ -284,6 +289,77 @@ namespace pog2
         return res;
     }
 
+    //Iterative Form.
+    using Children = std::vector<referral::Address>;
+    struct Node 
+    {
+        char address_type;
+        referral::Address address;
+        Children children;
+        BigFloat subtree_contribution;
+        size_t tree_size;
+    };
+    using Nodes = std::stack<Node>;
+
+    template< class V>
+    std::pair<V, size_t> ContributionSubtreeIter(
+            CGSContext& context,
+            char address_type,
+            const referral::Address& address,
+            referral::ReferralsViewCache& db)
+    {
+        const auto c = context.subtree_contribution.find(address);
+        if (c != context.subtree_contribution.end()) {
+            return c->second;
+        }
+
+        V contribution = 0;
+        size_t tree_size = 0;
+        const auto children = db.GetChildren(address);
+        const auto maybe_ref = db.GetReferral(address);
+        if(!maybe_ref) {
+            return std::pair<V, size_t>(0, 0);
+        }
+
+        Nodes ns;
+        ns.push({maybe_ref->addressType, maybe_ref->GetAddress(), children, 0, 0});
+        while(!ns.empty()) {
+            auto& n = ns.top();
+            n.subtree_contribution += contribution;
+            n.tree_size += tree_size;
+
+            if(n.children.empty()) {
+                n.subtree_contribution += ContributionNode<V>(
+                        context,
+                        n.address_type,
+                        n.address,
+                        db);
+
+                n.tree_size++;
+                contribution = n.subtree_contribution;
+                tree_size = n.tree_size;
+
+                context.subtree_contribution[n.address] = std::make_pair(n.subtree_contribution, n.tree_size);
+                ns.pop();
+
+            } else {
+                auto child_address = n.children.back();
+                n.children.pop_back();
+
+                contribution = 0;
+                tree_size = 0;
+
+                const auto children = db.GetChildren(child_address);
+                auto maybe_ref = db.GetReferral(child_address);
+                if(maybe_ref) {
+                    ns.push({maybe_ref->addressType, maybe_ref->GetAddress(), children, 0, 0});
+                }
+            }
+        }
+
+        return context.subtree_contribution[address];
+    }
+
     template<class V>
     V WeightedScore(
             CGSContext& context,
@@ -294,12 +370,13 @@ namespace pog2
         assert(context.tree_contribution >= 0);
         
         const auto subtree_contribution = 
-            ContributionSubtree<V>(
+            ContributionSubtreeIter<V>(
                     context,
                     address_type,
                     address,
                     db).first;
 
+        std::cerr << CMeritAddress{address_type, address}.ToString() << " " << subtree_contribution << " <= " << context.tree_contribution << std::endl;
         assert(subtree_contribution >= 0);
         assert(subtree_contribution <= context.tree_contribution);
 
@@ -366,7 +443,7 @@ namespace pog2
             ContributionNode<BigFloat>(context, address_type, address, db);
 
         const auto subtree_contribution =
-            ContributionSubtree<BigFloat>(context, address_type, address, db);
+            ContributionSubtreeIter<BigFloat>(context, address_type, address, db);
 
         return Entrant{
             address_type,
@@ -401,7 +478,7 @@ namespace pog2
         context.tip_height = height;
         context.coin_maturity = params.pog2_coin_maturity;
         context.child_coin_maturity = params.pog2_child_coin_maturity;
-        context.tree_contribution = ContributionSubtree<BigFloat>(context, 2, params.genesis_address, db).first;
+        context.tree_contribution = ContributionSubtreeIter<BigFloat>(context, 2, params.genesis_address, db).first;
 
         std::transform(anv_entrants.begin(), anv_entrants.end(), entrants.begin(),
                 [height, &db, &context, &params](const referral::AddressANV& a) {
@@ -547,7 +624,7 @@ namespace pog2
         BigFloat B = 0.5;
         BigFloat S = 0.16;
 
-        std::vector<BigFloat> chain = {50.0, 25.0, 23.0, 2.0};
+        std::vector<BigFloat> chain = {25.0, 25.0, 25.0, 25.0};
         std::vector<BigFloat> ev;
 
         BigFloat total = std::accumulate(chain.begin(), chain.end(), BigFloat{0}, [](BigFloat a, BigFloat v) { return a + v;});
@@ -557,17 +634,34 @@ namespace pog2
             auto child_weight = ConvexF<BigFloat>(contrib / total, B, S);
             contrib += v;
             auto weight = ConvexF<BigFloat>(contrib / total, B, S);
-            std::cerr << "c: " << child_weight << " w: " << weight << " d: " << weight-child_weight << std::endl;
+            std::cerr << "\tp: " << child_weight << " n: " << weight-child_weight << std::endl;
             ev.push_back(weight - child_weight);
         }
 
-        std::cout << "EXPECTED VAL " << ConvexF<BigFloat>(1, B, S) << std::endl;
-        std::cout << "expected chain value: ";
+        std::cout << "chain percents: ";
         for(auto v : ev) std::cout << v << " ";
         std::cout << std::endl;
         BigFloat chain_total = std::accumulate(ev.begin(), ev.end(), BigFloat{0}, [](BigFloat a, BigFloat v) { return a + v;});
+        
+        std::cout << "EXPECTED VAL " << ConvexF<BigFloat>(1, B, S) << std::endl;
         std::cout << "CHAIN VAL: " << chain_total << std::endl;
 
+        std::cout << "CGS 0: chain total: " << total << std::endl;
+        contrib = 0;
+        ev.clear();
+        for(auto v : chain) {
+            auto pc = contrib;
+            auto weight = (0.5 * v) + (0.5 * contrib);
+            contrib = weight;
+            std::cerr << "\tp: " << pc << " n: " << weight << std::endl;
+            ev.push_back(contrib);
+        }
+        chain_total = std::accumulate(ev.begin(), ev.end(), BigFloat{0}, [](BigFloat a, BigFloat v) { return a + v;});
+        std::cout << "chain percent: ";
+        for(auto v : ev) std::cout << v/chain_total << " ";
+        std::cout << std::endl;
+        std::cout << "EXPECTED VAL: " << total * 0.5 << std::endl;
+        std::cout << "CHAIN VAL: " << chain_total << std::endl;
 
     }
 } // namespace pog2
