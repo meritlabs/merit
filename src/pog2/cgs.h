@@ -39,7 +39,7 @@ namespace pog2
     {
         int tip_height;
         int coin_maturity;
-        int child_coin_maturity;
+        int new_coin_maturity;
         BigFloat tree_contribution; 
 
         std::map<referral::Address, BigFloat> contribution;

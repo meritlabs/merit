@@ -112,7 +112,7 @@ struct Params {
     int pog2_new_distribution_age;
     CAmount pog2_initial_ambassador_stake;
     int pog2_coin_maturity;
-    int pog2_child_coin_maturity;
+    int pog2_new_coin_maturity;
     int pog2_max_outstanding_invites_per_address;
 
 };

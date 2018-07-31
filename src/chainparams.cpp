@@ -190,9 +190,9 @@ public:
         consensus.pog2_new_distribution_age = blocks_per_minute * 60 * 24 * 7; // a week
         consensus.pog2_initial_ambassador_stake = 20_merit;
         //consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Two weeks for coin maturity
-        //consensus.pog2_child_coin_maturity = blocks_per_minute * 60 * 24 * 7; //One week for coin maturity
-        consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 15; //Two weeks for coin maturity
-        consensus.pog2_child_coin_maturity = blocks_per_minute * 60 * 24 * 15; //One week for coin maturity
+        //consensus.pog2_new_coin_maturity = blocks_per_minute * 60 * 24 * 7; //One week for coin maturity
+        consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Two weeks for coin maturity
+        consensus.pog2_new_coin_maturity = blocks_per_minute * 60 * 24 * 30; //One week for coin maturity
         consensus.pog2_max_outstanding_invites_per_address = 20;
 
         /**
@@ -354,7 +354,7 @@ public:
         consensus.pog2_new_distribution_age = 2*24*60; // two days
         consensus.pog2_initial_ambassador_stake = 20_merit;
         consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 1; //One day for coin maturity
-        consensus.pog2_child_coin_maturity = blocks_per_minute * 60 * 12; //half day for maturity
+        consensus.pog2_new_coin_maturity = blocks_per_minute * 60 * 12; //half day for maturity
         consensus.pog2_max_outstanding_invites_per_address = 20;
 
         pchMessageStart[0] = 0x0b;
@@ -494,7 +494,7 @@ public:
         consensus.pog2_new_distribution_age = 10; // 10 seconds
         consensus.pog2_initial_ambassador_stake = 20_merit;
         consensus.pog2_coin_maturity = blocks_per_minute * 20; //20 minutes for coin maturity
-        consensus.pog2_child_coin_maturity = blocks_per_minute * 10; //10 minutes for coin maturity
+        consensus.pog2_new_coin_maturity = blocks_per_minute * 10; //10 minutes for coin maturity
         consensus.pog2_max_outstanding_invites_per_address = 20;
 
         pchMessageStart[0] = 0xfa;

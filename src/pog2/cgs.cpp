@@ -121,7 +121,7 @@ namespace pog2
         return BalancePair{amount, c.amount};
     }
 
-    BalancePair CChildAgedBalance(int tip_height, const Coin& c, int maturity) {
+    BalancePair CReverseAgedBalance(int tip_height, const Coin& c, int maturity) {
         assert(tip_height >= 0);
         assert(c.height <= tip_height);
         assert(c.amount >= 0);
@@ -143,16 +143,20 @@ namespace pog2
                 [tip_height, maturity, &AgedBalanceFunc](const Coin& c) {
                     return AgedBalanceFunc(tip_height, c, maturity);
                 });
-        
-        return BalancePair{
+
+        auto aged_balance = 
             std::accumulate(balances.begin(), balances.end(), double{0}, 
                 [](double amount, const BalancePair& b) {
                     return amount + b.first;
-                }),
-            std::accumulate(balances.begin(), balances.end(), double{0}, 
+               });
+
+        auto balance =std::accumulate(balances.begin(), balances.end(), double{0}, 
                 [](double amount, const BalancePair& b) {
                     return amount + b.second;
-                })};
+                });
+        
+        assert(aged_balance <= balance);
+        return BalancePair{aged_balance, balance};
     }
 
     BalancePair GetAgedBalance(
@@ -163,7 +167,7 @@ namespace pog2
         auto cached_balance = context.balances.find(address);
 
         if(cached_balance == context.balances.end()) {
-            auto coins = GetCoins(context.tip_height, address_type, address);
+            auto coins = GetCoins(context.tip_height, address_type, address, true);
             auto balance = AgedBalance(context.tip_height, coins, context.coin_maturity, SelfAgedBalance);
             context.balances[address] = balance;
             return balance;
@@ -172,7 +176,7 @@ namespace pog2
     }
 
 
-    BalancePair GetChildAgedBalance(
+    BalancePair GetReverseAgedBalance(
             CGSContext& context,
             char address_type,
             const referral::Address& address)
@@ -181,15 +185,16 @@ namespace pog2
 
         if(cached_balance == context.child_balances.end()) {
             auto coins = GetCoins(context.tip_height, address_type, address, false);
-            auto balance = AgedBalance(context.tip_height, coins, context.child_coin_maturity, CChildAgedBalance);
+            auto balance = AgedBalance(context.tip_height, coins, context.new_coin_maturity, CReverseAgedBalance);
             context.child_balances[address] = balance;
             return balance;
         } 
         return cached_balance->second;
     }
 
-    //Note that if C0 > C1 and you have A within [0, 1] then 
+    //Convex function with property that if C0 > C1 and you have A within [0, 1] then 
     //ConvexF(C0 + A) - ConvexF(C0) > ConvexF(C1 + A) - ConvexF(C1);
+    //See: Lottery Trees: Motivational Deployment of Networked Systems
     template <class V>
     V ConvexF(V c, V B, V S) { 
         assert(c >= V{0});
@@ -219,7 +224,7 @@ namespace pog2
                 address_type,
                 address);
 
-        const auto fresh = GetChildAgedBalance(
+        const auto fresh = GetReverseAgedBalance(
                 context,
                 address_type,
                 address);
@@ -231,65 +236,19 @@ namespace pog2
 
         assert(height <= context.tip_height);
 
-        const auto age_scale = 1.0 - AgeScale(height, context.tip_height, context.child_coin_maturity);
+        const auto age_scale = 1.0 - AgeScale(height, context.tip_height, context.new_coin_maturity);
 
         assert(age_scale >= 0);
         assert(age_scale <= 1.01);
 
-        const V contribution = 1_merit + ((age_scale * fresh.second) + old.first);
-        //const V contribution = std::sqrt(old.first)*std::log1p(old.first);
+        const V contribution = (age_scale * fresh.second) + old.first;
+        assert(contribution >= 0);
+        assert(contribution <= fresh.second);
 
         context.contribution[address] = contribution;
         return contribution;
     }
 
-    //TODO: Implement iterative form and validate it using this recursive form.
-    //The recursive version cannot go into production.
-    template< class V>
-    std::pair<V, size_t> ContributionSubtree(
-            CGSContext& context,
-            char address_type,
-            const referral::Address& address,
-            referral::ReferralsViewCache& db)
-    {
-        const auto c = context.subtree_contribution.find(address);
-        if (c != context.subtree_contribution.end()) {
-            return c->second;
-        }
-
-        V contribution = 0;
-        const auto children = db.GetChildren(address);
-
-        size_t tree_size = 1;
-        for(const auto& c:  children) {
-            const auto maybe_ref = db.GetReferral(c);
-            if(!maybe_ref) {
-                continue;
-            }
-
-            const auto child_subtree = ContributionSubtree<V>(
-                    context,
-                    maybe_ref->addressType,
-                    maybe_ref->GetAddress(),
-                    db);
-
-            contribution += child_subtree.first;
-            tree_size += child_subtree.second;
-        }
-        std::cerr << "CHILD: " << contribution << std::endl;
-
-        contribution += ContributionNode<V>(
-                context,
-                address_type,
-                address,
-                db);
-
-        const auto res = std::make_pair(contribution, tree_size);
-        context.subtree_contribution[address] = res;
-        return res;
-    }
-
-    //Iterative Form.
     using Children = std::vector<referral::Address>;
     struct Node 
     {
@@ -301,6 +260,11 @@ namespace pog2
     };
     using Nodes = std::stack<Node>;
 
+    /**
+     * Computes the subtree contribution rooted at the address specified.
+     * This algorithm computes the subtree contribution by doing a post order
+     * traversal of the ambassador tree.
+     */
     template< class V>
     std::pair<V, size_t> ContributionSubtreeIter(
             CGSContext& context,
@@ -309,20 +273,29 @@ namespace pog2
             referral::ReferralsViewCache& db)
     {
         const auto c = context.subtree_contribution.find(address);
+
         if (c != context.subtree_contribution.end()) {
             return c->second;
         }
 
-        V contribution = 0;
-        size_t tree_size = 0;
         const auto children = db.GetChildren(address);
         const auto maybe_ref = db.GetReferral(address);
+
         if(!maybe_ref) {
             return std::pair<V, size_t>(0, 0);
         }
 
+        V contribution = 0;
+        size_t tree_size = 0;
+
         Nodes ns;
-        ns.push({maybe_ref->addressType, maybe_ref->GetAddress(), children, 0, 0});
+        ns.push({
+                maybe_ref->addressType,
+                maybe_ref->GetAddress(),
+                children,
+                0,
+                0});
+
         while(!ns.empty()) {
             auto& n = ns.top();
             n.subtree_contribution += contribution;
@@ -334,25 +307,32 @@ namespace pog2
                         n.address_type,
                         n.address,
                         db);
-
                 n.tree_size++;
+
                 contribution = n.subtree_contribution;
                 tree_size = n.tree_size;
 
-                context.subtree_contribution[n.address] = std::make_pair(n.subtree_contribution, n.tree_size);
+                context.subtree_contribution[n.address] =
+                    std::make_pair(n.subtree_contribution, n.tree_size);
+
                 ns.pop();
 
             } else {
-                auto child_address = n.children.back();
+                const auto child_address = n.children.back();
                 n.children.pop_back();
 
                 contribution = 0;
                 tree_size = 0;
 
                 const auto children = db.GetChildren(child_address);
-                auto maybe_ref = db.GetReferral(child_address);
+                const auto maybe_ref = db.GetReferral(child_address);
                 if(maybe_ref) {
-                    ns.push({maybe_ref->addressType, maybe_ref->GetAddress(), children, 0, 0});
+                    ns.push({
+                            maybe_ref->addressType,
+                            maybe_ref->GetAddress(),
+                            children,
+                            0,
+                            0});
                 }
             }
         }
@@ -376,7 +356,6 @@ namespace pog2
                     address,
                     db).first;
 
-        std::cerr << CMeritAddress{address_type, address}.ToString() << " " << subtree_contribution << " <= " << context.tree_contribution << std::endl;
         assert(subtree_contribution >= 0);
         assert(subtree_contribution <= context.tree_contribution);
 
@@ -417,14 +396,14 @@ namespace pog2
                     db) - child_scores;
         }
 
-    Entrant ComputeCGS1(
+    Entrant ComputeCGS(
             CGSContext& context,
             char address_type,
             const referral::Address& address,
             referral::ReferralsViewCache& db)
     {
-        context.B = 0.5;
-        context.S = 0.16;
+        context.B = 0.1;
+        context.S = 0.03;
 
         const auto balance = GetAgedBalance(
                 context,
@@ -477,7 +456,7 @@ namespace pog2
 
         context.tip_height = height;
         context.coin_maturity = params.pog2_coin_maturity;
-        context.child_coin_maturity = params.pog2_child_coin_maturity;
+        context.new_coin_maturity = params.pog2_new_coin_maturity;
         context.tree_contribution = ContributionSubtreeIter<BigFloat>(context, 2, params.genesis_address, db).first;
 
         std::transform(anv_entrants.begin(), anv_entrants.end(), entrants.begin(),
@@ -495,173 +474,4 @@ namespace pog2
                 });
     }
 
-    using EntrantQueue = std::deque<Entrant>; 
-
-    void PushChildren(
-            const referral::ReferralsViewCache& db,
-            Entrant& n,
-            EntrantQueue& q) 
-    {
-        const auto children = db.GetChildren(n.address);
-        n.children = children.size();
-        for(const auto& address : children) {
-
-            auto maybe_ref = db.GetReferral(address);
-            if(maybe_ref) { 
-                q.push_back({
-                        maybe_ref->addressType,
-                        maybe_ref->GetAddress(),
-                        0,
-                        0,
-                        0,
-                        n.level + 1,
-                        0,
-                        0,
-                        0});
-            }
-        }
-    }
-
-    Entrant ComputeCGS0(
-            CGSContext& context,
-            char address_type,
-            const referral::Address& address,
-            referral::ReferralsViewCache& db)
-    {
-        auto cached_entrant = context.entrant_cgs.find(address);
-        if(cached_entrant != context.entrant_cgs.end()) {
-            return cached_entrant->second;
-        }
-
-        const auto child_addresses = db.GetChildren(address);
-        Entrants cgs_children;
-
-        for(const auto& child_address : child_addresses) {
-            auto maybe_ref = db.GetReferral(child_address);
-
-            auto c_cgs = 
-                ComputeCGS0(
-                        context,
-                        maybe_ref->addressType,
-                        maybe_ref->GetAddress(),
-                        db);
-
-            cgs_children.emplace_back(c_cgs);
-        }
-        
-        double child_cgs = 0 ;
-        size_t network_size = 1;
-        for(const auto& c : cgs_children) { 
-
-            const auto child_balance = GetChildAgedBalance(
-                    context,
-                    c.address_type,
-                    c.address);
-
-            const auto child_height = GetReferralHeight(db, c.address);
-            const auto child_age_scale = 
-                1.0 - AgeScale(
-                    child_height,
-                    context.tip_height,
-                    context.child_coin_maturity);
-
-            const double ccgs =  (child_age_scale * child_balance.first) + c.cgs;
-            assert(ccgs >= 0);
-
-            child_cgs += ccgs;
-            assert(child_cgs >= 0);
-            network_size += c.network_size;
-        }
-
-        const auto balance_pair = GetAgedBalance(
-                context,
-                address_type,
-                address);
-
-        assert(balance_pair.first >= 0);
-        assert(balance_pair.second >= 0);
-
-        CAmount self_cgs = balance_pair.first;
-        assert(self_cgs >= 0);
-
-        const double S = 0.50;
-        const double w_self_cgs = S * self_cgs;
-        const double w_child_cgs = std::min(1.0, self_cgs / (1 + (0.1 * child_cgs))) * (1.0 - S) * child_cgs;
-        const double cgs =  w_self_cgs + w_child_cgs;
-
-        Entrant root{
-            address_type,
-                address,
-                balance_pair.second,
-                static_cast<CAmount>(balance_pair.first),
-                static_cast<CAmount>(std::ceil(cgs)),
-                1,
-                cgs_children.size(),
-                network_size,
-                GetReferralHeight(db, address),
-                self_cgs,
-                child_cgs
-        };
-
-        context.entrant_cgs[address] = root;
-        return root;
-    }
-
-    Entrant ComputeCGS(
-            CGSContext& context,
-            char address_type,
-            const referral::Address& address,
-            referral::ReferralsViewCache& db)
-    {
-        return ComputeCGS1(
-                context,
-                address_type,
-                address,
-                db);
-    }
-
-    void TestChain() {
-        BigFloat B = 0.5;
-        BigFloat S = 0.16;
-
-        std::vector<BigFloat> chain = {25.0, 25.0, 25.0, 25.0};
-        std::vector<BigFloat> ev;
-
-        BigFloat total = std::accumulate(chain.begin(), chain.end(), BigFloat{0}, [](BigFloat a, BigFloat v) { return a + v;});
-        BigFloat contrib = 0.0;
-
-        for(auto v : chain) {
-            auto child_weight = ConvexF<BigFloat>(contrib / total, B, S);
-            contrib += v;
-            auto weight = ConvexF<BigFloat>(contrib / total, B, S);
-            std::cerr << "\tp: " << child_weight << " n: " << weight-child_weight << std::endl;
-            ev.push_back(weight - child_weight);
-        }
-
-        std::cout << "chain percents: ";
-        for(auto v : ev) std::cout << v << " ";
-        std::cout << std::endl;
-        BigFloat chain_total = std::accumulate(ev.begin(), ev.end(), BigFloat{0}, [](BigFloat a, BigFloat v) { return a + v;});
-        
-        std::cout << "EXPECTED VAL " << ConvexF<BigFloat>(1, B, S) << std::endl;
-        std::cout << "CHAIN VAL: " << chain_total << std::endl;
-
-        std::cout << "CGS 0: chain total: " << total << std::endl;
-        contrib = 0;
-        ev.clear();
-        for(auto v : chain) {
-            auto pc = contrib;
-            auto weight = (0.5 * v) + (0.5 * contrib);
-            contrib = weight;
-            std::cerr << "\tp: " << pc << " n: " << weight << std::endl;
-            ev.push_back(contrib);
-        }
-        chain_total = std::accumulate(ev.begin(), ev.end(), BigFloat{0}, [](BigFloat a, BigFloat v) { return a + v;});
-        std::cout << "chain percent: ";
-        for(auto v : ev) std::cout << v/chain_total << " ";
-        std::cout << std::endl;
-        std::cout << "EXPECTED VAL: " << total * 0.5 << std::endl;
-        std::cout << "CHAIN VAL: " << chain_total << std::endl;
-
-    }
 } // namespace pog2
