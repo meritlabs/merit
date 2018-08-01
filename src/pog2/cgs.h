@@ -31,6 +31,20 @@ namespace pog2
         double subtree_contribution;
     };
 
+    using ContributionAmount = BigFloat;
+    struct Contribution
+    {
+        ContributionAmount value;
+        ContributionAmount log;
+    };
+
+    struct SubtreeContribution
+    {
+        ContributionAmount value;
+        ContributionAmount log;
+        size_t tree_size;
+    };
+
     //Aged and non-aged balance.
     using BalancePair = std::pair<double, CAmount>;
     using BalancePairs = std::vector<BalancePair>;
@@ -40,10 +54,10 @@ namespace pog2
         int tip_height;
         int coin_maturity;
         int new_coin_maturity;
-        BigFloat tree_contribution; 
+        SubtreeContribution tree_contribution; 
 
-        std::map<referral::Address, BigFloat> contribution;
-        std::map<referral::Address, std::pair<BigFloat, size_t>> subtree_contribution;
+        std::map<referral::Address, Contribution> contribution;
+        std::map<referral::Address, SubtreeContribution> subtree_contribution;
 
         std::map<referral::Address, BalancePair> balances;
         std::map<referral::Address, BalancePair> child_balances;

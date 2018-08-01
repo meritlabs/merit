@@ -207,8 +207,7 @@ namespace pog2
         return (B*c) + ((V{1} - B)*boost::multiprecision::pow(c, V{1} + S));
     }
 
-    template <class V>
-    V ContributionNode(
+    Contribution ContributionNode(
             CGSContext& context,
             char address_type,
             const referral::Address& address,
@@ -231,7 +230,7 @@ namespace pog2
 
         const auto height = std::min(GetReferralHeight(db, address), context.tip_height);
         if(height < 0 ) {
-            return V{0.0};
+            return Contribution{0.0, 0.0};
         }
 
         assert(height <= context.tip_height);
@@ -241,12 +240,15 @@ namespace pog2
         assert(age_scale >= 0);
         assert(age_scale <= 1.01);
 
-        const V contribution = (age_scale * fresh.second) + old.first;
-        assert(contribution >= 0);
-        assert(contribution <= fresh.second);
+        Contribution c;
+        c.value = (age_scale * fresh.second) + old.first;
+        c.log = boost::multiprecision::log(c.value);
 
-        context.contribution[address] = contribution;
-        return contribution;
+        assert(c.value >= 0);
+        assert(c.value <= fresh.second);
+
+        context.contribution[address] = c;
+        return c;
     }
 
     using Children = std::vector<referral::Address>;
@@ -255,8 +257,7 @@ namespace pog2
         char address_type;
         referral::Address address;
         Children children;
-        BigFloat subtree_contribution;
-        size_t tree_size;
+        SubtreeContribution contribution;
     };
     using Nodes = std::stack<Node>;
 
@@ -265,8 +266,7 @@ namespace pog2
      * This algorithm computes the subtree contribution by doing a post order
      * traversal of the ambassador tree.
      */
-    template< class V>
-    std::pair<V, size_t> ContributionSubtreeIter(
+    SubtreeContribution ContributionSubtreeIter(
             CGSContext& context,
             char address_type,
             const referral::Address& address,
@@ -282,11 +282,13 @@ namespace pog2
         const auto maybe_ref = db.GetReferral(address);
 
         if(!maybe_ref) {
-            return std::pair<V, size_t>(0, 0);
+            return {0, 0, 0};
         }
 
-        V contribution = 0;
-        size_t tree_size = 0;
+        SubtreeContribution contribution;
+        contribution.value = 0;
+        contribution.log = 0;
+        contribution.tree_size = 0;
 
         Nodes ns;
         ns.push({
@@ -298,22 +300,23 @@ namespace pog2
 
         while(!ns.empty()) {
             auto& n = ns.top();
-            n.subtree_contribution += contribution;
-            n.tree_size += tree_size;
+            n.contribution.value += contribution.value;
+            n.contribution.log += contribution.log;
+            n.contribution.tree_size += contribution.tree_size;
 
             if(n.children.empty()) {
-                n.subtree_contribution += ContributionNode<V>(
+                auto c = ContributionNode(
                         context,
                         n.address_type,
                         n.address,
                         db);
-                n.tree_size++;
 
-                contribution = n.subtree_contribution;
-                tree_size = n.tree_size;
+                n.contribution.value += c.value;
+                n.contribution.log += c.log;
+                n.contribution.tree_size++;
 
-                context.subtree_contribution[n.address] =
-                    std::make_pair(n.subtree_contribution, n.tree_size);
+                contribution = n.contribution;
+                context.subtree_contribution[n.address] = n.contribution;
 
                 ns.pop();
 
@@ -321,18 +324,19 @@ namespace pog2
                 const auto child_address = n.children.back();
                 n.children.pop_back();
 
-                contribution = 0;
-                tree_size = 0;
+                contribution.value = 0;
+                contribution.log = 0;
+                contribution.tree_size = 0;
 
                 const auto children = db.GetChildren(child_address);
                 const auto maybe_ref = db.GetReferral(child_address);
+
                 if(maybe_ref) {
                     ns.push({
                             maybe_ref->addressType,
                             maybe_ref->GetAddress(),
                             children,
-                            0,
-                            0});
+                            {0,0, 0}});
                 }
             }
         }
@@ -340,40 +344,38 @@ namespace pog2
         return context.subtree_contribution[address];
     }
 
-    template<class V>
-    V WeightedScore(
+    ContributionAmount WeightedScore(
             CGSContext& context,
             char address_type,
             const referral::Address& address,
             referral::ReferralsViewCache& db)
     {
-        assert(context.tree_contribution >= 0);
+        assert(context.tree_contribution.value >= 0);
         
         const auto subtree_contribution = 
-            ContributionSubtreeIter<V>(
+            ContributionSubtreeIter(
                     context,
                     address_type,
                     address,
-                    db).first;
+                    db).value;
 
         assert(subtree_contribution >= 0);
-        assert(subtree_contribution <= context.tree_contribution);
+        assert(subtree_contribution <= context.tree_contribution.value);
 
-        return ConvexF<V>(
-                subtree_contribution / context.tree_contribution,
+        return ConvexF<ContributionAmount>(
+                subtree_contribution / context.tree_contribution.value,
                 context.B,
                 context.S);
     }
 
-    template<class V>
-        V ExpectedValue(
+        ContributionAmount ExpectedValue(
             CGSContext& context,
             char address_type,
             const referral::Address& address,
             referral::ReferralsViewCache& db)
         {
 
-            V child_scores = 0;
+            ContributionAmount child_scores = 0;
             const auto children = db.GetChildren(address);
 
             for(const auto& c:  children) {
@@ -382,14 +384,14 @@ namespace pog2
                     continue;
                 }
 
-                child_scores += WeightedScore<V>(
+                child_scores += WeightedScore(
                         context,
                         maybe_ref->addressType,
                         maybe_ref->GetAddress(),
                         db);
             }
 
-            return WeightedScore<V>(
+            return WeightedScore(
                     context,
                     address_type,
                     address,
@@ -412,17 +414,17 @@ namespace pog2
 
         const auto children = db.GetChildren(address);
         const auto height = GetReferralHeight(db, address);
-        const auto cgs = context.tree_contribution * ExpectedValue<BigFloat>(
+        const auto cgs = context.tree_contribution.value * ExpectedValue(
                 context,
                 address_type,
                 address,
                 db);
 
         const auto contribution =
-            ContributionNode<BigFloat>(context, address_type, address, db);
+            ContributionNode(context, address_type, address, db);
 
         const auto subtree_contribution =
-            ContributionSubtreeIter<BigFloat>(context, address_type, address, db);
+            ContributionSubtreeIter(context, address_type, address, db);
 
         return Entrant{
             address_type,
@@ -432,10 +434,10 @@ namespace pog2
                 static_cast<CAmount>(cgs),
                 1,
                 children.size(),
-                subtree_contribution.second,
+                subtree_contribution.tree_size,
                 height,
-                static_cast<double>(contribution),
-                std::max(0.0, static_cast<double>(subtree_contribution.first) - static_cast<double>(contribution))
+                static_cast<double>(contribution.value),
+                std::max(0.0, static_cast<double>(subtree_contribution.value) - static_cast<double>(contribution.value))
         };
     }
 
@@ -457,7 +459,7 @@ namespace pog2
         context.tip_height = height;
         context.coin_maturity = params.pog2_coin_maturity;
         context.new_coin_maturity = params.pog2_new_coin_maturity;
-        context.tree_contribution = ContributionSubtreeIter<BigFloat>(context, 2, params.genesis_address, db).first;
+        context.tree_contribution = ContributionSubtreeIter(context, 2, params.genesis_address, db);
 
         std::transform(anv_entrants.begin(), anv_entrants.end(), entrants.begin(),
                 [height, &db, &context, &params](const referral::AddressANV& a) {
