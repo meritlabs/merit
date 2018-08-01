@@ -101,7 +101,7 @@ If you want to stop mining, you run...
     
 Pool Mining
 ---------------
-You can pool mine merit using [merit-minderd](https://github.com/meritlabs/libmeritminer) or directly from the [Desktop Wallet](https://www.merit.me/get-started/#get-merit-desktop). A free [pool](https://pool.merit.me) is provided for all users by the Merit Foundation.
+You can pool mine merit using [merit-minerd](https://github.com/meritlabs/libmeritminer) or directly from the [Desktop Wallet](https://www.merit.me/get-started/#get-merit-desktop). A free [pool](https://pool.merit.me) is provided for all users by the Merit Foundation.
 
 Developer Resources
 -------------------
