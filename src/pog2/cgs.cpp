@@ -242,7 +242,7 @@ namespace pog2
 
         Contribution c;
         c.value = (age_scale * fresh.second) + old.first;
-        c.log = boost::multiprecision::log(c.value);
+        c.log = boost::multiprecision::log1p(c.value);
 
         assert(c.value >= 0);
         assert(c.value <= fresh.second);
