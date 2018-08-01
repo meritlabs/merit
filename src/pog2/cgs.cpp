@@ -344,35 +344,49 @@ namespace pog2
         return context.subtree_contribution[address];
     }
 
+    ContributionAmount GetValue(const SubtreeContribution& t)
+    {
+        return t.value;
+    }
+
+    ContributionAmount GetLog(const SubtreeContribution& t)
+    {
+        return t.value;
+    }
+
+    template <class ValueFunc>
     ContributionAmount WeightedScore(
             CGSContext& context,
             char address_type,
             const referral::Address& address,
-            referral::ReferralsViewCache& db)
+            referral::ReferralsViewCache& db,
+            ValueFunc value)
     {
         assert(context.tree_contribution.value >= 0);
         
-        const auto subtree_contribution = 
-            ContributionSubtreeIter(
+        const auto subtree_contribution = value(
+                ContributionSubtreeIter(
                     context,
                     address_type,
                     address,
-                    db).value;
+                    db));
 
         assert(subtree_contribution >= 0);
-        assert(subtree_contribution <= context.tree_contribution.value);
+        assert(subtree_contribution <= value(context.tree_contribution));
 
         return ConvexF<ContributionAmount>(
-                subtree_contribution / context.tree_contribution.value,
+                subtree_contribution / value(context.tree_contribution),
                 context.B,
                 context.S);
     }
 
+    template <class ValueFunc>
         ContributionAmount ExpectedValue(
             CGSContext& context,
             char address_type,
             const referral::Address& address,
-            referral::ReferralsViewCache& db)
+            referral::ReferralsViewCache& db,
+            ValueFunc value)
         {
 
             ContributionAmount child_scores = 0;
@@ -388,14 +402,14 @@ namespace pog2
                         context,
                         maybe_ref->addressType,
                         maybe_ref->GetAddress(),
-                        db);
+                        db, value);
             }
 
             return WeightedScore(
                     context,
                     address_type,
                     address,
-                    db) - child_scores;
+                    db, value) - child_scores;
         }
 
     Entrant ComputeCGS(
@@ -418,7 +432,15 @@ namespace pog2
                 context,
                 address_type,
                 address,
-                db);
+                db,
+                GetValue);
+
+        const auto log_cgs = context.tree_contribution.log * ExpectedValue(
+                context,
+                address_type,
+                address,
+                db,
+                GetLog);
 
         const auto contribution =
             ContributionNode(context, address_type, address, db);
@@ -432,6 +454,7 @@ namespace pog2
                 balance.second,
                 balance.first,
                 static_cast<CAmount>(cgs),
+                static_cast<CAmount>(log_cgs),
                 1,
                 children.size(),
                 subtree_contribution.tree_size,

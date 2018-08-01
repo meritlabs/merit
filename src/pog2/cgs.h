@@ -23,6 +23,7 @@ namespace pog2
         CAmount balance;
         CAmount aged_balance;
         CAmount cgs;
+        CAmount log_cgs;
         double level;
         size_t children;
         size_t network_size;

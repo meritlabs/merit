@@ -184,7 +184,9 @@ public:
         // PoG v2 settings.
         consensus.pog2_blockheight = 400000;
         consensus.pog2_total_winning_ambassadors = 15;
+        consensus.pog2_total_old_winning_ambassadors = 5;
         consensus.pog2_total_new_winning_ambassadors = 5;
+        consensus.pog2_total_log_winning_ambassadors = 5;
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 5 * 60 * 60; // every 5 hours
         consensus.pog2_new_distribution_age = blocks_per_minute * 60 * 24 * 7; // a week
@@ -348,7 +350,9 @@ public:
         // PoG v2 settings.
         consensus.pog2_blockheight = 100000;
         consensus.pog2_total_winning_ambassadors = 15;
+        consensus.pog2_total_old_winning_ambassadors = 5;
         consensus.pog2_total_new_winning_ambassadors = 5;
+        consensus.pog2_total_log_winning_ambassadors = 5;
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 1 * 60 * 60; // every hour
         consensus.pog2_new_distribution_age = 2*24*60; // two days
@@ -488,7 +492,9 @@ public:
         // PoG v2 settings.
         consensus.pog2_blockheight = 10;
         consensus.pog2_total_winning_ambassadors = 15;
+        consensus.pog2_total_old_winning_ambassadors = 5;
         consensus.pog2_total_new_winning_ambassadors = 5;
+        consensus.pog2_total_log_winning_ambassadors = 5;
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 30 * 60; // every 30 min
         consensus.pog2_new_distribution_age = 10; // 10 seconds

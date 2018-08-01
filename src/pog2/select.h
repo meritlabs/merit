@@ -64,6 +64,11 @@ namespace pog2
                     uint256 hash,
                     size_t n);
 
+            pog2::Entrants SelectLog(
+                    const referral::ReferralsViewCache& referrals,
+                    uint256 hash,
+                    size_t n);
+
             const pog2::Entrants& OldEntrants() const;
             const pog2::Entrants& NewEntrants() const;
 
@@ -78,6 +83,7 @@ namespace pog2
             const pog2::Entrants m_entrants;
             CgsDistributionPtr m_old_distribution;
             CgsDistributionPtr m_new_distribution;
+            CgsDistributionPtr m_log_distribution;
             SampledAddresses m_sampled;
             const CAmount m_stake_minumum;
     };

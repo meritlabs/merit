@@ -153,8 +153,17 @@ namespace pog2
                 });
         m_new_distribution.reset(new CgsDistribution{new_entrants});
 
+        pog2::Entrants log_entrants(entrants.size());
+        std::transform(entrants.begin(), entrants.end(), log_entrants.begin(),
+                [](Entrant e) {
+                    std::swap(e.cgs, e.log_cgs);
+                    return e;
+                });
+        m_log_distribution.reset(new CgsDistribution{log_entrants});
+
         assert(m_old_distribution);
         assert(m_new_distribution);
+        assert(m_log_distribution);
     }
 
     const pog2::Entrants& AddressSelector::Entrants() const
@@ -231,6 +240,15 @@ namespace pog2
     {
         assert(m_new_distribution);
         return Select( referrals, hash, n, *m_new_distribution);
+    }
+
+    pog2::Entrants AddressSelector::SelectLog(
+            const referral::ReferralsViewCache& referrals,
+            uint256 hash,
+            size_t n)
+    {
+        assert(m_log_distribution);
+        return Select( referrals, hash, n, *m_log_distribution);
     }
 
     const pog2::Entrants& AddressSelector::OldEntrants() const

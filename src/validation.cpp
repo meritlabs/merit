@@ -1926,8 +1926,8 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
 
     // We may have fewer keys in the distribution than the expected winners,
     // so just pick smallest of the two.
-    const auto desired_winners = std::min(
-            params.pog2_total_winning_ambassadors + params.pog2_total_new_winning_ambassadors,
+    auto desired_winners = std::min(
+            params.pog2_total_winning_ambassadors,
             static_cast<int64_t>(selector->Size()));
 
     LogPrint(BCLog::POG, "%s: Desired winners: %d\n", __func__, desired_winners);
@@ -1941,10 +1941,21 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
     // validate sane winner amount
     assert(desired_winners < 100);
 
-    auto desired_old_winners = std::min(params.pog2_total_winning_ambassadors, desired_winners);
-    auto desired_new_winners = std::max(int64_t{0}, desired_winners - desired_old_winners);
+    auto desired_old_winners = std::min(params.pog2_total_old_winning_ambassadors, desired_winners);
+    desired_winners -= desired_old_winners;
+    auto desired_new_winners = std::min(params.pog2_total_new_winning_ambassadors, desired_winners);
+    desired_winners -= desired_new_winners;
+    auto desired_log_winners = std::min(params.pog2_total_log_winning_ambassadors, desired_winners);
+    desired_winners -= desired_log_winners;
 
-    LogPrint(BCLog::POG, "%s: Desired new winners: %d Desired old winners: %d\n", __func__, desired_new_winners, desired_old_winners);
+    assert(desired_winners == 0);
+
+    LogPrint(BCLog::POG,
+            "%s: Desired old winners: %d Desired new winners: %d, Desired log winners: %d\n",
+            __func__,
+            desired_old_winners,
+            desired_new_winners,
+            desired_log_winners);
 
     // Select the N winners using the previous block hash as the seed
     auto old_winners = selector->SelectOld(
@@ -1957,17 +1968,33 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
             previous_block_hash,
             desired_new_winners);
 
+    auto log_winners = selector->SelectLog(
+            *prefviewcache,
+            previous_block_hash,
+            desired_log_winners);
+
     LogPrint(BCLog::POG, "%s: Old winners: %d\n", __func__, old_winners.size());
     LogWinners(old_winners);
     LogPrint(BCLog::POG, "%s: New winners: %d\n", __func__, new_winners.size());
     LogWinners(new_winners);
+    LogPrint(BCLog::POG, "%s: Log winners: %d\n", __func__, log_winners.size());
+    LogWinners(log_winners);
 
     pog2::Entrants winners;
-    winners.reserve(old_winners.size() + new_winners.size());
+    winners.reserve(old_winners.size() + new_winners.size() + log_winners.size());
     winners.insert(winners.end(), old_winners.begin(), old_winners.end());
     winners.insert(winners.end(), new_winners.begin(), new_winners.end());
 
-    assert(old_winners.size() + new_winners.size() <= (desired_old_winners + desired_new_winners));
+    //We need to swap cgs and log_cgs here because the log distribution has those
+    //values swapped.
+    std::transform(log_winners.begin(), log_winners.end(), std::back_inserter(winners),
+            [](pog2::Entrant e) {
+                std::swap(e.cgs, e.log_cgs);
+                return e;
+            });
+
+    assert(old_winners.size() + new_winners.size() + log_winners.size()
+            <= (desired_old_winners + desired_new_winners + desired_log_winners));
 
     // Compute reward for all the winners
     auto rewards = pog2::RewardAmbassadors(height, winners, total);
