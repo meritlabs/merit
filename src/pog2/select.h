@@ -30,7 +30,7 @@ namespace pog2
     {
         public:
             CgsDistribution(pog2::Entrants entrants);
-            const pog2::Entrant& Sample(const uint256& hash) const;
+            pog2::MaybeEntrant Sample(const uint256& hash) const;
             size_t Size() const;
             const pog2::Entrants& Entrants() const;
 

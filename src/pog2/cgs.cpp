@@ -388,6 +388,9 @@ namespace pog2
             referral::ReferralsViewCache& db,
             ValueFunc value)
         {
+            if(value(context.tree_contribution) == 0) {
+                return 0;
+            }
 
             ContributionAmount child_scores = 0;
             const auto children = db.GetChildren(address);

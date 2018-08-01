@@ -101,10 +101,13 @@ namespace pog2
         assert(m_max_cgs >= 0);
     }
 
-    const pog2::Entrant& CgsDistribution::Sample(const uint256& hash) const
+    pog2::MaybeEntrant CgsDistribution::Sample(const uint256& hash) const
     {
         //It doesn't make sense to sample from an empty distribution.
         assert(m_inverted.empty() == false);
+        if(m_max_cgs == 0) {
+            return {};
+        }
 
         const auto selected_cgs = SipHashUint256(0, 0, hash) % m_max_cgs;
 
@@ -185,37 +188,45 @@ namespace pog2
         pog2::Entrants samples;
 
         auto max_tries = distribution.Size();
+        n = std::min(n, max_tries);
 
         LogPrint(BCLog::POG, "%s: Selecting Ambassadors: %d Max: %d Out of: %d\n", __func__, n, max_tries, distribution.Size());
 
         while(n-- && max_tries--) {
-            const auto& sampled = distribution.Sample(hash);
-
+            const auto sampled = distribution.Sample(hash);
             //combine hashes and hash to get next sampling value
             CHashWriter hasher{SER_DISK, CLIENT_VERSION};
-            hasher << hash << sampled.address;
-            hash = hasher.GetHash();
+            if(sampled) {
+                hasher << hash << sampled->address;
+                hash = hasher.GetHash();
+            } else {
+                //combine hashes and hash to get next sampling value
+                CHashWriter hasher{SER_DISK, CLIENT_VERSION};
+                hasher << hash << hash;
+                hash = hasher.GetHash();
+                continue;
+            }
 
-            const bool not_sampled = m_sampled.count(sampled.address) == 0;
-            const bool meets_stake_minumum = sampled.balance >= m_stake_minumum;
+            const bool not_sampled = m_sampled.count(sampled->address) == 0;
+            const bool meets_stake_minumum = sampled->balance >= m_stake_minumum;
 
-            if( not_sampled && meets_stake_minumum && referrals.IsConfirmed(sampled.address)) {
+            if( not_sampled && meets_stake_minumum && referrals.IsConfirmed(sampled->address)) {
                 LogPrint(BCLog::POG, "%s: \tSelected %d: addr: %s cgs: %d abal: %d\n", __func__, 
                         n,
-                        CMeritAddress{sampled.address_type, sampled.address}.ToString(),
-                        sampled.cgs,
-                        sampled.aged_balance);
-                m_sampled.insert(sampled.address);
-                samples.push_back(sampled);
+                        CMeritAddress{sampled->address_type, sampled->address}.ToString(),
+                        sampled->cgs,
+                        sampled->aged_balance);
+                m_sampled.insert(sampled->address);
+                samples.push_back(*sampled);
             } else {
                 LogPrint(BCLog::POG, "%s: \tSkipped %d: addr: %s  sampled: %d, meetsstake: %d, cgs: %d bal: %d abal: %d\n", __func__, 
                         n,
-                        CMeritAddress{sampled.address_type, sampled.address}.ToString(),
+                        CMeritAddress{sampled->address_type, sampled->address}.ToString(),
                         !not_sampled,
                         meets_stake_minumum,
-                        sampled.cgs,
-                        sampled.balance,
-                        sampled.aged_balance);
+                        sampled->cgs,
+                        sampled->balance,
+                        sampled->aged_balance);
                 n++;
             }
         }

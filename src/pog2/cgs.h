@@ -12,6 +12,7 @@
 #include "coins.h"
 
 #include <vector>
+#include <boost/optional.hpp>
 
 namespace pog2
 {
@@ -31,6 +32,8 @@ namespace pog2
         double contribution;
         double subtree_contribution;
     };
+
+    using MaybeEntrant = boost::optional<Entrant>;
 
     using ContributionAmount = BigFloat;
     struct Contribution
