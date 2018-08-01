@@ -26,7 +26,6 @@ Community Resources
 Merit aims to be present wherever users of the community are.  To that end, you can find members of the core team on:
 
 ![Slack Badge](https://slackin.merit.me/badge.svg) 
-* [Slack](https://slackin.merit.me) 
 * [Telegram](https://t.me/meritworld)
 * [Discord](https://discord.gg/X3v3n3b)
 * [Merit Forum](https://forum.merit.me/) @ www.merit.me
