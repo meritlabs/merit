@@ -361,6 +361,13 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> RewardAmbassadors(
         CAmount total,
         const Consensus::Params&);
 
+std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassadors(
+        int height,
+        const uint256& previous_block_hash,
+        CAmount total,
+        const Consensus::Params& params,
+        bool force_pog2 = false);
+
 bool RewardInvites(
         pog2::AddressSelectorPtr,
         int height,
@@ -371,7 +378,8 @@ bool RewardInvites(
         const Consensus::Params& params,
         CValidationState& state,
         pog::InviteRewards& rewards,
-        referral::ConfirmedAddresses& selected_new_pool_addresses);
+        referral::ConfirmedAddresses& selected_new_pool_addresses,
+        bool force_pog2 = false);
 
 /**
  * Include ambassadors into the coinbase transaction and split the total payment between them.

@@ -1904,9 +1904,13 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
         int height,
         const uint256& previous_block_hash,
         CAmount total,
-        const Consensus::Params& params)
+        const Consensus::Params& params, 
+        bool force_pog2)
 {
-    assert(height >= params.pog2_blockheight);
+    if(!force_pog2) {
+        assert(height >= params.pog2_blockheight);
+    }
+
     assert(prefviewdb != nullptr);
 
     static size_t max_embassador_lottery = 0;
@@ -2204,7 +2208,8 @@ bool RewardInvites(
         const Consensus::Params& params,
         CValidationState& state,
         pog::InviteRewards& rewards,
-        referral::ConfirmedAddresses& selected_new_pool_addresses)
+        referral::ConfirmedAddresses& selected_new_pool_addresses,
+        bool force_pog2)
 {
     assert(height >= 0);
     assert(prefviewdb != nullptr);
@@ -2221,7 +2226,7 @@ bool RewardInvites(
         return false;
     }
 
-    const bool pog2 = height >= params.pog2_blockheight;
+    const bool pog2 = force_pog2 || height >= params.pog2_blockheight;
     assert(!pog2 || cgs_selector);
 
     const auto total_winners = pog2 ? 

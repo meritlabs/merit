@@ -17,6 +17,7 @@
 #include "txmempool.h"
 #include "util.h"
 #include "utilstrencodings.h"
+#include "consensus/validation.h"
 #include "validation.h"
 
 #include "pog/anv.h"
@@ -1495,6 +1496,120 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
     return result;
 }
 
+UniValue simulatelottery(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() > 2)
+        throw std::runtime_error(
+            "simulatelottery \"seed\" \"height\"\n"
+            "\nReturns lottery winnings given the seed\n"
+            "\nArguments:\n"
+            "\"seed\"  (string) Seed to generate winnings.\n"
+            "\"height\"  (string) Height to generate winners.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"lotteryanv\"  (number) The aggregate ANV of all addresses in the lottery\n"
+            "   \"ambassadors\": [\n"
+            "       {\n"
+            "           \"address\"  (string) Address\n"
+            "           \"amount\"      (number) amount\n"
+            "       },\n"
+            "       ...\n"
+            "   ],\n"
+            "   \"invites\": [\n"
+            "       {\n"
+            "           \"address\"  (string) Address\n"
+            "           \"amount\"   (number) amount\n"
+            "       },\n"
+            "       ...\n"
+            "   ]\n"
+            "}\n"
+            "\nExamples:\n" +
+            HelpExampleCli("simulatelottery", "4") + HelpExampleRpc("getaddressleaderboard", "100"));
+
+    auto seed = chainActive.Tip()->GetBlockHash();
+    auto height = chainActive.Tip()->nHeight;
+
+    if (request.params[0].isStr()) {
+        auto seed_str = request.params[0].get_str();
+        seed = Hash(seed_str.begin(), seed_str.end());
+    } else if(request.params[0].isNum()) {
+        height = request.params[0].get_int();
+        if(height <= 0) {
+            throw JSONRPCError(RPC_INVALID_PARAMS, "height cannot be negative");
+        }
+
+        auto b = chainActive[height];
+        if(b) { 
+            seed = b->GetBlockHash();
+        }
+    }
+
+    if (request.params[0].isStr() && request.params[1].isNum()) {
+        height = request.params[0].get_int();
+        if(height <= 0) {
+            throw JSONRPCError(RPC_INVALID_PARAMS, "height cannot be negative");
+        }
+    }
+
+    const auto& params = Params().GetConsensus();
+
+    const auto subsidy = GetSplitSubsidy(params.pog2_blockheight, params);
+    const bool FORCE_POG2 = true;
+
+    auto rewards = Pog2RewardAmbassadors(
+            height,
+            seed,
+            subsidy.ambassador,
+            params,
+            FORCE_POG2);
+
+    CCoinsViewCache view(pcoinsTip);
+    DebitsAndCredits dummy_debits_and_credits;
+    CValidationState dummy_state;
+    pog::InviteRewards invite_rewards;
+    referral::ConfirmedAddresses selected_new_pool_addresses;
+
+    if(!RewardInvites(
+        rewards.second,
+        height,
+        chainActive[height],
+        seed,
+        view,
+        dummy_debits_and_credits,
+        params,
+        dummy_state,
+        invite_rewards,
+        selected_new_pool_addresses,
+        FORCE_POG2)) {
+
+        throw JSONRPCError(RPC_MISC_ERROR, "error running invite lottery");
+    }
+
+    UniValue result(UniValue::VOBJ);
+    UniValue ambassadors(UniValue::VARR);
+    UniValue invites(UniValue::VARR);
+
+    for(const auto& r: rewards.first.winners) { 
+        UniValue o(UniValue::VOBJ);
+        o.push_back(Pair("address", CMeritAddress{r.address_type, r.address}.ToString()));
+        o.push_back(Pair("amount", r.amount));
+        ambassadors.push_back(o);
+    }
+
+    for(const auto& i : invite_rewards) {
+        UniValue o(UniValue::VOBJ);
+        o.push_back(Pair("address", CMeritAddress{i.address_type, i.address}.ToString()));
+        o.push_back(Pair("amount", i.invites));
+        invites.push_back(o);
+    }
+
+    result.push_back(Pair("seed", seed.GetHex()));
+    result.push_back(Pair("height", height));
+    result.push_back(Pair("ambassadors", ambassadors));
+    result.push_back(Pair("invites", invites));
+    return result;
+}
+
 namespace
 {
 // (height, invite, id)
@@ -1964,6 +2079,7 @@ static const CRPCCommand commands[] =
         {"addressindex", "getaddressleaderboard", &getaddressleaderboard, {}},
         {"addressindex", "getaddressrewards", &getaddressrewards, {}},
         {"addressindex", "getaddressanv", &getaddressanv, {}},
+        {"addressindex", "simulatelottery", &simulatelottery, {}},
 
         /* Blockchain */
         {"blockchain", "getspentinfo", &getspentinfo, {}},
