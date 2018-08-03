@@ -455,7 +455,7 @@ namespace pog2
             address_type,
                 address,
                 balance.second,
-                balance.first,
+                static_cast<CAmount>(balance.first),
                 static_cast<CAmount>(cgs),
                 static_cast<CAmount>(log_cgs),
                 1,
