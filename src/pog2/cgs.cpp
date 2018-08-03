@@ -88,7 +88,7 @@ namespace pog2
             int height,
             char address_type,
             const referral::Address& address,
-            bool filter_coinbase = true) {
+            bool filter_coinbase) {
         Coins cs;
         std::vector<UnspentPair> unspent;
         if (!GetAddressUnspent(address, address_type, false, unspent)) {
@@ -167,7 +167,7 @@ namespace pog2
         auto cached_balance = context.balances.find(address);
 
         if(cached_balance == context.balances.end()) {
-            auto coins = GetCoins(context.tip_height, address_type, address, true);
+            auto coins = GetCoins(context.tip_height, address_type, address, false);
             auto balance = AgedBalance(context.tip_height, coins, context.coin_maturity, SelfAgedBalance);
             context.balances[address] = balance;
             return balance;
