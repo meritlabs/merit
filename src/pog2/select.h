@@ -54,23 +54,18 @@ namespace pog2
 
             const pog2::Entrants& Entrants() const;
 
-            pog2::Entrants SelectOld(
+            pog2::Entrants SelectByCgs(
                     const referral::ReferralsViewCache& referrals,
                     uint256 hash,
                     size_t n);
 
-            pog2::Entrants SelectNew(
+            pog2::Entrants SelectBySubCgs(
                     const referral::ReferralsViewCache& referrals,
                     uint256 hash,
                     size_t n);
 
-            pog2::Entrants SelectLog(
-                    const referral::ReferralsViewCache& referrals,
-                    uint256 hash,
-                    size_t n);
-
-            const pog2::Entrants& OldEntrants() const;
-            const pog2::Entrants& NewEntrants() const;
+            const pog2::Entrants& CgsEntrants() const;
+            const pog2::Entrants& SubCgsEntrants() const;
 
             size_t Size() const;
         private:
@@ -81,9 +76,8 @@ namespace pog2
                     const CgsDistribution& distribution);
 
             const pog2::Entrants m_entrants;
-            CgsDistributionPtr m_old_distribution;
-            CgsDistributionPtr m_new_distribution;
-            CgsDistributionPtr m_log_distribution;
+            CgsDistributionPtr m_cgs_distribution;
+            CgsDistributionPtr m_sub_distribution;
             SampledAddresses m_sampled;
             const CAmount m_stake_minumum;
     };

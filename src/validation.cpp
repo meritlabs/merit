@@ -1898,7 +1898,6 @@ void LogWinners(const pog2::Entrants& es)
                 CMeritAddress{e.address_type, e.address}.ToString(),
                 e.cgs,
                 e.children,
-                e.level,
                 e.network_size);
     }
 }
@@ -1948,45 +1947,48 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
     // validate sane winner amount
     assert(desired_winners < 100);
 
-    auto desired_old_winners = std::max(1, static_cast<int>(desired_winners / 2));
-    auto desired_log_winners = desired_old_winners;
+    auto desired_cgs_winners = std::max(1, static_cast<int>(desired_winners / 2));
+    auto desired_sub_winners = desired_cgs_winners;
 
     LogPrint(BCLog::POG,
             "%s: Desired old winners: %d Desired log winners: %d\n",
             __func__,
-            desired_old_winners,
-            desired_log_winners);
+            desired_cgs_winners,
+            desired_sub_winners);
 
     // Select the N winners using the previous block hash as the seed
-    auto old_winners = selector->SelectOld(
+    // from the CGS distribution. This CGS distribution is weighted towards stake.
+    auto cgs_winners = selector->SelectByCgs(
             *prefviewcache,
             previous_block_hash,
-            desired_old_winners);
+            desired_cgs_winners);
 
-    auto log_winners = selector->SelectLog(
+    // The SubCgs here means Sublinear CGS. This distribution is more weighted
+    // towards growth.
+    auto sub_winners = selector->SelectBySubCgs(
             *prefviewcache,
             previous_block_hash,
-            desired_log_winners);
+            desired_sub_winners);
 
-    LogPrint(BCLog::POG, "%s: Old winners: %d\n", __func__, old_winners.size());
-    LogWinners(old_winners);
-    LogPrint(BCLog::POG, "%s: Log winners: %d\n", __func__, log_winners.size());
-    LogWinners(log_winners);
+    LogPrint(BCLog::POG, "%s: Cgs winners: %d\n", __func__, cgs_winners.size());
+    LogWinners(cgs_winners);
+    LogPrint(BCLog::POG, "%s: SubCgs winners: %d\n", __func__, sub_winners.size());
+    LogWinners(sub_winners);
 
     pog2::Entrants winners;
-    winners.reserve(old_winners.size() + log_winners.size());
-    winners.insert(winners.end(), old_winners.begin(), old_winners.end());
+    winners.reserve(cgs_winners.size() + sub_winners.size());
+    winners.insert(winners.end(), cgs_winners.begin(), cgs_winners.end());
 
-    //We need to swap cgs and log_cgs here because the log distribution has those
+    //We need to swap cgs and sub_cgs here because the log distribution has those
     //values swapped.
-    std::transform(log_winners.begin(), log_winners.end(), std::back_inserter(winners),
+    std::transform(sub_winners.begin(), sub_winners.end(), std::back_inserter(winners),
             [](pog2::Entrant e) {
-                std::swap(e.cgs, e.log_cgs);
+                std::swap(e.cgs, e.sub_cgs);
                 return e;
             });
 
-    assert(old_winners.size() + log_winners.size()
-            <= (desired_old_winners + desired_log_winners));
+    assert(cgs_winners.size() + sub_winners.size()
+            <= (desired_cgs_winners + desired_sub_winners));
 
     // Compute reward for all the winners
     auto rewards = pog2::RewardAmbassadors(height, winners, total);

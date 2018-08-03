@@ -144,29 +144,18 @@ namespace pog2
         m_entrants{entrants},
         m_stake_minumum{GetAmbassadorMinumumStake(height, params)}
     {
-        m_old_distribution.reset(new CgsDistribution{entrants});
+        m_cgs_distribution.reset(new CgsDistribution{entrants});
 
-        pog2::Entrants new_entrants;
-        std::copy_if(entrants.begin(), entrants.end(), std::back_inserter(new_entrants),
-                [height,&params](const Entrant& e) {
-                    assert(height >= e.beacon_height);
-                    const double age = height - e.beacon_height;
-                    return age <= params.pog2_new_distribution_age;
-
-                });
-        m_new_distribution.reset(new CgsDistribution{new_entrants});
-
-        pog2::Entrants log_entrants(entrants.size());
-        std::transform(entrants.begin(), entrants.end(), log_entrants.begin(),
+        pog2::Entrants sub_entrants(entrants.size());
+        std::transform(entrants.begin(), entrants.end(), sub_entrants.begin(),
                 [](Entrant e) {
-                    std::swap(e.cgs, e.log_cgs);
+                    std::swap(e.cgs, e.sub_cgs);
                     return e;
                 });
-        m_log_distribution.reset(new CgsDistribution{log_entrants});
+        m_sub_distribution.reset(new CgsDistribution{sub_entrants});
 
-        assert(m_old_distribution);
-        assert(m_new_distribution);
-        assert(m_log_distribution);
+        assert(m_cgs_distribution);
+        assert(m_sub_distribution);
     }
 
     const pog2::Entrants& AddressSelector::Entrants() const
@@ -235,51 +224,40 @@ namespace pog2
         return samples;
     }
 
-    pog2::Entrants AddressSelector::SelectOld(
+    pog2::Entrants AddressSelector::SelectByCgs(
             const referral::ReferralsViewCache& referrals,
             uint256 hash,
             size_t n)
     {
-        assert(m_old_distribution);
-        return Select( referrals, hash, n, *m_old_distribution);
+        assert(m_cgs_distribution);
+        return Select(referrals, hash, n, *m_cgs_distribution);
     }
         
-    pog2::Entrants AddressSelector::SelectNew(
+    pog2::Entrants AddressSelector::SelectBySubCgs(
             const referral::ReferralsViewCache& referrals,
             uint256 hash,
             size_t n)
     {
-        assert(m_new_distribution);
-        return Select( referrals, hash, n, *m_new_distribution);
+        assert(m_sub_distribution);
+        return Select(referrals, hash, n, *m_sub_distribution);
     }
 
-    pog2::Entrants AddressSelector::SelectLog(
-            const referral::ReferralsViewCache& referrals,
-            uint256 hash,
-            size_t n)
+    const pog2::Entrants& AddressSelector::CgsEntrants() const
     {
-        assert(m_log_distribution);
-        return Select( referrals, hash, n, *m_log_distribution);
+        assert(m_cgs_distribution);
+        return m_cgs_distribution->Entrants();
     }
 
-    const pog2::Entrants& AddressSelector::OldEntrants() const
+    const pog2::Entrants& AddressSelector::SubCgsEntrants() const
     {
-        assert(m_old_distribution);
-        return m_old_distribution->Entrants();
-    }
-
-    const pog2::Entrants& AddressSelector::NewEntrants() const
-    {
-        assert(m_new_distribution);
-        return m_new_distribution->Entrants();
+        assert(m_sub_distribution);
+        return m_sub_distribution->Entrants();
     }
 
     size_t AddressSelector::Size() const
     {
-        assert(m_old_distribution);
-        assert(m_new_distribution);
-
-        return m_old_distribution->Size() + m_new_distribution->Size();
+        assert(m_cgs_distribution);
+        return m_cgs_distribution->Size();
     }
 
     void GetConfirmedAddressesForNewPool(
@@ -329,7 +307,7 @@ namespace pog2
             AddressSelector& selector,
             uint256 hash)
     {
-        const auto sampled = selector.SelectOld(db, hash, 1);
+        const auto sampled = selector.SelectByCgs(db, hash, 1);
         if(sampled.empty()) {
             return {};
         }
@@ -349,7 +327,6 @@ namespace pog2
         return db.GetConfirmation(selected_idx);
     }
 
-
     referral::ConfirmedAddresses SelectInviteAddresses(
             AddressSelector& selector,
             int height,
@@ -367,7 +344,9 @@ namespace pog2
         auto requested = n;
 
         const auto total_beacons = db.GetTotalConfirmations();
-        auto max_tries = std::min(std::max(static_cast<uint64_t>(n), total_beacons / 10), total_beacons);
+        auto max_tries = std::min(
+                std::max(static_cast<uint64_t>(n), total_beacons / 10),
+                total_beacons);
 
         referral::ConfirmedAddresses addresses;
         referral::ConfirmedAddresses new_pool_addresses;

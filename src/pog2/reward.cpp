@@ -21,7 +21,7 @@ namespace pog2
         return std::accumulate(std::begin(winners), std::end(winners), CAmount{0},
                 [](CAmount acc, const Entrant& e)
                 {
-                    return acc + std::floor(std::sqrt(e.cgs));
+                    return acc + std::floor(std::log1p(e.cgs));
                 });
     }
 
@@ -33,7 +33,7 @@ namespace pog2
         std::transform(std::begin(winners), std::end(winners), std::back_inserter(unfiltered_rewards),
                 [total_reward, total_cgs](const Entrant& v)
                 {
-                    double percent = (std::floor(std::sqrt(v.cgs))*FIXED_PRECISION) / total_cgs;
+                    double percent = (std::floor(std::log1p(v.cgs))*FIXED_PRECISION) / total_cgs;
                     CAmount reward = (total_reward * percent) / FIXED_PRECISION;
                     assert(reward <= total_reward);
                     return pog::AmbassadorReward{v.address_type, v.address, reward};

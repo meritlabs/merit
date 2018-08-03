@@ -1363,8 +1363,6 @@ UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t tot
         o.push_back(Pair("balance", r.first.balance));
         o.push_back(Pair("aged_balance", r.first.aged_balance));
         o.push_back(Pair("cgs", r.first.cgs));
-        o.push_back(Pair("contribution", r.first.contribution));
-        o.push_back(Pair("subtreecontribution", r.first.subtree_contribution));
 
         double cgs_percent = 
             (static_cast<double>(r.first.cgs) / static_cast<double>(lottery_cgs));

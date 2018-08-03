@@ -24,13 +24,10 @@ namespace pog2
         CAmount balance;
         CAmount aged_balance;
         CAmount cgs;
-        CAmount log_cgs;
-        double level;
+        CAmount sub_cgs;
+        int beacon_height;
         size_t children;
         size_t network_size;
-        int beacon_height;
-        double contribution;
-        double subtree_contribution;
     };
 
     using MaybeEntrant = boost::optional<Entrant>;
@@ -38,15 +35,15 @@ namespace pog2
     using ContributionAmount = BigFloat;
     struct Contribution
     {
-        ContributionAmount value;
-        ContributionAmount log;
+        ContributionAmount value = 0.0;
+        ContributionAmount sub = 0.0;
     };
 
     struct SubtreeContribution
     {
-        ContributionAmount value;
-        ContributionAmount log;
-        size_t tree_size;
+        ContributionAmount value = 0.0;
+        ContributionAmount sub = 0.0;
+        size_t tree_size = 0;
     };
 
     //Aged and non-aged balance.
@@ -64,7 +61,6 @@ namespace pog2
         std::map<referral::Address, SubtreeContribution> subtree_contribution;
 
         std::map<referral::Address, BalancePair> balances;
-        std::map<referral::Address, BalancePair> child_balances;
         std::map<referral::Address, Entrant> entrant_cgs;
 
         double B;
