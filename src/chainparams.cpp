@@ -436,10 +436,11 @@ public:
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
             *consensus.sEdgeBitsAllowed.begin()};
         consensus.nPowTargetTimespan = 60; // one minute for nBits adjustment
+        consensus.nPowTargetSpacing = 10;        // 10 seconds per block
+
         const double blocks_per_minute = 60.0 / consensus.nPowTargetSpacing;
 
         consensus.nEdgeBitsTargetThreshold = 2;      // adjust nEdgeBits if block time is twice more/less than expected
-        consensus.nPowTargetSpacing = 10;        // 10 seconds per block
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = true;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains
