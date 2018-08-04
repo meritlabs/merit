@@ -45,6 +45,7 @@ namespace pog2
     {
         assert(tip_height >= 0);
         assert(height <= tip_height);
+        assert(maturity > 0);
 
         const auto age = Age(height, tip_height, maturity);
         const auto age_scale =  1.0 - (1.0 / (std::pow(age, 2) + 1.0));
@@ -57,6 +58,7 @@ namespace pog2
     double AgeScale(const Coin& c, int tip_height, int maturity) {
         assert(tip_height >= 0);
         assert(c.height <= tip_height);
+        assert(maturity > 0);
         return AgeScale(c.height, tip_height, maturity);
     }
 
@@ -112,6 +114,7 @@ namespace pog2
         assert(tip_height >= 0);
         assert(c.height <= tip_height);
         assert(c.amount >= 0);
+        assert(maturity > 0);
 
         const double age_scale = AgeScale(c, tip_height, maturity);
         CAmount amount = std::floor(age_scale * c.amount);
@@ -192,6 +195,9 @@ namespace pog2
             const referral::Address& address,
             referral::ReferralsViewCache& db)
     {
+        assert(context.tip_height > 0);
+        assert(context.new_coin_maturity > 0);
+
         const auto n = context.contribution.find(address);
         if(n != context.contribution.end()) {
             return n->second;
@@ -226,8 +232,7 @@ namespace pog2
         //influence the rankings beacons within the growth oriented pool.
         //These values were decided after many simulation runs.
         c.value = (age_scale * old.second) + old.first;
-        c.sub =
-            boost::multiprecision::pow(c.value, 0.5) * boost::multiprecision::log1p(c.value);
+        c.sub = boost::multiprecision::log1p(c.value);
 
         assert(c.value >= 0);
         assert(c.value <= old.second);
