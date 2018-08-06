@@ -302,12 +302,12 @@ namespace pog2
         selected_new.emplace_back(selected);
     }
 
-    referral::MaybeConfirmedAddress SelectInviteAddressFromCgsPool(
+    referral::MaybeConfirmedAddress SelectInviteAddressFromSubCgsPool(
             const referral::ReferralsViewCache& db,
             AddressSelector& selector,
             uint256 hash)
     {
-        const auto sampled = selector.SelectByCgs(db, hash, 1);
+        const auto sampled = selector.SelectBySubCgs(db, hash, 1);
         if(sampled.empty()) {
             return {};
         }
@@ -376,7 +376,7 @@ namespace pog2
                 referral::MaybeConfirmedAddress maybe_address;
                 switch(selected_pool.type) {
                     case PoolType::CGS: 
-                        maybe_address = SelectInviteAddressFromCgsPool(
+                        maybe_address = SelectInviteAddressFromSubCgsPool(
                                 db,
                                 selector,
                                 hash);
