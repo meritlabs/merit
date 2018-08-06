@@ -116,8 +116,12 @@ namespace pog2
         assert(c.amount >= 0);
         assert(maturity > 0);
 
-        const double age_scale = AgeScale(c, tip_height, maturity);
-        CAmount amount = std::floor(age_scale * c.amount);
+        const auto age_scale = AgeScale(c, tip_height, maturity);
+        const auto aged_balance = age_scale * c.amount; 
+
+        assert(aged_balance <= std::numeric_limits<CAmount>::max());
+        
+        CAmount amount = aged_balance;
 
         assert(amount >= 0);
         assert(amount <= c.amount);
@@ -135,14 +139,14 @@ namespace pog2
                 });
 
         const auto aged_balance = 
-            std::accumulate(balances.begin(), balances.end(), double{0}, 
-                [](double amount, const BalancePair& b) {
+            std::accumulate(balances.begin(), balances.end(), CAmount{0}, 
+                [](CAmount amount, const BalancePair& b) {
                     return amount + b.first;
                });
 
         const auto balance =
-            std::accumulate(balances.begin(), balances.end(), double{0}, 
-                [](double amount, const BalancePair& b) {
+            std::accumulate(balances.begin(), balances.end(), CAmount{0}, 
+                [](CAmount amount, const BalancePair& b) {
                     return amount + b.second;
                 });
         
@@ -370,7 +374,7 @@ namespace pog2
         assert(contrib_value >= 0);
         assert(contrib_value <= tree_contribution);
 
-        const ContributionAmount v = ConvexF<ContributionAmount>(
+        const auto v = ConvexF<ContributionAmount>(
                 contrib_value / tree_contribution,
                 context.B,
                 context.S);
@@ -397,7 +401,17 @@ namespace pog2
 
             assert(tree_contribution > 0);
 
-            ContributionAmount child_scores = 0;
+            auto expected_value = WeightedScore(
+                    context,
+                    address_type,
+                    address,
+                    db,
+                    tree_contribution,
+                    network_size,
+                    value);
+
+            assert(expected_value >= 0);
+
             const auto children = db.GetChildren(address);
 
             for(const auto& c:  children) {
@@ -407,7 +421,7 @@ namespace pog2
                 }
 
                 size_t child_network_size = 0;
-                child_scores += WeightedScore(
+                auto child_score = WeightedScore(
                         context,
                         maybe_ref->addressType,
                         maybe_ref->GetAddress(),
@@ -416,24 +430,12 @@ namespace pog2
                         child_network_size,
                         value);
 
-                assert(child_scores >= 0);
+                assert(child_score >= 0);
+                expected_value -= child_score;
             }
 
-            const auto weighted_score = WeightedScore(
-                    context,
-                    address_type,
-                    address,
-                    db,
-                    tree_contribution,
-                    network_size,
-                    value);
-
-            assert(weighted_score >= 0);
-
-            const auto balanced_score = weighted_score - child_scores;
-
-            assert(balanced_score >= 0);
-            return balanced_score;
+            assert(expected_value >= 0);
+            return expected_value;
         }
 
     Entrant ComputeCGS(
@@ -475,11 +477,14 @@ namespace pog2
         assert(sub_cgs >= 0);
         assert(tree_size == tree_size_2);
 
+        BigInt floored_cgs = static_cast<BigInt>(cgs);
+        BigInt floored_sub_cgs = static_cast<BigInt>(sub_cgs);
+
         return Entrant{
             address_type,
                 address,
                 balance.second,
-                static_cast<CAmount>(balance.first),
+                balance.first,
                 static_cast<CAmount>(cgs),
                 static_cast<CAmount>(sub_cgs),
                 height,

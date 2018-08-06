@@ -8,6 +8,7 @@
 #include "hash.h"
 #include "amount.h"
 #include <boost/multiprecision/cpp_dec_float.hpp> 
+#include <boost/multiprecision/cpp_int.hpp> 
 
 #include <map>
 
@@ -15,6 +16,7 @@ namespace pog2
 {
     using BigFloat = boost::multiprecision::cpp_dec_float_50;
     using WeightedKey = BigFloat;
+    using BigInt = boost::multiprecision::cpp_int;
 
     WeightedKey WeightedKeyForSampling( const uint256& rand_value, CAmount anv);
 } // namespace pog2

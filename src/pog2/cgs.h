@@ -47,7 +47,7 @@ namespace pog2
     };
 
     //Aged and non-aged balance.
-    using BalancePair = std::pair<double, CAmount>;
+    using BalancePair = std::pair<CAmount, CAmount>;
     using BalancePairs = std::vector<BalancePair>;
 
     struct CGSContext
