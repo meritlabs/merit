@@ -232,7 +232,7 @@ namespace pog2
         //influence the rankings beacons within the growth oriented pool.
         //These values were decided after many simulation runs.
         c.value = (age_scale * old.second) + old.first;
-        c.sub = boost::multiprecision::log1p(c.value);
+        c.sub = boost::multiprecision::log(ContributionAmount{1.0} + c.value);
 
         assert(c.value >= 0);
         assert(c.value <= old.second);
