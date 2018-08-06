@@ -485,8 +485,8 @@ namespace pog2
                 address,
                 balance.second,
                 balance.first,
-                static_cast<CAmount>(cgs),
-                static_cast<CAmount>(sub_cgs),
+                static_cast<CAmount>(floored_cgs),
+                static_cast<CAmount>(floored_sub_cgs),
                 height,
                 children.size(),
                 tree_size
