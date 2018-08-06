@@ -456,7 +456,7 @@ namespace pog2
         const auto height = GetReferralHeight(db, address);
 
         size_t tree_size = 0;
-        auto cgs = context.tree_contribution.value * ExpectedValue(
+        const ContributionAmount cgs = context.tree_contribution.value * ExpectedValue(
                 context,
                 address_type,
                 address,
@@ -465,7 +465,7 @@ namespace pog2
                 GetValue);
 
         size_t tree_size_2 = 0;
-        auto sub_cgs = context.tree_contribution.sub * ExpectedValue(
+        const ContributionAmount sub_cgs = context.tree_contribution.sub * ExpectedValue(
                 context,
                 address_type,
                 address,
