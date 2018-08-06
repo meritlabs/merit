@@ -342,7 +342,7 @@ public:
         consensus.imp_weights = {60, 40}; 
 
         // PoG v2 settings.
-        consensus.pog2_blockheight = 215500;
+        consensus.pog2_blockheight = 216200;
         consensus.pog2_total_winning_ambassadors = 15;
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 5 * 60 * 60; // every 5 hours
