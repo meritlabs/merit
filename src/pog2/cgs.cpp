@@ -456,7 +456,7 @@ namespace pog2
         const auto height = GetReferralHeight(db, address);
 
         size_t tree_size = 0;
-        const auto cgs = context.tree_contribution.value * ExpectedValue(
+        auto cgs = context.tree_contribution.value * ExpectedValue(
                 context,
                 address_type,
                 address,
@@ -465,7 +465,7 @@ namespace pog2
                 GetValue);
 
         size_t tree_size_2 = 0;
-        const auto sub_cgs = context.tree_contribution.sub * ExpectedValue(
+        auto sub_cgs = context.tree_contribution.sub * ExpectedValue(
                 context,
                 address_type,
                 address,
@@ -477,8 +477,8 @@ namespace pog2
         assert(sub_cgs >= 0);
         assert(tree_size == tree_size_2);
 
-        BigInt floored_cgs = static_cast<BigInt>(cgs);
-        BigInt floored_sub_cgs = static_cast<BigInt>(sub_cgs);
+        BigInt floored_cgs = cgs.convert_to<BigInt>();
+        BigInt floored_sub_cgs = sub_cgs.convert_to<BigInt>();
 
         return Entrant{
             address_type,
