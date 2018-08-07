@@ -1416,6 +1416,8 @@ UniValue getaddressrank(const JSONRPCRequest& request)
     pog2::CGSContext context;
     pog2::GetAllRewardableEntrants(context, *prefviewcache, params, chainActive.Height(), all_entrants);
 
+    bool sub_linear = true;
+
     std::vector<CAmount> cgs; 
     for (const auto& a : addresses) {
      auto node = pog2::ComputeCGS(
@@ -1423,7 +1425,7 @@ UniValue getaddressrank(const JSONRPCRequest& request)
             a.second,
             a.first,
             *prefviewcache);
-        cgs.push_back(node.cgs);
+        cgs.push_back(sub_linear ? node.sub_cgs : node.cgs);
     }
 
     CAmount lottery_cgs = 0;
@@ -1431,7 +1433,8 @@ UniValue getaddressrank(const JSONRPCRequest& request)
             cgs,
             chainActive.Height(),
             Params().GetConsensus(),
-            lottery_cgs);
+            lottery_cgs,
+            sub_linear);
 
     //Hack to keep ANVRanks  (2nlog(n)) vs (nlogn + n) we rewrite the address
     //because among addresses of equal rank, ANVRAnks may return an entry with a different address.

@@ -190,6 +190,8 @@ public:
         consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog2_new_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog2_max_outstanding_invites_per_address = 50;
+        consensus.pog2_convex_b = 0.2; 
+        consensus.pog2_convex_s = 0.05;
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -342,7 +344,7 @@ public:
         consensus.imp_weights = {60, 40}; 
 
         // PoG v2 settings.
-        consensus.pog2_blockheight = 216410;
+        consensus.pog2_blockheight = 216530;
         consensus.pog2_total_winning_ambassadors = 15;
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 5 * 60 * 60; // every 5 hours
@@ -350,6 +352,8 @@ public:
         consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog2_new_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog2_max_outstanding_invites_per_address = 50;
+        consensus.pog2_convex_b = 0.2; 
+        consensus.pog2_convex_s = 0.05;
 
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
@@ -489,6 +493,8 @@ public:
         consensus.pog2_coin_maturity = blocks_per_minute * 20; //20 minutes for coin maturity
         consensus.pog2_new_coin_maturity = blocks_per_minute * 10; //10 minutes for coin maturity
         consensus.pog2_max_outstanding_invites_per_address = 50;
+        consensus.pog2_convex_b = 0.2; 
+        consensus.pog2_convex_s = 0.05;
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;

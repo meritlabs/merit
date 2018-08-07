@@ -1682,11 +1682,13 @@ bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &ha
             return error("%s: Deserialize or I/O error - %s", __func__, e.what());
         }
         hashBlock = header.GetHash();
-        if (refOut->GetHash() != hash)
+        if (refOut->GetHash() != hash) {
             return error("%s: txid mismatch: requested::actual %s::%s",
                     __func__,
                     hash.GetHex().c_str(),
                     refOut->GetHash().GetHex().c_str());
+        }
+
 
         //Find the height based on the block hash 
         auto bi = mapBlockIndex.find(hashBlock);
@@ -1694,9 +1696,9 @@ bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &ha
             pindex = bi->second;
         }
 
-        if(pindex && pindex->nHeight > 0) {
+        if (pindex && pindex->nHeight > 0) {
             auto height = prefviewdb->GetReferralHeight(refOut->GetAddress());
-            if(height > 0) {
+            if (height < 0) {
                 prefviewdb->SetReferralHeight(pindex->nHeight, refOut->GetAddress());
             }
         }
@@ -1831,8 +1833,6 @@ bool IsValidAmbassadorDestination(const CTxDestination& dest)
     return pog::IsValidAmbassadorDestination(which);
 }
 
-int max_ambassador_lottery = 0;
-
 pog::AmbassadorLottery Pog1RewardAmbassadors(
         int height,
         const uint256& previous_block_hash,
@@ -1909,23 +1909,23 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
         const Consensus::Params& params, 
         bool force_pog2)
 {
-    if(!force_pog2) {
+    if (!force_pog2) {
         assert(height >= params.pog2_blockheight);
     }
 
     assert(prefviewdb != nullptr);
 
-    static size_t max_embassador_lottery = 0;
+    static size_t max_ambassador_lottery = 0;
     pog2::Entrants entrants;
 
     // unlikely that the candidates grew over 50% since last time.
-    auto reserve_size = max_embassador_lottery * 1.5;
+    auto reserve_size = max_ambassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
     pog2::CGSContext context;
     pog2::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
 
-    max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
+    max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
 
     // Wallet selector will create a distribution from all the keys
     auto selector = std::make_shared<pog2::AddressSelector>(height, entrants, params);
@@ -2006,7 +2006,7 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> RewardAmbassadors(
         CAmount total,
         const Consensus::Params& params)
 {
-    if(height >= params.pog2_blockheight) {
+    if (height >= params.pog2_blockheight) {
         return Pog2RewardAmbassadors(height, previous_block_hash, total, params);
     }
 
@@ -3123,12 +3123,12 @@ bool UndoNewPoolInviteRewards(
 
         //credits were debits during connect block so we skip credits here
         //since we only care about credits during connect block.
-        if(amount >=0) {
+        if (amount >=0) {
             continue;
         }
 
         auto recorded_height = db.GetNewInviteRewardedHeight(address);
-        if(recorded_height == height) {
+        if (recorded_height == height) {
             if (!db.SetNewInviteRewardedHeight(address, 0)) { 
                 return false;
             }
@@ -3422,7 +3422,7 @@ static DisconnectResult DisconnectBlock(
             return DISCONNECT_FAILED;
         }
 
-        if(!UndoNewPoolInviteRewards(
+        if (!UndoNewPoolInviteRewards(
                     pindex->nHeight,
                     *prefviewcache,
                     invite_debits_and_credits)) {
@@ -5684,7 +5684,7 @@ bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempoo
         return true;
     }
 
-    if(!checkMempool) { 
+    if (!checkMempool) { 
         return false;
     }
 
@@ -7598,41 +7598,46 @@ std::pair<Pog2Ranks, size_t> CGSRanks(
         const std::vector<CAmount>& cgs,
         int height,
         const Consensus::Params& params,
-        CAmount& lottery_cgs)
+        CAmount& lottery_cgs,
+        bool sub)
 {
     assert(height >= 0);
     assert(prefviewcache);
 
-    static size_t max_embassador_lottery = 0;
+    auto value_f = sub ? 
+        [](const pog2::Entrant& e) { return e.cgs;} :
+        [](const pog2::Entrant& e) { return e.sub_cgs;};
+
+    static size_t max_ambassador_lottery = 0;
     pog2::Entrants entrants;
 
     // unlikely that the candidates grew over 50% since last time.
-    auto reserve_size = max_embassador_lottery * 1.5;
+    auto reserve_size = max_ambassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
     pog2::CGSContext context;
     pog2::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
 
-    max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
+    max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
 
     lottery_cgs = std::accumulate(entrants.begin(), entrants.end(), CAmount{0},
-            [](CAmount acc, const pog2::Entrant& e) {
-                return acc + e.cgs;
+            [value_f](CAmount acc, const pog2::Entrant& e) {
+                return acc + value_f(e);
             });
 
     std::sort(entrants.begin(), entrants.end(),
-            [](const pog2::Entrant& a, const pog2::Entrant& b) {
-                return a.cgs < b.cgs;
+            [value_f](const pog2::Entrant& a, const pog2::Entrant& b) {
+                return value_f(a) < value_f(b);
             });
 
     Pog2Ranks ranks;
     ranks.resize(cgs.size());
 
     std::transform(cgs.begin(), cgs.end(), ranks.begin(),
-            [&entrants](CAmount cgs) {
+            [&entrants, value_f](CAmount cgs) {
                 auto pos = std::lower_bound(entrants.begin(), entrants.end(), cgs,
-                        [](const pog2::Entrant& a, CAmount cgs) {
-                            return a.cgs < cgs;
+                        [value_f](const pog2::Entrant& a, CAmount cgs) {
+                            return value_f(a) < cgs;
                         });
                 return std::make_pair(*pos, std::distance(entrants.begin(), pos));
             });
@@ -7645,32 +7650,37 @@ std::pair<Pog2Ranks, size_t> TopCGSRanks(
         size_t total,
         int height,
         const Consensus::Params& params,
-        CAmount& lottery_cgs)
+        CAmount& lottery_cgs,
+        bool sub)
 {
     assert(height >= 0);
     assert(prefviewcache);
 
-    static size_t max_embassador_lottery = 0;
+    auto value_f = sub ? 
+        [](const pog2::Entrant& e) { return e.cgs;} :
+        [](const pog2::Entrant& e) { return e.sub_cgs;};
+
+    static size_t max_ambassador_lottery = 0;
     pog2::Entrants entrants;
 
     // unlikely that the candidates grew over 50% since last time.
-    auto reserve_size = max_embassador_lottery * 1.5;
+    auto reserve_size = max_ambassador_lottery * 1.5;
     entrants.reserve(reserve_size);
 
     pog2::CGSContext context;
     pog2::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
 
     lottery_cgs = std::accumulate(entrants.begin(), entrants.end(), CAmount{0},
-            [](CAmount acc, const pog2::Entrant& e) {
-                return acc + e.cgs;
+            [value_f](CAmount acc, const pog2::Entrant& e) {
+                return acc + value_f(e);
             });
 
-    max_embassador_lottery = std::max(max_embassador_lottery, entrants.size());
+    max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
     total = std::min(total, entrants.size());
 
     std::partial_sort(entrants.begin(), entrants.begin() + total, entrants.end(),
-            [](const pog2::Entrant& a, const pog2::Entrant& b) {
-                return a.cgs > b.cgs;
+            [value_f](const pog2::Entrant& a, const pog2::Entrant& b) {
+                return value_f(a) > value_f(b);
             });
 
     Pog2Ranks ranks;

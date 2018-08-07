@@ -4,16 +4,20 @@
 
 #include "pog2/reward.h"
 
+#include "pog/wrs.h"
+
 #include <algorithm>
 #include <numeric>
 
+#include <boost/multiprecision/cpp_int.hpp>
+
 namespace pog2
 {
+    using cpp_int = boost::multiprecision::cpp_int;
+
     namespace
     {
-        const CAmount FIXED_PRECISION = 1000;
         const int INVITES_PER_WINNER = 1;
-
     }
 
     CAmount TotalCgs(const Entrants& winners)
@@ -25,18 +29,23 @@ namespace pog2
                 });
     }
 
-    CAmount ProportionalRewards(pog::Rewards& rewards, CAmount total_reward, const Entrants& winners) {
+    CAmount ProportionalRewards(pog::Rewards& rewards, CAmount total_reward_0, const Entrants& winners) {
         auto total_cgs = TotalCgs(winners);
+        pog::BigFloat total_reward = total_reward_0;
 
         pog::Rewards unfiltered_rewards;
         unfiltered_rewards.resize(winners.size());
         std::transform(std::begin(winners), std::end(winners), std::back_inserter(unfiltered_rewards),
                 [total_reward, total_cgs](const Entrant& v)
                 {
-                    double percent = (std::floor(std::log1p(v.cgs))*FIXED_PRECISION) / total_cgs;
-                    CAmount reward = (total_reward * percent) / FIXED_PRECISION;
+                    pog::BigFloat percent = boost::multiprecision::log(pog::BigFloat{1.0} + v.cgs) / total_cgs;
+                    pog::BigFloat reward = total_reward * percent;
+                    cpp_int floor_reward = reward.convert_to<cpp_int>();
                     assert(reward <= total_reward);
-                    return pog::AmbassadorReward{v.address_type, v.address, reward};
+                    return pog::AmbassadorReward{
+                        v.address_type,
+                        v.address,
+                        static_cast<CAmount>(floor_reward)};
                 });
 
         rewards.reserve(unfiltered_rewards.size());

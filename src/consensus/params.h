@@ -112,6 +112,8 @@ struct Params {
     int pog2_coin_maturity;
     int pog2_new_coin_maturity;
     int pog2_max_outstanding_invites_per_address;
+    double pog2_convex_b;
+    double pog2_convex_s;
 
 };
 } // namespace Consensus

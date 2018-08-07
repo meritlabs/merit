@@ -749,11 +749,13 @@ std::pair<Pog2Ranks, size_t> CGSRanks(
         const std::vector<CAmount>& cgs,
         int height,
         const Consensus::Params& params,
-        CAmount& lottery_cgs);
+        CAmount& lottery_cgs,
+        bool sub = true);
 
 std::pair<Pog2Ranks, size_t> TopCGSRanks(
         size_t total,
         int height,
         const Consensus::Params& params,
-        CAmount& lottery_cgs);
+        CAmount& lottery_cgs,
+        bool sub = true);
 #endif // MERIT_VALIDATION_H

@@ -8,7 +8,7 @@
 #include "primitives/referral.h"
 #include "consensus/params.h"
 #include "referrals.h"
-#include "pog2/wrs.h"
+#include "pog/wrs.h"
 #include "coins.h"
 
 #include <vector>
@@ -32,7 +32,7 @@ namespace pog2
 
     using MaybeEntrant = boost::optional<Entrant>;
 
-    using ContributionAmount = BigFloat;
+    using ContributionAmount = pog::BigFloat;
     struct Contribution
     {
         ContributionAmount value = 0.0;

@@ -447,9 +447,6 @@ namespace pog2
                 max_tries++;
             }
 
-            CHashWriter hasher_b{SER_DISK, CLIENT_VERSION};
-            hasher_b << hash << hash;
-            hash = hasher_b.GetHash();
         }
 
         LogPrint(BCLog::POG, "%s: Selected %d:\n", __func__, addresses.size());

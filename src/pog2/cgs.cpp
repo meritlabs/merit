@@ -12,6 +12,8 @@
 #include <stack>
 #include <numeric>
 
+#include <boost/multiprecision/cpp_int.hpp> 
+
 namespace pog2
 {
     namespace
@@ -27,6 +29,8 @@ namespace pog2
 
     using Coins = std::vector<Coin>;
     using UnspentPair = std::pair<CAddressUnspentKey, CAddressUnspentValue>;
+
+    using BigInt = boost::multiprecision::cpp_int;
 
     double Age(int height, int tip_height, double maturity)
     {
@@ -76,10 +80,10 @@ namespace pog2
             CBlockIndex* pindex = nullptr;
 
             referral::ReferralRef beacon_out;
-            if(GetReferral(beacon->GetHash(), beacon_out, hashBlock, pindex)) {
+            if (GetReferral(beacon->GetHash(), beacon_out, hashBlock, pindex)) {
                 assert(pindex);
                 height = pindex->nHeight;
-                if(height > 0) {
+                if (height > 0) {
                     db.SetReferralHeight(height, a);
                 }
             }
@@ -98,8 +102,8 @@ namespace pog2
         }
 
         cs.reserve(unspent.size());
-        for(const auto& p : unspent) {
-            if(p.first.type == 0 || p.first.isInvite) {
+        for (const auto& p : unspent) {
+            if (p.first.type == 0 || p.first.isInvite) {
                 continue;
             }
             assert(p.second.satoshis >= 0);
@@ -161,7 +165,7 @@ namespace pog2
     {
         const auto cached_balance = context.balances.find(address);
 
-        if(cached_balance == context.balances.end()) {
+        if (cached_balance == context.balances.end()) {
             const auto balance = AgedBalance(
                     context.tip_height,
                     GetCoins(context.tip_height, address_type, address),
@@ -203,43 +207,40 @@ namespace pog2
         assert(context.new_coin_maturity > 0);
 
         const auto n = context.contribution.find(address);
-        if(n != context.contribution.end()) {
+        if (n != context.contribution.end()) {
             return n->second;
         }
 
-        const auto old = GetAgedBalance(
+        const auto aged_balance = GetAgedBalance(
                 context,
                 address_type,
                 address);
 
-        const auto height =
+        const auto beacon_height =
             std::min(GetReferralHeight(db, address), context.tip_height);
 
-        if(height < 0 ) {
+        if (beacon_height < 0 ) {
             return Contribution{};
         }
 
-        assert(height <= context.tip_height);
+        assert(beacon_height <= context.tip_height);
 
-        const auto age_scale =
-            1.0 - AgeScale(height, context.tip_height, context.new_coin_maturity);
+        const auto beacon_age_scale =
+            1.0 - AgeScale(beacon_height, context.tip_height, context.new_coin_maturity);
 
-        assert(age_scale >= 0);
-        assert(age_scale <= 1.01);
+        assert(beacon_age_scale >= 0);
+        assert(beacon_age_scale <= 1.01);
 
         Contribution c;
 
         //We compute both the linear and sublinear versions of the contribution.
         //This is done because there are two pools of selections evenly split
         //between stake oriented and growth oriented engagements.
-        //Note the value of the exponent is finely tuned and changing it does
-        //influence the rankings beacons within the growth oriented pool.
-        //These values were decided after many simulation runs.
-        c.value = (age_scale * old.second) + old.first;
+        c.value = (beacon_age_scale * aged_balance.second) + aged_balance.first;
         c.sub = boost::multiprecision::log(ContributionAmount{1.0} + c.value);
 
         assert(c.value >= 0);
-        assert(c.value <= old.second);
+        assert(c.value <= aged_balance.second);
         assert(c.sub >= 0);
 
         context.contribution[address] = c;
@@ -276,7 +277,7 @@ namespace pog2
         const auto children = db.GetChildren(address);
         const auto maybe_ref = db.GetReferral(address);
 
-        if(!maybe_ref) {
+        if (!maybe_ref) {
             return {};
         }
 
@@ -289,13 +290,13 @@ namespace pog2
                 children,
                 {}});
 
-        while(!ns.empty()) {
+        while (!ns.empty()) {
             auto& n = ns.top();
             n.contribution.value += contribution.value;
             n.contribution.sub += contribution.sub;
             n.contribution.tree_size += contribution.tree_size;
 
-            if(n.children.empty()) {
+            if (n.children.empty()) {
                 auto c = ContributionNode(
                         context,
                         n.address_type,
@@ -325,7 +326,7 @@ namespace pog2
                 const auto children = db.GetChildren(child_address);
                 const auto maybe_ref = db.GetReferral(child_address);
 
-                if(maybe_ref) {
+                if (maybe_ref) {
                     ns.push({
                             maybe_ref->addressType,
                             maybe_ref->GetAddress(),
@@ -395,7 +396,7 @@ namespace pog2
             const auto tree_contribution = value(context.tree_contribution);
 
             //this case can occur on regtest if there is not enough data.
-            if(tree_contribution == 0) {
+            if (tree_contribution == 0) {
                 return 0;
             }
 
@@ -414,9 +415,9 @@ namespace pog2
 
             const auto children = db.GetChildren(address);
 
-            for(const auto& c:  children) {
+            for (const auto& c:  children) {
                 auto maybe_ref = db.GetReferral(c);
-                if(!maybe_ref) {
+                if (!maybe_ref) {
                     continue;
                 }
 
@@ -444,9 +445,6 @@ namespace pog2
             const referral::Address& address,
             referral::ReferralsViewCache& db)
     {
-        context.B = 0.2;
-        context.S = 0.05;
-
         const auto balance = GetAgedBalance(
                 context,
                 address_type,
@@ -512,6 +510,9 @@ namespace pog2
         context.coin_maturity = params.pog2_coin_maturity;
         context.new_coin_maturity = params.pog2_new_coin_maturity;
         context.tree_contribution = ContributionSubtreeIter(context, 2, params.genesis_address, db);
+        context.B = params.pog2_convex_b;
+        context.S = params.pog2_convex_s;
+
 
         std::transform(anv_entrants.begin(), anv_entrants.end(), entrants.begin(),
                 [height, &db, &context, &params](const referral::AddressANV& a) {
