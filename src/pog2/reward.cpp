@@ -9,12 +9,8 @@
 #include <algorithm>
 #include <numeric>
 
-#include <boost/multiprecision/cpp_int.hpp>
-
 namespace pog2
 {
-    using cpp_int = boost::multiprecision::cpp_int;
-
     namespace
     {
         const int INVITES_PER_WINNER = 1;
@@ -45,12 +41,12 @@ namespace pog2
                 {
                     pog::BigFloat percent = LogCGS(v) / total_cgs;
                     pog::BigFloat reward = total_reward * percent;
-                    cpp_int floor_reward = reward.convert_to<cpp_int>();
+                    auto floor_reward = reward.convert_to<CAmount>();
 
                     return pog::AmbassadorReward{
                         v.address_type,
                         v.address,
-                        static_cast<CAmount>(floor_reward)};
+                        floor_reward};
                 });
 
         rewards.reserve(unfiltered_rewards.size());
