@@ -300,6 +300,7 @@ namespace pog2
 
         //insert into our selected set.
         selected_new.emplace_back(selected);
+        return selected;
     }
 
     referral::MaybeConfirmedAddress SelectInviteAddressFromSubCgsPool(
