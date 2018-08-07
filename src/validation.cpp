@@ -1893,13 +1893,24 @@ pog::AmbassadorLottery Pog1RewardAmbassadors(
 void LogWinners(const pog2::Entrants& es)
 {
     for(const auto& e : es) {
-        LogPrint(BCLog::POG, "%s: \t%s: cgs: %d children: %d level: %d netsize: %d\n",
+        LogPrint(BCLog::POG, "%s: \t%s: cgs: %d children: %d netsize: %d\n",
                 __func__, 
                 CMeritAddress{e.address_type, e.address}.ToString(),
                 e.cgs,
                 e.children,
                 e.network_size);
     }
+}
+
+void LogRewards(const pog::AmbassadorLottery& lottery)
+{
+    for(const auto& r : lottery.winners) {
+        LogPrint(BCLog::POG, "%s: \t%s: amount: %d\n",
+                __func__, 
+                CMeritAddress{r.address_type, r.address}.ToString(),
+                r.amount);
+    }
+
 }
 
 std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassadors(
@@ -1992,6 +2003,8 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
 
     // Compute reward for all the winners
     auto rewards = pog2::RewardAmbassadors(height, winners, total);
+    LogPrint(BCLog::POG, "%s: Rewarding %d winners\n", __func__, rewards.winners.size());
+    LogRewards(rewards);
 
     // Return the remainder which will be given to the miner;
     assert(rewards.remainder <= total);
@@ -2366,8 +2379,9 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
     assert(coinbase.IsCoinBase());
 
     //quick test before doing more expensive validation
-    if (coinbase.vout.size() < 1 + lottery.winners.size())
+    if (coinbase.vout.size() < 1 + lottery.winners.size()) {
         return false;
+    }
 
     //Transform vouts to rewards
     pog::Rewards sorted_outs(coinbase.vout.size());
