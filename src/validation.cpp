@@ -7605,8 +7605,8 @@ std::pair<Pog2Ranks, size_t> CGSRanks(
     assert(prefviewcache);
 
     auto value_f = sub ? 
-        [](const pog2::Entrant& e) { return e.cgs;} :
-        [](const pog2::Entrant& e) { return e.sub_cgs;};
+        [](const pog2::Entrant& e) { return e.sub_cgs;} :
+        [](const pog2::Entrant& e) { return e.cgs;};
 
     static size_t max_ambassador_lottery = 0;
     pog2::Entrants entrants;
@@ -7657,8 +7657,8 @@ std::pair<Pog2Ranks, size_t> TopCGSRanks(
     assert(prefviewcache);
 
     auto value_f = sub ? 
-        [](const pog2::Entrant& e) { return e.cgs;} :
-        [](const pog2::Entrant& e) { return e.sub_cgs;};
+        [](const pog2::Entrant& e) { return e.sub_cgs;} :
+        [](const pog2::Entrant& e) { return e.cgs;};
 
     static size_t max_ambassador_lottery = 0;
     pog2::Entrants entrants;
