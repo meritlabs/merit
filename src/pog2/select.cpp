@@ -38,8 +38,8 @@ namespace pog2
 
     bool IsValidAmbassadorDestination(char type)
     {
-        //KeyID or ScriptID
-        return type == 1 || type == 2;
+        //KeyID
+        return type == 1;
     }
 
     CAmount GetAmbassadorMinumumStake(int height, const Consensus::Params& consensus_params)
@@ -267,7 +267,7 @@ namespace pog2
     {
         for(uint64_t i = 0; i < total_beacons; i++) {
             const auto c = db.GetConfirmation(i);
-            if (!c || c->invites > 1) {
+            if (!c || c->invites > 1 || !IsValidAmbassadorDestination(c->address_type)) {
                 continue;
             }
 
