@@ -20,7 +20,7 @@ struct CAddressUnspentKey {
     bool isInvite;
 
     size_t GetSerializeSize() const {
-        return 57;
+        return 58;
     }
     template<typename Stream>
     void Serialize(Stream& s) const {

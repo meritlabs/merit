@@ -25,8 +25,6 @@ Community Resources
 
 Merit aims to be present wherever users of the community are.  To that end, you can find members of the core team on:
 
-![Slack Badge](https://slackin.merit.me/badge.svg) 
-* [Slack](https://slackin.merit.me) 
 * [Telegram](https://t.me/meritworld)
 * [Discord](https://discord.gg/X3v3n3b)
 * [Merit Forum](https://forum.merit.me/) @ www.merit.me
@@ -100,6 +98,10 @@ To start mining you simply run...
 If you want to stop mining, you run...
 
     merit-cli setmining false
+    
+Pool Mining
+---------------
+You can pool mine merit using [merit-minerd](https://github.com/meritlabs/libmeritminer) or directly from the [Desktop Wallet](https://www.merit.me/get-started/#get-merit-desktop). A free [pool](https://pool.merit.me) is provided for all users by the Merit Foundation.
 
 Developer Resources
 -------------------
