@@ -20,12 +20,12 @@ namespace pog2
         const int INVITES_PER_WINNER = 1;
     }
 
-    CAmount TotalCgs(const Entrants& winners)
+    pog::BigFloat TotalCgs(const Entrants& winners)
     {
-        return std::accumulate(std::begin(winners), std::end(winners), CAmount{0},
-                [](CAmount acc, const Entrant& e)
+        return std::accumulate(std::begin(winners), std::end(winners), pog::BigFloat{0},
+                [](pog::BigFloat acc, const Entrant& e)
                 {
-                    return acc + std::floor(std::log1p(e.cgs));
+                    return acc + boost::multiprecision::log(pog::BigFloat{1.0} * e.cgs);
                 });
     }
 
@@ -41,7 +41,7 @@ namespace pog2
                     pog::BigFloat percent = boost::multiprecision::log(pog::BigFloat{1.0} + v.cgs) / total_cgs;
                     pog::BigFloat reward = total_reward * percent;
                     cpp_int floor_reward = reward.convert_to<cpp_int>();
-                    assert(reward <= total_reward);
+
                     return pog::AmbassadorReward{
                         v.address_type,
                         v.address,
