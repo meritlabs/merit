@@ -183,7 +183,7 @@ public:
 
         // PoG v2 settings.
         consensus.pog2_blockheight = 400000;
-        consensus.pog2_total_winning_ambassadors = 15;
+        consensus.pog2_total_winning_ambassadors = 20;
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 5 * 60 * 60; // every 5 hours
         consensus.pog2_initial_ambassador_stake = 20_merit;
@@ -345,7 +345,7 @@ public:
 
         // PoG v2 settings.
         consensus.pog2_blockheight = 216810;
-        consensus.pog2_total_winning_ambassadors = 15;
+        consensus.pog2_total_winning_ambassadors = 20;
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 5 * 60 * 60; // every 5 hours
         consensus.pog2_initial_ambassador_stake = 20_merit;
@@ -486,7 +486,7 @@ public:
 
         // PoG v2 settings.
         consensus.pog2_blockheight = 10;
-        consensus.pog2_total_winning_ambassadors = 15;
+        consensus.pog2_total_winning_ambassadors = 20;
         consensus.pog2_ambassador_percent_cut = 50;  //50%
         consensus.pog2_pow_target_timespan = 30 * 60; // every 30 min
         consensus.pog2_initial_ambassador_stake = 20_merit;
