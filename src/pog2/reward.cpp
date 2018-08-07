@@ -20,12 +20,17 @@ namespace pog2
         const int INVITES_PER_WINNER = 1;
     }
 
+    pog::BigFloat LogCGS(const Entrant& e) 
+    {
+        return boost::multiprecision::log(pog::BigFloat{1.0} + e.cgs);
+    }
+
     pog::BigFloat TotalCgs(const Entrants& winners)
     {
         return std::accumulate(std::begin(winners), std::end(winners), pog::BigFloat{0},
                 [](pog::BigFloat acc, const Entrant& e)
                 {
-                    return acc + boost::multiprecision::log(pog::BigFloat{1.0} * e.cgs);
+                    return acc + LogCGS(e);
                 });
     }
 
@@ -38,7 +43,7 @@ namespace pog2
         std::transform(std::begin(winners), std::end(winners), std::back_inserter(unfiltered_rewards),
                 [total_reward, total_cgs](const Entrant& v)
                 {
-                    pog::BigFloat percent = boost::multiprecision::log(pog::BigFloat{1.0} + v.cgs) / total_cgs;
+                    pog::BigFloat percent = LogCGS(v) / total_cgs;
                     pog::BigFloat reward = total_reward * percent;
                     cpp_int floor_reward = reward.convert_to<cpp_int>();
 

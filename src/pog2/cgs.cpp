@@ -475,16 +475,16 @@ namespace pog2
         assert(sub_cgs >= 0);
         assert(tree_size == tree_size_2);
 
-        BigInt floored_cgs = cgs.convert_to<BigInt>();
-        BigInt floored_sub_cgs = sub_cgs.convert_to<BigInt>();
+        auto floored_cgs = cgs.convert_to<CAmount>();
+        auto floored_sub_cgs = sub_cgs.convert_to<CAmount>();
 
         return Entrant{
             address_type,
                 address,
                 balance.second,
                 balance.first,
-                static_cast<CAmount>(floored_cgs),
-                static_cast<CAmount>(floored_sub_cgs),
+                floored_cgs,
+                floored_sub_cgs,
                 height,
                 children.size(),
                 tree_size
