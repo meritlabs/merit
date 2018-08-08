@@ -1313,34 +1313,7 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
     return result;
 }
 
-UniValue RanksToUniValue(pog::StackedAmount lottery_anv, const Ranks& ranks, size_t total)
-{
-    UniValue rankarr(UniValue::VARR);
-    for (const auto& r : ranks) {
-        UniValue o(UniValue::VOBJ);
-
-        //percentile to two digits
-        double percentile =
-            (static_cast<double>(r.second) / static_cast<double>(total)) * 100.0;
-
-        const auto alias = FindAliasForAddress(r.first.address);
-
-        o.push_back(Pair("address", CMeritAddress{r.first.address_type, r.first.address}.ToString()));
-        o.push_back(Pair("alias", alias));
-        o.push_back(Pair("rank", static_cast<int>(total - r.second)));
-        o.push_back(Pair("percentile", (boost::format("%1$.2f") % percentile).str()));
-        o.push_back(Pair("anv", r.first.anv));
-
-        double anv_percent =
-            (static_cast<double>(r.first.anv) / static_cast<double>(lottery_anv));
-
-        o.push_back(Pair("anvpercent", anv_percent));
-        rankarr.push_back(o);
-    }
-    return rankarr;
-}
-
-UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t total) {
+UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t total, bool sub) {
 
     UniValue rankarr(UniValue::VARR);
     for(const auto& r : ranks) {
@@ -1349,6 +1322,8 @@ UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t tot
         //percentile to two digits
         double percentile = 
             (static_cast<double>(r.second) / static_cast<double>(total)) * 100.0;
+
+        const auto cgs = sub ? r.first.sub_cgs : r.first.cgs;
 
         auto alias = FindAliasForAddress(r.first.address);
         auto beacon_age = chainActive.Height() - r.first.beacon_height;
@@ -1362,10 +1337,10 @@ UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t tot
         o.push_back(Pair("percentile", (boost::format("%1$.2f") % percentile).str()));
         o.push_back(Pair("balance", r.first.balance));
         o.push_back(Pair("aged_balance", r.first.aged_balance));
-        o.push_back(Pair("cgs", r.first.cgs));
+        o.push_back(Pair("cgs", cgs));
 
         double cgs_percent = 
-            (static_cast<double>(r.first.cgs) / static_cast<double>(lottery_cgs));
+            (static_cast<double>(cgs) / static_cast<double>(lottery_cgs));
 
         o.push_back(Pair("gcspercent", cgs_percent));
         rankarr.push_back(o);
@@ -1444,7 +1419,7 @@ UniValue getaddressrank(const JSONRPCRequest& request)
     }
 
     UniValue result(UniValue::VOBJ);
-    UniValue cgs_rankarr = RanksToUniValue(lottery_cgs, cgs_ranks.first, cgs_ranks.second);
+    UniValue cgs_rankarr = RanksToUniValue(lottery_cgs, cgs_ranks.first, cgs_ranks.second, true);
 
     result.push_back(Pair("lotterycgs", lottery_cgs));
     result.push_back(Pair("lotteryentrants", cgs_ranks.second));
@@ -1489,7 +1464,7 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
             lottery_cgs);
 
     UniValue result(UniValue::VOBJ);
-    UniValue cgs_rankarr = RanksToUniValue(lottery_cgs, cgs_ranks.first, cgs_ranks.second);
+    UniValue cgs_rankarr = RanksToUniValue(lottery_cgs, cgs_ranks.first, cgs_ranks.second, true);
 
     result.push_back(Pair("lotterycgs", lottery_cgs));
     result.push_back(Pair("lotteryentrants", cgs_ranks.second));
