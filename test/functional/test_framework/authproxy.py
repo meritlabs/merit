@@ -53,6 +53,7 @@ USER_AGENT = "AuthServiceProxy/0.1"
 HTTP_TIMEOUT = 30
 
 log = logging.getLogger("MeritRPC")
+log.setLevel(logging.DEBUG)
 
 class JSONRPCException(Exception):
     def __init__(self, rpc_error):

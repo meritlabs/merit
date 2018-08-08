@@ -27,6 +27,8 @@
 #include <set>
 #include <time.h>
 #include <vector>
+#include <string.h> // for functions strlen, memset
+#include <stdio.h>
 
 using AddressPrefix = std::vector<unsigned char>;
 using PubKeys = std::vector<CPubKey>;
@@ -179,7 +181,7 @@ public:
         consensus.imp_block_window = blocks_per_minute  * 60 * 24 * 1; //1 days of blocks
         consensus.imp_min_one_invite_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
-        consensus.imp_weights = {60, 40}; 
+        consensus.imp_weights = {60, 40};
 
         // PoG v2 settings.
         consensus.pog2_blockheight = 400000;
@@ -190,7 +192,7 @@ public:
         consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog2_new_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog2_max_outstanding_invites_per_address = 50;
-        consensus.pog2_convex_b = 0.2; 
+        consensus.pog2_convex_b = 0.2;
         consensus.pog2_convex_s = 0.05;
 
         /**
@@ -341,7 +343,7 @@ public:
         consensus.imp_block_window = 4;
         consensus.imp_min_one_invite_for_every_x_blocks = 2; //invite every minute
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
-        consensus.imp_weights = {60, 40}; 
+        consensus.imp_weights = {60, 40};
 
         // PoG v2 settings.
         consensus.pog2_blockheight = 216810;
@@ -352,7 +354,7 @@ public:
         consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog2_new_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog2_max_outstanding_invites_per_address = 50;
-        consensus.pog2_convex_b = 0.2; 
+        consensus.pog2_convex_b = 0.2;
         consensus.pog2_convex_s = 0.05;
 
         pchMessageStart[0] = 0x0b;
@@ -482,7 +484,7 @@ public:
         consensus.imp_block_window = 4;
         consensus.imp_min_one_invite_for_every_x_blocks = 1; //invite every minute
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
-        consensus.imp_weights = {60, 40}; 
+        consensus.imp_weights = {60, 40};
 
         // PoG v2 settings.
         consensus.pog2_blockheight = 10;
@@ -493,7 +495,7 @@ public:
         consensus.pog2_coin_maturity = blocks_per_minute * 20; //20 minutes for coin maturity
         consensus.pog2_new_coin_maturity = blocks_per_minute * 10; //10 minutes for coin maturity
         consensus.pog2_max_outstanding_invites_per_address = 50;
-        consensus.pog2_convex_b = 0.2; 
+        consensus.pog2_convex_b = 0.2;
         consensus.pog2_convex_s = 0.05;
 
         pchMessageStart[0] = 0xfa;
@@ -544,20 +546,18 @@ public:
             "bd1e4ec39902202d4b5ac449d94b49b308f7faf42a2f624b3cc4f1569b7621e9"
             "f967f5b6895626";
 
-        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800, 381, 0x207fffff, 24, 1, genesisReward, consensus);
+        genesis = CreateGenesisBlock(genesisKeys, referralSig, TIMESTAMP_MESSAGE, 1514332800, 117, 0x207fffff, 16, 1, genesisReward, consensus);
 
         genesis.sCycle = {
-            0x13529, 0xb3ef1, 0xf3211, 0x166f1d, 0x1fe182, 0x229740, 0x2704c2, 0x2a3b1b,
-            0x32053c, 0x39fee1, 0x3ed8ff, 0x3f079d, 0x408b98, 0x40b31d, 0x434ea2, 0x463eaa,
-            0x482bb4, 0x49eae3, 0x4bb609, 0x545752, 0x5a2d5b, 0x5e3999, 0x6ca1d2, 0x76c4f7,
-            0x826245, 0x82d44d, 0xad2cd4, 0xafd7be, 0xb5792b, 0xb593a2, 0xb7f4fb, 0xc2a540,
-            0xcec41e, 0xd33967, 0xdbb0b8, 0xdc9ce4, 0xdf509e, 0xe04520, 0xe187ef, 0xe30157,
-            0xed068f, 0xfd58fe
+            0xcd8, 0xfd6, 0x1221, 0x12fd, 0x143c, 0x171b, 0x24b4, 0x27fa, 0x2bf7, 0x3351, 0x365e, 0x4917,
+            0x523f, 0x540e, 0x54c0, 0x5693, 0x5ad3, 0x5b20, 0x648d, 0x6961, 0x6bde, 0x8386, 0x913f,
+            0x9a3e, 0x9a3f, 0xa458, 0xba74, 0xba77, 0xbc81, 0xc2ef, 0xc682, 0xc79e, 0xceba, 0xd13e,
+            0xd32b, 0xd864, 0xd8db, 0xecb0, 0xef2d, 0xf865, 0xfcd2, 0xfeb4,
         };
 
         consensus.hashGenesisBlock = genesis.GetHash();
 
-        assert(consensus.hashGenesisBlock == uint256S("448f31e47f5daabfd1984f03a64723c7f50b2306961e6f0e7f482e0b49f2dbea"));
+        assert(consensus.hashGenesisBlock == uint256S("fb2245f4c15590c032dc2bdf22836c7f72b53c9364d162cdf3db3b791fb28304"));
         assert(genesis.hashMerkleRoot == uint256S("8be99a68b2514e86f17368e9cce63d302aa0f29ed91654b7c90dc9f7201fb69f"));
     }
 };

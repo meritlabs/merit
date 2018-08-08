@@ -62,6 +62,7 @@ class TestNode():
         self.rpc = None
         self.url = None
         self.log = logging.getLogger('TestFramework.node%d' % i)
+        self.log.setLevel(logging.DEBUG)
 
     def __getattr__(self, *args, **kwargs):
         """Dispatches any unrecognised messages to the RPC connection."""

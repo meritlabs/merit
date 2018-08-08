@@ -112,6 +112,7 @@ class MeritTestFramework(object):
         success = TestStatus.FAILED
 
         try:
+            self.log.info("running tests")
             self.setup_chain()
             self.setup_network()
             self.run_test()
@@ -192,6 +193,7 @@ class MeritTestFramework(object):
 
     def setup_network(self):
         """Override this method to customize test network topology"""
+        self.log.info("setting up network")
         self.setup_nodes()
 
         # Connect the nodes as a "chain".  This allows us
@@ -204,10 +206,12 @@ class MeritTestFramework(object):
     def setup_nodes(self):
         """Override this method to customize test node setup"""
         extra_args = None
+        self.log.info("setting up nodes")
         if hasattr(self, "extra_args"):
             extra_args = self.extra_args
         self.add_nodes(self.num_nodes, extra_args)
         self.start_nodes()
+        self.unlock_nodes()
 
     def run_test(self):
         """Tests must override this method to define test logic"""
@@ -257,6 +261,13 @@ class MeritTestFramework(object):
         if self.options.coveragedir is not None:
             for node in self.nodes:
                 coverage.write_all_rpc_commands(self.options.coveragedir, node.rpc)
+
+    def unlock_nodes(self):
+        self.log.info("Unlocking nodes")
+
+        for node in self.nodes:
+            node.unlockwallet("sPm5Tq6pZwDtcgGMJcqsvtmh5wZsSqVyRH")
+
 
     def stop_node(self, i):
         """Stop a meritd test node"""
@@ -400,6 +411,8 @@ class MeritTestFramework(object):
             for node in self.nodes:
                 node.wait_for_rpc_connection()
 
+            for node in self.nodes:
+                node.unlockwallet("sPm5Tq6pZwDtcgGMJcqsvtmh5wZsSqVyRH")
             # Create a 200-block-long chain; each of the 4 first nodes
             # gets 25 mature blocks and 25 immature.
             # Note: To preserve compatibility with older versions of
@@ -463,6 +476,7 @@ class ComparisonTestFramework(MeritTestFramework):
                           help="meritd binary to use for reference nodes (if any)")
 
     def setup_network(self):
+        self.log.info("setting up network")
         extra_args = [['-whitelist=127.0.0.1']] * self.num_nodes
         if hasattr(self, "extra_args"):
             extra_args = self.extra_args
