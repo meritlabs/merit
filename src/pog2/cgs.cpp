@@ -110,7 +110,7 @@ namespace pog2
     bool GetAllCoins(int tip_height, AddressCoins& coins) {
         std::vector<UnspentPair> unspent;
         if (!GetAllUnspent(false, [&coins, tip_height](const CAddressUnspentKey& key, const CAddressUnspentValue& value) {
-                if (key.type == 0 || value.satoshis == 0 || value.blockHeight > tip_height) {
+                if (key.type == 0 || key.isInvite || value.satoshis == 0 || value.blockHeight > tip_height) {
                     return;
                 }
 

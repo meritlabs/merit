@@ -44,7 +44,14 @@ struct CAddressUnspentKey {
         isCoinbase = ser_readdata8(s);
     }
 
-    CAddressUnspentKey(unsigned int addressType, uint160 addressHash, uint256 txid, size_t indexValue, bool isCoinbaseIn, bool isInviteIn) {
+    CAddressUnspentKey(
+            unsigned int addressType,
+            uint160 addressHash,
+            uint256 txid,
+            size_t indexValue,
+            bool isCoinbaseIn,
+            bool isInviteIn) {
+
         isInvite = isInviteIn;
         type = addressType;
         hashBytes = addressHash;
@@ -64,6 +71,36 @@ struct CAddressUnspentKey {
         index = 0;
         isCoinbase = false;
         isInvite = false;
+    }
+
+    bool operator==(const CAddressUnspentKey& o) const {
+        return 
+            type == o.type &&
+            hashBytes == o.hashBytes &&
+            txhash == o.txhash &&
+            index == o.index &&
+            isCoinbase == o.isCoinbase &&
+            isInvite == o.isInvite;
+    }
+
+    //lexigraphical sort on order of serialization
+    bool operator<(const CAddressUnspentKey& o) const {
+        if(isInvite == o.isInvite) {
+            if(type == o.type) {
+                if(hashBytes == o.hashBytes) {
+                    if(txhash == o.txhash) {
+                        if(index == o.index) {
+                            return isCoinbase < o.isCoinbase;
+                        }
+                        return index < o.index;
+                    } 
+                    return txhash < o.txhash;
+                }
+                return hashBytes < o.hashBytes;
+            }
+            return type < o.type;
+        }
+        return isInvite < o.isInvite;
     }
 };
 
@@ -240,7 +277,11 @@ struct CAddressIndexIteratorHeightKey {
         blockHeight = ser_readdata32be(s);
     }
 
-    CAddressIndexIteratorHeightKey(unsigned int addressType, uint160 addressHash, int height) {
+    CAddressIndexIteratorHeightKey(
+            unsigned int addressType,
+            uint160 addressHash,
+            int height) {
+
         type = addressType;
         hashBytes = addressHash;
         blockHeight = height;
@@ -290,7 +331,14 @@ struct CMempoolAddressDeltaKey
     int spending;
     bool invite;
 
-    CMempoolAddressDeltaKey(int addressType, uint160 addressHash, uint256 hash, unsigned int i, int s, bool is_invite) {
+    CMempoolAddressDeltaKey(
+            int addressType,
+            uint160 addressHash,
+            uint256 hash,
+            unsigned int i,
+            int s,
+            bool is_invite) {
+
         type = addressType;
         addressBytes = addressHash;
         txhash = hash;
@@ -310,24 +358,23 @@ struct CMempoolAddressDeltaKey
 
 struct CMempoolAddressDeltaKeyCompare
 {
-    bool operator()(const CMempoolAddressDeltaKey& a, const CMempoolAddressDeltaKey& b) const {
+    bool operator()(
+            const CMempoolAddressDeltaKey& a,
+            const CMempoolAddressDeltaKey& b) const {
+
         if (a.type == b.type) {
             if (a.addressBytes == b.addressBytes) {
                 if (a.txhash == b.txhash) {
                     if (a.index == b.index) {
                         return a.spending < b.spending;
-                    } else {
-                        return a.index < b.index;
-                    }
-                } else {
-                    return a.txhash < b.txhash;
-                }
-            } else {
-                return a.addressBytes < b.addressBytes;
-            }
-        } else {
-            return a.type < b.type;
-        }
+                    } 
+                    return a.index < b.index;
+                } 
+                return a.txhash < b.txhash;
+            } 
+            return a.addressBytes < b.addressBytes;
+        } 
+        return a.type < b.type;
     }
 };
 

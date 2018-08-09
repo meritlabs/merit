@@ -118,6 +118,9 @@ private:
     friend class CCoinsViewDB;
 };
 
+using UnspentPair = std::pair<CAddressUnspentKey, CAddressUnspentValue>;
+using UnspentCache = std::vector<UnspentPair>;
+
 /** Access to the block database (blocks/index/) */
 class CBlockTreeDB : public CDBWrapper
 {
@@ -126,6 +129,13 @@ public:
 private:
     CBlockTreeDB(const CBlockTreeDB&);
     void operator=(const CBlockTreeDB&);
+
+    bool CacheAllUnspent();
+
+    void EraseFromUnspentCache(const UnspentPair& p);
+    void AddToUnspentCache(const UnspentPair& p);
+
+    UnspentCache unspent_cache;
 public:
     bool WriteBatchSync(const std::vector<std::pair<int, const CBlockFileInfo*> >& fileInfo, int nLastFile, const std::vector<const CBlockIndex*>& blockinfo);
     bool ReadBlockFileInfo(int nFile, CBlockFileInfo &fileinfo);
@@ -150,29 +160,10 @@ public:
         bool ReadAllAddressUnspent(
                 bool invite,
                 F process) {
-            leveldb::ReadOptions options;
-            options.fill_cache = false;
-            boost::scoped_ptr<CDBIterator> pcursor(NewIterator(options));
-
-            pcursor->Seek(DB_ADDRESSUNSPENTINDEX);
-
-            while (pcursor->Valid()) {
-                boost::this_thread::interruption_point();
-                std::pair<char,CAddressUnspentKey> key;
-                if (pcursor->GetKey(key) && key.first == DB_ADDRESSUNSPENTINDEX)  {
-
-                    if(key.second.isInvite == invite) {
-                        CAddressUnspentValue value;
-                        if (pcursor->GetValue(value)) {
-                            process(key.second, value);
-                        } else {
-                            return error("failed to get address unspent value");
-                        }
-                    }
-                }
-                pcursor->Next();
+            assert(!unspent_cache.empty());
+            for(const auto& unspent : unspent_cache) { 
+                process(unspent.first, unspent.second);
             }
-
             return true;
         }
 

@@ -18,6 +18,7 @@
 #include "cuckoo/miner.h"
 
 #include <stdint.h>
+#include <algorithm>
 
 #include <boost/thread.hpp>
 
@@ -159,6 +160,7 @@ size_t CCoinsViewDB::EstimateSize() const
 }
 
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe, bool compression, int maxOpenFiles) : CDBWrapper(GetDataDir() / "blocks" / "index", nCacheSize, fMemory, fWipe, false, compression, maxOpenFiles) {
+    CacheAllUnspent();
 }
 
 bool CBlockTreeDB::ReadBlockFileInfo(int nFile, CBlockFileInfo &info) {
@@ -280,8 +282,10 @@ bool CBlockTreeDB::UpdateAddressUnspentIndex(const std::vector<std::pair<CAddres
     for (const auto& idx: vect) {
         if (idx.second.IsNull()) {
             batch.Erase(std::make_pair(DB_ADDRESSUNSPENTINDEX, idx.first));
+            EraseFromUnspentCache(idx);
         } else {
             batch.Write(std::make_pair(DB_ADDRESSUNSPENTINDEX, idx.first), idx.second);
+            AddToUnspentCache(idx);
         }
     }
     return WriteBatch(batch);
@@ -629,4 +633,42 @@ bool CBlockTreeDB::WriteReferralIndex(const std::vector<std::pair<uint256, CDisk
         batch.Write(std::make_pair(DB_REFERRALSINDEX, it->first), it->second);
 
     return WriteBatch(batch);
+}
+
+bool CBlockTreeDB::CacheAllUnspent()
+{
+    leveldb::ReadOptions options;
+    options.fill_cache = false;
+    boost::scoped_ptr<CDBIterator> pcursor(NewIterator(options));
+
+    pcursor->Seek(DB_ADDRESSUNSPENTINDEX);
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        std::pair<char,CAddressUnspentKey> key;
+        if (pcursor->GetKey(key) && key.first == DB_ADDRESSUNSPENTINDEX)  {
+            CAddressUnspentValue value;
+            if (pcursor->GetValue(value)) {
+                unspent_cache.push_back(std::make_pair(key.second, value));
+            } else {
+                return error("failed to get address unspent value");
+            }
+        }
+        pcursor->Next();
+    }
+    return true;
+}
+
+void CBlockTreeDB::EraseFromUnspentCache(const UnspentPair& p)
+{
+    const auto f = std::find_if(unspent_cache.begin(), unspent_cache.end(), 
+            [&p](const UnspentPair& a) {
+                return a.first == p.first;
+            });
+    unspent_cache.erase(f);
+}
+
+void CBlockTreeDB::AddToUnspentCache(const UnspentPair& p)
+{
+    unspent_cache.push_back(p);
 }
