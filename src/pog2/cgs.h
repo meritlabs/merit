@@ -50,12 +50,23 @@ namespace pog2
     using BalancePair = std::pair<CAmount, CAmount>;
     using BalancePairs = std::vector<BalancePair>;
 
+    struct Coin
+    {
+        Coin(int h, CAmount a) : height{h}, amount{a} {}
+        int height;
+        CAmount amount;
+    };
+
+    using Coins = std::vector<Coin>;
+    using AddressCoins = std::map<referral::Address, Coins>;
+
     struct CGSContext
     {
         int tip_height;
         int coin_maturity;
         int new_coin_maturity;
         SubtreeContribution tree_contribution; 
+        AddressCoins coins; 
 
         std::map<referral::Address, Contribution> contribution;
         std::map<referral::Address, SubtreeContribution> subtree_contribution;

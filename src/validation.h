@@ -26,6 +26,7 @@
 #include "pog/reward.h"
 #include "pog2/cgs.h"
 #include "pog2/select.h"
+#include "txdb.h"
 #include "script/standard.h"
 
 #include <algorithm>
@@ -556,6 +557,10 @@ bool GetAddressUnspent(
         bool invite,
         std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
 
+bool GetAllUnspent(
+        bool invite,
+        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
+
 /** Initializes the script-execution cache */
 void InitScriptExecutionCache();
 
@@ -758,4 +763,18 @@ std::pair<Pog2Ranks, size_t> TopCGSRanks(
         const Consensus::Params& params,
         CAmount& lottery_cgs,
         bool sub = true);
+
+template<class F>
+    bool GetAllUnspent(
+            bool invite,
+            F process)
+    {
+        if (!pblocktree->ReadAllAddressUnspent(invite, process)) {
+            return error("unable to get all unspent");
+        }
+
+        return true;
+    }
+
+
 #endif // MERIT_VALIDATION_H

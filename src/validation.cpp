@@ -3132,6 +3132,7 @@ bool UndoNewPoolInviteRewards(
 {
 
     for (const auto& entry : debits_and_credits) { 
+        const auto& address_type = std::get<0>(entry);
         const auto& address = std::get<1>(entry);
         const CAmount amount = std::get<2>(entry);
 

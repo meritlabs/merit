@@ -21,13 +21,6 @@ namespace pog2
         const int NO_GENESIS = 13500;
     }
 
-    struct Coin
-    {
-        int height;
-        CAmount amount;
-    };
-
-    using Coins = std::vector<Coin>;
     using UnspentPair = std::pair<CAddressUnspentKey, CAddressUnspentValue>;
 
     using BigInt = boost::multiprecision::cpp_int;
@@ -114,6 +107,23 @@ namespace pog2
         return cs;
     }
 
+    bool GetAllCoins(int tip_height, AddressCoins& coins) {
+        std::vector<UnspentPair> unspent;
+        if (!GetAllUnspent(false, [&coins, tip_height](const CAddressUnspentKey& key, const CAddressUnspentValue& value) {
+                if (key.type == 0 || value.satoshis == 0 || value.blockHeight > tip_height) {
+                    return;
+                }
+
+                assert(!key.isInvite);
+                assert(value.satoshis > 0);
+
+                coins[key.hashBytes].emplace_back(value.blockHeight, value.satoshis);
+           })) {
+            return false;
+        }
+        return true;
+    }
+
     BalancePair BalanceDecay(int tip_height, const Coin& c, int maturity) {
         assert(tip_height >= 0);
         assert(c.height <= tip_height);
@@ -163,12 +173,14 @@ namespace pog2
             char address_type,
             const referral::Address& address)
     {
+        assert(!context.coins.empty());
+
         const auto cached_balance = context.balances.find(address);
 
         if (cached_balance == context.balances.end()) {
             const auto balance = AgedBalance(
                     context.tip_height,
-                    GetCoins(context.tip_height, address_type, address),
+                    context.coins[address],
                     context.coin_maturity,
                     BalanceDecay);
 
@@ -216,7 +228,7 @@ namespace pog2
                 address_type,
                 address);
 
-        const auto beacon_height =
+        const auto beacon_height = 
             std::min(GetReferralHeight(db, address), context.tip_height);
 
         if (beacon_height < 0 ) {
@@ -349,17 +361,21 @@ namespace pog2
         return t.sub;
     }
 
-    template <class ValueFunc>
-    ContributionAmount WeightedScore(
+    struct WeightedScores
+    {
+        ContributionAmount value;
+        ContributionAmount sub;
+        size_t tree_size;
+    };
+
+    WeightedScores WeightedScore(
             CGSContext& context,
             const char address_type,
             const referral::Address& address,
-            referral::ReferralsViewCache& db,
-            const ContributionAmount tree_contribution,
-            size_t& network_size,
-            ValueFunc value)
+            referral::ReferralsViewCache& db)
     {
-        assert(tree_contribution > 0);
+        assert(context.tree_contribution.value > 0);
+        assert(context.tree_contribution.sub > 0);
 
         const auto subtree_contribution =
                 ContributionSubtreeIter(
@@ -367,77 +383,87 @@ namespace pog2
                     address_type,
                     address,
                     db);
+        assert(subtree_contribution.value >= 0);
+        assert(subtree_contribution.value <= context.tree_contribution.value);
+        assert(subtree_contribution.sub <= context.tree_contribution.sub);
 
-        network_size = subtree_contribution.tree_size;
-        
-        const auto contrib_value = value(subtree_contribution);
-
-        assert(contrib_value >= 0);
-        assert(contrib_value <= tree_contribution);
-
-        const auto v = ConvexF<ContributionAmount>(
-                contrib_value / tree_contribution,
+        WeightedScores score;
+        score.value = ConvexF<ContributionAmount>(
+                subtree_contribution.value / context.tree_contribution.value,
                 context.B,
                 context.S);
 
-        assert(v >= 0);
-        return v;
+        score.sub = ConvexF<ContributionAmount>(
+                subtree_contribution.sub / context.tree_contribution.sub,
+                context.B,
+                context.S);
+
+        score.tree_size = subtree_contribution.tree_size;
+        
+        assert(score.value >= 0);
+        assert(score.sub >= 0);
+        assert(score.tree_size > 0);
+        return score;
     }
 
-    template <class ValueFunc>
-        ContributionAmount ExpectedValue(
+    struct ExpectedValues
+    {
+        ContributionAmount value;
+        ContributionAmount sub;
+        size_t tree_size;
+    };
+
+    ExpectedValues ExpectedValue(
             CGSContext& context,
             const char address_type,
             const referral::Address& address,
-            referral::ReferralsViewCache& db,
-            size_t& network_size,
-            ValueFunc value)
-        {
-            const auto tree_contribution = value(context.tree_contribution);
-
-            //this case can occur on regtest if there is not enough data.
-            if (tree_contribution == 0) {
-                return 0;
-            }
-
-            assert(tree_contribution > 0);
-
-            auto expected_value = WeightedScore(
-                    context,
-                    address_type,
-                    address,
-                    db,
-                    tree_contribution,
-                    network_size,
-                    value);
-
-            assert(expected_value >= 0);
-
-            const auto children = db.GetChildren(address);
-
-            for (const auto& c:  children) {
-                auto maybe_ref = db.GetReferral(c);
-                if (!maybe_ref) {
-                    continue;
-                }
-
-                size_t child_network_size = 0;
-                auto child_score = WeightedScore(
-                        context,
-                        maybe_ref->addressType,
-                        maybe_ref->GetAddress(),
-                        db, 
-                        tree_contribution,
-                        child_network_size,
-                        value);
-
-                assert(child_score >= 0);
-                expected_value -= child_score;
-            }
-
-            assert(expected_value >= 0);
-            return expected_value;
+            referral::ReferralsViewCache& db)
+    {
+        //this case can occur on regtest if there is not enough data.
+        if (context.tree_contribution.value == 0) {
+            return {0, 0, 0};
         }
+
+        assert(context.tree_contribution.value > 0);
+        assert(context.tree_contribution.sub > 0);
+
+        auto expected_value = WeightedScore(
+                context,
+                address_type,
+                address,
+                db);
+
+        assert(expected_value.value >= 0);
+        assert(expected_value.sub >= 0);
+
+        const auto children = db.GetChildren(address);
+
+        for (const auto& c:  children) {
+            auto maybe_ref = db.GetReferral(c);
+            if (!maybe_ref) {
+                continue;
+            }
+
+            auto child_score = WeightedScore(
+                    context,
+                    maybe_ref->addressType,
+                    maybe_ref->GetAddress(),
+                    db);
+
+            assert(child_score.value >= 0);
+            assert(child_score.sub >= 0);
+            expected_value.value -= child_score.value;
+            expected_value.sub -= child_score.sub;
+        }
+
+        assert(expected_value.value >= 0);
+        assert(expected_value.sub >= 0);
+        return { 
+            expected_value.value,
+                expected_value.sub,
+                expected_value.tree_size
+        };
+    }
 
     Entrant ComputeCGS(
             CGSContext& context,
@@ -445,6 +471,21 @@ namespace pog2
             const referral::Address& address,
             referral::ReferralsViewCache& db)
     {
+        auto expected_value = ExpectedValue(
+                context,
+                address_type,
+                address,
+                db);
+
+        const ContributionAmount cgs = context.tree_contribution.value * expected_value.value;
+        const ContributionAmount sub_cgs = context.tree_contribution.sub * expected_value.sub;
+
+        assert(cgs >= 0);
+        assert(sub_cgs >= 0);
+
+        auto floored_cgs = cgs.convert_to<CAmount>();
+        auto floored_sub_cgs = sub_cgs.convert_to<CAmount>();
+
         const auto balance = GetAgedBalance(
                 context,
                 address_type,
@@ -452,31 +493,6 @@ namespace pog2
 
         const auto children = db.GetChildren(address);
         const auto height = GetReferralHeight(db, address);
-
-        size_t tree_size = 0;
-        const ContributionAmount cgs = context.tree_contribution.value * ExpectedValue(
-                context,
-                address_type,
-                address,
-                db,
-                tree_size,
-                GetValue);
-
-        size_t tree_size_2 = 0;
-        const ContributionAmount sub_cgs = context.tree_contribution.sub * ExpectedValue(
-                context,
-                address_type,
-                address,
-                db,
-                tree_size_2,
-                GetSubValue);
-
-        assert(cgs >= 0);
-        assert(sub_cgs >= 0);
-        assert(tree_size == tree_size_2);
-
-        auto floored_cgs = cgs.convert_to<CAmount>();
-        auto floored_sub_cgs = sub_cgs.convert_to<CAmount>();
 
         return Entrant{
             address_type,
@@ -487,7 +503,7 @@ namespace pog2
                 floored_sub_cgs,
                 height,
                 children.size(),
-                tree_size
+                expected_value.tree_size
         };
     }
 
@@ -507,6 +523,8 @@ namespace pog2
         entrants.resize(anv_entrants.size());
 
         context.tip_height = height;
+        GetAllCoins(height, context.coins);
+
         context.coin_maturity = params.pog2_coin_maturity;
         context.new_coin_maturity = params.pog2_new_coin_maturity;
         context.tree_contribution = ContributionSubtreeIter(context, 2, params.genesis_address, db);

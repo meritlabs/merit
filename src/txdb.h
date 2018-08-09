@@ -31,7 +31,7 @@ static constexpr int MAX_BLOCK_COINSDB_USAGE = 200 * DB_PEAK_USAGE_FACTOR;
 //! Always periodic flush if less than this much space still available.
 static constexpr int MIN_BLOCK_COINSDB_USAGE = 50 * DB_PEAK_USAGE_FACTOR;
 //! -dbcache default (MiB)
-static const int64_t nDefaultDbCache = 450;
+static const int64_t nDefaultDbCache = 1024;
 //! -dbbatchsize default (bytes)
 static const int64_t nDefaultDbBatchSize = 16 << 20;
 //! max. -dbcache (MiB)
@@ -45,7 +45,11 @@ static const int64_t nMaxBlockDBCache = 2;
 // a meaningful difference: https://github.com/bitcoin/bitcoin/pull/8273#issuecomment-229601991
 static const int64_t nMaxBlockDBAndTxIndexCache = 1024;
 //! Max memory allocated to coin DB specific cache (MiB)
-static const int64_t nMaxCoinsDBCache = 8;
+static const int64_t nMaxCoinsDBCache = 300;
+//! Max memory allocated to referral DB specific cache (MiB)
+static const int64_t nMaxReferralDBCache = 200;
+
+extern const char DB_ADDRESSUNSPENTINDEX;
 
 struct CDiskTxPos : public CDiskBlockPos
 {
@@ -138,6 +142,40 @@ public:
             unsigned int type,
             bool invite,
             std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &vect);
+    bool ReadAllAddressUnspent(
+        bool invite,
+        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
+
+    template<class F>
+        bool ReadAllAddressUnspent(
+                bool invite,
+                F process) {
+            leveldb::ReadOptions options;
+            options.fill_cache = false;
+            boost::scoped_ptr<CDBIterator> pcursor(NewIterator(options));
+
+            pcursor->Seek(DB_ADDRESSUNSPENTINDEX);
+
+            while (pcursor->Valid()) {
+                boost::this_thread::interruption_point();
+                std::pair<char,CAddressUnspentKey> key;
+                if (pcursor->GetKey(key) && key.first == DB_ADDRESSUNSPENTINDEX)  {
+
+                    if(key.second.isInvite == invite) {
+                        CAddressUnspentValue value;
+                        if (pcursor->GetValue(value)) {
+                            process(key.second, value);
+                        } else {
+                            return error("failed to get address unspent value");
+                        }
+                    }
+                }
+                pcursor->Next();
+            }
+
+            return true;
+        }
+
     bool WriteAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAmount> > &vect);
     bool EraseAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAmount> > &vect);
     bool ReadAddressIndex(
