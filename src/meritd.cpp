@@ -21,8 +21,6 @@
 #include "httprpc.h"
 #include "utilstrencodings.h"
 
-#include <boost/thread.hpp>
-
 #include <stdio.h>
 
 /* Introduction text for doxygen: */
@@ -57,11 +55,6 @@ void WaitForShutdown(boost::thread_group* threadGroup)
     }
 }
 
-namespace pog2
-{
-    extern void SetupCgsThreadPool(size_t threads);
-}
-
 //////////////////////////////////////////////////////////////////////////////
 //
 // Start
@@ -70,8 +63,6 @@ bool AppInit(int argc, char* argv[])
 {
     boost::thread_group threadGroup;
     CScheduler scheduler;
-    pog2::SetupCgsThreadPool(boost::thread::hardware_concurrency());
-
     bool fRet = false;
 
     //

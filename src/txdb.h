@@ -130,13 +130,13 @@ private:
     CBlockTreeDB(const CBlockTreeDB&);
     void operator=(const CBlockTreeDB&);
 
-    bool CacheAllUnspent();
-
     void EraseFromUnspentCache(const UnspentPair& p);
     void AddToUnspentCache(const UnspentPair& p);
 
     UnspentCache unspent_cache;
 public:
+    bool CacheAllUnspent();
+
     bool WriteBatchSync(const std::vector<std::pair<int, const CBlockFileInfo*> >& fileInfo, int nLastFile, const std::vector<const CBlockIndex*>& blockinfo);
     bool ReadBlockFileInfo(int nFile, CBlockFileInfo &fileinfo);
     bool ReadLastBlockFile(int &nFile);
