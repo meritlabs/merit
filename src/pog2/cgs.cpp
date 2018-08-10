@@ -21,6 +21,7 @@ namespace pog2
 {
     namespace
     {
+        const size_t BATCH_SIZE = 100;
         const int NO_GENESIS = 13500;
         ctpl::thread_pool cgs_pool;
     }
@@ -463,15 +464,19 @@ namespace pog2
 
     void ComputeAges(CGSContext& context) {
         std::vector<std::future<void>> jobs;
-        jobs.reserve(context.entrants.size());
-        for(auto& e : context.entrants) {
+        jobs.reserve(context.entrants.size() / BATCH_SIZE);
+        for(size_t b = 0; b < context.entrants.size(); b+=BATCH_SIZE) {
             jobs.push_back(
-                    cgs_pool.push([&e, &context](int id) {
-                        e.balances = AgedBalance(
-                                context.tip_height,
-                                e.coins,
-                                context.coin_maturity,
-                                BalanceDecay);
+                    cgs_pool.push([b, &context](int id) {
+                        const auto end = std::min(context.entrants.size(), b + BATCH_SIZE);
+                        for(size_t i = b; i < end; i++) {
+                            auto& e = context.entrants[i];
+                            e.balances = AgedBalance(
+                                    context.tip_height,
+                                    e.coins,
+                                    context.coin_maturity,
+                                    BalanceDecay);
+                        }
                     }));
         }
         for(auto& j : jobs) {
@@ -514,11 +519,15 @@ namespace pog2
             referral::ReferralsViewCache& db) {
 
         std::vector<std::future<void>> jobs;
-        jobs.reserve(context.entrants.size());
-        for(auto& e : context.entrants) {
+        jobs.reserve(context.entrants.size() / BATCH_SIZE);
+        for(size_t b = 0; b < context.entrants.size(); b+=BATCH_SIZE) {
             jobs.push_back(
-                    cgs_pool.push([&e, &context, &db](int id) {
-                        e.contribution = ContributionNode(context, e, db);
+                    cgs_pool.push([b, &context, &db](int id) {
+                        const auto end = std::min(context.entrants.size(), b + BATCH_SIZE);
+                        for(size_t i = b; i < end; i++) {
+                            auto& e = context.entrants[i];
+                            e.contribution = ContributionNode(context, e, db);
+                        }
                     }));
         }
         for(auto& j : jobs) {
@@ -526,6 +535,41 @@ namespace pog2
         }
     }
 
+    void ComputeAllScores(
+            CGSContext& context,
+            referral::ReferralsViewCache& db,
+            const Consensus::Params& params,
+            Entrants& entrants)
+    {
+        referral::AddressANVs anv_entrants;
+        db.GetAllRewardableANVs(params, NO_GENESIS, anv_entrants);
+
+        std::vector<std::future<Entrants>> jobs;
+        jobs.reserve(anv_entrants.size() / BATCH_SIZE);
+
+        size_t BATCH_SIZE = 100;
+        for(size_t b = 0; b < anv_entrants.size(); b+=BATCH_SIZE) {
+            jobs.push_back(
+                    cgs_pool.push([b, BATCH_SIZE, &anv_entrants, &context, &db](int id) {
+                        const auto end = std::min(anv_entrants.size(), b + BATCH_SIZE);
+                        Entrants es;
+                        es.reserve(end - b);
+                        for(size_t i = b; i < end; i++) {
+                            const auto& a = anv_entrants[i];
+                            const auto& e = context.GetEntrant(a.address);
+                            es.emplace_back(ComputeCGS(context, e, db));
+                        }
+                        return es;
+                    }));
+        }
+
+        entrants.reserve(anv_entrants.size());
+
+        for(auto& j : jobs) {
+            auto es = j.get();
+            entrants.insert(entrants.end(), es.begin(), es.end());
+        }
+    }
 
     void GetAllRewardableEntrants(
             CGSContext& context,
@@ -535,10 +579,6 @@ namespace pog2
             Entrants& entrants)
     {
         assert(height >= 0);
-
-        referral::AddressANVs anv_entrants;
-
-        db.GetAllRewardableANVs(params, NO_GENESIS, anv_entrants);
 
         context.tip_height = height;
         context.coin_maturity = params.pog2_coin_maturity;
@@ -554,25 +594,9 @@ namespace pog2
         ComputeAges(context);
 
         ComputeAllContributions(context, db);
-
         context.tree_contribution = ContributionSubtreeIter(context, 2, params.genesis_address, db);
 
-        std::vector<std::future<Entrant>> jobs;
-        jobs.reserve(anv_entrants.size());
-        for(auto& a : anv_entrants) {
-            jobs.push_back(
-                    cgs_pool.push([&a, &context, &db](int id) {
-                        const auto& e = context.GetEntrant(a.address);
-                        return ComputeCGS(context, e, db);
-                    }));
-        }
-
-        entrants.reserve(anv_entrants.size());
-
-        for(auto& j : jobs) {
-            auto e = j.get();
-            entrants.push_back(e);
-        }
+        ComputeAllScores(context, db, params, entrants);
     }
 
     CachedEntrant& CGSContext::AddEntrant(
