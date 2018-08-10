@@ -58,7 +58,25 @@ namespace pog2
     };
 
     using Coins = std::vector<Coin>;
-    using AddressCoins = std::map<referral::Address, Coins>;
+    struct AddressBalance {
+    };
+
+    using AddressBalances = std::map<referral::Address, AddressBalance>;
+
+    using AddressPair = std::pair<char, referral::Address>;
+    using Addresses = std::vector<referral::Address>;
+    using Children = Addresses;
+
+    struct CachedEntrant
+    {
+        referral::Address address;
+        char address_type;
+        Coins coins;
+        BalancePair balances;
+        Contribution contribution;
+        int height;
+        Children children;
+    };
 
     struct CGSContext
     {
@@ -66,16 +84,23 @@ namespace pog2
         int coin_maturity;
         int new_coin_maturity;
         SubtreeContribution tree_contribution; 
-        AddressCoins coins; 
 
-        std::map<referral::Address, Contribution> contribution;
+        std::vector<CachedEntrant> entrants;
+        std::map<referral::Address, size_t> entrant_idx;
+
         std::map<referral::Address, SubtreeContribution> subtree_contribution;
-
-        std::map<referral::Address, BalancePair> balances;
-        std::map<referral::Address, Entrant> entrant_cgs;
-
         double B;
         double S;
+
+        CachedEntrant& AddEntrant(
+                char address_type,
+                const referral::Address& address,
+                int height,
+                const Children& children);
+
+        CachedEntrant& GetEntrant(const referral::Address&);
+        const CachedEntrant& GetEntrant(const referral::Address&) const;
+
     };
 
     using Entrants = std::vector<Entrant>;
@@ -90,11 +115,11 @@ namespace pog2
 
     Entrant ComputeCGS(
             CGSContext& context,
-            char address_type,
-            const referral::Address& address,
+            const CachedEntrant& entrant,
             referral::ReferralsViewCache& db);
 
     void TestChain();
+    void SetupCgsThreadPool(size_t threads);
 
 } // namespace pog2
 

@@ -1395,11 +1395,8 @@ UniValue getaddressrank(const JSONRPCRequest& request)
 
     std::vector<CAmount> cgs; 
     for (const auto& a : addresses) {
-     auto node = pog2::ComputeCGS(
-            context,
-            a.second,
-            a.first,
-            *prefviewcache);
+     const auto& e = context.GetEntrant(a.first);
+     auto node = pog2::ComputeCGS(context, e, *prefviewcache);
         cgs.push_back(sub_linear ? node.sub_cgs : node.cgs);
     }
 

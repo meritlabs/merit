@@ -6,6 +6,8 @@
 #include "addressindex.h"
 #include "validation.h"
 #include "referrals.h"
+#include "ctpl/ctpl.h"
+#include "sync.h"
 
 #include <stack>
 #include <deque>
@@ -13,12 +15,22 @@
 #include <numeric>
 
 #include <boost/multiprecision/cpp_int.hpp> 
+#include <boost/thread/thread.hpp>
 
 namespace pog2
 {
     namespace
     {
         const int NO_GENESIS = 13500;
+        ctpl::thread_pool cgs_pool;
+        CCriticalSection cgs_cs;
+        CCriticalSection height_cs;
+    }
+
+    void SetupCgsThreadPool(size_t threads)
+    {
+        LOCK(cgs_cs);
+        cgs_pool.resize(threads);
     }
 
     using UnspentPair = std::pair<CAddressUnspentKey, CAddressUnspentValue>;
@@ -107,9 +119,9 @@ namespace pog2
         return cs;
     }
 
-    bool GetAllCoins(int tip_height, AddressCoins& coins) {
+    bool GetAllCoins(CGSContext& context, int tip_height) {
         std::vector<UnspentPair> unspent;
-        if (!GetAllUnspent(false, [&coins, tip_height](const CAddressUnspentKey& key, const CAddressUnspentValue& value) {
+        if (!GetAllUnspent(false, [&context, tip_height](const CAddressUnspentKey& key, const CAddressUnspentValue& value) {
                 if (key.type == 0 || key.isInvite || value.satoshis == 0 || value.blockHeight > tip_height) {
                     return;
                 }
@@ -117,7 +129,8 @@ namespace pog2
                 assert(!key.isInvite);
                 assert(value.satoshis > 0);
 
-                coins[key.hashBytes].emplace_back(value.blockHeight, value.satoshis);
+                auto& entrant = context.GetEntrant(key.hashBytes);
+                entrant.coins.emplace_back(value.blockHeight, value.satoshis);
            })) {
             return false;
         }
@@ -168,28 +181,6 @@ namespace pog2
         return BalancePair{aged_balance, balance};
     }
 
-    BalancePair GetAgedBalance(
-            CGSContext& context,
-            char address_type,
-            const referral::Address& address)
-    {
-        assert(!context.coins.empty());
-
-        const auto cached_balance = context.balances.find(address);
-
-        if (cached_balance == context.balances.end()) {
-            const auto balance = AgedBalance(
-                    context.tip_height,
-                    context.coins[address],
-                    context.coin_maturity,
-                    BalanceDecay);
-
-            context.balances[address] = balance;
-            return balance;
-        }
-        return cached_balance->second;
-    }
-
     //Convex function with property that if C0 > C1 and you have A within [0, 1] then 
     //ConvexF(C0 + A) - ConvexF(C0) > ConvexF(C1 + A) - ConvexF(C1);
     //See: Lottery Trees: Motivational Deployment of Networked Systems
@@ -211,25 +202,16 @@ namespace pog2
 
     Contribution ContributionNode(
             CGSContext& context,
-            char address_type,
-            const referral::Address& address,
+            CachedEntrant& entrant,
             referral::ReferralsViewCache& db)
     {
         assert(context.tip_height > 0);
         assert(context.new_coin_maturity > 0);
 
-        const auto n = context.contribution.find(address);
-        if (n != context.contribution.end()) {
-            return n->second;
-        }
-
-        const auto aged_balance = GetAgedBalance(
-                context,
-                address_type,
-                address);
+        const auto aged_balance = entrant.balances;
 
         const auto beacon_height = 
-            std::min(GetReferralHeight(db, address), context.tip_height);
+            std::min(entrant.height, context.tip_height);
 
         if (beacon_height < 0 ) {
             return Contribution{};
@@ -255,11 +237,9 @@ namespace pog2
         assert(c.value <= aged_balance.second);
         assert(c.sub >= 0);
 
-        context.contribution[address] = c;
         return c;
     }
 
-    using Children = std::vector<referral::Address>;
     struct Node 
     {
         char address_type;
@@ -267,12 +247,17 @@ namespace pog2
         Children children;
         SubtreeContribution contribution;
     };
-    using Nodes = std::stack<Node>;
+
+    using NodeStack = std::stack<Node>;
+    
+    using AddressQueue = std::deque<AddressPair>;
 
     /**
      * Computes the subtree contribution rooted at the address specified.
      * This algorithm computes the subtree contribution by doing a post order
      * traversal of the ambassador tree.
+     *
+     * TODO: Implement parallel version, maybe Coffman–Graham algorithm.
      */
     SubtreeContribution ContributionSubtreeIter(
             CGSContext& context,
@@ -286,20 +271,15 @@ namespace pog2
             return c->second;
         }
 
-        const auto children = db.GetChildren(address);
-        const auto maybe_ref = db.GetReferral(address);
-
-        if (!maybe_ref) {
-            return {};
-        }
+        const auto& root_entrant = context.GetEntrant(address);
 
         SubtreeContribution contribution;
 
-        Nodes ns;
+        NodeStack ns;
         ns.push({
-                maybe_ref->addressType,
-                maybe_ref->GetAddress(),
-                children,
+                root_entrant.address_type,
+                address,
+                root_entrant.children,
                 {}});
 
         while (!ns.empty()) {
@@ -309,12 +289,7 @@ namespace pog2
             n.contribution.tree_size += contribution.tree_size;
 
             if (n.children.empty()) {
-                auto c = ContributionNode(
-                        context,
-                        n.address_type,
-                        n.address,
-                        db);
-
+                const auto& c = context.GetEntrant(n.address).contribution;
                 n.contribution.value += c.value;
                 n.contribution.sub += c.sub;
                 n.contribution.tree_size++;
@@ -335,16 +310,13 @@ namespace pog2
                 contribution.sub = 0;
                 contribution.tree_size = 0;
 
-                const auto children = db.GetChildren(child_address);
-                const auto maybe_ref = db.GetReferral(child_address);
+                const auto& child_entrant = context.GetEntrant(child_address);
 
-                if (maybe_ref) {
-                    ns.push({
-                            maybe_ref->addressType,
-                            maybe_ref->GetAddress(),
-                            children,
-                            {}});
-                }
+                ns.push({
+                        child_entrant.address_type,
+                        child_address,
+                        child_entrant.children,
+                        {}});
             }
         }
 
@@ -415,8 +387,7 @@ namespace pog2
 
     ExpectedValues ExpectedValue(
             CGSContext& context,
-            const char address_type,
-            const referral::Address& address,
+            const CachedEntrant& entrant,
             referral::ReferralsViewCache& db)
     {
         //this case can occur on regtest if there is not enough data.
@@ -429,25 +400,19 @@ namespace pog2
 
         auto expected_value = WeightedScore(
                 context,
-                address_type,
-                address,
+                entrant.address_type,
+                entrant.address,
                 db);
 
         assert(expected_value.value >= 0);
         assert(expected_value.sub >= 0);
 
-        const auto children = db.GetChildren(address);
-
-        for (const auto& c:  children) {
-            auto maybe_ref = db.GetReferral(c);
-            if (!maybe_ref) {
-                continue;
-            }
-
+        for (const auto& c:  entrant.children) {
+            const auto& child_entrant = context.GetEntrant(c);
             auto child_score = WeightedScore(
                     context,
-                    maybe_ref->addressType,
-                    maybe_ref->GetAddress(),
+                    child_entrant.address_type,
+                    c,
                     db);
 
             assert(child_score.value >= 0);
@@ -467,14 +432,12 @@ namespace pog2
 
     Entrant ComputeCGS(
             CGSContext& context,
-            char address_type,
-            const referral::Address& address,
+            const CachedEntrant& entrant,
             referral::ReferralsViewCache& db)
     {
         auto expected_value = ExpectedValue(
                 context,
-                address_type,
-                address,
+                entrant,
                 db);
 
         const ContributionAmount cgs = context.tree_contribution.value * expected_value.value;
@@ -486,26 +449,86 @@ namespace pog2
         auto floored_cgs = cgs.convert_to<CAmount>();
         auto floored_sub_cgs = sub_cgs.convert_to<CAmount>();
 
-        const auto balance = GetAgedBalance(
-                context,
-                address_type,
-                address);
-
-        const auto children = db.GetChildren(address);
-        const auto height = GetReferralHeight(db, address);
+        const auto& balance = entrant.balances;
 
         return Entrant{
-            address_type,
-                address,
+                entrant.address_type,
+                entrant.address,
                 balance.second,
                 balance.first,
                 floored_cgs,
                 floored_sub_cgs,
-                height,
-                children.size(),
+                entrant.height,
+                entrant.children.size(),
                 expected_value.tree_size
         };
     }
+
+    void ComputeAges(CGSContext& context) {
+        std::vector<std::future<void>> jobs;
+        jobs.reserve(context.entrants.size());
+        for(auto& e : context.entrants) {
+            jobs.push_back(
+                    cgs_pool.push([&e, &context](int id) {
+                        e.balances = AgedBalance(
+                                context.tip_height,
+                                e.coins,
+                                context.coin_maturity,
+                                BalanceDecay);
+                    }));
+        }
+        for(auto& j : jobs) {
+            j.wait();
+        }
+    }
+
+    void PrefillContributionsAndHeights(
+            CGSContext& context,
+            const char address_type,
+            const referral::Address& address,
+            referral::ReferralsViewCache& db) {
+
+        AddressQueue q;
+        q.push_back(std::make_pair(address_type, address));
+        while(!q.empty()) {
+            const auto& p = q.front();
+
+            const auto& entrant = context.AddEntrant(
+                    p.first,
+                    p.second, 
+                    GetReferralHeight(db, p.second),
+                    db.GetChildren(p.second));
+
+            for(const auto& c : entrant.children) {
+                const auto maybe_ref = db.GetReferral(c);
+                if (!maybe_ref) {
+                    continue;
+                }
+
+                q.push_back(std::make_pair(maybe_ref->addressType, maybe_ref->GetAddress()));
+            }
+            q.pop_front();
+
+        }
+    }
+
+    void ComputeAllContributions(
+            CGSContext& context,
+            referral::ReferralsViewCache& db) {
+
+        std::vector<std::future<void>> jobs;
+        jobs.reserve(context.entrants.size());
+        for(auto& e : context.entrants) {
+            jobs.push_back(
+                    cgs_pool.push([&e, &context, &db](int id) {
+                        e.contribution = ContributionNode(context, e, db);
+                    }));
+        }
+        for(auto& j : jobs) {
+            j.wait();
+        }
+    }
+
 
     void GetAllRewardableEntrants(
             CGSContext& context,
@@ -514,37 +537,76 @@ namespace pog2
             int height,
             Entrants& entrants)
     {
+        LOCK(cgs_cs);
         assert(height >= 0);
 
         referral::AddressANVs anv_entrants;
 
         db.GetAllRewardableANVs(params, NO_GENESIS, anv_entrants);
 
-        entrants.resize(anv_entrants.size());
-
         context.tip_height = height;
-        GetAllCoins(height, context.coins);
-
         context.coin_maturity = params.pog2_coin_maturity;
         context.new_coin_maturity = params.pog2_new_coin_maturity;
-        context.tree_contribution = ContributionSubtreeIter(context, 2, params.genesis_address, db);
         context.B = params.pog2_convex_b;
         context.S = params.pog2_convex_s;
+        PrefillContributionsAndHeights(
+                context,
+                2,
+                params.genesis_address,
+                db);
+        GetAllCoins(context, height);
+        ComputeAges(context);
 
+        ComputeAllContributions(context, db);
 
-        std::transform(anv_entrants.begin(), anv_entrants.end(), entrants.begin(),
-                [height, &db, &context, &params](const referral::AddressANV& a) {
-                    auto entrant = ComputeCGS(
-                            context,
-                            a.address_type,
-                            a.address,
-                            db);
+        context.tree_contribution = ContributionSubtreeIter(context, 2, params.genesis_address, db);
 
-                    auto height = GetReferralHeight(db, a.address);
-                    assert(height >= 0);
-                    entrant.beacon_height = height;
-                    return entrant;
-                });
+        std::vector<std::future<Entrant>> jobs;
+        jobs.reserve(anv_entrants.size());
+        for(auto& a : anv_entrants) {
+            jobs.push_back(
+                    cgs_pool.push([&a, &context, &db](int id) {
+                        const auto& e = context.GetEntrant(a.address);
+                        return ComputeCGS(context, e, db);
+                    }));
+        }
+
+        entrants.reserve(anv_entrants.size());
+
+        for(auto& j : jobs) {
+            auto e = j.get();
+            entrants.push_back(e);
+        }
+    }
+
+    CachedEntrant& CGSContext::AddEntrant(
+            char address_type,
+            const referral::Address& address,
+            int height,
+            const Children& children)
+    {
+        CachedEntrant e;
+        e.address = address;
+        e.address_type = address_type;
+        e.height = height;
+        e.children = children;
+        entrants.emplace_back(e);
+        entrant_idx[address] = entrants.size() - 1;
+        return entrants.back();
+    }
+
+    CachedEntrant& CGSContext::GetEntrant(const referral::Address& a)
+    {
+        auto p = entrant_idx.find(a);
+        assert(p != entrant_idx.end());
+        return entrants[p->second];
+    }
+
+    const CachedEntrant& CGSContext::GetEntrant(const referral::Address& a) const
+    {
+        const auto p = entrant_idx.find(a);
+        assert(p != entrant_idx.end());
+        return entrants[p->second];
     }
 
 } // namespace pog2
