@@ -23,13 +23,10 @@ namespace pog2
     {
         const int NO_GENESIS = 13500;
         ctpl::thread_pool cgs_pool;
-        CCriticalSection cgs_cs;
-        CCriticalSection height_cs;
     }
 
     void SetupCgsThreadPool(size_t threads)
     {
-        LOCK(cgs_cs);
         cgs_pool.resize(threads);
     }
 
@@ -537,7 +534,6 @@ namespace pog2
             int height,
             Entrants& entrants)
     {
-        LOCK(cgs_cs);
         assert(height >= 0);
 
         referral::AddressANVs anv_entrants;
