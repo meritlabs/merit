@@ -1958,8 +1958,8 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
     // validate sane winner amount
     assert(desired_winners < 100);
 
-    auto desired_cgs_winners = std::max(1, static_cast<int>(desired_winners / 2));
-    auto desired_sub_winners = desired_cgs_winners;
+    size_t desired_cgs_winners = std::max(1, static_cast<int>(desired_winners / 2));
+    size_t desired_sub_winners = desired_cgs_winners;
 
     LogPrint(BCLog::POG,
             "%s: Desired old winners: %d Desired log winners: %d\n",
@@ -2918,6 +2918,7 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
     // it is an overwrite.
     view.AddCoin(out, std::move(undo), !fClean);
 
+
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
 
@@ -3132,7 +3133,6 @@ bool UndoNewPoolInviteRewards(
 {
 
     for (const auto& entry : debits_and_credits) { 
-        const auto& address_type = std::get<0>(entry);
         const auto& address = std::get<1>(entry);
         const CAmount amount = std::get<2>(entry);
 
@@ -3152,74 +3152,26 @@ bool UndoNewPoolInviteRewards(
     return true;
 }
 
-void UnIndexTransactions(
+void UnIndexTransaction(
         const CBlockIndex *pindex,
         CCoinsViewCache& view,
-        const std::vector<CTransactionRef>& vtx,
+        const CTransaction& tx,
+        int i,
         KeyActivity& addressIndex,
         AddressUnspentIndex& addressUnspentIndex,
         SpentIndex& spentIndex)
 {
-    for (int i = vtx.size() - 1; i >= 0; i--) {
-        auto tx = vtx[i];
-        auto txhash = tx->GetHash();
+    auto txhash = tx.GetHash();
 
-        if (!tx->IsCoinBase()) {
-            for (unsigned int k = tx->vin.size(); k-- > 0;) {
-                const auto& input = tx->vin[k];
-                const auto& coin = view.AccessCoin(input.prevout);
-                const auto& prevout = coin.out;
+    if (!tx.IsCoinBase()) {
+        for (unsigned int k = tx.vin.size(); k-- > 0;) {
+            const auto& input = tx.vin[k];
+            const auto& coin = view.AccessCoin(input.prevout);
+            assert(!coin.IsSpent());
 
-                const auto address = ExtractAddress(prevout);
-                const auto& hashBytes = address.first;
-                const unsigned int addressType = address.second;
+            const auto& prevout = coin.out;
 
-                if (addressType == 0) {
-                    continue;
-                }
-
-                // undo receiving activity
-                addressIndex.push_back(
-                        std::make_pair(
-                            CAddressIndexKey{
-                            addressType,
-                            hashBytes,
-                            pindex->nHeight,
-                            i,
-                            txhash,
-                            k,
-                            true,
-                            tx->IsInvite()},
-                            prevout.nValue * -1));
-
-                // undo unspent output
-                addressUnspentIndex.push_back(
-                        std::make_pair(
-                            CAddressUnspentKey{
-                                addressType,
-                                hashBytes,
-                                input.prevout.hash,
-                                input.prevout.n,
-                                coin.IsCoinBase(),
-                                coin.IsInvite()
-                            },
-                            CAddressUnspentValue{
-                                prevout.nValue,
-                                prevout.scriptPubKey,
-                                static_cast<int>(coin.nHeight)}));
-
-                //undo spent index
-                spentIndex.push_back(
-                        std::make_pair(
-                            CSpentIndexKey{input.prevout.hash, input.prevout.n},
-                            CSpentIndexValue{}));
-            }
-        }
-
-        for (unsigned int k = tx->vout.size(); k-- > 0;) {
-            const CTxOut &out = tx->vout[k];
-
-            const auto address = ExtractAddress(out);
+            const auto address = ExtractAddress(prevout);
             const auto& hashBytes = address.first;
             const unsigned int addressType = address.second;
 
@@ -3231,28 +3183,76 @@ void UnIndexTransactions(
             addressIndex.push_back(
                     std::make_pair(
                         CAddressIndexKey{
-                            addressType,
-                            uint160(hashBytes),
-                            pindex->nHeight,
-                            i,
-                            txhash,
-                            k,
-                            false,
-                            tx->IsInvite()},
-                        out.nValue));
+                        addressType,
+                        hashBytes,
+                        pindex->nHeight,
+                        i,
+                        txhash,
+                        k,
+                        true,
+                        tx.IsInvite()},
+                        prevout.nValue * -1));
 
-            // undo unspent index
+            // undo unspent output
             addressUnspentIndex.push_back(
                     std::make_pair(
-                        CAddressUnspentKey(
-                            addressType,
-                            uint160(hashBytes),
-                            txhash,
-                            k,
-                            tx->IsCoinBase(),
-                            tx->IsInvite()),
-                        CAddressUnspentValue()));
+                        CAddressUnspentKey{
+                        addressType,
+                        hashBytes,
+                        input.prevout.hash,
+                        input.prevout.n,
+                        coin.IsCoinBase(),
+                        coin.IsInvite()
+                        },
+                        CAddressUnspentValue{
+                        prevout.nValue,
+                        prevout.scriptPubKey,
+                        static_cast<int>(coin.nHeight)}));
+
+            //undo spent index
+            spentIndex.push_back(
+                    std::make_pair(
+                        CSpentIndexKey{input.prevout.hash, input.prevout.n},
+                        CSpentIndexValue{}));
         }
+    }
+
+    for (unsigned int k = tx.vout.size(); k-- > 0;) {
+        const CTxOut &out = tx.vout[k];
+
+        const auto address = ExtractAddress(out);
+        const auto& hashBytes = address.first;
+        const unsigned int addressType = address.second;
+
+        if (addressType == 0) {
+            continue;
+        }
+
+        // undo receiving activity
+        addressIndex.push_back(
+                std::make_pair(
+                    CAddressIndexKey{
+                    addressType,
+                    hashBytes,
+                    pindex->nHeight,
+                    i,
+                    txhash,
+                    k,
+                    false,
+                    tx.IsInvite()},
+                    out.nValue));
+
+        // undo unspent index
+        addressUnspentIndex.push_back(
+                std::make_pair(
+                    CAddressUnspentKey(
+                        addressType,
+                        hashBytes,
+                        txhash,
+                        k,
+                        tx.IsCoinBase(),
+                        tx.IsInvite()),
+                    CAddressUnspentValue{}));
     }
 }
 
@@ -3302,6 +3302,9 @@ DisconnectResult DisconnectTransactions(
         DebitsAndCredits& debits_and_credits,
         CCoinsViewCache& view,
         CBlockUndo& block_undo,
+        KeyActivity& addressIndex,
+        AddressUnspentIndex& addressUnspentIndex,
+        SpentIndex& spentIndex,
         bool are_invites)
 {
     bool clean = true;
@@ -3329,6 +3332,15 @@ DisconnectResult DisconnectTransactions(
             // At this point, all of txundo.vprevout should have been moved out.
         }
         clean &= GetDebitsAndCredits(debits_and_credits, tx, view, true);
+
+        UnIndexTransaction(
+                pindex,
+                view,
+                tx,
+                i,
+                addressIndex,
+                addressUnspentIndex,
+                spentIndex);
     }
 
     return clean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
@@ -3382,6 +3394,9 @@ static DisconnectResult DisconnectBlock(
                 debits_and_credits,
                 view,
                 block_undo,
+                addressIndex,
+                addressUnspentIndex,
+                spentIndex,
                 false);
 
     if (disconnect_txn_status == DISCONNECT_FAILED) {
@@ -3400,6 +3415,9 @@ static DisconnectResult DisconnectBlock(
                     invite_debits_and_credits,
                     view,
                     block_undo,
+                    addressIndex,
+                    addressUnspentIndex,
+                    spentIndex,
                     true);
 
         if (disconnect_inv_status == DISCONNECT_FAILED) {
@@ -3407,24 +3425,6 @@ static DisconnectResult DisconnectBlock(
         } else if (disconnect_inv_status == DISCONNECT_UNCLEAN) {
             fClean = false;
         }
-    }
-
-    UnIndexTransactions(
-            pindex,
-            view,
-            block.vtx,
-            addressIndex,
-            addressUnspentIndex,
-            spentIndex);
-
-    if (block.IsDaedalus()) {
-        UnIndexTransactions(
-                pindex,
-                view,
-                block.invites,
-                addressIndex,
-                addressUnspentIndex,
-                spentIndex);
     }
 
     fClean &= pblocktree->EraseAddressIndex(addressIndex);
