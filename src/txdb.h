@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <set>
 
 class CBlockIndex;
 class CCoinsViewDBCursor;
@@ -120,6 +121,7 @@ private:
 
 using UnspentPair = std::pair<CAddressUnspentKey, CAddressUnspentValue>;
 using UnspentCache = std::vector<UnspentPair>;
+using RemoveUnspentSet = std::set<CAddressUnspentKey>;
 
 /** Access to the block database (blocks/index/) */
 class CBlockTreeDB : public CDBWrapper
@@ -130,7 +132,7 @@ private:
     CBlockTreeDB(const CBlockTreeDB&);
     void operator=(const CBlockTreeDB&);
 
-    void EraseFromUnspentCache(const UnspentPair& p);
+    void EraseFromUnspentCache(const RemoveUnspentSet& p);
     void AddToUnspentCache(const UnspentPair& p);
 
     UnspentCache unspent_cache;

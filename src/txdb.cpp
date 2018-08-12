@@ -278,15 +278,17 @@ bool CBlockTreeDB::UpdateSpentIndex(const std::vector<std::pair<CSpentIndexKey, 
 
 bool CBlockTreeDB::UpdateAddressUnspentIndex(const std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue > >&vect) {
     CDBBatch batch(*this);
+    RemoveUnspentSet to_remove;
     for (const auto& idx: vect) {
         if (idx.second.IsNull()) {
             batch.Erase(std::make_pair(DB_ADDRESSUNSPENTINDEX, idx.first));
-            EraseFromUnspentCache(idx);
+            to_remove.insert(idx.first);
         } else {
             batch.Write(std::make_pair(DB_ADDRESSUNSPENTINDEX, idx.first), idx.second);
             AddToUnspentCache(idx);
         }
     }
+    EraseFromUnspentCache(to_remove);
     return WriteBatch(batch);
 }
 
@@ -658,13 +660,12 @@ bool CBlockTreeDB::CacheAllUnspent()
     return true;
 }
 
-void CBlockTreeDB::EraseFromUnspentCache(const UnspentPair& p)
+void CBlockTreeDB::EraseFromUnspentCache(const RemoveUnspentSet& to_remove)
 {
-    const auto f = std::find_if(unspent_cache.begin(), unspent_cache.end(), 
-            [&p](const UnspentPair& a) {
-                return a.first == p.first;
-            });
-    unspent_cache.erase(f);
+    unspent_cache.erase(std::remove_if(unspent_cache.begin(), unspent_cache.end(),
+                [&to_remove](const UnspentPair& a) {
+                   return to_remove.count(a.first);  
+                }), unspent_cache.end());
 }
 
 void CBlockTreeDB::AddToUnspentCache(const UnspentPair& p)
