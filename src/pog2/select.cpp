@@ -70,7 +70,7 @@ namespace pog2
         std::transform(
                 std::begin(cgses),
                 std::end(cgses),
-                std::inserter(m_cgses, std::begin(m_cgses)),
+                std::inserter(m_cgses, std::end(m_cgses)),
 
                 [](const pog2::Entrant& v) {
                     assert(v.cgs >= 0);

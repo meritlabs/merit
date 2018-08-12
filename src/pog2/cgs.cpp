@@ -493,12 +493,15 @@ namespace pog2
         AddressQueue q;
         q.push_back(std::make_pair(address_type, address));
         while(!q.empty()) {
-            const auto& p = q.front();
+            const auto p = q.front();
+            q.pop_front();
+
+            const auto height = GetReferralHeight(db, p.second);
 
             const auto& entrant = context.AddEntrant(
                     p.first,
                     p.second, 
-                    GetReferralHeight(db, p.second),
+                    height,
                     db.GetChildren(p.second));
 
             for(const auto& c : entrant.children) {
@@ -509,7 +512,6 @@ namespace pog2
 
                 q.push_back(std::make_pair(maybe_ref->addressType, maybe_ref->GetAddress()));
             }
-            q.pop_front();
 
         }
     }
@@ -547,10 +549,9 @@ namespace pog2
         std::vector<std::future<Entrants>> jobs;
         jobs.reserve(anv_entrants.size() / BATCH_SIZE);
 
-        size_t BATCH_SIZE = 100;
         for(size_t b = 0; b < anv_entrants.size(); b+=BATCH_SIZE) {
             jobs.push_back(
-                    cgs_pool.push([b, BATCH_SIZE, &anv_entrants, &context, &db](int id) {
+                    cgs_pool.push([b, &anv_entrants, &context, &db](int id) {
                         const auto end = std::min(anv_entrants.size(), b + BATCH_SIZE);
                         Entrants es;
                         es.reserve(end - b);
@@ -563,7 +564,7 @@ namespace pog2
                     }));
         }
 
-        entrants.reserve(anv_entrants.size());
+        entrants.reserve(anv_entrants.size()*BATCH_SIZE);
 
         for(auto& j : jobs) {
             auto es = j.get();
@@ -605,13 +606,16 @@ namespace pog2
             int height,
             const Children& children)
     {
+
         CachedEntrant e;
         e.address = address;
         e.address_type = address_type;
         e.height = height;
         e.children = children;
+
         entrants.emplace_back(e);
-        entrant_idx[address] = entrants.size() - 1;
+        auto ei = entrant_idx.insert(std::make_pair(address, entrants.size() - 1));
+        assert(ei.second);
         return entrants.back();
     }
 
