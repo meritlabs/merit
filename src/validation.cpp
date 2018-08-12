@@ -1893,24 +1893,35 @@ pog::AmbassadorLottery Pog1RewardAmbassadors(
 void LogWinners(const pog2::Entrants& es)
 {
     for(const auto& e : es) {
-        LogPrint(BCLog::POG, "%s: \t%s: cgs: %d children: %d netsize: %d\n",
+        LogPrint(BCLog::POG, "%s: \t%s: cgs: %d subcgs: %d children: %d netsize: %d\n",
                 __func__, 
                 CMeritAddress{e.address_type, e.address}.ToString(),
                 e.cgs,
+                e.sub_cgs,
                 e.children,
                 e.network_size);
     }
 }
 
-void LogRewards(const pog::AmbassadorLottery& lottery)
+void LogRewards(const pog::Rewards& rewards)
 {
-    for(const auto& r : lottery.winners) {
+    for(const auto& r : rewards) {
         LogPrint(BCLog::POG, "%s: \t%s: amount: %d\n",
                 __func__, 
                 CMeritAddress{r.address_type, r.address}.ToString(),
                 r.amount);
     }
 
+}
+
+void LogRewards(const pog::InviteRewards& rewards)
+{
+    for(const auto& r : rewards) {
+        LogPrint(BCLog::POG, "%s: \t%s: amount: %d\n",
+                __func__, 
+                CMeritAddress{r.address_type, r.address}.ToString(),
+                r.invites);
+    }
 }
 
 std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassadors(
@@ -2004,7 +2015,7 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
     // Compute reward for all the winners
     auto rewards = pog2::RewardAmbassadors(height, winners, total);
     LogPrint(BCLog::POG, "%s: Rewarding %d winners\n", __func__, rewards.winners.size());
-    LogRewards(rewards);
+    LogRewards(rewards.winners);
 
     // Return the remainder which will be given to the miner;
     assert(rewards.remainder <= total);
@@ -2291,6 +2302,12 @@ bool RewardInvites(
     LogPrint(BCLog::POG, "%s: Invite Rewards %d\n",
             __func__,
             rewards.size());
+    for(const auto& r : rewards) {
+        LogPrint(BCLog::POG, "%s:\t %s: %d  \n",
+                __func__,
+                CMeritAddress{r.address_type, r.address}.ToString(),
+                r.invites);
+    }
     return true;
 }
 
@@ -2380,6 +2397,10 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
 
     //quick test before doing more expensive validation
     if (coinbase.vout.size() < 1 + lottery.winners.size()) {
+        LogPrint(BCLog::POG, "%s: Coinbase didn't pay expected amount of winners. Expected %d but paid %d\n",
+                __func__,
+                lottery.winners.size() + 1,
+                coinbase.vout.size());
         return false;
     }
 
@@ -2413,10 +2434,20 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
 
     // Make sure all expected rewards exist in the set of all rewards given in
     // the block.
-    return std::includes(
+    const bool all_paid =  std::includes(
             std::begin(sorted_outs), std::end(sorted_outs),
             std::begin(sorted_winners), std::end(sorted_winners),
             RewardComp());
+
+    if(!all_paid) {
+        LogPrint(BCLog::POG, "%s: Coinbase didn't pay the expected winners.\n", __func__);
+        LogPrint(BCLog::POG, "%s: Expected:\n", __func__);
+        LogRewards(sorted_winners);
+
+        LogPrint(BCLog::POG, "%s: Paid:\n", __func__);
+        LogRewards(sorted_outs);
+    }
+    return all_paid;
 }
 
 bool AreExpectedInvitesRewarded(
@@ -2482,10 +2513,20 @@ bool AreExpectedInvitesRewarded(
 
     // Make sure all expected rewards exist in the set of all rewards given in
     // the block.
-    return std::includes(
+    const bool all_paid = std::includes(
             std::begin(sorted_outs), std::end(sorted_outs),
             std::begin(sorted_invites), std::end(sorted_invites),
             InviteComp());
+
+    if(!all_paid) {
+        LogPrint(BCLog::POG, "%s: Invite Coinbase didn't pay the expected winners.\n", __func__);
+        LogPrint(BCLog::POG, "%s: Expected:\n", __func__);
+        LogRewards(sorted_invites);
+
+        LogPrint(BCLog::POG, "%s: Paid:\n", __func__);
+        LogRewards(sorted_outs);
+    }
+    return all_paid;
 }
 
 bool IsInitialBlockDownload()
