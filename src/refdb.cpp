@@ -1133,5 +1133,59 @@ namespace referral
         m_db.Read(std::make_pair(DB_NEW_INVITE_REWARD, a), height);
         return height;
     }
+    
+    bool ReferralsViewDB::FixHeap()
+    {
+        const auto heap_size = GetLotteryHeapSize();
+        LogPrint(BCLog::BEACONS, "%s: Fixing Heap of size %d\n", __func__, heap_size);
+
+        LotteryEntrants entrants;
+        entrants.reserve(heap_size);
+
+        for (uint64_t i = 0; i < heap_size; i++) {
+            LotteryEntrant v;
+            if (!m_db.Read(std::make_pair(DB_LOT_VAL, i), v)) {
+                return false;
+            }
+            entrants.emplace_back(v);
+        }
+
+        //clear heap.
+        if (!m_db.Write(DB_LOT_SIZE, 0)) {
+            return false;
+        }
+
+        for(const auto& e: entrants) {
+            if(!InsertLotteryEntrant(
+                    std::get<0>(e),
+                    std::get<1>(e),
+                    std::get<2>(e),
+                    heap_size)) {
+                return false;
+            }
+        }
+
+        entrants.clear();
+        for (uint64_t i = 0; i < heap_size; i++) {
+            LotteryEntrant v;
+            if (!m_db.Read(std::make_pair(DB_LOT_VAL, i), v)) {
+                return false;
+            }
+            entrants.emplace_back(v);
+        }
+
+        LotteryEntrants expected = entrants;
+        std::make_heap(expected.begin(), expected.end(), 
+                [](const LotteryEntrant& a, const LotteryEntrant& b) {
+                    return comp(b, a);
+                });
+
+        for(size_t i = 0; i < entrants.size(); i++) {
+            if(entrants[i] != expected[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
 
 } //namespace referral

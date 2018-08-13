@@ -25,6 +25,7 @@ using ChildAddresses = std::vector<Address>;
 using Addresses = std::vector<Address>;
 using MaybeWeightedKey = boost::optional<pog::WeightedKey>;
 using LotteryEntrant = std::tuple<pog::WeightedKey, char, Address>;
+using LotteryEntrants = std::vector<LotteryEntrant>;
 using MaybeLotteryEntrant = boost::optional<LotteryEntrant>;
 using AddressPair = std::pair<char, Address>;
 using MaybeAddressPair = boost::optional<AddressPair>;
@@ -83,6 +84,8 @@ public:
             bool memory = false,
             bool wipe = false,
             const std::string& name = "referrals");
+
+    bool FixHeap();
 
     MaybeReferral GetReferral(const Address&) const;
     MaybeReferral GetReferral(const uint256&) const;

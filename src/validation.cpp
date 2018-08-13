@@ -3642,6 +3642,21 @@ bool ConfirmAllPreDaedalusAddresses(
     return prefviewdb->ConfirmAllPreDaedalusAddresses();
 }
 
+bool FixLotteryHeap(
+        const Consensus::Params& consensus,
+        const CBlockIndex* pindex)
+{
+    // Don't do the indexing if we are not on the block before the daedalus deployment.
+    if (pindex->nHeight != consensus.pog2_blockheight - 1) {
+        return true;
+    }
+
+    LogPrint(BCLog::BEACONS, "Fixing Lottery Heap");
+
+    // One time confirmation of all addresses before the daedalus block
+    return prefviewdb->FixHeap();
+}
+
 void BuildConfirmationSet(const CTransactionRef& invite,
         ConfirmationSet& confirmations_in_block)
 {
@@ -4507,6 +4522,10 @@ static bool ConnectBlock(
     // Make sure we confirm all pre daedalus addresses. This is a one time event.
     if (!ConfirmAllPreDaedalusAddresses(state, chainparams.GetConsensus(), pindex)) {
         return AbortNode(state, "Failed to confirm all pre daedalus addresses");
+    }
+
+    if (!FixLotteryHeap(chainparams.GetConsensus(), pindex)) {
+        return AbortNode(state, "Failed to fix the lottery heap");
     }
 
     if (block.IsDaedalus()) {
