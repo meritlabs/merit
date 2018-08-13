@@ -36,6 +36,13 @@ namespace referral
         const char DB_NEW_INVITE_REWARD = 'N';
 
         const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
+
+        bool comp(const LotteryEntrant& a, const LotteryEntrant& b) {
+            if(std::get<0>(a) == std::get<0>(b)) {
+                return std::get<2>(a) < std::get<2>(b);
+            }
+            return std::get<0>(a) < std::get<0>(b);
+        }
     }
 
     //stores ANV internally as a rational number with numerator/denominator
@@ -698,6 +705,7 @@ namespace referral
         auto heap_size = GetLotteryHeapSize();
         assert(heap_size < max_reservoir_size);
 
+        auto new_entry = std::make_tuple(key, address_type, address);
         auto pos = heap_size;
 
         while (pos != 0) {
@@ -709,7 +717,7 @@ namespace referral
             }
 
             //We found our spot
-            if (key > std::get<0>(parent_value)) {
+            if (comp(parent_value, new_entry)) {
                 break;
             }
 
@@ -727,7 +735,7 @@ namespace referral
 
         //write final value
         LogPrint(BCLog::BEACONS, "\tAdding to Reservoir %s at pos %d\n", CMeritAddress(address_type, address).ToString(), pos);
-        if (!m_db.Write(std::make_pair(DB_LOT_VAL, pos), std::make_tuple(key, address_type, address))) {
+        if (!m_db.Write(std::make_pair(DB_LOT_VAL, pos), new_entry)) {
             return false;
         }
 
@@ -791,7 +799,7 @@ namespace referral
                     return false;
                 }
 
-                if (std::get<0>(left_val) < std::get<0>(smallest_val)) {
+                if (comp(left_val, smallest_val)) {
                     smallest = left;
                     smallest_val = left_val;
                 }
@@ -803,7 +811,7 @@ namespace referral
                     return false;
                 }
 
-                if (std::get<0>(right_val) < std::get<0>(smallest_val)) {
+                if (comp(right_val, smallest_val)) {
                     smallest = right;
                     smallest_val = right_val;
                 }
