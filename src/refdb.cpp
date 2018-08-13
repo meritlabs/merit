@@ -821,6 +821,7 @@ namespace referral
 
                 //now go down the smallest path
                 current = smallest;
+                smallest_val = last;
             } else {
                 break;
             }
