@@ -121,6 +121,8 @@ namespace pog2
     void TestChain();
     void SetupCgsThreadPool(size_t threads);
 
+    CAmount GetAmbassadorMinumumStake(int height, const Consensus::Params& consensus_params);
+
 } // namespace pog2
 
 #endif //MERIT_POG2_ANV_H

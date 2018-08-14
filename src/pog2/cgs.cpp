@@ -26,6 +26,13 @@ namespace pog2
         ctpl::thread_pool cgs_pool;
     }
 
+    CAmount GetAmbassadorMinumumStake(int height, const Consensus::Params& consensus_params)
+    {
+        const int halvings = height / consensus_params.nSubsidyHalvingInterval;
+        return halvings < 64 ? 
+            consensus_params.pog2_initial_ambassador_stake >> halvings : 0;
+    }
+
     void SetupCgsThreadPool(size_t threads)
     {
         cgs_pool.resize(threads);
@@ -543,28 +550,28 @@ namespace pog2
             const Consensus::Params& params,
             Entrants& entrants)
     {
-        referral::AddressANVs anv_entrants;
-        db.GetAllRewardableANVs(params, NO_GENESIS, anv_entrants);
+        const auto minimum_stake = GetAmbassadorMinumumStake(context.tip_height, params);
 
         std::vector<std::future<Entrants>> jobs;
-        jobs.reserve(anv_entrants.size() / BATCH_SIZE);
+        jobs.reserve(context.entrants.size() / BATCH_SIZE);
 
-        for(size_t b = 0; b < anv_entrants.size(); b+=BATCH_SIZE) {
+        for(size_t b = 0; b < context.entrants.size(); b+=BATCH_SIZE) {
             jobs.push_back(
-                    cgs_pool.push([b, &anv_entrants, &context, &db](int id) {
-                        const auto end = std::min(anv_entrants.size(), b + BATCH_SIZE);
+                    cgs_pool.push([b, minimum_stake , &context, &db](int id) {
+                        const auto end = std::min(context.entrants.size(), b + BATCH_SIZE);
                         Entrants es;
                         es.reserve(end - b);
                         for(size_t i = b; i < end; i++) {
-                            const auto& a = anv_entrants[i];
-                            const auto& e = context.GetEntrant(a.address);
-                            es.emplace_back(ComputeCGS(context, e, db));
+                            const auto& e = context.entrants[i];
+                            if(e.balances.second >= minimum_stake) {
+                                es.emplace_back(ComputeCGS(context, e, db));
+                            }
                         }
                         return es;
                     }));
         }
 
-        entrants.reserve(anv_entrants.size()*BATCH_SIZE);
+        entrants.reserve(context.entrants.size()*BATCH_SIZE);
 
         for(auto& j : jobs) {
             auto es = j.get();

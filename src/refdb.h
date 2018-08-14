@@ -85,8 +85,6 @@ public:
             bool wipe = false,
             const std::string& name = "referrals");
 
-    bool FixHeap();
-
     MaybeReferral GetReferral(const Address&) const;
     MaybeReferral GetReferral(const uint256&) const;
 

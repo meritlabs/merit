@@ -42,13 +42,6 @@ namespace pog2
         return type == 1;
     }
 
-    CAmount GetAmbassadorMinumumStake(int height, const Consensus::Params& consensus_params)
-    {
-        const int halvings = height / consensus_params.nSubsidyHalvingInterval;
-        return halvings < 64 ? 
-            consensus_params.pog2_initial_ambassador_stake >> halvings : 0;
-    }
-
     /**
      * CgsDistribution uses Inverse Transform Sampling. Computing the
      * CDF is trivial for the CGS discrete distribution by simply sorting and

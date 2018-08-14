@@ -1044,7 +1044,7 @@ static bool AcceptToMemoryPoolWorker(
                 // then it's a move invite tx. do not check alias for uniqueness
                 // otherwise it is a confirmation tx
                 if (prefviewcache->Exists(address_pair.first)) {
-                    LogPrint(BCLog::BEACONS, "Invite destination is already in chain");
+                    LogPrint(BCLog::BEACONS, "Invite destination is already in chain\n");
                     continue;
                 }
 
@@ -3137,8 +3137,10 @@ bool UpdateLotteryEntrants(
         }
 
         undo.lottery.insert(undo.lottery.end(), undos.begin(), undos.end());
+
     }
 
+    LogPrint(BCLog::BEACONS, "%s: Adding lottery undo entrants %d\n", __func__, undo.lottery.size());
     return true;
 }
 
@@ -3146,6 +3148,7 @@ bool UndoLotteryEntrants(const CBlockUndo& undo, const size_t max_reservoir_size
 {
     assert(prefviewdb);
 
+    LogPrint(BCLog::BEACONS, "%s: Undoing lottery entrants %d\n", __func__, undo.lottery.size());
     for (const auto& entrant : reverse_iterate(undo.lottery)) {
         if (!prefviewdb->UndoLotteryEntrant(entrant, max_reservoir_size)) {
             return false;
@@ -3488,13 +3491,17 @@ static DisconnectResult DisconnectBlock(
 
     }
 
+    const bool is_pog2 = pindex->nHeight >= consensus_params.pog2_blockheight;
+
     // The order here is important. The ANV values must be updated
     // before the tree is manipulated to properly debit and credit the
     // correct addresses because RemoveReferrals will change referral
     // tree.
-    if (!UpdateANV(debits_and_credits)) {
-        error("DisconnectBlock(): unable to undo anv updates");
-        return DISCONNECT_FAILED;
+    if(!is_pog2) {
+        if (!UpdateANV(debits_and_credits)) {
+            error("DisconnectBlock(): unable to undo anv updates");
+            return DISCONNECT_FAILED;
+        }
     }
 
     if (!RemoveReferrals(block)){
@@ -3502,12 +3509,14 @@ static DisconnectResult DisconnectBlock(
         return DISCONNECT_FAILED;
     }
 
-    if (!UndoLotteryEntrants(
-                block_undo,
-                consensus_params.max_lottery_reservoir_size)) {
+    if(!is_pog2) {
+        if (!UndoLotteryEntrants(
+                    block_undo,
+                    consensus_params.max_lottery_reservoir_size)) {
 
-        error("DisconnectBlock(): unable to undo lottery");
-        return DISCONNECT_FAILED;
+            error("DisconnectBlock(): unable to undo lottery");
+            return DISCONNECT_FAILED;
+        }
     }
 
     // move best block pointer to prevout block
@@ -3640,21 +3649,6 @@ bool ConfirmAllPreDaedalusAddresses(
 
     // One time confirmation of all addresses before the daedalus block
     return prefviewdb->ConfirmAllPreDaedalusAddresses();
-}
-
-bool FixLotteryHeap(
-        const Consensus::Params& consensus,
-        const CBlockIndex* pindex)
-{
-    // Don't do the indexing if we are not on the block before the daedalus deployment.
-    if (pindex->nHeight != consensus.pog2_blockheight - 1) {
-        return true;
-    }
-
-    LogPrint(BCLog::BEACONS, "Fixing Lottery Heap");
-
-    // One time confirmation of all addresses before the daedalus block
-    return prefviewdb->FixHeap();
 }
 
 void BuildConfirmationSet(const CTransactionRef& invite,
@@ -4524,27 +4518,26 @@ static bool ConnectBlock(
         return AbortNode(state, "Failed to confirm all pre daedalus addresses");
     }
 
-    if (!FixLotteryHeap(chainparams.GetConsensus(), pindex)) {
-        return AbortNode(state, "Failed to fix the lottery heap");
-    }
-
     if (block.IsDaedalus()) {
         if (!UpdateConfirmations(block, invite_debits_and_credits)) {
             return AbortNode(state, "Failed to confirm addresses");
         }
     }
 
-    if (!UpdateANV(debits_and_credits)) {
-        return AbortNode(state, "Failed to write ANV");
-    }
+    //PoG2 does not require ANV and lottery pool computations.
+    if(pindex->nHeight < chainparams.GetConsensus().pog2_blockheight) { 
+        if (!UpdateANV(debits_and_credits)) {
+            return AbortNode(state, "Failed to write ANV");
+        }
 
-    if (!UpdateLotteryEntrants(
-                pindex->nHeight,
-                block,
-                debits_and_credits,
-                chainparams.GetConsensus(),
-                blockundo)){
-        return AbortNode(state, "Failed to write lottery entrants");
+        if (!UpdateLotteryEntrants(
+                    pindex->nHeight,
+                    block,
+                    debits_and_credits,
+                    chainparams.GetConsensus(),
+                    blockundo)){
+            return AbortNode(state, "Failed to write lottery entrants");
+        }
     }
 
     if (!RecordNewPoolInviteRewards(
