@@ -1336,13 +1336,17 @@ UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t tot
         o.push_back(Pair("rank", total - r.second));
         o.push_back(Pair("percentile", (boost::format("%1$.2f") % percentile).str()));
         o.push_back(Pair("balance", r.first.balance));
-        o.push_back(Pair("aged_balance", r.first.aged_balance));
         o.push_back(Pair("cgs", cgs));
 
         double cgs_percent = 
             (static_cast<double>(cgs) / static_cast<double>(lottery_cgs));
 
-        o.push_back(Pair("gcspercent", cgs_percent));
+        o.push_back(Pair("cgspercent", cgs_percent));
+
+        //for backwards compatibility
+        o.push_back(Pair("anv", cgs));
+        o.push_back(Pair("anvpercent", cgs_percent));
+
         rankarr.push_back(o);
     }
     return rankarr;
@@ -1439,7 +1443,7 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
             "   addresses: [\n"
             "       {\n"
             "           \"address\"  (string) Address\n"
-            "           \"anv\"      (number) anv\n"
+            "           \"cgs\"      (number) cgs\n"
             "       },\n"
             "       ...\n"
             "   ]\n"
@@ -1463,6 +1467,8 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
     UniValue result(UniValue::VOBJ);
     UniValue cgs_rankarr = RanksToUniValue(lottery_cgs, cgs_ranks.first, cgs_ranks.second, true);
 
+    //for backwards compatibility with old software.
+    result.push_back(Pair("lotteryanv", lottery_cgs));
     result.push_back(Pair("lotterycgs", lottery_cgs));
     result.push_back(Pair("lotteryentrants", cgs_ranks.second));
     result.push_back(Pair("cgs_ranks", cgs_rankarr));
