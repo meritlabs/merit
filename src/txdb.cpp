@@ -269,8 +269,10 @@ bool CBlockTreeDB::UpdateSpentIndex(const std::vector<std::pair<CSpentIndexKey, 
     for (const auto& addr : vect) {
         if (addr.second.IsNull()) {
             batch.Erase(std::make_pair(DB_SPENTINDEX, addr.first));
+            spent_cache.erase(addr.first);
         } else {
             batch.Write(std::make_pair(DB_SPENTINDEX, addr.first), addr.second);
+            spent_cache.insert(addr.first);
         }
     }
     return WriteBatch(batch);
@@ -311,7 +313,11 @@ bool CBlockTreeDB::ReadAddressUnspentIndex(
         if (pcursor->GetKey(key) && key.first == DB_ADDRESSUNSPENTINDEX && key.second.hashBytes == addressHash) {
             CAddressUnspentValue nValue;
             if (pcursor->GetValue(nValue)) {
-                unspentOutputs.push_back(std::make_pair(key.second, nValue));
+                //We check the spent cache because older versions had bugs properly
+                //removing uspent utxos from the utxo set. 
+                if(spent_cache.count({key.second.txhash, key.second.index}) == 0) {
+                    unspentOutputs.push_back(std::make_pair(key.second, nValue));
+                }
                 pcursor->Next();
             } else {
                 return error("failed to get address unspent value");
@@ -642,12 +648,37 @@ bool CBlockTreeDB::CacheAllUnspent()
     options.fill_cache = false;
     boost::scoped_ptr<CDBIterator> pcursor(NewIterator(options));
 
+    pcursor->Seek(DB_SPENTINDEX);
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        std::pair<char,CSpentIndexKey> key;
+        if (pcursor->GetKey(key) && key.first == DB_SPENTINDEX)  {
+            CSpentIndexValue value;
+            if (pcursor->GetValue(value) && !value.IsNull()) {
+                spent_cache.insert(key.second);
+            } else {
+                return error("failed to get spent value");
+            }
+        }
+        pcursor->Next();
+    }
+
     pcursor->Seek(DB_ADDRESSUNSPENTINDEX);
 
     while (pcursor->Valid()) {
         boost::this_thread::interruption_point();
         std::pair<char,CAddressUnspentKey> key;
         if (pcursor->GetKey(key) && key.first == DB_ADDRESSUNSPENTINDEX)  {
+            CSpentIndexKey spent_key{key.second.txhash, key.second.index};
+            if(spent_cache.count(spent_key) > 0) {
+                LogPrintf("Skipping unspent %s:%d because it is in the spent index\n",
+                        key.second.txhash.GetHex(), key.second.index);
+
+                pcursor->Next();
+                continue;
+            }
+
             CAddressUnspentValue value;
             if (pcursor->GetValue(value)) {
                 unspent_cache.push_back(std::make_pair(key.second, value));

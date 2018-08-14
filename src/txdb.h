@@ -122,6 +122,7 @@ private:
 using UnspentPair = std::pair<CAddressUnspentKey, CAddressUnspentValue>;
 using UnspentCache = std::vector<UnspentPair>;
 using RemoveUnspentSet = std::set<CAddressUnspentKey>;
+using SpentCache = std::set<CSpentIndexKey>;
 
 /** Access to the block database (blocks/index/) */
 class CBlockTreeDB : public CDBWrapper
@@ -136,6 +137,8 @@ private:
     void AddToUnspentCache(const UnspentPair& p);
 
     UnspentCache unspent_cache;
+    SpentCache spent_cache;
+
 public:
     bool CacheAllUnspent();
 

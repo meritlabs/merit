@@ -36,6 +36,13 @@ struct CSpentIndexKey {
         outputIndex = 0;
     }
 
+    bool operator < (const CSpentIndexKey& o) const{
+        if(txid == o.txid) { 
+            return outputIndex < o.outputIndex;
+        }
+        return txid < o.txid;
+    }
+
 };
 
 struct CSpentIndexValue {
