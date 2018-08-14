@@ -555,7 +555,11 @@ namespace pog2
         std::vector<std::future<Entrants>> jobs;
         jobs.reserve(context.entrants.size() / BATCH_SIZE);
 
-        for(size_t b = 0; b < context.entrants.size(); b+=BATCH_SIZE) {
+        assert(!context.entrants.empty());
+        assert(context.entrants[0].address == params.genesis_address);
+
+        //Important, 1 here to skip the genesis address
+        for(size_t b = 1; b < context.entrants.size(); b+=BATCH_SIZE) {
             jobs.push_back(
                     cgs_pool.push([b, minimum_stake , &context, &db](int id) {
                         const auto end = std::min(context.entrants.size(), b + BATCH_SIZE);
