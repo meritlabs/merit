@@ -38,9 +38,6 @@ namespace referral
         const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
 
         bool comp(const LotteryEntrant& a, const LotteryEntrant& b) {
-            if(std::get<0>(a) == std::get<0>(b)) {
-                return std::get<2>(a) < std::get<2>(b);
-            }
             return std::get<0>(a) < std::get<0>(b);
         }
     }
