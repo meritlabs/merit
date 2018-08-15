@@ -1483,7 +1483,10 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReset);
 
                 // TODO: Re-evaluate this placement of the RefDB and Cache.  There may be a more efficient place.
-                prefviewdb = new referral::ReferralsViewDB{nReferralDBCache, false, fReset || fReindexChainState};
+                prefviewdb = new referral::ReferralsViewDB{
+                    static_cast<size_t>(nReferralDBCache),
+                        false, fReset || fReindexChainState};
+
                 prefviewcache = new referral::ReferralsViewCache{prefviewdb};
 
                 if (fReset) {
