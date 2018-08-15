@@ -139,6 +139,9 @@ public:
         consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
         consensus.nEdgeBitsTargetThreshold = 4;      // adjust nEdgeBits if block time is 4x more/less than expected
         consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
+
+        const double blocks_per_minute = 60.0 / consensus.nPowTargetSpacing;
+
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1368; // 95% of 2016
@@ -153,7 +156,7 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_GENESIS].nTimeout = 1230767999;   // December 31, 2008
 
         consensus.daedalus_max_invites_per_block = 10; //20 merit over 2
-        consensus.daedalus_block_window = 60 * 24 * 3; //Window used to compute invites.
+        consensus.daedalus_block_window = blocks_per_minute  * 60 * 24 * 3; //Window used to compute invites.
                                                        //Looks at blocks over a 3 day period.
         consensus.daedalus_min_one_invite_for_every_x_blocks = 10; //Minimum of 1 invite every 10 minutes, or 144 per day.
         consensus.daedalus_max_outstanding_invites_per_address = 500;
@@ -173,10 +176,22 @@ public:
 
         // Block where improved invites turn on
         consensus.imp_invites_blockheight = 180980; //Sat, Jan 5th 6:11:00 ish GMT
-        consensus.imp_block_window = 60 * 24 * 1; //1 days of blocks
+        consensus.imp_block_window = blocks_per_minute  * 60 * 24 * 1; //1 days of blocks
         consensus.imp_min_one_invite_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_weights = {60, 40}; 
+
+        // PoG v2 settings.
+        consensus.pog2_blockheight = 334750; //Around Fri, 17 Aug 2018 09:14:38 +0000
+        consensus.pog2_total_winning_ambassadors = 20;
+        consensus.pog2_ambassador_percent_cut = 50;  //50%
+        consensus.pog2_pow_target_timespan = 5 * 60 * 60; // every 5 hours
+        consensus.pog2_initial_ambassador_stake = 20_merit;
+        consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
+        consensus.pog2_new_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
+        consensus.pog2_max_outstanding_invites_per_address = 50;
+        consensus.pog2_convex_b = 0.2; 
+        consensus.pog2_convex_s = 0.05;
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -288,6 +303,8 @@ public:
         consensus.nPowTargetTimespan = 24 * 60 * 60; // one day for nBits adjustment
         consensus.nEdgeBitsTargetThreshold = 4;      // adjust nEdgeBits if block time is twice more/less than expected
         consensus.nPowTargetSpacing = 1 * 60;        // one minute for a block
+        const double blocks_per_minute = 60.0 / consensus.nPowTargetSpacing;
+
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
         consensus.nRuleChangeActivationThreshold = 1080; // 75% for testchains
@@ -325,6 +342,18 @@ public:
         consensus.imp_min_one_invite_for_every_x_blocks = 2; //invite every minute
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_weights = {60, 40}; 
+
+        // PoG v2 settings.
+        consensus.pog2_blockheight = 216810;
+        consensus.pog2_total_winning_ambassadors = 20;
+        consensus.pog2_ambassador_percent_cut = 50;  //50%
+        consensus.pog2_pow_target_timespan = 5 * 60 * 60; // every 5 hours
+        consensus.pog2_initial_ambassador_stake = 20_merit;
+        consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
+        consensus.pog2_new_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
+        consensus.pog2_max_outstanding_invites_per_address = 50;
+        consensus.pog2_convex_b = 0.2; 
+        consensus.pog2_convex_s = 0.05;
 
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
@@ -411,8 +440,11 @@ public:
             uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
             *consensus.sEdgeBitsAllowed.begin()};
         consensus.nPowTargetTimespan = 60; // one minute for nBits adjustment
-        consensus.nEdgeBitsTargetThreshold = 2;      // adjust nEdgeBits if block time is twice more/less than expected
         consensus.nPowTargetSpacing = 10;        // 10 seconds per block
+
+        const double blocks_per_minute = 60.0 / consensus.nPowTargetSpacing;
+
+        consensus.nEdgeBitsTargetThreshold = 2;      // adjust nEdgeBits if block time is twice more/less than expected
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.fPowNoRetargeting = true;
         consensus.nRuleChangeActivationThreshold = 108; // 75% for testchains
@@ -430,10 +462,10 @@ public:
         consensus.daedalus_max_invites_per_block = 10;
         consensus.daedalus_block_window = 4;
         consensus.daedalus_min_one_invite_for_every_x_blocks = 1;
-        consensus.daedalus_max_outstanding_invites_per_address = 3;
+        consensus.daedalus_max_outstanding_invites_per_address = 100;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].bit = 27;
-        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 10;
+        consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].start_block = 5;
         consensus.vDeployments[Consensus::DEPLOYMENT_DAEDALUS].end_block = std::numeric_limits<int>::max();
 
         // The best chain should have at least this much work.
@@ -443,14 +475,26 @@ public:
         consensus.defaultAssumeValid = uint256S("0x00");
 
         // Block where safer aliases are enabled.
-        consensus.safer_alias_blockheight = 20;
+        consensus.safer_alias_blockheight = 5;
 
         // Block where improved invites turn on
-        consensus.imp_invites_blockheight = 12;
+        consensus.imp_invites_blockheight = 8;
         consensus.imp_block_window = 4;
         consensus.imp_min_one_invite_for_every_x_blocks = 1; //invite every minute
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_weights = {60, 40}; 
+
+        // PoG v2 settings.
+        consensus.pog2_blockheight = 10;
+        consensus.pog2_total_winning_ambassadors = 20;
+        consensus.pog2_ambassador_percent_cut = 50;  //50%
+        consensus.pog2_pow_target_timespan = 30 * 60; // every 30 min
+        consensus.pog2_initial_ambassador_stake = 20_merit;
+        consensus.pog2_coin_maturity = blocks_per_minute * 20; //20 minutes for coin maturity
+        consensus.pog2_new_coin_maturity = blocks_per_minute * 10; //10 minutes for coin maturity
+        consensus.pog2_max_outstanding_invites_per_address = 50;
+        consensus.pog2_convex_b = 0.2; 
+        consensus.pog2_convex_s = 0.05;
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;

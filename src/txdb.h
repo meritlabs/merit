@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <set>
 
 class CBlockIndex;
 class CCoinsViewDBCursor;
@@ -31,7 +32,7 @@ static constexpr int MAX_BLOCK_COINSDB_USAGE = 200 * DB_PEAK_USAGE_FACTOR;
 //! Always periodic flush if less than this much space still available.
 static constexpr int MIN_BLOCK_COINSDB_USAGE = 50 * DB_PEAK_USAGE_FACTOR;
 //! -dbcache default (MiB)
-static const int64_t nDefaultDbCache = 450;
+static const int64_t nDefaultDbCache = 1024;
 //! -dbbatchsize default (bytes)
 static const int64_t nDefaultDbBatchSize = 16 << 20;
 //! max. -dbcache (MiB)
@@ -45,7 +46,11 @@ static const int64_t nMaxBlockDBCache = 2;
 // a meaningful difference: https://github.com/bitcoin/bitcoin/pull/8273#issuecomment-229601991
 static const int64_t nMaxBlockDBAndTxIndexCache = 1024;
 //! Max memory allocated to coin DB specific cache (MiB)
-static const int64_t nMaxCoinsDBCache = 8;
+static const int64_t nMaxCoinsDBCache = 300;
+//! Max memory allocated to referral DB specific cache (MiB)
+static const int64_t nMaxReferralDBCache = 200;
+
+extern const char DB_ADDRESSUNSPENTINDEX;
 
 struct CDiskTxPos : public CDiskBlockPos
 {
@@ -114,6 +119,11 @@ private:
     friend class CCoinsViewDB;
 };
 
+using UnspentPair = std::pair<CAddressUnspentKey, CAddressUnspentValue>;
+using UnspentCache = std::vector<UnspentPair>;
+using RemoveUnspentSet = std::set<CAddressUnspentKey>;
+using SpentCache = std::set<CSpentIndexKey>;
+
 /** Access to the block database (blocks/index/) */
 class CBlockTreeDB : public CDBWrapper
 {
@@ -122,7 +132,16 @@ public:
 private:
     CBlockTreeDB(const CBlockTreeDB&);
     void operator=(const CBlockTreeDB&);
+
+    void EraseFromUnspentCache(const RemoveUnspentSet& p);
+    void AddToUnspentCache(const UnspentPair& p);
+
+    UnspentCache unspent_cache;
+    SpentCache spent_cache;
+
 public:
+    bool CacheAllUnspent();
+
     bool WriteBatchSync(const std::vector<std::pair<int, const CBlockFileInfo*> >& fileInfo, int nLastFile, const std::vector<const CBlockIndex*>& blockinfo);
     bool ReadBlockFileInfo(int nFile, CBlockFileInfo &fileinfo);
     bool ReadLastBlockFile(int &nFile);
@@ -138,6 +157,21 @@ public:
             unsigned int type,
             bool invite,
             std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &vect);
+    bool ReadAllAddressUnspent(
+        bool invite,
+        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
+
+    template<class F>
+        bool ReadAllAddressUnspent(
+                bool invite,
+                F process) {
+            assert(!unspent_cache.empty());
+            for(const auto& unspent : unspent_cache) { 
+                process(unspent.first, unspent.second);
+            }
+            return true;
+        }
+
     bool WriteAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAmount> > &vect);
     bool EraseAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAmount> > &vect);
     bool ReadAddressIndex(

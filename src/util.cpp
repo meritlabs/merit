@@ -244,6 +244,8 @@ const CLogCategoryDesc LogCategories[] =
     {BCLog::LEVELDB, "leveldb"},
     {BCLog::REFMEMPOOL, "refmempool"},
     {BCLog::VALIDATION, "validataion"},
+    {BCLog::POG, "pog"},
+    {BCLog::BEACONS, "beacons"},
     {BCLog::ALL, "1"},
     {BCLog::ALL, "all"},
 };

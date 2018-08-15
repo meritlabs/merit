@@ -21,8 +21,6 @@
 #include "httprpc.h"
 #include "utilstrencodings.h"
 
-#include <boost/thread.hpp>
-
 #include <stdio.h>
 
 /* Introduction text for doxygen: */
@@ -65,7 +63,6 @@ bool AppInit(int argc, char* argv[])
 {
     boost::thread_group threadGroup;
     CScheduler scheduler;
-
     bool fRet = false;
 
     //

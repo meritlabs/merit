@@ -299,6 +299,11 @@ public:
         return WriteBatch(batch, true);
     }
 
+    CDBIterator *NewIterator(const leveldb::ReadOptions& options)
+    {
+        return new CDBIterator(*this, pdb->NewIterator(options));
+    }
+
     CDBIterator *NewIterator()
     {
         return new CDBIterator(*this, pdb->NewIterator(iteroptions));

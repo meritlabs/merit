@@ -318,7 +318,7 @@ CPubKey CWallet::GenerateNewKey(CWalletDB &walletdb)
     // check that hd master key is set
     assert(IsHDEnabled());
 
-    debug("[WARNING] GENERATING NEW KEY\n");
+    LogPrint(BCLog::BEACONS, "[WARNING] GENERATING NEW KEY\n");
 
     CKey secret;
 
@@ -1854,7 +1854,7 @@ CPubKey CWallet::GenerateNewHDMasterKey()
     return pubkey;
 }
 
-CPubKey CWallet::SetMasterKeyMetadata(
+void CWallet::SetMasterKeyMetadata(
         const CExtKey& extkey,
         const WordList& mnemonic,
         const CPubKey& pubkey)
@@ -1881,7 +1881,7 @@ CPubKey CWallet::SetMasterKeyMetadata(
 
 }
 
-CPubKey CWallet::GenerateMasterKeyFromMnemonic(
+void CWallet::GenerateMasterKeyFromMnemonic(
         const WordList& mnemonic,
         const std::string& passphrase,
         CExtKey& extkey)
@@ -4100,7 +4100,7 @@ bool CWallet::CreateTransaction(referral::ReferralTx& rtx, referral::ReferralRef
 
     if (!key.IsValid()) {
         if (!HaveReferralAddressPubKey(referral->GetAddress())) {
-            debug("%s: Public key for referral address not found.\n", __func__);
+            LogPrint(BCLog::BEACONS, "%s: Public key for referral address not found.\n", __func__);
             return false;
         }
 

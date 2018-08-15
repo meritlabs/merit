@@ -245,19 +245,21 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
             previousBlockHash,
             subsidy.ambassador,
             chain_params);
-    assert(lottery.remainder >= 0);
+    assert(lottery.first.remainder >= 0);
+
+    auto cgs_selector = lottery.second;
 
     /**
      * Update the coinbase transaction vout with rewards.
      */
-    PayAmbassadors(lottery, coinbaseTx);
+    PayAmbassadors(lottery.first, coinbaseTx);
 
     /**
      * The miner recieves their subsidy and any remaining subsidy that was left
      * over from paying the ambassadors. The reason there is a remaining subsidy
      * is because we use integer math.
      */
-    const auto miner_subsidy = subsidy.miner + lottery.remainder;
+    const auto miner_subsidy = subsidy.miner + lottery.first.remainder;
     assert(miner_subsidy > 0);
 
     coinbaseTx.vout[0].nValue = nFees + miner_subsidy;
@@ -299,7 +301,9 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
             GetDebitsAndCredits(debits_and_credits, **it, *pcoinsTip);
         }
 
+        referral::ConfirmedAddresses dummy_selected_new_pool_addresses;
         RewardInvites(
+                cgs_selector,
                 nHeight,
                 pindexPrev,
                 previousBlockHash,
@@ -307,7 +311,8 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
                 debits_and_credits,
                 chain_params,
                 state,
-                invites);
+                invites,
+                dummy_selected_new_pool_addresses);
 
         if (invites.empty() && !miner_reward_block) {
             // remove empty coinbase 
@@ -405,7 +410,7 @@ bool BlockAssembler::CheckReferrals(
         if (pblock->IsDaedalus()) {
             // Check package for confirmation for give referral
             if (confirmations.count(referral->GetAddress()) == 0) {
-                debug("WARNING: Referral confirmation not found: %s",
+                LogPrint(BCLog::BEACONS, "WARNING: Referral confirmation not found: %s",
                         CMeritAddress{referral->addressType, referral->GetAddress()}.ToString());
                 return false;
             }
@@ -490,7 +495,7 @@ void BlockAssembler::AddTransactionToBlock(CTxMemPool::txiter iter)
 {
     const auto& tx = iter->GetEntryValue();
     if(tx.IsInvite()) {
-        debug("Miner Assembler: adding invite transaction to block");
+        LogPrint(BCLog::BEACONS, "Miner Assembler: adding invite transaction to block");
         pblock->invites.emplace_back(iter->GetSharedEntryValue());
     } else {
         pblock->vtx.emplace_back(iter->GetSharedEntryValue());
@@ -523,7 +528,7 @@ void BlockAssembler::AddReferralToBlock(referral::ReferralTxMemPool::RefIter ite
     assert(ref);
 
     if (refsInBlock.count(iter)) {
-        debug("\t%s: Referral %s is already in block\n", __func__,
+        LogPrint(BCLog::BEACONS, "\t%s: Referral %s is already in block\n", __func__,
                 ref->GetHash().GetHex());
         return;
     }
@@ -619,7 +624,7 @@ void BlockAssembler::AddReferrals()
         const auto ref = it->GetSharedEntryValue();
 
         if (refsInBlock.count(it)) {
-            debug("\t%s: referral for %s is already in block", __func__, CMeritAddress{ref->addressType, ref->GetAddress()}.ToString());
+            LogPrint(BCLog::BEACONS, "\t%s: referral for %s is already in block", __func__, CMeritAddress{ref->addressType, ref->GetAddress()}.ToString());
             continue;
         }
 
@@ -631,7 +636,7 @@ void BlockAssembler::AddReferrals()
         if (pblock->IsDaedalus()) {
             // Check package for confirmation for give referral
             if (confirmations.count(ref->GetAddress()) == 0) {
-                debug("\t%s: confirmation for %s not found. Skipping", __func__, CMeritAddress{ref->addressType, ref->GetAddress()}.ToString());
+                LogPrint(BCLog::BEACONS, "\t%s: confirmation for %s not found. Skipping", __func__, CMeritAddress{ref->addressType, ref->GetAddress()}.ToString());
                 continue;
             }
         }

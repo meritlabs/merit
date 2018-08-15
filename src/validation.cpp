@@ -21,6 +21,8 @@
 #include "init.h"
 #include "pog/reward.h"
 #include "pog/select.h"
+#include "pog2/reward.h"
+#include "pog2/select.h"
 #include "pog/invitebuffer.h"
 #include "policy/fees.h"
 #include "policy/policy.h"
@@ -1042,7 +1044,7 @@ static bool AcceptToMemoryPoolWorker(
                 // then it's a move invite tx. do not check alias for uniqueness
                 // otherwise it is a confirmation tx
                 if (prefviewcache->Exists(address_pair.first)) {
-                    debug("Invite destination is already in chain");
+                    LogPrint(BCLog::BEACONS, "Invite destination is already in chain\n");
                     continue;
                 }
 
@@ -1082,7 +1084,7 @@ static bool AcceptToMemoryPoolWorker(
                             // if address is of invite tx and it is out,
                             // then we found confirmation invite in mempool ==> duplicate
                             if (address.first.invite && address.second.prevhash.IsNull()) {
-                                debug("Found confirmation tx in mempool for same alias \"%s\"", referral->alias);
+                                LogPrint(BCLog::BEACONS, "Found confirmation tx in mempool for same alias \"%s\"", referral->alias);
                                 return state.Invalid(false, REJECT_DUPLICATE, "bad-invite-non-uniqe-alias");
                             }
                         }
@@ -1650,8 +1652,10 @@ bool GetTransaction(
 }
 
 /** Return transaction in txOut, and if it was found inside a block, its hash is placed in hashBlock */
-bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock)
+bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock, CBlockIndex*& pindex)
 {
+    pindex = nullptr;
+
     referral::ReferralRef mempoolref = mempoolReferral.Get(hash);
     if (mempoolref) {
         refOut = mempoolref;
@@ -1678,11 +1682,26 @@ bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &ha
             return error("%s: Deserialize or I/O error - %s", __func__, e.what());
         }
         hashBlock = header.GetHash();
-        if (refOut->GetHash() != hash)
+        if (refOut->GetHash() != hash) {
             return error("%s: txid mismatch: requested::actual %s::%s",
                     __func__,
                     hash.GetHex().c_str(),
                     refOut->GetHash().GetHex().c_str());
+        }
+
+
+        //Find the height based on the block hash 
+        auto bi = mapBlockIndex.find(hashBlock);
+        if (bi != mapBlockIndex.end()) {
+            pindex = bi->second;
+        }
+
+        if (pindex && pindex->nHeight > 0) {
+            auto height = prefviewdb->GetReferralHeight(refOut->GetAddress());
+            if (height < 0) {
+                prefviewdb->SetReferralHeight(pindex->nHeight, refOut->GetAddress());
+            }
+        }
 
         return true;
     }
@@ -1792,15 +1811,18 @@ CAmount GetBlockSubsidy(int height, const Consensus::Params& consensus_params)
     return nSubsidy;
 }
 
-SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_params)
+SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& params)
 {
-    assert(consensus_params.ambassador_percent_cut >= 0 && consensus_params.ambassador_percent_cut <= 100);
-    auto block_subsidy = GetBlockSubsidy(height, consensus_params);
+    const auto percent_cut = height >= params.pog2_blockheight ?
+        params.pog2_ambassador_percent_cut : params.ambassador_percent_cut;
 
-    auto ambassador_subsidy = (block_subsidy * consensus_params.ambassador_percent_cut) / 100;
+    assert(percent_cut >= 0 && percent_cut <= 100);
+    auto block_subsidy = GetBlockSubsidy(height, params);
+
+    auto ambassador_subsidy = (block_subsidy * percent_cut) / 100;
     auto miner_subsidy = block_subsidy - ambassador_subsidy;
 
-    assert(ambassador_subsidy < miner_subsidy);
+    assert(ambassador_subsidy <= miner_subsidy);
     assert(miner_subsidy + ambassador_subsidy == block_subsidy);
     return {miner_subsidy, ambassador_subsidy};
 }
@@ -1811,9 +1833,7 @@ bool IsValidAmbassadorDestination(const CTxDestination& dest)
     return pog::IsValidAmbassadorDestination(which);
 }
 
-int max_ambassador_lottery = 0;
-
-pog::AmbassadorLottery RewardAmbassadors(
+pog::AmbassadorLottery Pog1RewardAmbassadors(
         int height,
         const uint256& previous_block_hash,
         CAmount total,
@@ -1868,6 +1888,155 @@ pog::AmbassadorLottery RewardAmbassadors(
     assert(rewards.remainder >= 0);
 
     return rewards;
+}
+
+void LogWinners(const pog2::Entrants& es)
+{
+    for(const auto& e : es) {
+        LogPrint(BCLog::POG, "%s: \t%s: cgs: %d subcgs: %d children: %d netsize: %d\n",
+                __func__, 
+                CMeritAddress{e.address_type, e.address}.ToString(),
+                e.cgs,
+                e.sub_cgs,
+                e.children,
+                e.network_size);
+    }
+}
+
+void LogRewards(const pog::Rewards& rewards)
+{
+    for(const auto& r : rewards) {
+        LogPrint(BCLog::POG, "%s: \t%s: amount: %d\n",
+                __func__, 
+                CMeritAddress{r.address_type, r.address}.ToString(),
+                r.amount);
+    }
+
+}
+
+void LogRewards(const pog::InviteRewards& rewards)
+{
+    for(const auto& r : rewards) {
+        LogPrint(BCLog::POG, "%s: \t%s: amount: %d\n",
+                __func__, 
+                CMeritAddress{r.address_type, r.address}.ToString(),
+                r.invites);
+    }
+}
+
+std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassadors(
+        int height,
+        const uint256& previous_block_hash,
+        CAmount total,
+        const Consensus::Params& params, 
+        bool force_pog2)
+{
+    if (!force_pog2) {
+        assert(height >= params.pog2_blockheight);
+    }
+
+    assert(prefviewdb != nullptr);
+
+    static size_t max_ambassador_lottery = 0;
+    pog2::Entrants entrants;
+
+    // unlikely that the candidates grew over 50% since last time.
+    auto reserve_size = max_ambassador_lottery * 1.5;
+    entrants.reserve(reserve_size);
+
+    pog2::CGSContext context;
+    pog2::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
+
+    max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
+
+    // Wallet selector will create a distribution from all the keys
+    auto selector = std::make_shared<pog2::AddressSelector>(height, entrants, params);
+
+    // We may have fewer keys in the distribution than the expected winners,
+    // so just pick smallest of the two.
+    auto desired_winners = std::min(
+            params.pog2_total_winning_ambassadors,
+            static_cast<int64_t>(selector->Size()));
+
+    LogPrint(BCLog::POG, "%s: Desired winners: %d\n", __func__, desired_winners);
+
+    // If we have an empty distribution, for example in some of the unit
+    // tests, we return the whole ambassador amount back to the miner
+    if (desired_winners == 0) {
+        return std::make_pair(pog::AmbassadorLottery{{}, total}, selector);
+    }
+
+    // validate sane winner amount
+    assert(desired_winners < 100);
+
+    size_t desired_cgs_winners = std::max(1, static_cast<int>(desired_winners / 2));
+    size_t desired_sub_winners = desired_cgs_winners;
+
+    LogPrint(BCLog::POG,
+            "%s: Desired old winners: %d Desired log winners: %d\n",
+            __func__,
+            desired_cgs_winners,
+            desired_sub_winners);
+
+    // Select the N winners using the previous block hash as the seed
+    // from the CGS distribution. This CGS distribution is weighted towards stake.
+    auto cgs_winners = selector->SelectByCgs(
+            *prefviewcache,
+            previous_block_hash,
+            desired_cgs_winners);
+
+    // The SubCgs here means Sublinear CGS. This distribution is more weighted
+    // towards growth.
+    auto sub_winners = selector->SelectBySubCgs(
+            *prefviewcache,
+            previous_block_hash,
+            desired_sub_winners);
+
+    LogPrint(BCLog::POG, "%s: Cgs winners: %d\n", __func__, cgs_winners.size());
+    LogWinners(cgs_winners);
+    LogPrint(BCLog::POG, "%s: SubCgs winners: %d\n", __func__, sub_winners.size());
+    LogWinners(sub_winners);
+
+    pog2::Entrants winners;
+    winners.reserve(cgs_winners.size() + sub_winners.size());
+    winners.insert(winners.end(), cgs_winners.begin(), cgs_winners.end());
+
+    //We need to swap cgs and sub_cgs here because the log distribution has those
+    //values swapped.
+    std::transform(sub_winners.begin(), sub_winners.end(), std::back_inserter(winners),
+            [](pog2::Entrant e) {
+                std::swap(e.cgs, e.sub_cgs);
+                return e;
+            });
+
+    assert(cgs_winners.size() + sub_winners.size()
+            <= (desired_cgs_winners + desired_sub_winners));
+
+    // Compute reward for all the winners
+    auto rewards = pog2::RewardAmbassadors(height, winners, total);
+    LogPrint(BCLog::POG, "%s: Rewarding %d winners\n", __func__, rewards.winners.size());
+    LogRewards(rewards.winners);
+
+    // Return the remainder which will be given to the miner;
+    assert(rewards.remainder <= total);
+    assert(rewards.remainder >= 0);
+
+    return std::make_pair(rewards, selector);
+}
+
+std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> RewardAmbassadors(
+        int height,
+        const uint256& previous_block_hash,
+        CAmount total,
+        const Consensus::Params& params)
+{
+    if (height >= params.pog2_blockheight) {
+        return Pog2RewardAmbassadors(height, previous_block_hash, total, params);
+    }
+
+    return std::make_pair(
+            Pog1RewardAmbassadors(height, previous_block_hash, total, params),
+            pog2::AddressSelectorPtr{});
 }
 
 bool OldComputeInviteLotteryParams(
@@ -2044,6 +2213,7 @@ bool ComputeInviteLotteryParams(
 }
 
 bool RewardInvites(
+        pog2::AddressSelectorPtr cgs_selector,
         int height,
         CBlockIndex* pindexPrev,
         const uint256& previous_block_hash,
@@ -2051,10 +2221,13 @@ bool RewardInvites(
         const DebitsAndCredits &debits_and_credits,
         const Consensus::Params& params,
         CValidationState& state,
-        pog::InviteRewards& rewards)
+        pog::InviteRewards& rewards,
+        referral::ConfirmedAddresses& selected_new_pool_addresses,
+        bool force_pog2)
 {
     assert(height >= 0);
     assert(prefviewdb != nullptr);
+    assert(prefviewcache != nullptr);
 
     pog::InviteLotteryParamsVec lottery_params;
     if (!ComputeInviteLotteryParams(
@@ -2067,7 +2240,11 @@ bool RewardInvites(
         return false;
     }
 
-    const auto total_winners =
+    const bool pog2 = force_pog2 || height >= params.pog2_blockheight;
+    assert(!pog2 || cgs_selector);
+
+    const auto total_winners = pog2 ? 
+        pog2::ComputeTotalInviteLotteryWinners(lottery_params, params) :
         pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
 
     if (total_winners == 0) {
@@ -2092,7 +2269,7 @@ bool RewardInvites(
     for (const auto& amt: in_block_amounts) {
         if (auto confirmation = prefviewcache->GetConfirmation(amt.first)) {
             if (-amt.second == confirmation->invites) {
-                LogPrintf("\t\t%s: Referral with address \"%s\" is going to be unconfirmed. Skip it in invites lottery\n",
+                LogPrint(BCLog::POG, "\t\t%s: Referral with address \"%s\" is going to be unconfirmed. Skip it in invites lottery\n",
                         __func__,
                         CMeritAddress{confirmation->address_type, confirmation->address}.ToString());
                 unconfirmed_invites.insert(amt.first);
@@ -2100,7 +2277,18 @@ bool RewardInvites(
         }
     }
 
-    const auto winners = pog::SelectConfirmedAddresses(
+    const auto winners = pog2 ? 
+        pog2::SelectInviteAddresses(
+            *cgs_selector,
+            height,
+            *prefviewcache,
+            previous_block_hash,
+            params.genesis_address,
+            total_winners,
+            unconfirmed_invites,
+            params.pog2_max_outstanding_invites_per_address,
+            selected_new_pool_addresses) :
+        pog::SelectConfirmedAddresses(
             *prefviewdb,
             previous_block_hash,
             params.genesis_address,
@@ -2111,12 +2299,21 @@ bool RewardInvites(
     assert(winners.size() <= static_cast<size_t>(total_winners));
 
     rewards = pog::RewardInvites(winners);
+    LogPrint(BCLog::POG, "%s: Invite Rewards %d\n",
+            __func__,
+            rewards.size());
+    for(const auto& r : rewards) {
+        LogPrint(BCLog::POG, "%s:\t %s: %d  \n",
+                __func__,
+                CMeritAddress{r.address_type, r.address}.ToString(),
+                r.invites);
+    }
     return true;
 }
 
 void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& tx)
 {
-    debug("Lottery Results");
+    LogPrint(BCLog::POG, "Lottery Results");
 
     // Pay them by adding a txout to the coinbase transaction;
     std::transform(
@@ -2129,10 +2326,10 @@ void PayAmbassadors(const pog::AmbassadorLottery& lottery, CMutableTransaction& 
                 const auto dest = addr.Get();
 
                 if (!addr.IsValid() || !IsValidAmbassadorDestination(dest)) {
-                    throw std::runtime_error{"invalid ambassador"};
+                    throw std::runtime_error{"invalid ambassador for rewards"};
                 }
 
-                debug("\tWinner: %s, %d", addr.ToString(), static_cast<int>(winner.address_type));
+                LogPrint(BCLog::POG, "\tWinner: %s, %d\n", addr.ToString(), static_cast<int>(winner.address_type));
                 const auto script = GetScriptForDestination(dest);
                 return CTxOut{winner.amount, script};
             });
@@ -2142,7 +2339,7 @@ void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& t
 {
     assert(tx.IsInvite());
 
-    debug("Invite Lottery Results: %d", rewards.size());
+    LogPrint(BCLog::POG, "Invite Lottery Results: %d", rewards.size());
 
     // Pay them by adding a txout to the coinbase transaction;
     std::transform(
@@ -2155,10 +2352,10 @@ void DistributeInvites(const pog::InviteRewards& rewards, CMutableTransaction& t
                 const auto dest = addr.Get();
 
                 if (!addr.IsValid() || !IsValidAmbassadorDestination(dest)) {
-                    throw std::runtime_error{"invalid ambassador"};
+                    throw std::runtime_error{"invalid ambassador for invites"};
                 }
 
-                debug("\tWinner: %s, %d", addr.ToString(), static_cast<int>(reward.address_type));
+                LogPrint(BCLog::POG, "\tWinner: %s, %d\n", addr.ToString(), static_cast<int>(reward.address_type));
 
                 const auto script = GetScriptForDestination(dest);
                 return CTxOut{reward.invites, script};
@@ -2199,8 +2396,13 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
     assert(coinbase.IsCoinBase());
 
     //quick test before doing more expensive validation
-    if (coinbase.vout.size() < 1 + lottery.winners.size())
+    if (coinbase.vout.size() < 1 + lottery.winners.size()) {
+        LogPrint(BCLog::POG, "%s: Coinbase didn't pay expected amount of winners. Expected %d but paid %d\n",
+                __func__,
+                lottery.winners.size() + 1,
+                coinbase.vout.size());
         return false;
+    }
 
     //Transform vouts to rewards
     pog::Rewards sorted_outs(coinbase.vout.size());
@@ -2232,10 +2434,20 @@ bool AreExpectedLotteryWinnersPaid(const pog::AmbassadorLottery& lottery, const 
 
     // Make sure all expected rewards exist in the set of all rewards given in
     // the block.
-    return std::includes(
+    const bool all_paid =  std::includes(
             std::begin(sorted_outs), std::end(sorted_outs),
             std::begin(sorted_winners), std::end(sorted_winners),
             RewardComp());
+
+    if(!all_paid) {
+        LogPrint(BCLog::POG, "%s: Coinbase didn't pay the expected winners.\n", __func__);
+        LogPrint(BCLog::POG, "%s: Expected:\n", __func__);
+        LogRewards(sorted_winners);
+
+        LogPrint(BCLog::POG, "%s: Paid:\n", __func__);
+        LogRewards(sorted_outs);
+    }
+    return all_paid;
 }
 
 bool AreExpectedInvitesRewarded(
@@ -2301,10 +2513,20 @@ bool AreExpectedInvitesRewarded(
 
     // Make sure all expected rewards exist in the set of all rewards given in
     // the block.
-    return std::includes(
+    const bool all_paid = std::includes(
             std::begin(sorted_outs), std::end(sorted_outs),
             std::begin(sorted_invites), std::end(sorted_invites),
             InviteComp());
+
+    if(!all_paid) {
+        LogPrint(BCLog::POG, "%s: Invite Coinbase didn't pay the expected winners.\n", __func__);
+        LogPrint(BCLog::POG, "%s: Expected:\n", __func__);
+        LogRewards(sorted_invites);
+
+        LogPrint(BCLog::POG, "%s: Paid:\n", __func__);
+        LogRewards(sorted_outs);
+    }
+    return all_paid;
 }
 
 bool IsInitialBlockDownload()
@@ -2737,6 +2959,7 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
     // it is an overwrite.
     view.AddCoin(out, std::move(undo), !fClean);
 
+
     return fClean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
 }
 
@@ -2837,6 +3060,7 @@ bool UpdateANV(const CBlock& block, CCoinsViewCache& view) {
 }
 
 bool IndexReferrals(
+        int height,
         const referral::ReferralRefs ordered_referrals,
         bool allow_no_parent,
         bool normalize_alias)
@@ -2845,7 +3069,7 @@ bool IndexReferrals(
 
     // Update offset and Record referrals into the referral DB
     for (const auto& rtx : ordered_referrals) {
-        if (!prefviewdb->InsertReferral(*rtx, allow_no_parent, normalize_alias)) {
+        if (!prefviewdb->InsertReferral(height, *rtx, allow_no_parent, normalize_alias)) {
             return false;
         }
     }
@@ -2913,8 +3137,10 @@ bool UpdateLotteryEntrants(
         }
 
         undo.lottery.insert(undo.lottery.end(), undos.begin(), undos.end());
+
     }
 
+    LogPrint(BCLog::BEACONS, "%s: Adding lottery undo entrants %d\n", __func__, undo.lottery.size());
     return true;
 }
 
@@ -2922,6 +3148,7 @@ bool UndoLotteryEntrants(const CBlockUndo& undo, const size_t max_reservoir_size
 {
     assert(prefviewdb);
 
+    LogPrint(BCLog::BEACONS, "%s: Undoing lottery entrants %d\n", __func__, undo.lottery.size());
     for (const auto& entrant : reverse_iterate(undo.lottery)) {
         if (!prefviewdb->UndoLotteryEntrant(entrant, max_reservoir_size)) {
             return false;
@@ -2930,74 +3157,65 @@ bool UndoLotteryEntrants(const CBlockUndo& undo, const size_t max_reservoir_size
     return true;
 }
 
-void UnIndexTransactions(
+bool RecordNewPoolInviteRewards(
+        int height,
+        referral::ReferralsViewCache& db,
+        referral::ConfirmedAddresses& addresses)
+{
+    for (const auto& a : addresses) { 
+        if (!db.SetNewInviteRewardedHeight(a.address, height)) { 
+            return false;
+        }
+    }
+    return true;
+}
+
+bool UndoNewPoolInviteRewards(
+        int height,
+        referral::ReferralsViewCache& db,
+        const DebitsAndCredits debits_and_credits)
+{
+
+    for (const auto& entry : debits_and_credits) { 
+        const auto& address = std::get<1>(entry);
+        const CAmount amount = std::get<2>(entry);
+
+        //credits were debits during connect block so we skip credits here
+        //since we only care about credits during connect block.
+        if (amount >=0) {
+            continue;
+        }
+
+        auto recorded_height = db.GetNewInviteRewardedHeight(address);
+        if (recorded_height == height) {
+            if (!db.SetNewInviteRewardedHeight(address, 0)) { 
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+void UnIndexTransaction(
         const CBlockIndex *pindex,
         CCoinsViewCache& view,
-        const std::vector<CTransactionRef>& vtx,
+        const CTransaction& tx,
+        int i,
         KeyActivity& addressIndex,
         AddressUnspentIndex& addressUnspentIndex,
         SpentIndex& spentIndex)
 {
-    for (int i = vtx.size() - 1; i >= 0; i--) {
-        auto tx = vtx[i];
-        auto txhash = tx->GetHash();
+    auto txhash = tx.GetHash();
 
-        if (!tx->IsCoinBase()) {
-            for (unsigned int k = tx->vin.size(); k-- > 0;) {
-                const auto& input = tx->vin[k];
-                const auto& coin = view.AccessCoin(input.prevout);
-                const auto& prevout = coin.out;
+    if (!tx.IsCoinBase()) {
+        for (unsigned int k = tx.vin.size(); k-- > 0;) {
+            const auto& input = tx.vin[k];
+            const auto& coin = view.AccessCoin(input.prevout);
+            assert(!coin.IsSpent());
 
-                const auto address = ExtractAddress(prevout);
-                const auto& hashBytes = address.first;
-                const unsigned int addressType = address.second;
+            const auto& prevout = coin.out;
 
-                if (addressType == 0) {
-                    continue;
-                }
-
-                // undo receiving activity
-                addressIndex.push_back(
-                        std::make_pair(
-                            CAddressIndexKey{
-                            addressType,
-                            hashBytes,
-                            pindex->nHeight,
-                            i,
-                            txhash,
-                            k,
-                            true,
-                            tx->IsInvite()},
-                            prevout.nValue * -1));
-
-                // undo unspent output
-                addressUnspentIndex.push_back(
-                        std::make_pair(
-                            CAddressUnspentKey{
-                                addressType,
-                                hashBytes,
-                                input.prevout.hash,
-                                input.prevout.n,
-                                coin.IsCoinBase(),
-                                coin.IsInvite()
-                            },
-                            CAddressUnspentValue{
-                                prevout.nValue,
-                                prevout.scriptPubKey,
-                                static_cast<int>(coin.nHeight)}));
-
-                //undo spent index
-                spentIndex.push_back(
-                        std::make_pair(
-                            CSpentIndexKey{input.prevout.hash, input.prevout.n},
-                            CSpentIndexValue{}));
-            }
-        }
-
-        for (unsigned int k = tx->vout.size(); k-- > 0;) {
-            const CTxOut &out = tx->vout[k];
-
-            const auto address = ExtractAddress(out);
+            const auto address = ExtractAddress(prevout);
             const auto& hashBytes = address.first;
             const unsigned int addressType = address.second;
 
@@ -3009,28 +3227,76 @@ void UnIndexTransactions(
             addressIndex.push_back(
                     std::make_pair(
                         CAddressIndexKey{
-                            addressType,
-                            uint160(hashBytes),
-                            pindex->nHeight,
-                            i,
-                            txhash,
-                            k,
-                            false,
-                            tx->IsInvite()},
-                        out.nValue));
+                        addressType,
+                        hashBytes,
+                        pindex->nHeight,
+                        i,
+                        txhash,
+                        k,
+                        true,
+                        tx.IsInvite()},
+                        prevout.nValue * -1));
 
-            // undo unspent index
+            // undo unspent output
             addressUnspentIndex.push_back(
                     std::make_pair(
-                        CAddressUnspentKey(
-                            addressType,
-                            uint160(hashBytes),
-                            txhash,
-                            k,
-                            tx->IsCoinBase(),
-                            tx->IsInvite()),
-                        CAddressUnspentValue()));
+                        CAddressUnspentKey{
+                        addressType,
+                        hashBytes,
+                        input.prevout.hash,
+                        input.prevout.n,
+                        coin.IsCoinBase(),
+                        coin.IsInvite()
+                        },
+                        CAddressUnspentValue{
+                        prevout.nValue,
+                        prevout.scriptPubKey,
+                        static_cast<int>(coin.nHeight)}));
+
+            //undo spent index
+            spentIndex.push_back(
+                    std::make_pair(
+                        CSpentIndexKey{input.prevout.hash, input.prevout.n},
+                        CSpentIndexValue{}));
         }
+    }
+
+    for (unsigned int k = tx.vout.size(); k-- > 0;) {
+        const CTxOut &out = tx.vout[k];
+
+        const auto address = ExtractAddress(out);
+        const auto& hashBytes = address.first;
+        const unsigned int addressType = address.second;
+
+        if (addressType == 0) {
+            continue;
+        }
+
+        // undo receiving activity
+        addressIndex.push_back(
+                std::make_pair(
+                    CAddressIndexKey{
+                    addressType,
+                    hashBytes,
+                    pindex->nHeight,
+                    i,
+                    txhash,
+                    k,
+                    false,
+                    tx.IsInvite()},
+                    out.nValue));
+
+        // undo unspent index
+        addressUnspentIndex.push_back(
+                std::make_pair(
+                    CAddressUnspentKey(
+                        addressType,
+                        hashBytes,
+                        txhash,
+                        k,
+                        tx.IsCoinBase(),
+                        tx.IsInvite()),
+                    CAddressUnspentValue{}));
     }
 }
 
@@ -3080,6 +3346,9 @@ DisconnectResult DisconnectTransactions(
         DebitsAndCredits& debits_and_credits,
         CCoinsViewCache& view,
         CBlockUndo& block_undo,
+        KeyActivity& addressIndex,
+        AddressUnspentIndex& addressUnspentIndex,
+        SpentIndex& spentIndex,
         bool are_invites)
 {
     bool clean = true;
@@ -3107,6 +3376,15 @@ DisconnectResult DisconnectTransactions(
             // At this point, all of txundo.vprevout should have been moved out.
         }
         clean &= GetDebitsAndCredits(debits_and_credits, tx, view, true);
+
+        UnIndexTransaction(
+                pindex,
+                view,
+                tx,
+                i,
+                addressIndex,
+                addressUnspentIndex,
+                spentIndex);
     }
 
     return clean ? DISCONNECT_OK : DISCONNECT_UNCLEAN;
@@ -3160,6 +3438,9 @@ static DisconnectResult DisconnectBlock(
                 debits_and_credits,
                 view,
                 block_undo,
+                addressIndex,
+                addressUnspentIndex,
+                spentIndex,
                 false);
 
     if (disconnect_txn_status == DISCONNECT_FAILED) {
@@ -3178,6 +3459,9 @@ static DisconnectResult DisconnectBlock(
                     invite_debits_and_credits,
                     view,
                     block_undo,
+                    addressIndex,
+                    addressUnspentIndex,
+                    spentIndex,
                     true);
 
         if (disconnect_inv_status == DISCONNECT_FAILED) {
@@ -3185,24 +3469,6 @@ static DisconnectResult DisconnectBlock(
         } else if (disconnect_inv_status == DISCONNECT_UNCLEAN) {
             fClean = false;
         }
-    }
-
-    UnIndexTransactions(
-            pindex,
-            view,
-            block.vtx,
-            addressIndex,
-            addressUnspentIndex,
-            spentIndex);
-
-    if (block.IsDaedalus()) {
-        UnIndexTransactions(
-                pindex,
-                view,
-                block.invites,
-                addressIndex,
-                addressUnspentIndex,
-                spentIndex);
     }
 
     fClean &= pblocktree->EraseAddressIndex(addressIndex);
@@ -3214,15 +3480,28 @@ static DisconnectResult DisconnectBlock(
             error("DisconnectBlock(): unable to undo confirmations");
             return DISCONNECT_FAILED;
         }
+
+        if (!UndoNewPoolInviteRewards(
+                    pindex->nHeight,
+                    *prefviewcache,
+                    invite_debits_and_credits)) {
+            error("DisconnectBlock(): unable to undo new invite pool rewards");
+            return DISCONNECT_FAILED;
+        }
+
     }
+
+    const bool is_pog2 = pindex->nHeight >= consensus_params.pog2_blockheight;
 
     // The order here is important. The ANV values must be updated
     // before the tree is manipulated to properly debit and credit the
     // correct addresses because RemoveReferrals will change referral
     // tree.
-    if (!UpdateANV(debits_and_credits)) {
-        error("DisconnectBlock(): unable to undo anv updates");
-        return DISCONNECT_FAILED;
+    if(!is_pog2) {
+        if (!UpdateANV(debits_and_credits)) {
+            error("DisconnectBlock(): unable to undo anv updates");
+            return DISCONNECT_FAILED;
+        }
     }
 
     if (!RemoveReferrals(block)){
@@ -3230,12 +3509,14 @@ static DisconnectResult DisconnectBlock(
         return DISCONNECT_FAILED;
     }
 
-    if (!UndoLotteryEntrants(
-                block_undo,
-                consensus_params.max_lottery_reservoir_size)) {
+    if(!is_pog2) {
+        if (!UndoLotteryEntrants(
+                    block_undo,
+                    consensus_params.max_lottery_reservoir_size)) {
 
-        error("DisconnectBlock(): unable to undo lottery");
-        return DISCONNECT_FAILED;
+            error("DisconnectBlock(): unable to undo lottery");
+            return DISCONNECT_FAILED;
+        }
     }
 
     // move best block pointer to prevout block
@@ -3364,7 +3645,7 @@ bool ConfirmAllPreDaedalusAddresses(
         return prefviewdb->AreAllPreDaedalusAddressesConfirmed();
     }
 
-    debug("Confirming all pre-daedalus addresses");
+    LogPrint(BCLog::BEACONS, "Confirming all pre-daedalus addresses");
 
     // One time confirmation of all addresses before the daedalus block
     return prefviewdb->ConfirmAllPreDaedalusAddresses();
@@ -3753,7 +4034,7 @@ static bool ConnectBlock(
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if (!IndexReferrals(block.m_vRef, true, false)) {
+            if (!IndexReferrals(0, block.m_vRef, true, false)) {
                 return AbortNode(state, "Failed to write referral index");
             }
 
@@ -4035,6 +4316,9 @@ static bool ConnectBlock(
     }
 
     int64_t nTime7 = GetTimeMicros();
+
+    referral::ConfirmedAddresses selected_new_pool_addresses;
+
     if (validate) {
         for (const auto& ref: block.m_vRef) {
             if (CheckAddressBeaconed(ref->GetAddress(), false)) {
@@ -4116,9 +4400,11 @@ static bool ConnectBlock(
                 hashPrevBlock,
                 subsidy.ambassador,
                 chainparams.GetConsensus());
-        assert(lottery.remainder >= 0);
+        assert(lottery.first.remainder >= 0);
 
-        if (!AreExpectedLotteryWinnersPaid(lottery, coinbase_tx)) {
+        auto cgs_selector = lottery.second;
+
+        if (!AreExpectedLotteryWinnersPaid(lottery.first, coinbase_tx)) {
             return state.DoS(100,
                     error("ConnectBlock(): coinbase did not pay the expected ambassadors."),
                     REJECT_INVALID, "bad-cb-bad-ambassadors");
@@ -4134,6 +4420,7 @@ static bool ConnectBlock(
         if (block.IsDaedalus()) {
             pog::InviteRewards invite_rewards;
             if (!RewardInvites(
+                        cgs_selector,
                         pindex->nHeight,
                         pindex->pprev,
                         hashPrevBlock,
@@ -4141,7 +4428,8 @@ static bool ConnectBlock(
                         invite_debits_and_credits,
                         chainparams.GetConsensus(),
                         state,
-                        invite_rewards)) {
+                        invite_rewards,
+                        selected_new_pool_addresses)) {
 
                 return error("ConnectBlock(): Error computing invite rewards");
             }
@@ -4194,7 +4482,6 @@ static bool ConnectBlock(
             }
 
         }
-
     }
 
     //order referrals so they are inserted into database in correct order.
@@ -4218,6 +4505,7 @@ static bool ConnectBlock(
     //the referral tree is updated to be correct before we debit/credit
     //the ANV to the appropriate addresses.
     if (!IndexReferrals(
+                pindex->nHeight,
                 ordered_referrals,
                 false,
                 pindex->nHeight >= chainparams.GetConsensus().safer_alias_blockheight)) {
@@ -4236,17 +4524,27 @@ static bool ConnectBlock(
         }
     }
 
-    if (!UpdateANV(debits_and_credits)) {
-        return AbortNode(state, "Failed to write ANV");
+    //PoG2 does not require ANV and lottery pool computations.
+    if(pindex->nHeight < chainparams.GetConsensus().pog2_blockheight) { 
+        if (!UpdateANV(debits_and_credits)) {
+            return AbortNode(state, "Failed to write ANV");
+        }
+
+        if (!UpdateLotteryEntrants(
+                    pindex->nHeight,
+                    block,
+                    debits_and_credits,
+                    chainparams.GetConsensus(),
+                    blockundo)){
+            return AbortNode(state, "Failed to write lottery entrants");
+        }
     }
 
-    if (!UpdateLotteryEntrants(
+    if (!RecordNewPoolInviteRewards(
                 pindex->nHeight,
-                block,
-                debits_and_credits,
-                chainparams.GetConsensus(),
-                blockundo)){
-        return AbortNode(state, "Failed to write lottery entrants");
+                *prefviewcache,
+                selected_new_pool_addresses)) { 
+        return AbortNode(state, "Failed to write new pool invite rewards");
     }
 
     // Write undo information to disk
@@ -5454,7 +5752,7 @@ bool CheckAddressConfirmed(const uint160& addr, char addr_type, bool checkMempoo
         return true;
     }
 
-    if(!checkMempool) { 
+    if (!checkMempool) { 
         return false;
     }
 
@@ -6691,7 +6989,7 @@ bool LoadGenesisBlock(const CChainParams& chainparams)
             //The order is important here. We must insert the referrals so that
             //the referral tree is updated to be correct before we debit/credit
             //the ANV to the appropriate addresses.
-            if (!IndexReferrals(block.m_vRef, true, false)) {
+            if (!IndexReferrals(0, block.m_vRef, true, false)) {
                 return error("%s: IndexReferrals failed", __func__);
             }
 
@@ -7363,3 +7661,105 @@ std::pair<Ranks, size_t> TopANVRanks(
 
     return {ranks, entrants.size()};
 }
+
+std::pair<Pog2Ranks, size_t> CGSRanks(
+        const std::vector<CAmount>& cgs,
+        int height,
+        const Consensus::Params& params,
+        CAmount& lottery_cgs,
+        bool sub)
+{
+    assert(height >= 0);
+    assert(prefviewcache);
+
+    auto value_f = sub ? 
+        [](const pog2::Entrant& e) { return e.sub_cgs;} :
+        [](const pog2::Entrant& e) { return e.cgs;};
+
+    static size_t max_ambassador_lottery = 0;
+    pog2::Entrants entrants;
+
+    // unlikely that the candidates grew over 50% since last time.
+    auto reserve_size = max_ambassador_lottery * 1.5;
+    entrants.reserve(reserve_size);
+
+    pog2::CGSContext context;
+    pog2::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
+
+    max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
+
+    lottery_cgs = std::accumulate(entrants.begin(), entrants.end(), CAmount{0},
+            [value_f](CAmount acc, const pog2::Entrant& e) {
+                return acc + value_f(e);
+            });
+
+    std::sort(entrants.begin(), entrants.end(),
+            [value_f](const pog2::Entrant& a, const pog2::Entrant& b) {
+                return value_f(a) < value_f(b);
+            });
+
+    Pog2Ranks ranks;
+    ranks.resize(cgs.size());
+
+    std::transform(cgs.begin(), cgs.end(), ranks.begin(),
+            [&entrants, value_f](CAmount cgs) {
+                auto pos = std::lower_bound(entrants.begin(), entrants.end(), cgs,
+                        [value_f](const pog2::Entrant& a, CAmount cgs) {
+                            return value_f(a) < cgs;
+                        });
+                return std::make_pair(*pos, std::distance(entrants.begin(), pos));
+            });
+
+    size_t total = entrants.size();
+    return {ranks, total};
+}
+
+std::pair<Pog2Ranks, size_t> TopCGSRanks(
+        size_t total,
+        int height,
+        const Consensus::Params& params,
+        CAmount& lottery_cgs,
+        bool sub)
+{
+    assert(height >= 0);
+    assert(prefviewcache);
+
+    auto value_f = sub ? 
+        [](const pog2::Entrant& e) { return e.sub_cgs;} :
+        [](const pog2::Entrant& e) { return e.cgs;};
+
+    static size_t max_ambassador_lottery = 0;
+    pog2::Entrants entrants;
+
+    // unlikely that the candidates grew over 50% since last time.
+    auto reserve_size = max_ambassador_lottery * 1.5;
+    entrants.reserve(reserve_size);
+
+    pog2::CGSContext context;
+    pog2::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
+
+    lottery_cgs = std::accumulate(entrants.begin(), entrants.end(), CAmount{0},
+            [value_f](CAmount acc, const pog2::Entrant& e) {
+                return acc + value_f(e);
+            });
+
+    max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
+    total = std::min(total, entrants.size());
+
+    std::partial_sort(entrants.begin(), entrants.begin() + total, entrants.end(),
+            [value_f](const pog2::Entrant& a, const pog2::Entrant& b) {
+                return value_f(a) > value_f(b);
+            });
+
+    Pog2Ranks ranks;
+    ranks.resize(total);
+
+    int pos = 1;
+    std::transform(entrants.begin(), entrants.begin() + total, ranks.begin(),
+            [&pos,&entrants](const pog2::Entrant& e) {
+                return std::make_pair(e, entrants.size() - pos++);
+            });
+
+    return {ranks, entrants.size()};
+}
+

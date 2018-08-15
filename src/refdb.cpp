@@ -31,9 +31,18 @@ namespace referral
         const char DB_CONFIRMATION_TOTAL = 'u';
         const char DB_PRE_DAEDALUS_CONFIRMED = 'd';
         const char DB_ALIAS = 'l';
+        const char DB_HEIGHT = 'b';
         const char DB_LOT_INV = 'L';
+        const char DB_NEW_INVITE_REWARD = 'N';
 
         const size_t MAX_LEVELS = std::numeric_limits<size_t>::max();
+
+        bool comp(const LotteryEntrant& a, const LotteryEntrant& b) {
+            if(std::get<0>(a) == std::get<0>(b)) {
+                return std::get<2>(a) < std::get<2>(b);
+            }
+            return std::get<0>(a) < std::get<0>(b);
+        }
     }
 
     //stores ANV internally as a rational number with numerator/denominator
@@ -147,11 +156,13 @@ namespace referral
     }
 
     bool ReferralsViewDB::InsertReferral(
+            int height,
             const Referral& referral,
             bool allow_no_parent,
             bool normalize_alias)
     {
-        debug("Inserting referral %s parent %s",
+        assert(height >= 0);
+        LogPrint(BCLog::BEACONS, "Inserting referral %s parent %s\n",
                 CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
                 referral.parentAddress.GetHex());
 
@@ -165,6 +176,11 @@ namespace referral
 
         //write referral by code hash
         if (!m_db.Write(std::make_pair(DB_REFERRALS, referral.GetAddress()), referral)) {
+            return false;
+        }
+
+        //write referral height by code hash
+        if (!m_db.Write(std::make_pair(DB_HEIGHT, referral.GetAddress()), height)) {
             return false;
         }
 
@@ -197,7 +213,7 @@ namespace referral
         // be able to find the parent referral. We can then write the child->parent
         // mapping of public addresses
         if (auto parent_referral = GetReferral(referral.parentAddress)) {
-            debug("\tInserting parent reference %s parent %s",
+            LogPrint(BCLog::BEACONS, "\tInserting parent reference %s parent %s\n",
                     CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
                     CMeritAddress{parent_referral->addressType, parent_referral->GetAddress()}.ToString());
 
@@ -216,7 +232,7 @@ namespace referral
             if (!m_db.Write(std::make_pair(DB_CHILDREN, referral.parentAddress), children))
                 return false;
 
-            debug("Inserted referral %s parent %s",
+            LogPrint(BCLog::BEACONS, "Inserted referral %s parent %s\n",
                     CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
                     CMeritAddress{parent_referral->addressType, referral.parentAddress}.ToString());
 
@@ -224,7 +240,7 @@ namespace referral
             assert(false && "parent referral missing");
             return false;
         } else {
-            debug("\tWarning Parent missing for address %s. Parent: %s",
+            LogPrint(BCLog::BEACONS, "\tWarning Parent missing for address %s. Parent: %s\n",
                     CMeritAddress{referral.addressType, referral.GetAddress()}.ToString(),
                     referral.parentAddress.GetHex());
         }
@@ -234,9 +250,13 @@ namespace referral
 
     bool ReferralsViewDB::RemoveReferral(const Referral& referral)
     {
-        debug("Removing Referral %d", CMeritAddress{referral.addressType, referral.GetAddress()}.ToString());
+        LogPrint(BCLog::BEACONS, "Removing Referral %d\n", CMeritAddress{referral.addressType, referral.GetAddress()}.ToString());
 
         if (!m_db.Erase(std::make_pair(DB_REFERRALS, referral.GetAddress()))) {
+            return false;
+        }
+
+        if (!m_db.Erase(std::make_pair(DB_HEIGHT, referral.GetAddress()))) {
             return false;
         }
 
@@ -266,6 +286,19 @@ namespace referral
         return true;
     }
 
+    int ReferralsViewDB::GetReferralHeight(const Address& address)
+    {
+        int height = -1;
+        m_db.Read(std::make_pair(DB_HEIGHT, address), height);
+        return height;
+    }
+
+    bool ReferralsViewDB::SetReferralHeight(int height, const Address& address)
+    {
+        assert(height >= 0);
+        return m_db.Write(std::make_pair(DB_HEIGHT, address), height);
+    }
+
     /**
      * Updates ANV for the address and all parents. Note change can be negative if
      * there was a debit.
@@ -284,7 +317,7 @@ namespace referral
 
         AnvRat change_rat = int128_t{change};
 
-        debug("\tUpdateANV: %s + %d",
+        LogPrint(BCLog::BEACONS, "\tUpdateANV: %s + %d\n",
                 CMeritAddress(address_type, start_address).ToString(), change);
 
         MaybeAddress address = start_address;
@@ -295,15 +328,15 @@ namespace referral
             //it's possible address didn't exist yet so an ANV of 0 is assumed.
             ANVTuple anv;
             if (!m_db.Read(std::make_pair(DB_ANV, *address), anv)) {
-                debug("\tFailed to read ANV for %s", address->GetHex());
+                LogPrint(BCLog::BEACONS, "\tFailed to read ANV for %s\n", address->GetHex());
                 return false;
             }
 
             assert(std::get<0>(anv) != 0);
             assert(!std::get<1>(anv).IsNull());
 
-            debug(
-                    "\t\t %d %s %d/%d + %d",
+            LogPrint(BCLog::BEACONS, 
+                    "\t\t %d %s %d/%d + %d\n",
                     level,
                     CMeritAddress(std::get<0>(anv), std::get<1>(anv)).ToString(),
                     std::get<0>((std::get<2>(anv))),
@@ -516,7 +549,7 @@ namespace referral
             const auto weighted_key = pog::WeightedKeyForSampling(rand_value, maybe_anv->anv);
             const auto heap_size = GetLotteryHeapSize();
 
-            debug("Lottery: Attempting to add %s with weighted Key %d",
+            LogPrint(BCLog::BEACONS, "Lottery: Attempting to add %s with weighted Key %d\n",
                     CMeritAddress(address_type, *address).ToString(),
                     static_cast<double>(weighted_key));
 
@@ -548,7 +581,7 @@ namespace referral
 
                     undos.emplace_back(undo);
                 } else {
-                    debug("\tLottery: %s is already in the lottery.",
+                    LogPrint(BCLog::BEACONS, "\tLottery: %s is already in the lottery.\n",
                             CMeritAddress(address_type, *address).ToString());
                 }
             } else {
@@ -590,11 +623,11 @@ namespace referral
 
                         undos.emplace_back(undo);
                     } else {
-                        debug("\tLottery: %s is already in the lottery.",
+                        LogPrint(BCLog::BEACONS, "\tLottery: %s is already in the lottery.\n",
                                 CMeritAddress(address_type, *address).ToString());
                     }
                 } else {
-                    debug("\tLottery: %s didn't make the cut with key %d, min %d",
+                    LogPrint(BCLog::BEACONS, "\tLottery: %s didn't make the cut with key %d, min %d\n",
                             CMeritAddress(address_type, *address).ToString(),
                             static_cast<double>(weighted_key),
                             static_cast<double>(min_weighted_key));
@@ -672,6 +705,7 @@ namespace referral
         auto heap_size = GetLotteryHeapSize();
         assert(heap_size < max_reservoir_size);
 
+        auto new_entry = std::make_tuple(key, address_type, address);
         auto pos = heap_size;
 
         while (pos != 0) {
@@ -683,7 +717,7 @@ namespace referral
             }
 
             //We found our spot
-            if (key > std::get<0>(parent_value)) {
+            if (comp(parent_value, new_entry)) {
                 break;
             }
 
@@ -700,8 +734,8 @@ namespace referral
         }
 
         //write final value
-        debug("\tAdding to Reservoir %s at pos %d", CMeritAddress(address_type, address).ToString(), pos);
-        if (!m_db.Write(std::make_pair(DB_LOT_VAL, pos), std::make_tuple(key, address_type, address))) {
+        LogPrint(BCLog::BEACONS, "\tAdding to Reservoir %s at pos %d\n", CMeritAddress(address_type, address).ToString(), pos);
+        if (!m_db.Write(std::make_pair(DB_LOT_VAL, pos), new_entry)) {
             return false;
         }
 
@@ -733,7 +767,7 @@ namespace referral
 
     bool ReferralsViewDB::RemoveFromLottery(uint64_t current)
     {
-        debug("\tPopping from lottery reservoir position %d", current);
+        LogPrint(BCLog::BEACONS, "\tPopping from lottery reservoir position %d\n", current);
         auto heap_size = GetLotteryHeapSize();
         if (heap_size == 0) return false;
 
@@ -765,7 +799,7 @@ namespace referral
                     return false;
                 }
 
-                if (std::get<0>(left_val) < std::get<0>(smallest_val)) {
+                if (comp(left_val, smallest_val)) {
                     smallest = left;
                     smallest_val = left_val;
                 }
@@ -777,7 +811,7 @@ namespace referral
                     return false;
                 }
 
-                if (std::get<0>(right_val) < std::get<0>(smallest_val)) {
+                if (comp(right_val, smallest_val)) {
                     smallest = right;
                     smallest_val = right_val;
                 }
@@ -795,6 +829,7 @@ namespace referral
 
                 //now go down the smallest path
                 current = smallest;
+                smallest_val = last;
             } else {
                 break;
             }
@@ -815,7 +850,7 @@ namespace referral
             return false;
         }
 
-        debug("\tPopped from lottery reservoir, last ended up at %d", current);
+        LogPrint(BCLog::BEACONS, "\tPopped from lottery reservoir, last ended up at %d\n", current);
         return true;
     }
 
@@ -1020,7 +1055,7 @@ namespace referral
             iter->Next();
         }
 
-        debug("Confirming %d pre daedalus addresses", addresses.size());
+        LogPrint(BCLog::BEACONS, "Confirming %d pre daedalus addresses\n", addresses.size());
         std::sort(addresses.begin(), addresses.end(),
                 [](const AddressPair& a, const AddressPair& b) {
                 return a.second < b.second;
@@ -1028,7 +1063,7 @@ namespace referral
 
         CAmount dummy;
         for(const auto& addr : addresses) {
-            debug("\tConfirming %s address", CMeritAddress{addr.first, addr.second}.ToString());
+            LogPrint(BCLog::BEACONS, "\tConfirming %s address\n", CMeritAddress{addr.first, addr.second}.ToString());
             if (!UpdateConfirmation(addr.first, addr.second, 1, dummy)) {
                 return false;
             }
@@ -1085,4 +1120,18 @@ namespace referral
         return MaybeConfirmedAddress{{address_type, address, pair.second}};
     }
 
+    bool ReferralsViewDB::SetNewInviteRewardedHeight(const Address& a, int height)
+    {
+        return height > 0 ? 
+            m_db.Write(std::make_pair(DB_NEW_INVITE_REWARD, a), height) :
+            m_db.Erase(std::make_pair(DB_NEW_INVITE_REWARD, a));
+    }
+
+    int ReferralsViewDB::GetNewInviteRewardedHeight(const Address& a) const
+    {
+        int height = 0;
+        m_db.Read(std::make_pair(DB_NEW_INVITE_REWARD, a), height);
+        return height;
+    }
+    
 } //namespace referral

@@ -18,6 +18,7 @@
 #include "cuckoo/miner.h"
 
 #include <stdint.h>
+#include <algorithm>
 
 #include <boost/thread.hpp>
 
@@ -26,7 +27,7 @@ static const char DB_COINS = 'c';
 static const char DB_BLOCK_FILES = 'f';
 static const char DB_TXINDEX = 't';
 static const char DB_ADDRESSINDEX = 'a';
-static const char DB_ADDRESSUNSPENTINDEX = 'u';
+const char DB_ADDRESSUNSPENTINDEX = 'u';
 static const char DB_TIMESTAMPINDEX = 's';
 static const char DB_BLOCKHASHINDEX = 'z';
 static const char DB_SPENTINDEX = 'p';
@@ -268,8 +269,10 @@ bool CBlockTreeDB::UpdateSpentIndex(const std::vector<std::pair<CSpentIndexKey, 
     for (const auto& addr : vect) {
         if (addr.second.IsNull()) {
             batch.Erase(std::make_pair(DB_SPENTINDEX, addr.first));
+            spent_cache.erase(addr.first);
         } else {
             batch.Write(std::make_pair(DB_SPENTINDEX, addr.first), addr.second);
+            spent_cache.insert(addr.first);
         }
     }
     return WriteBatch(batch);
@@ -277,13 +280,17 @@ bool CBlockTreeDB::UpdateSpentIndex(const std::vector<std::pair<CSpentIndexKey, 
 
 bool CBlockTreeDB::UpdateAddressUnspentIndex(const std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue > >&vect) {
     CDBBatch batch(*this);
+    RemoveUnspentSet to_remove;
     for (const auto& idx: vect) {
         if (idx.second.IsNull()) {
             batch.Erase(std::make_pair(DB_ADDRESSUNSPENTINDEX, idx.first));
+            to_remove.insert(idx.first);
         } else {
             batch.Write(std::make_pair(DB_ADDRESSUNSPENTINDEX, idx.first), idx.second);
+            AddToUnspentCache(idx);
         }
     }
+    EraseFromUnspentCache(to_remove);
     return WriteBatch(batch);
 }
 
@@ -306,7 +313,11 @@ bool CBlockTreeDB::ReadAddressUnspentIndex(
         if (pcursor->GetKey(key) && key.first == DB_ADDRESSUNSPENTINDEX && key.second.hashBytes == addressHash) {
             CAddressUnspentValue nValue;
             if (pcursor->GetValue(nValue)) {
-                unspentOutputs.push_back(std::make_pair(key.second, nValue));
+                //We check the spent cache because older versions had bugs properly
+                //removing uspent utxos from the utxo set. 
+                if(spent_cache.count({key.second.txhash, key.second.index}) == 0) {
+                    unspentOutputs.push_back(std::make_pair(key.second, nValue));
+                }
                 pcursor->Next();
             } else {
                 return error("failed to get address unspent value");
@@ -629,4 +640,66 @@ bool CBlockTreeDB::WriteReferralIndex(const std::vector<std::pair<uint256, CDisk
         batch.Write(std::make_pair(DB_REFERRALSINDEX, it->first), it->second);
 
     return WriteBatch(batch);
+}
+
+bool CBlockTreeDB::CacheAllUnspent()
+{
+    leveldb::ReadOptions options;
+    options.fill_cache = false;
+    boost::scoped_ptr<CDBIterator> pcursor(NewIterator(options));
+
+    pcursor->Seek(DB_SPENTINDEX);
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        std::pair<char,CSpentIndexKey> key;
+        if (pcursor->GetKey(key) && key.first == DB_SPENTINDEX)  {
+            CSpentIndexValue value;
+            if (pcursor->GetValue(value) && !value.IsNull()) {
+                spent_cache.insert(key.second);
+            } else {
+                return error("failed to get spent value");
+            }
+        }
+        pcursor->Next();
+    }
+
+    pcursor->Seek(DB_ADDRESSUNSPENTINDEX);
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        std::pair<char,CAddressUnspentKey> key;
+        if (pcursor->GetKey(key) && key.first == DB_ADDRESSUNSPENTINDEX)  {
+            CSpentIndexKey spent_key{key.second.txhash, key.second.index};
+            if(spent_cache.count(spent_key) > 0) {
+                LogPrintf("Skipping unspent %s:%d because it is in the spent index\n",
+                        key.second.txhash.GetHex(), key.second.index);
+
+                pcursor->Next();
+                continue;
+            }
+
+            CAddressUnspentValue value;
+            if (pcursor->GetValue(value)) {
+                unspent_cache.push_back(std::make_pair(key.second, value));
+            } else {
+                return error("failed to get address unspent value");
+            }
+        }
+        pcursor->Next();
+    }
+    return true;
+}
+
+void CBlockTreeDB::EraseFromUnspentCache(const RemoveUnspentSet& to_remove)
+{
+    unspent_cache.erase(std::remove_if(unspent_cache.begin(), unspent_cache.end(),
+                [&to_remove](const UnspentPair& a) {
+                   return to_remove.count(a.first);  
+                }), unspent_cache.end());
+}
+
+void CBlockTreeDB::AddToUnspentCache(const UnspentPair& p)
+{
+    unspent_cache.push_back(p);
 }

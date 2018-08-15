@@ -158,7 +158,8 @@ namespace pog
 
     void InviteBuffer::insert(int adjusted_height, const InviteStats& s) const
     {
-        if(stats.size() <= adjusted_height) {
+        assert(adjusted_height >= 0);
+        if(stats.size() <= static_cast<size_t>(adjusted_height)) {
             stats.resize(adjusted_height+1);
         }
         stats[adjusted_height] = s;

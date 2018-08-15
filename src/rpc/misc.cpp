@@ -17,9 +17,11 @@
 #include "txmempool.h"
 #include "util.h"
 #include "utilstrencodings.h"
+#include "consensus/validation.h"
 #include "validation.h"
 
 #include "pog/anv.h"
+#include "pog2/cgs.h"
 #include "pog/select.h"
 #include "rpc/safemode.h"
 
@@ -1311,35 +1313,47 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
     return result;
 }
 
-UniValue RanksToUniValue(pog::StackedAmount lottery_anv, const Ranks& ranks, size_t total)
-{
+UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t total, bool sub) {
+
     UniValue rankarr(UniValue::VARR);
-    for (const auto& r : ranks) {
+    for(const auto& r : ranks) {
         UniValue o(UniValue::VOBJ);
 
         //percentile to two digits
-        double percentile =
+        double percentile = 
             (static_cast<double>(r.second) / static_cast<double>(total)) * 100.0;
 
-        const auto alias = FindAliasForAddress(r.first.address);
+        const auto cgs = sub ? r.first.sub_cgs : r.first.cgs;
+
+        auto alias = FindAliasForAddress(r.first.address);
+        auto beacon_age = chainActive.Height() - r.first.beacon_height;
 
         o.push_back(Pair("address", CMeritAddress{r.first.address_type, r.first.address}.ToString()));
         o.push_back(Pair("alias", alias));
-        o.push_back(Pair("rank", static_cast<int>(total - r.second)));
+        o.push_back(Pair("networksize", r.first.network_size));
+        o.push_back(Pair("children", r.first.children));
+        o.push_back(Pair("beacon_age", beacon_age));
+        o.push_back(Pair("rank", total - r.second));
         o.push_back(Pair("percentile", (boost::format("%1$.2f") % percentile).str()));
-        o.push_back(Pair("anv", r.first.anv));
+        o.push_back(Pair("balance", r.first.balance));
+        o.push_back(Pair("cgs", cgs));
 
-        double anv_percent =
-            (static_cast<double>(r.first.anv) / static_cast<double>(lottery_anv));
+        double cgs_percent = 
+            (static_cast<double>(cgs) / static_cast<double>(lottery_cgs));
 
-        o.push_back(Pair("anvpercent", anv_percent));
+        o.push_back(Pair("cgspercent", cgs_percent));
+
+        //for backwards compatibility
+        o.push_back(Pair("anv", cgs));
+        o.push_back(Pair("anvpercent", cgs_percent));
+
         rankarr.push_back(o);
     }
     return rankarr;
 }
 
-UniValue RankComputationsNotReady()
-{
+
+UniValue RankComputationsNotReady() {
     UniValue result(UniValue::VOBJ);
     result.push_back(Pair("lotteryanv", 0));
     return result;
@@ -1373,40 +1387,44 @@ UniValue getaddressrank(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
 
-    auto lottery_anv = pog::GetCachedTotalANV();
-    if (lottery_anv == 0) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "getaddressrank not ready.");
-    }
+    LOCK(cs_main);
 
-    std::vector<CAmount> anvs;
+    const auto params = Params().GetConsensus();
+    
+    pog2::Entrants all_entrants;
+    pog2::CGSContext context;
+    pog2::GetAllRewardableEntrants(context, *prefviewcache, params, chainActive.Height(), all_entrants);
+
+    bool sub_linear = true;
+
+    std::vector<CAmount> cgs; 
     for (const auto& a : addresses) {
-        auto maybe_anv = prefviewdb->GetANV(a.first);
-        if (!maybe_anv) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No anv available for address" + CMeritAddress{a.second, a.first}.ToString());
-        }
-        anvs.push_back(maybe_anv->anv);
+     const auto& e = context.GetEntrant(a.first);
+     auto node = pog2::ComputeCGS(context, e, *prefviewcache);
+        cgs.push_back(sub_linear ? node.sub_cgs : node.cgs);
     }
 
-    auto ranks = ANVRanks(
-        anvs,
-        chainActive.Height(),
-        Params().GetConsensus());
-
-    assert(ranks.first.size() == addresses.size());
+    CAmount lottery_cgs = 0;
+    auto cgs_ranks = CGSRanks(
+            cgs,
+            chainActive.Height(),
+            Params().GetConsensus(),
+            lottery_cgs,
+            sub_linear);
 
     //Hack to keep ANVRanks  (2nlog(n)) vs (nlogn + n) we rewrite the address
     //because among addresses of equal rank, ANVRAnks may return an entry with a different address.
-    for (size_t i = 0; i < addresses.size(); i++) {
-        ranks.first[i].first.address = addresses[i].first;
-        ranks.first[i].first.address_type = addresses[i].second;
+    for(size_t i = 0; i < addresses.size(); i++) {
+        cgs_ranks.first[i].first.address = addresses[i].first;
+        cgs_ranks.first[i].first.address_type = addresses[i].second;
     }
 
     UniValue result(UniValue::VOBJ);
-    UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
+    UniValue cgs_rankarr = RanksToUniValue(lottery_cgs, cgs_ranks.first, cgs_ranks.second, true);
 
-    result.push_back(Pair("lotteryanv", boost::lexical_cast<std::string>(lottery_anv)));
-    result.push_back(Pair("lotteryentrants", ranks.second));
-    result.push_back(Pair("ranks", rankarr));
+    result.push_back(Pair("lotterycgs", lottery_cgs));
+    result.push_back(Pair("lotteryentrants", cgs_ranks.second));
+    result.push_back(Pair("anv_ranks", cgs_rankarr));
 
     return result;
 }
@@ -1425,7 +1443,7 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
             "   addresses: [\n"
             "       {\n"
             "           \"address\"  (string) Address\n"
-            "           \"anv\"      (number) anv\n"
+            "           \"cgs\"      (number) cgs\n"
             "       },\n"
             "       ...\n"
             "   ]\n"
@@ -1433,28 +1451,141 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
             "\nExamples:\n" +
             HelpExampleCli("getaddressleaderboard", "4") + HelpExampleRpc("getaddressleaderboard", "100"));
 
-    auto lottery_anv = pog::GetCachedTotalANV();
-    if (lottery_anv == 0) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "getaddressleaderboard not ready.");
-    }
-
     int total = 100;
     if (request.params[0].isNum()) {
         total = std::max(1, request.params[0].get_int());
     }
 
-    auto ranks = TopANVRanks(
-        total,
-        chainActive.Height(),
-        Params().GetConsensus());
+    LOCK(cs_main);
+    CAmount lottery_cgs = 0;
+    auto cgs_ranks = TopCGSRanks(
+            total,
+            chainActive.Height(),
+            Params().GetConsensus(),
+            lottery_cgs);
 
     UniValue result(UniValue::VOBJ);
-    UniValue rankarr = RanksToUniValue(lottery_anv, ranks.first, ranks.second);
+    UniValue cgs_rankarr = RanksToUniValue(lottery_cgs, cgs_ranks.first, cgs_ranks.second, true);
 
-    result.push_back(Pair("lotteryanv", boost::lexical_cast<std::string>(lottery_anv)));
-    result.push_back(Pair("lotteryentrants", ranks.second));
-    result.push_back(Pair("ranks", rankarr));
+    //for backwards compatibility with old software.
+    result.push_back(Pair("lotteryanv", lottery_cgs));
+    result.push_back(Pair("lotterycgs", lottery_cgs));
+    result.push_back(Pair("lotteryentrants", cgs_ranks.second));
+    result.push_back(Pair("anv_ranks", cgs_rankarr));
+    return result;
+}
 
+UniValue simulatelottery(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() > 2)
+        throw std::runtime_error(
+            "simulatelottery \"seed\" \"height\"\n"
+            "\nReturns lottery winnings given the seed\n"
+            "\nArguments:\n"
+            "\"seed\"  (string) Seed to generate winnings.\n"
+            "\"height\"  (string) Height to generate winners.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"lotteryanv\"  (number) The aggregate ANV of all addresses in the lottery\n"
+            "   \"ambassadors\": [\n"
+            "       {\n"
+            "           \"address\"  (string) Address\n"
+            "           \"amount\"      (number) amount\n"
+            "       },\n"
+            "       ...\n"
+            "   ],\n"
+            "   \"invites\": [\n"
+            "       {\n"
+            "           \"address\"  (string) Address\n"
+            "           \"amount\"   (number) amount\n"
+            "       },\n"
+            "       ...\n"
+            "   ]\n"
+            "}\n"
+            "\nExamples:\n" +
+            HelpExampleCli("simulatelottery", "4") + HelpExampleRpc("getaddressleaderboard", "100"));
+
+    auto seed = chainActive.Tip()->GetBlockHash();
+    auto height = chainActive.Tip()->nHeight;
+
+    if (request.params[0].isStr()) {
+        auto seed_str = request.params[0].get_str();
+        seed = Hash(seed_str.begin(), seed_str.end());
+    } else if(request.params[0].isNum()) {
+        height = request.params[0].get_int();
+        if(height <= 0) {
+            throw JSONRPCError(RPC_INVALID_PARAMS, "height cannot be negative");
+        }
+
+        auto b = chainActive[height];
+        if(b) { 
+            seed = b->GetBlockHash();
+        }
+    }
+
+    if (request.params[0].isStr() && request.params[1].isNum()) {
+        height = request.params[0].get_int();
+        if(height <= 0) {
+            throw JSONRPCError(RPC_INVALID_PARAMS, "height cannot be negative");
+        }
+    }
+
+    const auto& params = Params().GetConsensus();
+
+    const auto subsidy = GetSplitSubsidy(params.pog2_blockheight, params);
+    const bool FORCE_POG2 = true;
+
+    auto rewards = Pog2RewardAmbassadors(
+            height,
+            seed,
+            subsidy.ambassador,
+            params,
+            FORCE_POG2);
+
+    CCoinsViewCache view(pcoinsTip);
+    DebitsAndCredits dummy_debits_and_credits;
+    CValidationState dummy_state;
+    pog::InviteRewards invite_rewards;
+    referral::ConfirmedAddresses selected_new_pool_addresses;
+
+    if(!RewardInvites(
+        rewards.second,
+        height,
+        chainActive[height],
+        seed,
+        view,
+        dummy_debits_and_credits,
+        params,
+        dummy_state,
+        invite_rewards,
+        selected_new_pool_addresses,
+        FORCE_POG2)) {
+
+        throw JSONRPCError(RPC_MISC_ERROR, "error running invite lottery");
+    }
+
+    UniValue result(UniValue::VOBJ);
+    UniValue ambassadors(UniValue::VARR);
+    UniValue invites(UniValue::VARR);
+
+    for(const auto& r: rewards.first.winners) { 
+        UniValue o(UniValue::VOBJ);
+        o.push_back(Pair("address", CMeritAddress{r.address_type, r.address}.ToString()));
+        o.push_back(Pair("amount", r.amount));
+        ambassadors.push_back(o);
+    }
+
+    for(const auto& i : invite_rewards) {
+        UniValue o(UniValue::VOBJ);
+        o.push_back(Pair("address", CMeritAddress{i.address_type, i.address}.ToString()));
+        o.push_back(Pair("amount", i.invites));
+        invites.push_back(o);
+    }
+
+    result.push_back(Pair("seed", seed.GetHex()));
+    result.push_back(Pair("height", height));
+    result.push_back(Pair("ambassadors", ambassadors));
+    result.push_back(Pair("invites", invites));
     return result;
 }
 
@@ -1927,6 +2058,7 @@ static const CRPCCommand commands[] =
         {"addressindex", "getaddressleaderboard", &getaddressleaderboard, {}},
         {"addressindex", "getaddressrewards", &getaddressrewards, {}},
         {"addressindex", "getaddressanv", &getaddressanv, {}},
+        {"addressindex", "simulatelottery", &simulatelottery, {}},
 
         /* Blockchain */
         {"blockchain", "getspentinfo", &getspentinfo, {}},

@@ -8,6 +8,7 @@
 #define MERIT_CONSENSUS_PARAMS_H
 
 #include "uint256.h"
+#include "amount.h"
 #include <map>
 #include <set>
 #include <string>
@@ -73,7 +74,10 @@ struct Params {
     int64_t nPowTargetSpacing; // target time for a block
     int64_t nPowTargetTimespan; // target time for nBits adjustments
     int64_t nEdgeBitsTargetThreshold; // threshold for nEdgeBits adjustments
-    int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
+    int64_t DifficultyAdjustmentInterval(int height) const { 
+        return (height >= pog2_blockheight ? pog2_pow_target_timespan : nPowTargetTimespan)
+            / nPowTargetSpacing; 
+    }
     int64_t ambassador_percent_cut;
     uint64_t total_winning_ambassadors;
     uint64_t initial_block_reward;
@@ -98,6 +102,18 @@ struct Params {
     int imp_min_one_invite_for_every_x_blocks;
     int imp_miner_reward_for_every_x_blocks;
     std::vector<double> imp_weights;
+
+    /** PoG version 2 */
+    int pog2_blockheight;
+    int64_t pog2_total_winning_ambassadors;
+    int64_t pog2_ambassador_percent_cut;
+    int64_t pog2_pow_target_timespan;
+    CAmount pog2_initial_ambassador_stake;
+    int pog2_coin_maturity;
+    int pog2_new_coin_maturity;
+    int pog2_max_outstanding_invites_per_address;
+    double pog2_convex_b;
+    double pog2_convex_s;
 
 };
 } // namespace Consensus

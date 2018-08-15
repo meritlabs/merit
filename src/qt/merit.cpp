@@ -8,6 +8,7 @@
 #endif
 
 #include "meritgui.h"
+#include "pog2/cgs.h"
 
 #include "chainparams.h"
 #include "clientmodel.h"
@@ -548,6 +549,10 @@ WId MeritApplication::getMainWinId() const
 #ifndef MERIT_QT_TEST
 int main(int argc, char *argv[])
 {
+    {
+    //pog2::TestChain();
+    //return 0;
+    }
     SetupEnvironment();
 
     /// 1. Parse command-line options. These take precedence over anything else.

@@ -20,23 +20,19 @@
 
 using namespace referral;
 
-void RefToJSON(const Referral& ref, const uint256 hashBlock, UniValue& entry)
+void RefToJSON(const Referral& ref, const uint256 hashBlock, CBlockIndex* pindex, UniValue& entry)
 {
     RefToUniv(ref, uint256(), entry, true, RPCSerializationFlags());
 
     if (!hashBlock.IsNull()) {
         entry.push_back(Pair("blockhash", hashBlock.GetHex()));
-        BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
-        if (mi != mapBlockIndex.end() && (*mi).second) {
-            CBlockIndex* pindex = (*mi).second;
-            if (chainActive.Contains(pindex)) {
-                entry.push_back(Pair("height", pindex->nHeight));
-                entry.push_back(Pair("confirmations", 1 + chainActive.Height() - pindex->nHeight));
-                entry.push_back(Pair("blocktime", pindex->GetBlockTime()));
-            } else {
-                entry.push_back(Pair("height", -1));
-                entry.push_back(Pair("confirmations", 0));
-            }
+        if (pindex && chainActive.Contains(pindex)) {
+            entry.push_back(Pair("height", pindex->nHeight));
+            entry.push_back(Pair("confirmations", 1 + chainActive.Height() - pindex->nHeight));
+            entry.push_back(Pair("blocktime", pindex->GetBlockTime()));
+        } else {
+            entry.push_back(Pair("height", -1));
+            entry.push_back(Pair("confirmations", 0));
         }
     }
 }
@@ -129,10 +125,11 @@ UniValue getrawreferral(const JSONRPCRequest& request)
     auto hash = ref->GetHash();
 
     uint256 hashBlock;
+    CBlockIndex* pindex = nullptr;
     {
         LOCK(cs_main);
 
-        if (!GetReferral(hash, ref, hashBlock)) {
+        if (!GetReferral(hash, ref, hashBlock, pindex)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about referral");
         }
     }
@@ -142,7 +139,7 @@ UniValue getrawreferral(const JSONRPCRequest& request)
     }
 
     UniValue result(UniValue::VOBJ);
-    RefToJSON(*ref, hashBlock, result);
+    RefToJSON(*ref, hashBlock, pindex, result);
 
     return result;
 }

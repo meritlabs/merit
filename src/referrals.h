@@ -62,6 +62,7 @@ using ReferralIndex = multi_index_container<
 
 using AliasIndex = std::unordered_map<std::string, Address>;
 using ConfirmationsIndex = std::unordered_map<Address, int>;
+using HeightIndex = std::unordered_map<Address, int>;
 
 class ReferralsViewCache
 {
@@ -71,6 +72,7 @@ private:
     mutable ReferralIndex referrals_index;
     mutable AliasIndex alias_index;
     mutable ConfirmationsIndex confirmations_index;
+    mutable ConfirmationsIndex height_index;
     mutable AddressANVs all_rewardable_anvs;
     mutable std::mutex cache_mutex;
 
@@ -91,6 +93,12 @@ public:
 
     /** Get referral by address */
     MaybeReferral GetReferral(const ReferralId&, bool normalize_alias) const;
+
+    /** Returns the height of a referral in the blockchain */
+    int GetReferralHeight(const Address&) const;
+
+    /** Sets the height of a referral in the blockchain */
+    bool SetReferralHeight(int height, const Address& ref);
 
     /** Check if referral exists by beaconed address */
     bool Exists(const Address&) const;
@@ -116,13 +124,24 @@ public:
     /** Check if an address is confirmed */
     bool IsConfirmed(const std::string& alias, bool normalize_alias) const;
 
+    /** Returns total confirmed beacons*/
+    uint64_t GetTotalConfirmations() const;
+
     // Get address confirmations
     MaybeConfirmedAddress GetConfirmation(const Address& address) const;
+    MaybeConfirmedAddress GetConfirmation(uint64_t idx) const;
+    MaybeConfirmedAddress GetConfirmation(char address_type, const Address& address) const;
 
     void GetAllRewardableANVs(
             const Consensus::Params& params,
             int height,
-            AddressANVs&, bool cached = false) const;
+            AddressANVs&,
+            bool cached = false) const;
+
+    ChildAddresses GetChildren(const Address&) const;
+
+    bool SetNewInviteRewardedHeight(const Address&, int height);
+    int GetNewInviteRewardedHeight(const Address&) const;
 };
 
 } // namespace referral

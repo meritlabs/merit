@@ -24,6 +24,9 @@
 #include "addressindex.h"
 #include "timestampindex.h"
 #include "pog/reward.h"
+#include "pog2/cgs.h"
+#include "pog2/select.h"
+#include "txdb.h"
 #include "script/standard.h"
 
 #include <algorithm>
@@ -318,7 +321,7 @@ bool IsInitialBlockDownload();
 /** Retrieve a transaction (from memory pool, or from disk, if possible) */
 bool GetTransaction(const uint256 &hash, CTransactionRef &tx, const Consensus::Params& params, uint256 &hashBlock, bool fAllowSlow = false);
 /** Retrieve a referral (from memory pool, or from disk, if possible) */
-bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock);
+bool GetReferral(const uint256 &hash, referral::ReferralRef &refOut, uint256 &hashBlock, CBlockIndex*& pindex);
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(
         CValidationState& state,
@@ -353,13 +356,21 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
  * with part of the block subsidy based on a deterministic lottery. RewardAmbassadors
  * returns a vector of key -> reward pairs. Any remainder not allocated is returned.
  */
-pog::AmbassadorLottery RewardAmbassadors(
+std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> RewardAmbassadors(
         int height,
         const uint256& previous_block_hash,
         CAmount total,
         const Consensus::Params&);
 
+std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassadors(
+        int height,
+        const uint256& previous_block_hash,
+        CAmount total,
+        const Consensus::Params& params,
+        bool force_pog2 = false);
+
 bool RewardInvites(
+        pog2::AddressSelectorPtr,
         int height,
         CBlockIndex* pindexPrev,
         const uint256& previous_block_hash,
@@ -367,7 +378,9 @@ bool RewardInvites(
         const DebitsAndCredits& debits_and_credits,
         const Consensus::Params& params,
         CValidationState& state,
-        pog::InviteRewards& rewards);
+        pog::InviteRewards& rewards,
+        referral::ConfirmedAddresses& selected_new_pool_addresses,
+        bool force_pog2 = false);
 
 /**
  * Include ambassadors into the coinbase transaction and split the total payment between them.
@@ -541,6 +554,10 @@ bool GetAddressIndex(
 bool GetAddressUnspent(
         uint160 addressHash,
         unsigned int type,
+        bool invite,
+        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
+
+bool GetAllUnspent(
         bool invite,
         std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
 
@@ -719,6 +736,10 @@ void DumpReferralMempool();
  */
 using Rank = std::pair<referral::AddressANV, size_t>;
 using Ranks = std::vector<Rank>;
+
+using Pog2Rank = std::pair<pog2::Entrant, size_t>;
+using Pog2Ranks = std::vector<Pog2Rank>;
+
 std::pair<Ranks, size_t> ANVRanks(
         const std::vector<CAmount>& anv,
         int height,
@@ -728,5 +749,32 @@ std::pair<Ranks, size_t> TopANVRanks(
         size_t total,
         int height,
         const Consensus::Params& params);
+
+std::pair<Pog2Ranks, size_t> CGSRanks(
+        const std::vector<CAmount>& cgs,
+        int height,
+        const Consensus::Params& params,
+        CAmount& lottery_cgs,
+        bool sub = true);
+
+std::pair<Pog2Ranks, size_t> TopCGSRanks(
+        size_t total,
+        int height,
+        const Consensus::Params& params,
+        CAmount& lottery_cgs,
+        bool sub = true);
+
+template<class F>
+    bool GetAllUnspent(
+            bool invite,
+            F process)
+    {
+        if (!pblocktree->ReadAllAddressUnspent(invite, process)) {
+            return error("unable to get all unspent");
+        }
+
+        return true;
+    }
+
 
 #endif // MERIT_VALIDATION_H

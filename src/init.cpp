@@ -1232,6 +1232,11 @@ bool AppInitLockDataDirectory()
     return true;
 }
 
+namespace pog2
+{
+    extern void SetupCgsThreadPool(size_t threads);
+}
+
 bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
 {
     const CChainParams& chainparams = Params();
@@ -1255,6 +1260,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     LogPrintf("Using config file %s\n", GetConfigFile(gArgs.GetArg("-conf", MERIT_CONF_FILENAME)).string());
     LogPrintf("Using at most %i automatic connections (%i file descriptors available)\n", nMaxConnections, nFD);
 
+    pog2::SetupCgsThreadPool(boost::thread::hardware_concurrency());
     InitSignatureCache();
     InitScriptExecutionCache();
 
@@ -1434,8 +1440,12 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
         nBlockTreeDBCache = std::min(nBlockTreeDBCache,
             (gArgs.GetBoolArg(flags::ConvertToCliFlag(flags::txindex), DEFAULT_TXINDEX) ? nMaxBlockDBAndTxIndexCache : nMaxBlockDBCache) << 20);
     }
-    size_t nReferralDBCache = 0; // todo: figure out how much to cache
     nTotalCache -= nBlockTreeDBCache;
+    int64_t nReferralDBCache = std::min(nTotalCache / 2, (nTotalCache / 4) + (1 << 23)); 
+    nReferralDBCache = std::min(nReferralDBCache, nMaxReferralDBCache << 20); // cap total referrals db cache
+
+    nTotalCache -= nReferralDBCache;
+
     int64_t nCoinDBCache = std::min(nTotalCache / 2, (nTotalCache / 4) + (1 << 23)); // use 25%-50% of the remainder for disk cache
     nCoinDBCache = std::min(nCoinDBCache, nMaxCoinsDBCache << 20); // cap total coins db cache
     nTotalCache -= nCoinDBCache;
@@ -1446,6 +1456,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     LogPrintf("* Max cache setting possible %.1fMiB\n", nMaxDbCache);
     LogPrintf("* Using %.1fMiB for block index database\n", nBlockTreeDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1fMiB for chain state database\n", nCoinDBCache * (1.0 / 1024 / 1024));
+    LogPrintf("* Using %.1fMiB for referral database\n", nReferralDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1fMiB for in-memory UTXO set (plus up to %.1fMiB of unused mempool space and %.1fMiB of unused referrals mempool space)\n",
         nCoinCacheUsage * (1.0 / 1024 / 1024),
         nMempoolSizeMax * (1.0 / 1024 / 1024),
@@ -1557,6 +1568,10 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                         break;
                     }
                 }
+
+                LogPrintf("Caching Unspent Coins...");
+                pblocktree->CacheAllUnspent();
+                LogPrintf("Cached\n");
 
                 if (!is_coinsview_empty) {
                     uiInterface.InitMessage(_("Verifying blocks..."));

@@ -25,6 +25,7 @@ using ChildAddresses = std::vector<Address>;
 using Addresses = std::vector<Address>;
 using MaybeWeightedKey = boost::optional<pog::WeightedKey>;
 using LotteryEntrant = std::tuple<pog::WeightedKey, char, Address>;
+using LotteryEntrants = std::vector<LotteryEntrant>;
 using MaybeLotteryEntrant = boost::optional<LotteryEntrant>;
 using AddressPair = std::pair<char, Address>;
 using MaybeAddressPair = boost::optional<AddressPair>;
@@ -105,11 +106,15 @@ public:
     bool OrderReferrals(referral::ReferralRefs& refs);
 
     bool InsertReferral(
+            int height,
             const Referral&,
             bool allow_no_parent,
             bool normalize_alias);
 
     bool RemoveReferral(const Referral&);
+
+    int GetReferralHeight(const Address&);
+    bool SetReferralHeight(int height, const Address& ref);
 
     void GetAllRewardableANVs(
             const Consensus::Params& params,
@@ -146,6 +151,8 @@ public:
     MaybeConfirmedAddress GetConfirmation(uint64_t idx) const;
     MaybeConfirmedAddress GetConfirmation(char address_type, const Address& address) const;
 
+    bool SetNewInviteRewardedHeight(const Address&, int height);
+    int GetNewInviteRewardedHeight(const Address&) const;
 
 private:
     uint64_t GetLotteryHeapSize() const;
