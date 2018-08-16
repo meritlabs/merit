@@ -1423,8 +1423,9 @@ UniValue getaddressrank(const JSONRPCRequest& request)
     UniValue cgs_rankarr = RanksToUniValue(lottery_cgs, cgs_ranks.first, cgs_ranks.second, true);
 
     result.push_back(Pair("lotterycgs", lottery_cgs));
+    result.push_back(Pair("lotteryanv", lottery_cgs));
     result.push_back(Pair("lotteryentrants", cgs_ranks.second));
-    result.push_back(Pair("anv_ranks", cgs_rankarr));
+    result.push_back(Pair("ranks", cgs_rankarr));
 
     return result;
 }
@@ -1471,7 +1472,7 @@ UniValue getaddressleaderboard(const JSONRPCRequest& request)
     result.push_back(Pair("lotteryanv", lottery_cgs));
     result.push_back(Pair("lotterycgs", lottery_cgs));
     result.push_back(Pair("lotteryentrants", cgs_ranks.second));
-    result.push_back(Pair("anv_ranks", cgs_rankarr));
+    result.push_back(Pair("ranks", cgs_rankarr));
     return result;
 }
 
