@@ -103,6 +103,9 @@ struct Params {
     int imp_miner_reward_for_every_x_blocks;
     std::vector<double> imp_weights;
 
+    /** Bug Fix height for invite lottery amount */ 
+    int imp_fix_invites_blockheight;
+
     /** PoG version 2 */
     int pog2_blockheight;
     int64_t pog2_total_winning_ambassadors;

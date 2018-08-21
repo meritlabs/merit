@@ -193,6 +193,9 @@ public:
         consensus.pog2_convex_b = 0.2; 
         consensus.pog2_convex_s = 0.05;
 
+        // Fix invite lottery distribution amount.
+        consensus.imp_fix_invites_blockheight = 347039;
+
         /**
          * The message start string is designed to be unlikely to occur in normal data.
          * The characters are rarely used upper ASCII, not valid as UTF-8, and produce
@@ -355,6 +358,9 @@ public:
         consensus.pog2_convex_b = 0.2; 
         consensus.pog2_convex_s = 0.05;
 
+        // Fix invite lottery distribution amount.
+        consensus.imp_fix_invites_blockheight = 226768;
+
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
         pchMessageStart[2] = 0x09;
@@ -495,6 +501,8 @@ public:
         consensus.pog2_max_outstanding_invites_per_address = 50;
         consensus.pog2_convex_b = 0.2; 
         consensus.pog2_convex_s = 0.05;
+
+        consensus.imp_fix_invites_blockheight = 20;
 
         pchMessageStart[0] = 0xfa;
         pchMessageStart[1] = 0xbf;

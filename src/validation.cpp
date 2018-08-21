@@ -2240,12 +2240,16 @@ bool RewardInvites(
         return false;
     }
 
-    const bool pog2 = force_pog2 || height >= params.pog2_blockheight;
-    assert(!pog2 || cgs_selector);
+    size_t total_winners = 0;
 
-    const auto total_winners = pog2 ? 
-        pog2::ComputeTotalInviteLotteryWinners(lottery_params, params) :
-        pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
+    const bool pog2 = height >= params.pog2_blockheight;
+    if(force_pog2 || height >= params.imp_fix_invites_blockheight) {
+        total_winners = pog2::ComputeTotalInviteLotteryWinnersWithAmountFix(lottery_params, params);
+    } else if(pog2) { 
+        total_winners = pog2::ComputeTotalInviteLotteryWinners(lottery_params, params);
+    } else { 
+        total_winners = pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
+    }
 
     if (total_winners == 0) {
         return true;
