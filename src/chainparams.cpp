@@ -359,7 +359,7 @@ public:
         consensus.pog2_convex_s = 0.05;
 
         // Fix invite lottery distribution amount.
-        consensus.imp_fix_invites_blockheight = 217388;
+        consensus.imp_fix_invites_blockheight = 217450;
 
         pchMessageStart[0] = 0x0b;
         pchMessageStart[1] = 0x11;
