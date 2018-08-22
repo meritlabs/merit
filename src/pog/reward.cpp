@@ -73,7 +73,7 @@ namespace pog
             const InviteLotteryParams& lottery,
             const Consensus::Params& params)
     {
-        LogPrint(BCLog::VALIDATION, "Invites used: %d created: %d period: %d used per block: %d\n",
+        LogPrint(BCLog::POG, "Invites used: %d created: %d period: %d used per block: %d\n",
                 lottery.invites_used,
                 lottery.invites_created,
                 params.daedalus_block_window,
@@ -125,7 +125,7 @@ namespace pog
         const auto& block1 = lottery_points[0];
         const auto& block2 = lottery_points[1];
 
-        LogPrint(BCLog::VALIDATION, "Invites used: %d created: %d period: %d used per block: %d\n",
+        LogPrint(BCLog::POG, "Invites used: %d created: %d period: %d used per block: %d\n",
                 block1.invites_used,
                 block1.invites_created,
                 params.daedalus_block_window,
@@ -161,6 +161,17 @@ namespace pog
         }
 
         auto mean = static_cast<double>(lottery.invites_used) /
+            static_cast<double>(lottery.blocks);
+        return mean;
+    }
+
+    double ComputeUsedInviteMeanFixed(const InviteLotteryParams& lottery)
+    {
+        if(lottery.blocks <= 0) {
+            return 0.0;
+        }
+
+        auto mean = static_cast<double>(lottery.invites_used_fixed) /
             static_cast<double>(lottery.blocks);
         return mean;
     }

@@ -17,20 +17,26 @@ namespace pog
     {
         int invites_created = 0;
         int invites_used = 0;
+        int invites_used_fixed = 0;
         int blocks = 0;
         double mean_used = 0.0;
+        double mean_used_fixed = 0.0;
 
         MeanStats() {}
 
         MeanStats(
                 int created,
                 int used,
+                int used_fixed,
                 int blks,
-                double mean) :
+                double mean,
+                double mean_fixed) :
             invites_created{created},
             invites_used{used},
+            invites_used_fixed{used_fixed},
             blocks{blks},
-            mean_used{mean} {}
+            mean_used{mean},
+            mean_used_fixed{mean_fixed} {}
     };
 
     struct InviteStats 
@@ -38,6 +44,7 @@ namespace pog
         MeanStats mean_stats;
         int invites_created = 0;
         int invites_used = 0;
+        int invites_used_fixed = 0;
         bool is_set = false;
         bool mean_set = false;
     };
