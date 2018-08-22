@@ -2083,8 +2083,10 @@ bool OldComputeInviteLotteryParams(
     pog::MeanStats mean_stats {
         lottery_params.invites_created,
             lottery_params.invites_used,
+            0,
             lottery_params.blocks,
-            lottery_params.mean_used
+            lottery_params.mean_used,
+            0 
     };
 
     inviteBuffer.set_mean(prevHeight, mean_stats, params);
@@ -2117,6 +2119,7 @@ bool ImpComputeInviteLotteryParams(
 
     if (stats.mean_set) {
         lottery_params.invites_used = stats.mean_stats.invites_used;
+        lottery_params.invites_used_fixed = stats.mean_stats.invites_used_fixed;
         lottery_params.invites_created = stats.mean_stats.invites_created;
         lottery_params.blocks = stats.mean_stats.blocks;
         lottery_params.mean_used = stats.mean_stats.mean_used;
@@ -2136,6 +2139,7 @@ bool ImpComputeInviteLotteryParams(
 
         period_params.invites_created += stats.invites_created;
         period_params.invites_used += stats.invites_used;
+        period_params.invites_used_fixed += stats.invites_used_fixed;
 
         pindexPrev = pindexPrev->pprev;
 
@@ -2152,18 +2156,23 @@ bool ImpComputeInviteLotteryParams(
         const auto& w = params.imp_weights[i];
         lottery_params.invites_created += p.invites_created;
         lottery_params.invites_used += w*p.invites_used;
+        lottery_params.invites_used_fixed += w*p.invites_used_fixed;
     }
 
     lottery_params.invites_created /= params.imp_weights.size();
     lottery_params.invites_used /= 100;
+    lottery_params.invites_used_fixed /= 100;
     lottery_params.blocks=period_length;
     lottery_params.mean_used = pog::ComputeUsedInviteMean(lottery_params);
+    lottery_params.mean_used_fixed = pog::ComputeUsedInviteMeanFixed(lottery_params);
 
     pog::MeanStats mean_stats {
         lottery_params.invites_created,
             lottery_params.invites_used,
+            lottery_params.invites_used_fixed,
             lottery_params.blocks,
-            lottery_params.mean_used
+            lottery_params.mean_used,
+            lottery_params.mean_used_fixed
     };
 
     inviteBuffer.set_mean(prevHeight, mean_stats, params);

@@ -92,11 +92,11 @@ namespace pog2
         const auto& block1 = lottery_points[0];
         const auto& block2 = lottery_points[1];
 
-        LogPrint(BCLog::VALIDATION, "Invites used: %d created: %d period: %d used per block: %d\n",
-                block1.invites_used,
+        LogPrint(BCLog::POG, "Invites used: %d created: %d period: %d used per block: %d\n",
+                block1.invites_used_fixed,
                 block1.invites_created,
-                params.daedalus_block_window,
-                block1.mean_used);
+                block1.blocks,
+                block1.mean_used_fixed);
 
 
         int min_total_winners = 0;
@@ -104,14 +104,23 @@ namespace pog2
         //block1 is a weighted sum based on the imp_weights array. block1.blocks
         //is divided by the number of weights so we multiply that back here to 
         //get the correct number of blocks
-        auto blocks = block1.blocks * params.imp_weights.size(); 
+        const auto min_miner_invites = block1.blocks / params.imp_miner_reward_for_every_x_blocks;
+        const auto min_lottery_invites = block1.blocks / params.imp_min_one_invite_for_every_x_blocks;
+        const auto min_invites = min_miner_invites + min_lottery_invites;
 
-        if(block1.invites_created <= (blocks / params.imp_miner_reward_for_every_x_blocks)) {
-            min_total_winners = block1.invites_used + 
-                (blocks / params.imp_min_one_invite_for_every_x_blocks);
+        LogPrint(BCLog::POG, "Invites used: %d created: %d period: %d used per block: %d min %d\n",
+                block1.invites_used_fixed,
+                block1.invites_created,
+                block1.blocks,
+                block1.mean_used_fixed,
+                min_invites);
+
+
+        if(block1.invites_created < min_invites) {
+            min_total_winners = block1.invites_used_fixed + min_lottery_invites;
         }
 
-        const double mean_diff = block1.mean_used - block2.mean_used;
+        const double mean_diff = block1.mean_used_fixed - block2.mean_used_fixed;
 
         //Assume we need more or less than what was used before.
         //This allows invites to grow or shrink exponentially.
@@ -121,7 +130,7 @@ namespace pog2
 
         const int total_winners = std::max(
                 min_total_winners,
-                static_cast<int>(std::floor(block1.mean_used) + change));
+                static_cast<int>(std::floor(block1.mean_used_fixed) + change));
 
         assert(total_winners >= 0);
         return total_winners;
@@ -136,11 +145,13 @@ namespace pog2
         const auto& block1 = lottery_points[0];
         const auto& block2 = lottery_points[1];
 
-        LogPrint(BCLog::VALIDATION, "Invites used: %d created: %d period: %d used per block: %d\n",
+        LogPrint(BCLog::POG, "Invites used: %d used_fixed: %d created: %d period: %d used per block: %d, used per block fixed: %d\n",
                 block1.invites_used,
+                block1.invites_used_fixed,
                 block1.invites_created,
-                params.daedalus_block_window,
-                block1.mean_used);
+                block1.blocks,
+                block1.mean_used,
+                block1.mean_used_fixed);
 
 
         int min_total_winners = 0;

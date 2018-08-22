@@ -64,6 +64,7 @@ namespace pog
                     }
 
                     stats.invites_used += std::min(coinbase_used, beacons_invited);
+                    stats.invites_used_fixed += beacons_invited;
 
                 } else {
                     stats.invites_used += coinbase_used;
