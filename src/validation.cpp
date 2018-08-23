@@ -4330,8 +4330,6 @@ static bool ConnectBlock(
 
     int64_t nTime7 = GetTimeMicros();
 
-    referral::ConfirmedAddresses selected_new_pool_addresses;
-
     if (validate) {
         for (const auto& ref: block.m_vRef) {
             if (CheckAddressBeaconed(ref->GetAddress(), false)) {
@@ -4373,80 +4371,85 @@ static bool ConnectBlock(
             return error("ConnectBlock(): Referrals are not unique");
         }
 
-        int64_t nTime5 = GetTimeMicros(); nTimeConnect += nTime5 - nTime4;
-        LogPrint(BCLog::BENCH, "      - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n",
-                block.m_vRef.size(),
-                MILLI * (nTime5 - nTime4),
-                MILLI * (nTime5 - nTime4) / block.m_vRef.size(),
-                nTimeConnect * MICRO,
-                nTimeConnect * MILLI / nBlocksTotal);
+    }
 
-        //Figure out split subsidy and make sure the coinbase pays the expceted amount.
-        const auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
-        assert(subsidy.miner > 0);
-        assert(subsidy.ambassador > 0);
+    int64_t nTime5 = GetTimeMicros(); nTimeConnect += nTime5 - nTime4;
+    LogPrint(BCLog::BENCH, "      - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n",
+            block.m_vRef.size(),
+            MILLI * (nTime5 - nTime4),
+            MILLI * (nTime5 - nTime4) / block.m_vRef.size(),
+            nTimeConnect * MICRO,
+            nTimeConnect * MILLI / nBlocksTotal);
 
-        const CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
+    //Figure out split subsidy and make sure the coinbase pays the expceted amount.
+    const auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
+    assert(subsidy.miner > 0);
+    assert(subsidy.ambassador > 0);
 
-        assert(!block.vtx.empty());
-        const CTransaction& coinbase_tx = *block.vtx[0];
+    const CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
 
-        if (coinbase_tx.GetValueOut() > block_reward)
-            return state.DoS(100,
-                    error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
-                        coinbase_tx.GetValueOut(), block_reward),
-                    REJECT_INVALID, "bad-cb-amount");
+    assert(!block.vtx.empty());
+    const CTransaction& coinbase_tx = *block.vtx[0];
 
-        int64_t nTime6 = GetTimeMicros();
-        nTimeVerify += nTime6 - nTime5;
-        LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n",
-                nInputs - 1,
-                MILLI * (nTime6 - nTime5),
-                nInputs <= 1 ? 0 : MILLI * (nTime6 - nTime5) / (nInputs - 1),
-                nTimeVerify * MICRO,
-                nTimeVerify * MILLI / nBlocksTotal);
+    if (coinbase_tx.GetValueOut() > block_reward)
+        return state.DoS(100,
+                error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
+                    coinbase_tx.GetValueOut(), block_reward),
+                REJECT_INVALID, "bad-cb-amount");
 
-        // Figure out which ambassadors should be rewarded and check to make sure
-        // they are paid the expected amount.
-        const auto lottery = RewardAmbassadors(
-                pindex->nHeight,
-                hashPrevBlock,
-                subsidy.ambassador,
-                chainparams.GetConsensus());
-        assert(lottery.first.remainder >= 0);
+    int64_t nTime6 = GetTimeMicros();
+    nTimeVerify += nTime6 - nTime5;
+    LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n",
+            nInputs - 1,
+            MILLI * (nTime6 - nTime5),
+            nInputs <= 1 ? 0 : MILLI * (nTime6 - nTime5) / (nInputs - 1),
+            nTimeVerify * MICRO,
+            nTimeVerify * MILLI / nBlocksTotal);
 
-        auto cgs_selector = lottery.second;
+    // Figure out which ambassadors should be rewarded and check to make sure
+    // they are paid the expected amount.
+    const auto lottery = RewardAmbassadors(
+            pindex->nHeight,
+            hashPrevBlock,
+            subsidy.ambassador,
+            chainparams.GetConsensus());
+    assert(lottery.first.remainder >= 0);
 
-        if (!AreExpectedLotteryWinnersPaid(lottery.first, coinbase_tx)) {
-            return state.DoS(100,
-                    error("ConnectBlock(): coinbase did not pay the expected ambassadors."),
-                    REJECT_INVALID, "bad-cb-bad-ambassadors");
+    auto cgs_selector = lottery.second;
+
+    if (validate && !AreExpectedLotteryWinnersPaid(lottery.first, coinbase_tx)) {
+        return state.DoS(100,
+                error("ConnectBlock(): coinbase did not pay the expected ambassadors."),
+                REJECT_INVALID, "bad-cb-bad-ambassadors");
+    }
+
+    nTime7 = GetTimeMicros();
+    nTimeVerify += nTime7 - nTime6;
+    LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n",
+            MILLI * (nTime7 - nTime5),
+            nTimeVerify * MICRO,
+            nTimeVerify * MILLI / nBlocksTotal);
+
+    referral::ConfirmedAddresses selected_new_pool_addresses;
+
+    if (block.IsDaedalus()) {
+        pog::InviteRewards invite_rewards;
+        if (!RewardInvites(
+                    cgs_selector,
+                    pindex->nHeight,
+                    pindex->pprev,
+                    hashPrevBlock,
+                    view,
+                    invite_debits_and_credits,
+                    chainparams.GetConsensus(),
+                    state,
+                    invite_rewards,
+                    selected_new_pool_addresses)) {
+
+            return error("ConnectBlock(): Error computing invite rewards");
         }
 
-        nTime7 = GetTimeMicros();
-        nTimeVerify += nTime7 - nTime6;
-        LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n",
-                MILLI * (nTime7 - nTime5),
-                nTimeVerify * MICRO,
-                nTimeVerify * MILLI / nBlocksTotal);
-
-        if (block.IsDaedalus()) {
-            pog::InviteRewards invite_rewards;
-            if (!RewardInvites(
-                        cgs_selector,
-                        pindex->nHeight,
-                        pindex->pprev,
-                        hashPrevBlock,
-                        view,
-                        invite_debits_and_credits,
-                        chainparams.GetConsensus(),
-                        state,
-                        invite_rewards,
-                        selected_new_pool_addresses)) {
-
-                return error("ConnectBlock(): Error computing invite rewards");
-            }
-
+        if(validate) {
             if (!invite_rewards.empty() && block.invites.empty()) {
                 return state.DoS(100,
                         error("ConnectBlock(): Expected Invites but got none."),
@@ -4493,7 +4496,6 @@ static bool ConnectBlock(
                             REJECT_INVALID, "bad-invite-unexpected-coinbase");
                 }
             }
-
         }
     }
 
