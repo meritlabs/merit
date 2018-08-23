@@ -4386,16 +4386,19 @@ static bool ConnectBlock(
     assert(subsidy.miner > 0);
     assert(subsidy.ambassador > 0);
 
-    const CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
-
     assert(!block.vtx.empty());
     const CTransaction& coinbase_tx = *block.vtx[0];
 
-    if (coinbase_tx.GetValueOut() > block_reward)
-        return state.DoS(100,
-                error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
-                    coinbase_tx.GetValueOut(), block_reward),
-                REJECT_INVALID, "bad-cb-amount");
+    if(validate) {
+        const CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
+
+
+        if (coinbase_tx.GetValueOut() > block_reward)
+            return state.DoS(100,
+                    error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
+                        coinbase_tx.GetValueOut(), block_reward),
+                    REJECT_INVALID, "bad-cb-amount");
+    }
 
     int64_t nTime6 = GetTimeMicros();
     nTimeVerify += nTime6 - nTime5;
