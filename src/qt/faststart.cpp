@@ -199,9 +199,9 @@ bool FastStart::DoDownloadSnapshot()
 
 FastStart::FastStart(const QString& data_dir,  QWidget *parent) :
     QDialog{parent},
-    data_dir{data_dir},
     failed{false},
-    ui{new Ui::FastStart}
+    ui{new Ui::FastStart},
+    data_dir{data_dir}
 {
     ui->setupUi(this);
     this->setWindowTitle(tr("Merit"));
