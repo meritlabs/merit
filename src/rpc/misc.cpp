@@ -20,6 +20,9 @@
 #include "consensus/validation.h"
 #include "validation.h"
 
+#include "policy/policy.h"
+#include "policy/rbf.h"
+
 #include "pog/anv.h"
 #include "pog2/cgs.h"
 #include "pog/select.h"
@@ -36,6 +39,119 @@
 #include <univalue.h>
 
 #include <boost/format.hpp>
+
+void TxToJSONExpanded2(const CTransaction& tx, const uint256 hashBlock, UniValue& entry,
+                      int nHeight = 0, int nConfirmations = 0, int nBlockTime = 0)
+{
+
+    uint256 txid = tx.GetHash();
+    entry.push_back(Pair("txid", txid.GetHex()));
+    entry.push_back(Pair("version", tx.nVersion));
+    if (tx.IsInvite()) {
+        entry.push_back(Pair("invite", true));
+    }
+
+    UniValue vin(UniValue::VARR);
+    for (unsigned int i = 0; i < tx.vin.size(); i++) {
+        const CTxIn& txin = tx.vin[i];
+        UniValue in(UniValue::VOBJ);
+        if (tx.IsCoinBase())
+            in.push_back(Pair("coinbase", HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
+        else {
+            in.push_back(Pair("txid", txin.prevout.hash.GetHex()));
+            in.push_back(Pair("vout", (int64_t)txin.prevout.n));
+
+            // Add address and value info if spentindex enabled
+            CSpentIndexValue spentInfo;
+            CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
+            if (GetSpentIndex(spentKey, spentInfo)) {
+                if (tx.IsInvite()) {
+                    //invites are not demoninated in sotoshi.
+                    in.push_back(Pair("value", spentInfo.satoshis));
+                } else {
+                    in.push_back(Pair("value", ValueFromAmount(spentInfo.satoshis)));
+                    in.push_back(Pair("valueSat", spentInfo.satoshis));
+                }
+                if (spentInfo.addressType == 1) {
+                    in.push_back(Pair("address", CMeritAddress(CKeyID(spentInfo.addressHash)).ToString()));
+                } else if (spentInfo.addressType == 2)  {
+                    in.push_back(Pair("address", CMeritAddress(CScriptID(spentInfo.addressHash)).ToString()));
+                } else if (spentInfo.addressType == 3)  {
+                    in.push_back(Pair("address", CMeritAddress(CParamScriptID(spentInfo.addressHash)).ToString()));
+                }
+                const auto maybe_referral = prefviewcache->GetReferral(spentInfo.addressHash);
+                if (maybe_referral) {
+                    in.pushKV("alias", maybe_referral->GetAlias());
+                }
+            } else {
+                debug("could not fetch spent info");
+            }
+
+        }
+        vin.push_back(in);
+    }
+    entry.push_back(Pair("vin", vin));
+
+    UniValue vout(UniValue::VARR);
+    for (unsigned int i = 0; i < tx.vout.size(); i++) {
+        const CTxOut& txout = tx.vout[i];
+        UniValue out(UniValue::VOBJ);
+        if (tx.IsInvite()) {
+            out.push_back(Pair("value", txout.nValue));
+        } else {
+            out.push_back(Pair("value", ValueFromAmount(txout.nValue)));
+            out.push_back(Pair("valueSat", txout.nValue));
+        }
+        out.push_back(Pair("n", (int64_t)i));
+        UniValue o(UniValue::VOBJ);
+        ScriptPubKeyToUniv(txout.scriptPubKey, o);
+
+        txnouttype type;
+        std::vector<CTxDestination> addresses;
+        int required;
+
+        if (ExtractDestinations(txout.scriptPubKey, type, addresses, required)) {
+            const CTxDestination dest = addresses[0];
+            out.push_back(Pair("address", CMeritAddress{dest}.ToString()));
+
+            uint160 address;
+            if (GetUint160(dest, address)) {
+                const auto maybe_referral = prefviewcache->GetReferral(address);
+                if (maybe_referral) {
+                    out.push_back(Pair("alias", maybe_referral->alias));
+                }
+            }
+        }
+
+        // Add spent information if spentindex is enabled
+        CSpentIndexValue spentInfo;
+        CSpentIndexKey spentKey(txid, i);
+        if (GetSpentIndex(spentKey, spentInfo)) {
+            out.push_back(Pair("spentTxId", spentInfo.txid.GetHex()));
+            out.push_back(Pair("spentIndex", (int)spentInfo.inputIndex));
+            out.push_back(Pair("spentHeight", spentInfo.blockHeight));
+        }
+
+        vout.push_back(out);
+    }
+    entry.push_back(Pair("vout", vout));
+
+    if (!hashBlock.IsNull()) {
+        entry.push_back(Pair("blockhash", hashBlock.GetHex()));
+
+        if (nConfirmations > 0) {
+            entry.push_back(Pair("height", nHeight));
+            entry.push_back(Pair("confirmations", nConfirmations));
+            entry.push_back(Pair("time", nBlockTime));
+            entry.push_back(Pair("blocktime", nBlockTime));
+        } else {
+            entry.push_back(Pair("height", -1));
+            entry.push_back(Pair("confirmations", 0));
+        }
+    }
+
+}
+
 
 /**
  * @note Do not add or change anything in the information returned by this
@@ -1620,6 +1736,7 @@ struct TxHeightCmp {
 
 UniValue getaddresstxids(const JSONRPCRequest& request)
 {
+    std::cout << "Got here ~~~" << std::endl;
     if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
             "getaddresstxids\n"
@@ -1633,6 +1750,7 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
             "    ]\n"
             "  \"start\" (number) The start block height\n"
             "  \"end\" (number) The end block height\n"
+            "  \"detailed\" (boolean) Return full tx\n"
             "}\n"
             "\nResult:\n"
             "[\n"
@@ -1650,12 +1768,20 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
 
     int start = 0;
     int end = 0;
+    bool detailed = false;
     if (request.params[0].isObject()) {
         UniValue startValue = find_value(request.params[0].get_obj(), "start");
         UniValue endValue = find_value(request.params[0].get_obj(), "end");
         if (startValue.isNum() && endValue.isNum()) {
             start = startValue.get_int();
             end = endValue.get_int();
+        }
+
+        UniValue detailedValue = find_value(request.params[0].get_obj(), "detailed");
+        if (detailedValue.isBool()) {
+            detailed = detailedValue.get_bool();
+        } else if (detailedValue.isNum()) {
+            detailed = detailedValue.get_int() > 0;
         }
     }
 
@@ -1686,8 +1812,44 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
 
     UniValue result(UniValue::VARR);
 
-    for (const auto& it : txids) {
-        result.push_back(get<2>(it));
+    if (!detailed) {
+        for (const auto& it : txids) {
+            result.push_back(get<2>(it));
+        }
+
+        return result;
+    }
+
+    CTransactionRef tx;
+    uint256 hashBlock;
+    int nHeight = 0;
+    int nConfirmations = 0;
+    int nBlockTime = 0;
+
+    for (const auto& it: txids) {
+        {
+            LOCK(cs_main);
+            uint256 txHash = ParseHashV(get<2>(it), "param");
+            if (!GetTransaction(txHash, tx, Params().GetConsensus(), hashBlock, false))
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
+
+            BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
+            if (mi != mapBlockIndex.end() && (*mi).second) {
+                CBlockIndex* pindex = (*mi).second;
+                if (chainActive.Contains(pindex)) {
+                    nHeight = pindex->nHeight;
+                    nConfirmations = 1 + chainActive.Height() - pindex->nHeight;
+                    nBlockTime = pindex->GetBlockTime();
+                } else {
+                    nHeight = -1;
+                    nConfirmations = 0;
+                    nBlockTime = pindex->GetBlockTime();
+                }
+            }
+        }
+        UniValue txObj(UniValue::VOBJ);
+        TxToJSONExpanded2(*tx, hashBlock, txObj, nHeight, nConfirmations, nBlockTime);
+        result.push_back(txObj);
     }
 
     return result;
