@@ -35,7 +35,6 @@
 
 #include <univalue.h>
 
-
 void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue& entry,
                       int nHeight = 0, int nConfirmations = 0, int nBlockTime = 0)
 {
