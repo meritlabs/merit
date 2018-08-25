@@ -40,26 +40,30 @@
 
 #include <boost/format.hpp>
 
-void TxToJSONExpanded2(const CTransaction& tx, const uint256 hashBlock, UniValue& entry,
-                      int nHeight = 0, int nConfirmations = 0, int nBlockTime = 0)
+void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniValue &entry, std::string walletAddress,
+                         int nHeight = 0, int nConfirmations = 0, int nBlockTime = 0)
 {
-
     uint256 txid = tx.GetHash();
-    entry.push_back(Pair("txid", txid.GetHex()));
-    entry.push_back(Pair("version", tx.nVersion));
+    entry.pushKV("txid", txid.GetHex());
+    entry.pushKV("version", tx.nVersion);
+
     if (tx.IsInvite()) {
-        entry.push_back(Pair("invite", true));
+        entry.pushKV("invite", true);
     }
 
     UniValue vin(UniValue::VARR);
-    for (unsigned int i = 0; i < tx.vin.size(); i++) {
-        const CTxIn& txin = tx.vin[i];
+    bool isSender = false;
+
+    if (tx.IsCoinBase()) {
         UniValue in(UniValue::VOBJ);
-        if (tx.IsCoinBase())
-            in.push_back(Pair("coinbase", true));
-        else {
-            in.push_back(Pair("txid", txin.prevout.hash.GetHex()));
-            in.push_back(Pair("vout", (int64_t)txin.prevout.n));
+        in.pushKV("coinbase", true);
+        vin.push_back(in);
+    } else {
+        for (unsigned int i = 0; i < tx.vin.size(); i++) {
+            const CTxIn& txin = tx.vin[i];
+            UniValue in(UniValue::VOBJ);
+            in.pushKV("txid", txin.prevout.hash.GetHex());
+            in.pushKV("vout", (int64_t)txin.prevout.n);
 
             // Add address and value info if spentindex enabled
             CSpentIndexValue spentInfo;
@@ -67,19 +71,28 @@ void TxToJSONExpanded2(const CTransaction& tx, const uint256 hashBlock, UniValue
             if (GetSpentIndex(spentKey, spentInfo)) {
                 if (tx.IsInvite()) {
                     //invites are not demoninated in sotoshi.
-                    in.push_back(Pair("value", spentInfo.satoshis));
+                    in.pushKV("amount", spentInfo.satoshis);
                 } else {
-                    in.push_back(Pair("value", ValueFromAmount(spentInfo.satoshis)));
-                    in.push_back(Pair("valueSat", spentInfo.satoshis));
+                    in.pushKV("amount", ValueFromAmount(spentInfo.satoshis));
+                    in.pushKV("amountMicros", spentInfo.satoshis);
                 }
 
-                if (spentInfo.addressType == 1) {
-                    in.push_back(Pair("address", CMeritAddress(CKeyID(spentInfo.addressHash)).ToString()));
-                } else if (spentInfo.addressType == 2)  {
-                    in.push_back(Pair("address", CMeritAddress(CScriptID(spentInfo.addressHash)).ToString()));
-                } else if (spentInfo.addressType == 3)  {
-                    in.push_back(Pair("address", CMeritAddress(CParamScriptID(spentInfo.addressHash)).ToString()));
+                std::string address;
+
+                switch (spentInfo.addressType) {
+                    case 1:
+                        address = CMeritAddress(CKeyID(spentInfo.addressHash)).ToString();
+                        break;
+                    case 2:
+                        address = CMeritAddress(CScriptID(spentInfo.addressHash)).ToString();
+                        break;
+                    case 3:
+                        address = CMeritAddress(CParamScriptID(spentInfo.addressHash)).ToString();
+                        break;
                 }
+
+                in.pushKV("address", address);
+                isSender = isSender || address == walletAddress;
 
                 const auto maybe_referral = prefviewcache->GetReferral(spentInfo.addressHash);
                 if (maybe_referral) {
@@ -89,30 +102,44 @@ void TxToJSONExpanded2(const CTransaction& tx, const uint256 hashBlock, UniValue
                 debug("could not fetch spent info");
             }
 
+            vin.push_back(in);
         }
-        vin.push_back(in);
     }
-    entry.push_back(Pair("vin", vin));
 
+    if (!isSender) {
+        entry.pushKV("type", "received");
+        if (!tx.IsCoinBase()) {
+            UniValue firstInput = vin[0];
+            vin.setArray(); // Clear obj & set type to array
+            vin.push_back(firstInput); // Add only first input
+        }
+    } else {
+        entry.pushKV("type", "sent");
+    }
+
+    entry.push_back(Pair("inputs", vin));
+
+    int64_t totalAmount = 0;
     UniValue vout(UniValue::VARR);
     for (unsigned int i = 0; i < tx.vout.size(); i++) {
         const CTxOut& txout = tx.vout[i];
         UniValue out(UniValue::VOBJ);
-        if (tx.IsInvite()) {
-            out.push_back(Pair("value", txout.nValue));
-        } else {
-            out.push_back(Pair("value", ValueFromAmount(txout.nValue)));
-            out.push_back(Pair("valueSat", txout.nValue));
-        }
-        out.push_back(Pair("n", (int64_t)i));
-
         txnouttype type;
         std::vector<CTxDestination> addresses;
         int required;
+        bool isChangeOutput = false;
 
         if (ExtractDestinations(txout.scriptPubKey, type, addresses, required)) {
             const CTxDestination dest = addresses[0];
-            out.push_back(Pair("address", CMeritAddress{dest}.ToString()));
+            const std::string stringDest = CMeritAddress{dest}.ToString();
+
+            if (!isSender && stringDest != walletAddress) {
+                continue;
+            } else if (isSender && stringDest == walletAddress) {
+                isChangeOutput = true;
+            }
+
+            out.push_back(Pair("address", stringDest));
 
             uint160 address;
             if (GetUint160(dest, address)) {
@@ -121,7 +148,21 @@ void TxToJSONExpanded2(const CTransaction& tx, const uint256 hashBlock, UniValue
                     out.push_back(Pair("alias", maybe_referral->alias));
                 }
             }
+        } else {
+            continue;
         }
+
+        if (!isChangeOutput) {
+            totalAmount += txout.nValue;
+        }
+
+        if (tx.IsInvite()) {
+            out.push_back(Pair("amount", txout.nValue));
+        } else {
+            out.push_back(Pair("amount", ValueFromAmount(txout.nValue)));
+            out.push_back(Pair("amountMicros", txout.nValue));
+        }
+        out.push_back(Pair("n", (int64_t)i));
 
         // Add spent information if spentindex is enabled
         CSpentIndexValue spentInfo;
@@ -134,7 +175,14 @@ void TxToJSONExpanded2(const CTransaction& tx, const uint256 hashBlock, UniValue
 
         vout.push_back(out);
     }
-    entry.push_back(Pair("vout", vout));
+    entry.push_back(Pair("outputs", vout));
+
+    if (tx.IsInvite()) {
+        entry.pushKV("amount", totalAmount);
+    } else {
+        entry.pushKV("amountMicros", totalAmount);
+        entry.pushKV("amount", ValueFromAmount(totalAmount));
+    }
 
     if (!hashBlock.IsNull()) {
         entry.push_back(Pair("blockhash", hashBlock.GetHex()));
@@ -1436,7 +1484,7 @@ UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t tot
         UniValue o(UniValue::VOBJ);
 
         //percentile to two digits
-        double percentile = 
+        double percentile =
             (static_cast<double>(r.second) / static_cast<double>(total)) * 100.0;
 
         const auto cgs = sub ? r.first.sub_cgs : r.first.cgs;
@@ -1454,7 +1502,7 @@ UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t tot
         o.push_back(Pair("balance", r.first.balance));
         o.push_back(Pair("cgs", cgs));
 
-        double cgs_percent = 
+        double cgs_percent =
             (static_cast<double>(cgs) / static_cast<double>(lottery_cgs));
 
         o.push_back(Pair("cgspercent", cgs_percent));
@@ -1506,14 +1554,14 @@ UniValue getaddressrank(const JSONRPCRequest& request)
     LOCK(cs_main);
 
     const auto params = Params().GetConsensus();
-    
+
     pog2::Entrants all_entrants;
     pog2::CGSContext context;
     pog2::GetAllRewardableEntrants(context, *prefviewcache, params, chainActive.Height(), all_entrants);
 
     bool sub_linear = true;
 
-    std::vector<CAmount> cgs; 
+    std::vector<CAmount> cgs;
     for (const auto& a : addresses) {
      const auto& e = context.GetEntrant(a.first);
      auto node = pog2::ComputeCGS(context, e, *prefviewcache);
@@ -1635,7 +1683,7 @@ UniValue simulatelottery(const JSONRPCRequest& request)
         }
 
         auto b = chainActive[height];
-        if(b) { 
+        if(b) {
             seed = b->GetBlockHash();
         }
     }
@@ -1685,7 +1733,7 @@ UniValue simulatelottery(const JSONRPCRequest& request)
     UniValue ambassadors(UniValue::VARR);
     UniValue invites(UniValue::VARR);
 
-    for(const auto& r: rewards.first.winners) { 
+    for(const auto& r: rewards.first.winners) {
         UniValue o(UniValue::VOBJ);
         o.push_back(Pair("address", CMeritAddress{r.address_type, r.address}.ToString()));
         o.push_back(Pair("amount", r.amount));
@@ -1817,19 +1865,26 @@ UniValue getaddresshistory(const JSONRPCRequest& request)
     int start = 0;
     int end = 0;
     AddressPair addressPair;
-//    CTxDestination cTxDestination;
+    CTxDestination cTxDestination;
+    std::string walletAddress;
 
     if (request.params[0].isStr()) {
-        auto stringAddress = request.params[0].get_str();
-        CMeritAddress address(stringAddress);
+        walletAddress = request.params[0].get_str();
+        CMeritAddress address(walletAddress);
         uint160 hashBytes;
         int type = 0;
         if (!address.GetIndexKey(hashBytes, type)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address: " + stringAddress);
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address: " + walletAddress);
         }
 
-//        cTxDestination = DecodeDestination(stringAddress);
+        if (address.GetType() != 1) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "This method does not support script addresses");
+        }
+
+        cTxDestination = DecodeDestination(walletAddress);
         addressPair = std::make_pair(hashBytes, type);
+    } else {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "You must provide a valid address.");
     }
 
     if (!request.params[2].isNull()) {
@@ -1896,7 +1951,7 @@ UniValue getaddresshistory(const JSONRPCRequest& request)
         }
 
         UniValue txObj(UniValue::VOBJ);
-        TxToJSONExpanded2(*tx, hashBlock, txObj, nHeight, nConfirmations, nBlockTime);
+        ProcessTxForHistory(*tx, hashBlock, txObj, walletAddress, nHeight, nConfirmations, nBlockTime);
         result.push_back(txObj);
     }
 
