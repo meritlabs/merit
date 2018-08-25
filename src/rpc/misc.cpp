@@ -1814,21 +1814,21 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
 
 UniValue getaddresshistory(const JSONRPCRequest& request)
 {
-    int type = 0;
     int start = 0;
     int end = 0;
     AddressPair addressPair;
-    CTxDestination cTxDestination;
+//    CTxDestination cTxDestination;
 
     if (request.params[0].isStr()) {
         auto stringAddress = request.params[0].get_str();
         CMeritAddress address(stringAddress);
         uint160 hashBytes;
+        int type = 0;
         if (!address.GetIndexKey(hashBytes, type)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address: " + stringAddress);
         }
 
-        cTxDestination = DecodeDestination(stringAddress);
+//        cTxDestination = DecodeDestination(stringAddress);
         addressPair = std::make_pair(hashBytes, type);
     }
 
@@ -1841,24 +1841,18 @@ UniValue getaddresshistory(const JSONRPCRequest& request)
             end = request.params[2].get_int();
         }
 
-        if (!end || end <= 0) {
+        if (end <= 0) {
             end = chainActive.Height();
         }
     }
 
-    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
-    std::set<AddressTx, TxHeightCmp> txids;
 
-    if (start > 0) {
-        if (!GetAddressIndex(addressPair.first, addressPair.second, true, addressIndex, start, end) ||
-            !GetAddressIndex(addressPair.first, addressPair.second, false, addressIndex, start, end)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
-        }
-    } else {
-        if (!GetAddressIndex(addressPair.first, addressPair.second, true, addressIndex) ||
-            !GetAddressIndex(addressPair.first, addressPair.second, false, addressIndex)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
-        }
+    std::set<AddressTx, TxHeightCmp> txids;
+    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
+
+    if (!GetAddressIndex(addressPair.first, addressPair.second, true, addressIndex, start, end) ||
+        !GetAddressIndex(addressPair.first, addressPair.second, false, addressIndex, start, end)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
     }
 
     for (const auto& it : addressIndex) {
@@ -1876,8 +1870,7 @@ UniValue getaddresshistory(const JSONRPCRequest& request)
     int nConfirmations = 0;
     int nBlockTime = 0;
 
-
-    for (const auto& it: txids) {
+    for (const auto& it : txids) {
         {
             LOCK(cs_main);
             uint256 txHash = ParseHashV(get<2>(it), "param");
@@ -1901,6 +1894,7 @@ UniValue getaddresshistory(const JSONRPCRequest& request)
                 }
             }
         }
+
         UniValue txObj(UniValue::VOBJ);
         TxToJSONExpanded2(*tx, hashBlock, txObj, nHeight, nConfirmations, nBlockTime);
         result.push_back(txObj);
