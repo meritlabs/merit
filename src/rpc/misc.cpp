@@ -56,7 +56,7 @@ void TxToJSONExpanded2(const CTransaction& tx, const uint256 hashBlock, UniValue
         const CTxIn& txin = tx.vin[i];
         UniValue in(UniValue::VOBJ);
         if (tx.IsCoinBase())
-            in.push_back(Pair("coinbase", HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
+            in.push_back(Pair("coinbase", true));
         else {
             in.push_back(Pair("txid", txin.prevout.hash.GetHex()));
             in.push_back(Pair("vout", (int64_t)txin.prevout.n));
@@ -72,6 +72,7 @@ void TxToJSONExpanded2(const CTransaction& tx, const uint256 hashBlock, UniValue
                     in.push_back(Pair("value", ValueFromAmount(spentInfo.satoshis)));
                     in.push_back(Pair("valueSat", spentInfo.satoshis));
                 }
+
                 if (spentInfo.addressType == 1) {
                     in.push_back(Pair("address", CMeritAddress(CKeyID(spentInfo.addressHash)).ToString()));
                 } else if (spentInfo.addressType == 2)  {
@@ -79,6 +80,7 @@ void TxToJSONExpanded2(const CTransaction& tx, const uint256 hashBlock, UniValue
                 } else if (spentInfo.addressType == 3)  {
                     in.push_back(Pair("address", CMeritAddress(CParamScriptID(spentInfo.addressHash)).ToString()));
                 }
+
                 const auto maybe_referral = prefviewcache->GetReferral(spentInfo.addressHash);
                 if (maybe_referral) {
                     in.pushKV("alias", maybe_referral->GetAlias());
@@ -103,8 +105,6 @@ void TxToJSONExpanded2(const CTransaction& tx, const uint256 hashBlock, UniValue
             out.push_back(Pair("valueSat", txout.nValue));
         }
         out.push_back(Pair("n", (int64_t)i));
-        UniValue o(UniValue::VOBJ);
-        ScriptPubKeyToUniv(txout.scriptPubKey, o);
 
         txnouttype type;
         std::vector<CTxDestination> addresses;
@@ -1736,7 +1736,6 @@ struct TxHeightCmp {
 
 UniValue getaddresstxids(const JSONRPCRequest& request)
 {
-    std::cout << "Got here ~~~" << std::endl;
     if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
             "getaddresstxids\n"
@@ -1750,7 +1749,6 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
             "    ]\n"
             "  \"start\" (number) The start block height\n"
             "  \"end\" (number) The end block height\n"
-            "  \"detailed\" (boolean) Return full tx\n"
             "}\n"
             "\nResult:\n"
             "[\n"
@@ -1767,21 +1765,16 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
     }
 
     int start = 0;
-    int end = 0;
-    bool detailed = false;
+    int end = (int)chainActive.Height();
     if (request.params[0].isObject()) {
         UniValue startValue = find_value(request.params[0].get_obj(), "start");
         UniValue endValue = find_value(request.params[0].get_obj(), "end");
-        if (startValue.isNum() && endValue.isNum()) {
+        if (startValue.isNum()) {
             start = startValue.get_int();
-            end = endValue.get_int();
         }
 
-        UniValue detailedValue = find_value(request.params[0].get_obj(), "detailed");
-        if (detailedValue.isBool()) {
-            detailed = detailedValue.get_bool();
-        } else if (detailedValue.isNum()) {
-            detailed = detailedValue.get_int() > 0;
+        if (endValue.isNum()) {
+            end = endValue.get_int();
         }
     }
 
@@ -1790,7 +1783,7 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
     std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
 
     for (const auto& it : addresses) {
-        if (start > 0 && end > 0) {
+        if (start > 0) {
             if (!GetAddressIndex(it.first, it.second, true, addressIndex, start, end) ||
                 !GetAddressIndex(it.first, it.second, false, addressIndex, start, end)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
@@ -1812,19 +1805,77 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
 
     UniValue result(UniValue::VARR);
 
-    if (!detailed) {
-        for (const auto& it : txids) {
-            result.push_back(get<2>(it));
-        }
-
-        return result;
+    for (const auto& it : txids) {
+        result.push_back(get<2>(it));
     }
 
+    return result;
+}
+
+UniValue getaddresshistory(const JSONRPCRequest& request)
+{
+    int type = 0;
+    int start = 0;
+    int end = 0;
+    AddressPair addressPair;
+    CTxDestination cTxDestination;
+
+    if (request.params[0].isStr()) {
+        auto stringAddress = request.params[0].get_str();
+        CMeritAddress address(stringAddress);
+        uint160 hashBytes;
+        if (!address.GetIndexKey(hashBytes, type)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address: " + stringAddress);
+        }
+
+        cTxDestination = DecodeDestination(stringAddress);
+        addressPair = std::make_pair(hashBytes, type);
+    }
+
+    if (!request.params[2].isNull()) {
+        if (request.params[1].isNum()) {
+            start = request.params[1].get_int();
+        }
+
+        if (!request.params[2].isNull() && request.params[2].isNum()) {
+            end = request.params[2].get_int();
+        }
+
+        if (!end || end <= 0) {
+            end = chainActive.Height();
+        }
+    }
+
+    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
+    std::set<AddressTx, TxHeightCmp> txids;
+
+    if (start > 0) {
+        if (!GetAddressIndex(addressPair.first, addressPair.second, true, addressIndex, start, end) ||
+            !GetAddressIndex(addressPair.first, addressPair.second, false, addressIndex, start, end)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+        }
+    } else {
+        if (!GetAddressIndex(addressPair.first, addressPair.second, true, addressIndex) ||
+            !GetAddressIndex(addressPair.first, addressPair.second, false, addressIndex)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+        }
+    }
+
+    for (const auto& it : addressIndex) {
+        int height = it.first.blockHeight;
+        std::string txid = it.first.txhash.GetHex();
+
+        txids.insert(std::make_tuple(height, it.first.invite, txid));
+    }
+
+    UniValue result(UniValue::VARR);
     CTransactionRef tx;
     uint256 hashBlock;
+    uint256 lastHashBlock;
     int nHeight = 0;
     int nConfirmations = 0;
     int nBlockTime = 0;
+
 
     for (const auto& it: txids) {
         {
@@ -1833,17 +1884,20 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
             if (!GetTransaction(txHash, tx, Params().GetConsensus(), hashBlock, false))
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
 
-            BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
-            if (mi != mapBlockIndex.end() && (*mi).second) {
-                CBlockIndex* pindex = (*mi).second;
-                if (chainActive.Contains(pindex)) {
-                    nHeight = pindex->nHeight;
-                    nConfirmations = 1 + chainActive.Height() - pindex->nHeight;
-                    nBlockTime = pindex->GetBlockTime();
-                } else {
-                    nHeight = -1;
-                    nConfirmations = 0;
-                    nBlockTime = pindex->GetBlockTime();
+            if (hashBlock != lastHashBlock) {
+                lastHashBlock = hashBlock;
+                BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
+                if (mi != mapBlockIndex.end() && (*mi).second) {
+                    CBlockIndex* pindex = (*mi).second;
+                    if (chainActive.Contains(pindex)) {
+                        nHeight = pindex->nHeight;
+                        nConfirmations = 1 + chainActive.Height() - pindex->nHeight;
+                        nBlockTime = pindex->GetBlockTime();
+                    } else {
+                        nHeight = -1;
+                        nConfirmations = 0;
+                        nBlockTime = pindex->GetBlockTime();
+                    }
                 }
             }
         }
@@ -2222,6 +2276,7 @@ static const CRPCCommand commands[] =
         {"addressindex", "getaddressrewards", &getaddressrewards, {}},
         {"addressindex", "getaddressanv", &getaddressanv, {}},
         {"addressindex", "simulatelottery", &simulatelottery, {}},
+        {"addressindex", "getaddresshistory", &getaddresshistory, {"address", "start", "end"}},
 
         /* Blockchain */
         {"blockchain", "getspentinfo", &getspentinfo, {}},

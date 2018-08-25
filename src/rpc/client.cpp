@@ -148,6 +148,8 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "getblockhashes", 2, "options" },
     { "getspentinfo", 0, "txid_index"},
     { "getaddresstxids", 0, "addresses"},
+    { "getaddresshistory", 1, "start" },
+    { "getaddresshistory", 2, "end" },
     { "getaddressreferrals", 0, "addresses"},
     { "getaddressbalance", 0, "addresses"},
     { "getaddressrank", 0, "addresses"},
