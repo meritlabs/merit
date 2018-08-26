@@ -92,13 +92,6 @@ namespace pog2
         const auto& block1 = lottery_points[0];
         const auto& block2 = lottery_points[1];
 
-        LogPrint(BCLog::POG, "Invites used: %d created: %d period: %d used per block: %d\n",
-                block1.invites_used_fixed,
-                block1.invites_created,
-                block1.blocks,
-                block1.mean_used_fixed);
-
-
         int min_total_winners = 0;
 
         //block1 is a weighted sum based on the imp_weights array. block1.blocks
