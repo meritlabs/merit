@@ -43,7 +43,7 @@
 void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniValue &entry, std::string walletAddress,
                          int nHeight = 0, int nConfirmations = 0, int nBlockTime = 0)
 {
-    uint256 txid = tx.GetHash();
+    auto txid = tx.GetHash();
     entry.pushKV("txid", txid.GetHex());
     entry.pushKV("version", tx.nVersion);
 
@@ -55,9 +55,7 @@ void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniVal
     bool isSender = false;
 
     if (tx.IsCoinBase()) {
-        UniValue in(UniValue::VOBJ);
-        in.pushKV("coinbase", true);
-        vin.push_back(in);
+        entry.pushKV("coinbase", true);
     } else {
         for (unsigned int i = 0; i < tx.vin.size(); i++) {
             const CTxIn& txin = tx.vin[i];
@@ -77,19 +75,7 @@ void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniVal
                     in.pushKV("amountMicros", spentInfo.satoshis);
                 }
 
-                std::string address;
-
-                switch (spentInfo.addressType) {
-                    case 1:
-                        address = CMeritAddress(CKeyID(spentInfo.addressHash)).ToString();
-                        break;
-                    case 2:
-                        address = CMeritAddress(CScriptID(spentInfo.addressHash)).ToString();
-                        break;
-                    case 3:
-                        address = CMeritAddress(CParamScriptID(spentInfo.addressHash)).ToString();
-                        break;
-                }
+                auto address = CMeritAddress{spentInfo.addressType, spentInfo.addressHash}.ToString();
 
                 in.pushKV("address", address);
                 isSender = isSender || address == walletAddress;
@@ -109,7 +95,7 @@ void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniVal
     if (!isSender) {
         entry.pushKV("type", "received");
         if (!tx.IsCoinBase()) {
-            UniValue firstInput = vin[0];
+            auto firstInput = vin[0];
             vin.setArray(); // Clear obj & set type to array
             vin.push_back(firstInput); // Add only first input
         }
@@ -1860,64 +1846,8 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
     return result;
 }
 
-UniValue getaddresshistory(const JSONRPCRequest& request)
+bool hashesToJSONTransactions(UniValue& result, std::set<uint256> hashes, std::string walletAddress)
 {
-    int start = 0;
-    int end = 0;
-    AddressPair addressPair;
-    CTxDestination cTxDestination;
-    std::string walletAddress;
-
-    if (request.params[0].isStr()) {
-        walletAddress = request.params[0].get_str();
-        CMeritAddress address(walletAddress);
-        uint160 hashBytes;
-        int type = 0;
-        if (!address.GetIndexKey(hashBytes, type)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address: " + walletAddress);
-        }
-
-        if (address.GetType() != 1) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "This method does not support script addresses");
-        }
-
-        cTxDestination = DecodeDestination(walletAddress);
-        addressPair = std::make_pair(hashBytes, type);
-    } else {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "You must provide a valid address.");
-    }
-
-    if (!request.params[2].isNull()) {
-        if (request.params[1].isNum()) {
-            start = request.params[1].get_int();
-        }
-
-        if (!request.params[2].isNull() && request.params[2].isNum()) {
-            end = request.params[2].get_int();
-        }
-
-        if (end <= 0) {
-            end = chainActive.Height();
-        }
-    }
-
-
-    std::set<AddressTx, TxHeightCmp> txids;
-    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
-
-    if (!GetAddressIndex(addressPair.first, addressPair.second, true, addressIndex, start, end) ||
-        !GetAddressIndex(addressPair.first, addressPair.second, false, addressIndex, start, end)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
-    }
-
-    for (const auto& it : addressIndex) {
-        int height = it.first.blockHeight;
-        std::string txid = it.first.txhash.GetHex();
-
-        txids.insert(std::make_tuple(height, it.first.invite, txid));
-    }
-
-    UniValue result(UniValue::VARR);
     CTransactionRef tx;
     uint256 hashBlock;
     uint256 lastHashBlock;
@@ -1925,18 +1855,17 @@ UniValue getaddresshistory(const JSONRPCRequest& request)
     int nConfirmations = 0;
     int nBlockTime = 0;
 
-    for (const auto& it : txids) {
+    for (const auto& hash : hashes) {
         {
             LOCK(cs_main);
-            uint256 txHash = ParseHashV(get<2>(it), "param");
-            if (!GetTransaction(txHash, tx, Params().GetConsensus(), hashBlock, false))
+            if (!GetTransaction(hash, tx, Params().GetConsensus(), hashBlock, false))
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
 
             if (hashBlock != lastHashBlock) {
                 lastHashBlock = hashBlock;
-                BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
+                const auto mi = mapBlockIndex.find(hashBlock);
                 if (mi != mapBlockIndex.end() && (*mi).second) {
-                    CBlockIndex* pindex = (*mi).second;
+                    auto const* pindex = (*mi).second;
                     if (chainActive.Contains(pindex)) {
                         nHeight = pindex->nHeight;
                         nConfirmations = 1 + chainActive.Height() - pindex->nHeight;
@@ -1954,6 +1883,98 @@ UniValue getaddresshistory(const JSONRPCRequest& request)
         ProcessTxForHistory(*tx, hashBlock, txObj, walletAddress, nHeight, nConfirmations, nBlockTime);
         result.push_back(txObj);
     }
+
+    return true;
+}
+
+UniValue getAddressHistoryFromMempool(const JSONRPCRequest& request)
+{
+    AddressPair addressPair;
+    std::string walletAddress;
+
+    if (request.params[0].isStr()) {
+        walletAddress = request.params[0].get_str();
+        CMeritAddress address(walletAddress);
+        uint160 hashBytes;
+        int type = 0;
+        if (!address.GetIndexKey(hashBytes, type)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address: " + walletAddress);
+        }
+
+        if (address.GetType() != 1) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "This method does not support script addresses");
+        }
+
+        addressPair = std::make_pair(hashBytes, type);
+    } else {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "You must provide a valid address.");
+    }
+
+    std::vector<AddressPair> addresses(1, addressPair);
+
+    std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
+
+    if (!mempool.getAddressIndex(addresses, indexes)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+    }
+
+    std::sort(indexes.begin(), indexes.end(), timestampSort);
+    std::set<uint256> txHashes;
+    UniValue result(UniValue::VARR);
+
+    for (const auto& it : indexes) {
+        txHashes.insert(it.first.txhash);
+    }
+
+    hashesToJSONTransactions(result, txHashes, walletAddress);
+
+    return result;
+}
+
+UniValue getAddressHistory(const JSONRPCRequest& request)
+{
+    int start = 0;
+    int end = chainActive.Height();
+    AddressPair addressPair;
+    std::string walletAddress;
+
+    if (request.params[0].isStr()) {
+        walletAddress = request.params[0].get_str();
+        CMeritAddress address(walletAddress);
+        uint160 hashBytes;
+        int type = 0;
+        if (!address.GetIndexKey(hashBytes, type)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address: " + walletAddress);
+        }
+
+        if (address.GetType() != 1) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "This method does not support script addresses");
+        }
+
+        addressPair = std::make_pair(hashBytes, type);
+    } else {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "You must provide a valid address.");
+    }
+
+    if (!request.params[1].isNull() && request.params[1].isNum()) {
+        start = request.params[1].get_int();
+    }
+
+    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
+
+    if (!GetAddressIndex(addressPair.first, addressPair.second, true, addressIndex, start, end) ||
+        !GetAddressIndex(addressPair.first, addressPair.second, false, addressIndex, start, end)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+    }
+
+    std::set<uint256> txHashes;
+    UniValue result(UniValue::VARR);
+
+    for (const auto& it : addressIndex) {
+        txHashes.insert(it.first.txhash);
+    }
+
+    hashesToJSONTransactions(result, txHashes, walletAddress);
 
     return result;
 }
@@ -2325,7 +2346,8 @@ static const CRPCCommand commands[] =
         {"addressindex", "getaddressrewards", &getaddressrewards, {}},
         {"addressindex", "getaddressanv", &getaddressanv, {}},
         {"addressindex", "simulatelottery", &simulatelottery, {}},
-        {"addressindex", "getaddresshistory", &getaddresshistory, {"address", "start", "end"}},
+        {"addressindex", "getaddresshistory", &getAddressHistory, {"address", "start"}},
+        {"addressindex", "getaddressmempoolhistory", &getAddressHistoryFromMempool, {"address"}},
 
         /* Blockchain */
         {"blockchain", "getspentinfo", &getspentinfo, {}},
