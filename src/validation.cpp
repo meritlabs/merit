@@ -2059,6 +2059,7 @@ bool OldComputeInviteLotteryParams(
         lottery_params.invites_created = stats.mean_stats.invites_created;
         lottery_params.blocks = stats.mean_stats.blocks;
         lottery_params.mean_used = stats.mean_stats.mean_used;
+        lottery_params.mean_used_fixed = stats.mean_stats.mean_used_fixed;
         return true;
     } 
 
@@ -2123,6 +2124,7 @@ bool ImpComputeInviteLotteryParams(
         lottery_params.invites_created = stats.mean_stats.invites_created;
         lottery_params.blocks = stats.mean_stats.blocks;
         lottery_params.mean_used = stats.mean_stats.mean_used;
+        lottery_params.mean_used_fixed = stats.mean_stats.mean_used_fixed;
         return true;
     } 
 

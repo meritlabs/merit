@@ -128,6 +128,8 @@ namespace pog2
             std::ceil(mean_diff) : 
             std::floor(mean_diff);
 
+        LogPrint(BCLog::POG, "Mean Diff: %d  change: %d b2: %d b1: %d min_total_winners:  %d\n", mean_diff, change, block1.mean_used_fixed, block2.mean_used_fixed, min_total_winners);
+
         const int total_winners = std::max(
                 min_total_winners,
                 static_cast<int>(std::floor(block1.mean_used_fixed) + change));
