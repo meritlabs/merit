@@ -40,6 +40,31 @@
 
 #include <boost/format.hpp>
 
+unsigned char hexval(unsigned char c)
+{
+    if ('0' <= c && c <= '9')
+        return c - '0';
+    else if ('a' <= c && c <= 'f')
+        return c - 'a' + 10;
+    else if ('A' <= c && c <= 'F')
+        return c - 'A' + 10;
+    else abort();
+}
+
+void hex2ascii(const std::string& in, std::string& out)
+{
+    out.clear();
+    out.reserve(in.length() / 2);
+    for (std::string::const_iterator p = in.begin(); p != in.end(); p++)
+    {
+        unsigned char c = hexval(*p);
+        p++;
+        if (p == in.end()) break; // incomplete last digit - should report error
+        c = (c << 4) + hexval(*p); // + takes precedence over <<
+        out.push_back(c);
+    }
+}
+
 void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniValue &entry, std::string walletAddress,
                          int nHeight = 0, int nConfirmations = 0, int nBlockTime = 0)
 {
@@ -48,14 +73,14 @@ void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniVal
     entry.pushKV("version", tx.nVersion);
 
     if (tx.IsInvite()) {
-        entry.pushKV("invite", true);
+        entry.pushKV("isInvite", true);
     }
 
     UniValue vin(UniValue::VARR);
     bool isSender = false;
 
     if (tx.IsCoinBase()) {
-        entry.pushKV("coinbase", true);
+        entry.pushKV("isCoinbase", true);
     } else {
         for (unsigned int i = 0; i < tx.vin.size(); i++) {
             const CTxIn& txin = tx.vin[i];
@@ -75,7 +100,7 @@ void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniVal
                     in.pushKV("amountMicros", spentInfo.satoshis);
                 }
 
-                auto address = CMeritAddress{spentInfo.addressType, spentInfo.addressHash}.ToString();
+                auto address = CMeritAddress{(signed char)(spentInfo.addressType), spentInfo.addressHash}.ToString();
 
                 in.pushKV("address", address);
                 isSender = isSender || address == walletAddress;
@@ -90,30 +115,29 @@ void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniVal
 
             vin.push_back(in);
         }
-    }
 
-    if (!isSender) {
-        entry.pushKV("type", "received");
-        if (!tx.IsCoinBase()) {
+        if (!isSender) {
             auto firstInput = vin[0];
             vin.setArray(); // Clear obj & set type to array
             vin.push_back(firstInput); // Add only first input
         }
-    } else {
-        entry.pushKV("type", "sent");
-    }
 
-    entry.push_back(Pair("inputs", vin));
+        entry.push_back(Pair("inputs", vin));
+    }
 
     int64_t totalAmount = 0;
     UniValue vout(UniValue::VARR);
+    bool couldBeGrowthReward = false;
+    bool isMarket = false;
+    bool isPoolReward = false;
+
     for (unsigned int i = 0; i < tx.vout.size(); i++) {
-        const CTxOut& txout = tx.vout[i];
+        const auto& txout = tx.vout[i];
         UniValue out(UniValue::VOBJ);
         txnouttype type;
         std::vector<CTxDestination> addresses;
         int required;
-        bool isChangeOutput = false;
+        bool isChangeOutput;
 
         if (ExtractDestinations(txout.scriptPubKey, type, addresses, required)) {
             const CTxDestination dest = addresses[0];
@@ -135,6 +159,13 @@ void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniVal
                 }
             }
         } else {
+            if (type == TX_NULL_DATA && !(isMarket || isPoolReward || tx.IsCoinBase())) {
+                std::string data;
+                hex2ascii(HexStr(txout.scriptPubKey.begin(), txout.scriptPubKey.end()), data);
+                std::transform(data.begin(), data.end(), data.begin(), ::tolower);
+                isMarket = data.find("market") != std::string::npos;
+                isPoolReward = data.find("pool") != std::string::npos;
+            }
             continue;
         }
 
@@ -148,7 +179,6 @@ void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniVal
             out.push_back(Pair("amount", ValueFromAmount(txout.nValue)));
             out.push_back(Pair("amountMicros", txout.nValue));
         }
-        out.push_back(Pair("n", (int64_t)i));
 
         // Add spent information if spentindex is enabled
         CSpentIndexValue spentInfo;
@@ -159,9 +189,46 @@ void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniVal
             out.push_back(Pair("spentHeight", spentInfo.blockHeight));
         }
 
+        out.push_back(Pair("n", (int64_t)i));
+
+        couldBeGrowthReward = i > 0;
+
         vout.push_back(out);
     }
+
     entry.push_back(Pair("outputs", vout));
+
+    std::string action;
+
+    if (!isSender) {
+        entry.pushKV("type", "credit");
+        if (tx.IsCoinBase()) {
+            if (couldBeGrowthReward) {
+                action = "growth_reward";
+            } else if (tx.IsInvite()) {
+                action = "mined_invite";
+            } else {
+                action = "mining_reward";
+            };
+        } else {
+            if (isMarket) {
+                action = "market";
+            } else if (isPoolReward) {
+                action = "pool_reward";
+            } else {
+                action = tx.IsInvite()? "invite" : "received";
+            }
+        }
+    } else {
+        entry.pushKV("type", "debit");
+        if (isMarket) {
+            action = "market";
+        } else {
+            action = tx.IsInvite()? "invite" : "sent";
+        }
+    }
+
+    entry.pushKV("action", action);
 
     if (tx.IsInvite()) {
         entry.pushKV("amount", totalAmount);
@@ -177,7 +244,6 @@ void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniVal
             entry.push_back(Pair("height", nHeight));
             entry.push_back(Pair("confirmations", nConfirmations));
             entry.push_back(Pair("time", nBlockTime));
-            entry.push_back(Pair("blocktime", nBlockTime));
         } else {
             entry.push_back(Pair("height", -1));
             entry.push_back(Pair("confirmations", 0));
