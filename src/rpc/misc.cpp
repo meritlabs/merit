@@ -1700,10 +1700,10 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
 }
 
 
-void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniValue &entry, std::string walletAddress,
-                         int nHeight = 0, int nConfirmations = 0, int nBlockTime = 0)
+void ProcessTxForHistory(const CTransaction& tx, const uint256& hashBlock, UniValue& entry, const std::string& walletAddress,
+                         const int nHeight = 0, const int nConfirmations = 0, const int nBlockTime = 0)
 {
-    auto txid = tx.GetHash();
+    const auto& txid = tx.GetHash();
     entry.pushKV("txid", txid.GetHex());
     entry.pushKV("version", tx.nVersion);
 
@@ -1884,7 +1884,7 @@ void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniVal
 
 }
 
-bool HashesToJSONTransactions(UniValue& result, std::vector<uint256> hashes, std::string walletAddress)
+bool HashesToJSONTransactions(UniValue& result, const std::set<uint256>& hashes, const std::string& walletAddress)
 {
     CTransactionRef tx;
     uint256 hashBlock;
@@ -1957,12 +1957,11 @@ UniValue getAddressHistoryFromMempool(const JSONRPCRequest& request)
     }
 
     std::sort(indexes.begin(), indexes.end(), timestampSort);
-    std::vector<uint256> txHashes;
-    txHashes.reserve(indexes.size());
+    std::set<uint256> txHashes;
     UniValue result(UniValue::VARR);
 
     for (const auto& it : indexes) {
-        txHashes.push_back(it.first.txhash);
+        txHashes.insert(it.first.txhash);
     }
 
     HashesToJSONTransactions(result, txHashes, walletAddress);
@@ -2006,13 +2005,12 @@ UniValue getAddressHistory(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
     }
 
-    std::vector<uint256> txHashes;
-    txHashes.reserve(addressIndex.size());
+    std::set<uint256> txHashes;
 
     UniValue result(UniValue::VARR);
 
     for (const auto& it : addressIndex) {
-        txHashes.push_back(it.first.txhash);
+        txHashes.insert(it.first.txhash);
     }
 
     HashesToJSONTransactions(result, txHashes, walletAddress);
