@@ -2059,6 +2059,7 @@ bool OldComputeInviteLotteryParams(
         lottery_params.invites_created = stats.mean_stats.invites_created;
         lottery_params.blocks = stats.mean_stats.blocks;
         lottery_params.mean_used = stats.mean_stats.mean_used;
+        lottery_params.mean_used_fixed = stats.mean_stats.mean_used_fixed;
         return true;
     } 
 
@@ -2083,8 +2084,10 @@ bool OldComputeInviteLotteryParams(
     pog::MeanStats mean_stats {
         lottery_params.invites_created,
             lottery_params.invites_used,
+            0,
             lottery_params.blocks,
-            lottery_params.mean_used
+            lottery_params.mean_used,
+            0 
     };
 
     inviteBuffer.set_mean(prevHeight, mean_stats, params);
@@ -2117,9 +2120,11 @@ bool ImpComputeInviteLotteryParams(
 
     if (stats.mean_set) {
         lottery_params.invites_used = stats.mean_stats.invites_used;
+        lottery_params.invites_used_fixed = stats.mean_stats.invites_used_fixed;
         lottery_params.invites_created = stats.mean_stats.invites_created;
         lottery_params.blocks = stats.mean_stats.blocks;
         lottery_params.mean_used = stats.mean_stats.mean_used;
+        lottery_params.mean_used_fixed = stats.mean_stats.mean_used_fixed;
         return true;
     } 
 
@@ -2136,6 +2141,7 @@ bool ImpComputeInviteLotteryParams(
 
         period_params.invites_created += stats.invites_created;
         period_params.invites_used += stats.invites_used;
+        period_params.invites_used_fixed += stats.invites_used_fixed;
 
         pindexPrev = pindexPrev->pprev;
 
@@ -2152,18 +2158,23 @@ bool ImpComputeInviteLotteryParams(
         const auto& w = params.imp_weights[i];
         lottery_params.invites_created += p.invites_created;
         lottery_params.invites_used += w*p.invites_used;
+        lottery_params.invites_used_fixed += w*p.invites_used_fixed;
     }
 
     lottery_params.invites_created /= params.imp_weights.size();
     lottery_params.invites_used /= 100;
+    lottery_params.invites_used_fixed /= 100;
     lottery_params.blocks=period_length;
     lottery_params.mean_used = pog::ComputeUsedInviteMean(lottery_params);
+    lottery_params.mean_used_fixed = pog::ComputeUsedInviteMeanFixed(lottery_params);
 
     pog::MeanStats mean_stats {
         lottery_params.invites_created,
             lottery_params.invites_used,
+            lottery_params.invites_used_fixed,
             lottery_params.blocks,
-            lottery_params.mean_used
+            lottery_params.mean_used,
+            lottery_params.mean_used_fixed
     };
 
     inviteBuffer.set_mean(prevHeight, mean_stats, params);
@@ -2240,12 +2251,16 @@ bool RewardInvites(
         return false;
     }
 
-    const bool pog2 = force_pog2 || height >= params.pog2_blockheight;
-    assert(!pog2 || cgs_selector);
+    size_t total_winners = 0;
 
-    const auto total_winners = pog2 ? 
-        pog2::ComputeTotalInviteLotteryWinners(lottery_params, params) :
-        pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
+    const bool pog2 = height >= params.pog2_blockheight;
+    if(force_pog2 || height >= params.imp_fix_invites_blockheight) {
+        total_winners = pog2::ComputeTotalInviteLotteryWinnersWithAmountFix(lottery_params, params);
+    } else if(pog2) { 
+        total_winners = pog2::ComputeTotalInviteLotteryWinners(lottery_params, params);
+    } else { 
+        total_winners = pog::ComputeTotalInviteLotteryWinners(height, lottery_params, params);
+    }
 
     if (total_winners == 0) {
         return true;
@@ -4317,8 +4332,6 @@ static bool ConnectBlock(
 
     int64_t nTime7 = GetTimeMicros();
 
-    referral::ConfirmedAddresses selected_new_pool_addresses;
-
     if (validate) {
         for (const auto& ref: block.m_vRef) {
             if (CheckAddressBeaconed(ref->GetAddress(), false)) {
@@ -4360,80 +4373,88 @@ static bool ConnectBlock(
             return error("ConnectBlock(): Referrals are not unique");
         }
 
-        int64_t nTime5 = GetTimeMicros(); nTimeConnect += nTime5 - nTime4;
-        LogPrint(BCLog::BENCH, "      - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n",
-                block.m_vRef.size(),
-                MILLI * (nTime5 - nTime4),
-                MILLI * (nTime5 - nTime4) / block.m_vRef.size(),
-                nTimeConnect * MICRO,
-                nTimeConnect * MILLI / nBlocksTotal);
+    }
 
-        //Figure out split subsidy and make sure the coinbase pays the expceted amount.
-        const auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
-        assert(subsidy.miner > 0);
-        assert(subsidy.ambassador > 0);
+    int64_t nTime5 = GetTimeMicros(); nTimeConnect += nTime5 - nTime4;
+    LogPrint(BCLog::BENCH, "      - Connect %u referrals: %.2fms (%.3fms/ref) [%.2fs (%.2fms/blk)]\n",
+            block.m_vRef.size(),
+            MILLI * (nTime5 - nTime4),
+            MILLI * (nTime5 - nTime4) / block.m_vRef.size(),
+            nTimeConnect * MICRO,
+            nTimeConnect * MILLI / nBlocksTotal);
 
+    //Figure out split subsidy and make sure the coinbase pays the expceted amount.
+    const auto subsidy = GetSplitSubsidy(pindex->nHeight, chainparams.GetConsensus());
+    assert(subsidy.miner > 0);
+    assert(subsidy.ambassador > 0);
+
+    assert(!block.vtx.empty());
+    const CTransaction& coinbase_tx = *block.vtx[0];
+
+    if(validate) {
         const CAmount block_reward = nFees + subsidy.miner + subsidy.ambassador;
 
-        assert(!block.vtx.empty());
-        const CTransaction& coinbase_tx = *block.vtx[0];
 
         if (coinbase_tx.GetValueOut() > block_reward)
             return state.DoS(100,
                     error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
                         coinbase_tx.GetValueOut(), block_reward),
                     REJECT_INVALID, "bad-cb-amount");
+    }
 
-        int64_t nTime6 = GetTimeMicros();
-        nTimeVerify += nTime6 - nTime5;
-        LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n",
-                nInputs - 1,
-                MILLI * (nTime6 - nTime5),
-                nInputs <= 1 ? 0 : MILLI * (nTime6 - nTime5) / (nInputs - 1),
-                nTimeVerify * MICRO,
-                nTimeVerify * MILLI / nBlocksTotal);
+    int64_t nTime6 = GetTimeMicros();
+    nTimeVerify += nTime6 - nTime5;
+    LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n",
+            nInputs - 1,
+            MILLI * (nTime6 - nTime5),
+            nInputs <= 1 ? 0 : MILLI * (nTime6 - nTime5) / (nInputs - 1),
+            nTimeVerify * MICRO,
+            nTimeVerify * MILLI / nBlocksTotal);
 
-        // Figure out which ambassadors should be rewarded and check to make sure
-        // they are paid the expected amount.
-        const auto lottery = RewardAmbassadors(
-                pindex->nHeight,
-                hashPrevBlock,
-                subsidy.ambassador,
-                chainparams.GetConsensus());
-        assert(lottery.first.remainder >= 0);
+    // Figure out which ambassadors should be rewarded and check to make sure
+    // they are paid the expected amount.
+    const auto lottery = RewardAmbassadors(
+            pindex->nHeight,
+            hashPrevBlock,
+            subsidy.ambassador,
+            chainparams.GetConsensus());
+    assert(lottery.first.remainder >= 0);
 
-        auto cgs_selector = lottery.second;
+    auto cgs_selector = lottery.second;
 
-        if (!AreExpectedLotteryWinnersPaid(lottery.first, coinbase_tx)) {
-            return state.DoS(100,
-                    error("ConnectBlock(): coinbase did not pay the expected ambassadors."),
-                    REJECT_INVALID, "bad-cb-bad-ambassadors");
+    if (validate && !AreExpectedLotteryWinnersPaid(lottery.first, coinbase_tx)) {
+        return state.DoS(100,
+                error("ConnectBlock(): coinbase did not pay the expected ambassadors."),
+                REJECT_INVALID, "bad-cb-bad-ambassadors");
+    }
+
+    nTime7 = GetTimeMicros();
+    nTimeVerify += nTime7 - nTime6;
+    LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n",
+            MILLI * (nTime7 - nTime5),
+            nTimeVerify * MICRO,
+            nTimeVerify * MILLI / nBlocksTotal);
+
+    referral::ConfirmedAddresses selected_new_pool_addresses;
+
+    if (block.IsDaedalus()) {
+        pog::InviteRewards invite_rewards;
+        if (!RewardInvites(
+                    cgs_selector,
+                    pindex->nHeight,
+                    pindex->pprev,
+                    hashPrevBlock,
+                    view,
+                    invite_debits_and_credits,
+                    chainparams.GetConsensus(),
+                    state,
+                    invite_rewards,
+                    selected_new_pool_addresses)) {
+
+            return error("ConnectBlock(): Error computing invite rewards");
         }
 
-        nTime7 = GetTimeMicros();
-        nTimeVerify += nTime7 - nTime6;
-        LogPrint(BCLog::BENCH, "    - Reward ambassadors: %.2fms [%.2fs (%.2fms/blk)]\n",
-                MILLI * (nTime7 - nTime5),
-                nTimeVerify * MICRO,
-                nTimeVerify * MILLI / nBlocksTotal);
-
-        if (block.IsDaedalus()) {
-            pog::InviteRewards invite_rewards;
-            if (!RewardInvites(
-                        cgs_selector,
-                        pindex->nHeight,
-                        pindex->pprev,
-                        hashPrevBlock,
-                        view,
-                        invite_debits_and_credits,
-                        chainparams.GetConsensus(),
-                        state,
-                        invite_rewards,
-                        selected_new_pool_addresses)) {
-
-                return error("ConnectBlock(): Error computing invite rewards");
-            }
-
+        if(validate) {
             if (!invite_rewards.empty() && block.invites.empty()) {
                 return state.DoS(100,
                         error("ConnectBlock(): Expected Invites but got none."),
@@ -4480,7 +4501,6 @@ static bool ConnectBlock(
                             REJECT_INVALID, "bad-invite-unexpected-coinbase");
                 }
             }
-
         }
     }
 

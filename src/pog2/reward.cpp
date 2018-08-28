@@ -83,6 +83,54 @@ namespace pog2
         return {rewards, remainder};
     }
 
+    int ComputeTotalInviteLotteryWinnersWithAmountFix(
+            const pog::InviteLotteryParamsVec& lottery_points,
+            const Consensus::Params& params)
+    {
+        assert(lottery_points.size() == 2);
+
+        const auto& block1 = lottery_points[0];
+        const auto& block2 = lottery_points[1];
+
+        int min_total_winners = 0;
+
+        //block1 is a weighted sum based on the imp_weights array. block1.blocks
+        //is divided by the number of weights so we multiply that back here to 
+        //get the correct number of blocks
+        const auto min_miner_invites = block1.blocks / params.imp_miner_reward_for_every_x_blocks;
+        const auto min_lottery_invites = block1.blocks / params.imp_min_one_invite_for_every_x_blocks;
+        const auto min_invites = min_miner_invites + min_lottery_invites;
+
+        LogPrint(BCLog::POG, "Invites used: %d created: %d period: %d used per block: %d min %d\n",
+                block1.invites_used_fixed,
+                block1.invites_created,
+                block1.blocks,
+                block1.mean_used_fixed,
+                min_invites);
+
+
+        if(block1.invites_created < min_invites) {
+            min_total_winners = block1.invites_used_fixed + min_lottery_invites;
+        }
+
+        const double mean_diff = block1.mean_used_fixed - block2.mean_used_fixed;
+
+        //Assume we need more or less than what was used before.
+        //This allows invites to grow or shrink exponentially.
+        const int change = mean_diff >= 0 ?
+            std::ceil(mean_diff) : 
+            std::floor(mean_diff);
+
+        LogPrint(BCLog::POG, "Mean Diff: %d  change: %d b2: %d b1: %d min_total_winners:  %d\n", mean_diff, change, block1.mean_used_fixed, block2.mean_used_fixed, min_total_winners);
+
+        const int total_winners = std::max(
+                min_total_winners,
+                static_cast<int>(std::floor(block1.mean_used_fixed) + change));
+
+        assert(total_winners >= 0);
+        return total_winners;
+    }
+
     int ComputeTotalInviteLotteryWinners(
             const pog::InviteLotteryParamsVec& lottery_points,
             const Consensus::Params& params)
@@ -92,11 +140,13 @@ namespace pog2
         const auto& block1 = lottery_points[0];
         const auto& block2 = lottery_points[1];
 
-        LogPrint(BCLog::VALIDATION, "Invites used: %d created: %d period: %d used per block: %d\n",
+        LogPrint(BCLog::POG, "Invites used: %d used_fixed: %d created: %d period: %d used per block: %d, used per block fixed: %d\n",
                 block1.invites_used,
+                block1.invites_used_fixed,
                 block1.invites_created,
-                params.daedalus_block_window,
-                block1.mean_used);
+                block1.blocks,
+                block1.mean_used,
+                block1.mean_used_fixed);
 
 
         int min_total_winners = 0;

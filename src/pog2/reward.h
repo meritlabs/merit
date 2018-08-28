@@ -23,6 +23,10 @@ namespace pog2
             const pog::InviteLotteryParamsVec&,
             const Consensus::Params& params);
 
+    int ComputeTotalInviteLotteryWinnersWithAmountFix(
+            const pog::InviteLotteryParamsVec&,
+            const Consensus::Params& params);
+
     pog::InviteRewards RewardInvites(const referral::ConfirmedAddresses& winners);
 
 } // namespace pog2

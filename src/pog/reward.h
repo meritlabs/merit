@@ -46,11 +46,14 @@ namespace pog
     {
         int invites_created = 0;
         int invites_used = 0;
+        int invites_used_fixed = 0;
         int blocks = 0;
         double mean_used = 0.0;
+        double mean_used_fixed = 0.0;
     };
 
     double ComputeUsedInviteMean(const InviteLotteryParams& lottery);
+    double ComputeUsedInviteMeanFixed(const InviteLotteryParams& lottery);
 
     using InviteLotteryParamsVec = std::vector<InviteLotteryParams>;
 
