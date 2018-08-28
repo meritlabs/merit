@@ -40,219 +40,6 @@
 
 #include <boost/format.hpp>
 
-unsigned char hexval(unsigned char c)
-{
-    if ('0' <= c && c <= '9')
-        return c - '0';
-    else if ('a' <= c && c <= 'f')
-        return c - 'a' + 10;
-    else if ('A' <= c && c <= 'F')
-        return c - 'A' + 10;
-    else abort();
-}
-
-void hex2ascii(const std::string& in, std::string& out)
-{
-    out.clear();
-    out.reserve(in.length() / 2);
-    for (std::string::const_iterator p = in.begin(); p != in.end(); p++)
-    {
-        unsigned char c = hexval(*p);
-        p++;
-        if (p == in.end()) break; // incomplete last digit - should report error
-        c = (c << 4) + hexval(*p); // + takes precedence over <<
-        out.push_back(c);
-    }
-}
-
-void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniValue &entry, std::string walletAddress,
-                         int nHeight = 0, int nConfirmations = 0, int nBlockTime = 0)
-{
-    auto txid = tx.GetHash();
-    entry.pushKV("txid", txid.GetHex());
-    entry.pushKV("version", tx.nVersion);
-
-    if (tx.IsInvite()) {
-        entry.pushKV("isInvite", true);
-    }
-
-    UniValue vin(UniValue::VARR);
-    bool isSender = false;
-
-    if (tx.IsCoinBase()) {
-        entry.pushKV("isCoinbase", true);
-    } else {
-        for (unsigned int i = 0; i < tx.vin.size(); i++) {
-            const CTxIn& txin = tx.vin[i];
-            UniValue in(UniValue::VOBJ);
-            in.pushKV("txid", txin.prevout.hash.GetHex());
-            in.pushKV("vout", (int64_t)txin.prevout.n);
-
-            // Add address and value info if spentindex enabled
-            CSpentIndexValue spentInfo;
-            CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
-            if (GetSpentIndex(spentKey, spentInfo)) {
-                if (tx.IsInvite()) {
-                    //invites are not demoninated in sotoshi.
-                    in.pushKV("amount", spentInfo.satoshis);
-                } else {
-                    in.pushKV("amount", ValueFromAmount(spentInfo.satoshis));
-                    in.pushKV("amountMicros", spentInfo.satoshis);
-                }
-
-                auto address = CMeritAddress{(signed char)(spentInfo.addressType), spentInfo.addressHash}.ToString();
-
-                in.pushKV("address", address);
-                isSender = isSender || address == walletAddress;
-
-                const auto maybe_referral = prefviewcache->GetReferral(spentInfo.addressHash);
-                if (maybe_referral) {
-                    in.pushKV("alias", maybe_referral->GetAlias());
-                }
-            } else {
-                debug("could not fetch spent info");
-            }
-
-            vin.push_back(in);
-        }
-
-        if (!isSender) {
-            auto firstInput = vin[0];
-            vin.setArray(); // Clear obj & set type to array
-            vin.push_back(firstInput); // Add only first input
-        }
-
-        entry.push_back(Pair("inputs", vin));
-    }
-
-    int64_t totalAmount = 0;
-    UniValue vout(UniValue::VARR);
-    bool couldBeGrowthReward = false;
-    bool isMarket = false;
-    bool isPoolReward = false;
-
-    for (unsigned int i = 0; i < tx.vout.size(); i++) {
-        const auto& txout = tx.vout[i];
-        UniValue out(UniValue::VOBJ);
-        txnouttype type;
-        std::vector<CTxDestination> addresses;
-        int required;
-        bool isChangeOutput;
-
-        if (ExtractDestinations(txout.scriptPubKey, type, addresses, required)) {
-            const CTxDestination dest = addresses[0];
-            const std::string stringDest = CMeritAddress{dest}.ToString();
-
-            if (!isSender && stringDest != walletAddress) {
-                continue;
-            } else if (isSender && stringDest == walletAddress) {
-                isChangeOutput = true;
-            }
-
-            out.push_back(Pair("address", stringDest));
-
-            uint160 address;
-            if (GetUint160(dest, address)) {
-                const auto maybe_referral = prefviewcache->GetReferral(address);
-                if (maybe_referral) {
-                    out.push_back(Pair("alias", maybe_referral->alias));
-                }
-            }
-        } else {
-            if (type == TX_NULL_DATA && !(isMarket || isPoolReward || tx.IsCoinBase())) {
-                std::string data;
-                hex2ascii(HexStr(txout.scriptPubKey.begin(), txout.scriptPubKey.end()), data);
-                std::transform(data.begin(), data.end(), data.begin(), ::tolower);
-                isMarket = data.find("market") != std::string::npos;
-                isPoolReward = data.find("pool") != std::string::npos;
-            }
-            continue;
-        }
-
-        if (!isChangeOutput) {
-            totalAmount += txout.nValue;
-        }
-
-        if (tx.IsInvite()) {
-            out.push_back(Pair("amount", txout.nValue));
-        } else {
-            out.push_back(Pair("amount", ValueFromAmount(txout.nValue)));
-            out.push_back(Pair("amountMicros", txout.nValue));
-        }
-
-        // Add spent information if spentindex is enabled
-        CSpentIndexValue spentInfo;
-        CSpentIndexKey spentKey(txid, i);
-        if (GetSpentIndex(spentKey, spentInfo)) {
-            out.push_back(Pair("spentTxId", spentInfo.txid.GetHex()));
-            out.push_back(Pair("spentIndex", (int)spentInfo.inputIndex));
-            out.push_back(Pair("spentHeight", spentInfo.blockHeight));
-        }
-
-        out.push_back(Pair("n", (int64_t)i));
-
-        couldBeGrowthReward = i > 0;
-
-        vout.push_back(out);
-    }
-
-    entry.push_back(Pair("outputs", vout));
-
-    std::string action;
-
-    if (!isSender) {
-        entry.pushKV("type", "credit");
-        if (tx.IsCoinBase()) {
-            if (couldBeGrowthReward) {
-                action = "growth_reward";
-            } else if (tx.IsInvite()) {
-                action = "mined_invite";
-            } else {
-                action = "mining_reward";
-            };
-        } else {
-            if (isMarket) {
-                action = "market";
-            } else if (isPoolReward) {
-                action = "pool_reward";
-            } else {
-                action = tx.IsInvite()? "invite" : "received";
-            }
-        }
-    } else {
-        entry.pushKV("type", "debit");
-        if (isMarket) {
-            action = "market";
-        } else {
-            action = tx.IsInvite()? "invite" : "sent";
-        }
-    }
-
-    entry.pushKV("action", action);
-
-    if (tx.IsInvite()) {
-        entry.pushKV("amount", totalAmount);
-    } else {
-        entry.pushKV("amountMicros", totalAmount);
-        entry.pushKV("amount", ValueFromAmount(totalAmount));
-    }
-
-    if (!hashBlock.IsNull()) {
-        entry.push_back(Pair("blockhash", hashBlock.GetHex()));
-
-        if (nConfirmations > 0) {
-            entry.push_back(Pair("height", nHeight));
-            entry.push_back(Pair("confirmations", nConfirmations));
-            entry.push_back(Pair("time", nBlockTime));
-        } else {
-            entry.push_back(Pair("height", -1));
-            entry.push_back(Pair("confirmations", 0));
-        }
-    }
-
-}
-
-
 /**
  * @note Do not add or change anything in the information returned by this
  * method. `getinfo` exists for backwards-compatibility only. It combines
@@ -1912,7 +1699,192 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
     return result;
 }
 
-bool hashesToJSONTransactions(UniValue& result, std::set<uint256> hashes, std::string walletAddress)
+
+void ProcessTxForHistory(const CTransaction &tx, const uint256 hashBlock, UniValue &entry, std::string walletAddress,
+                         int nHeight = 0, int nConfirmations = 0, int nBlockTime = 0)
+{
+    auto txid = tx.GetHash();
+    entry.pushKV("txid", txid.GetHex());
+    entry.pushKV("version", tx.nVersion);
+
+    if (tx.IsInvite()) {
+        entry.pushKV("isInvite", true);
+    }
+
+    UniValue vin(UniValue::VARR);
+    bool isSender = false;
+
+    if (tx.IsCoinBase()) {
+        entry.pushKV("isCoinbase", true);
+    } else {
+        for (unsigned int i = 0; i < tx.vin.size(); i++) {
+            const auto& txin = tx.vin[i];
+            UniValue in(UniValue::VOBJ);
+            in.pushKV("txid", txin.prevout.hash.GetHex());
+            in.pushKV("vout", (int64_t)txin.prevout.n);
+
+            // Add address and value info if spentindex enabled
+            CSpentIndexValue spentInfo;
+            CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
+            if (GetSpentIndex(spentKey, spentInfo)) {
+                if (tx.IsInvite()) {
+                    //invites are not demoninated in sotoshi.
+                    in.pushKV("amount", spentInfo.satoshis);
+                } else {
+                    in.pushKV("amount", ValueFromAmount(spentInfo.satoshis));
+                    in.pushKV("amountMicros", spentInfo.satoshis);
+                }
+
+                auto address = CMeritAddress{(signed char)(spentInfo.addressType), spentInfo.addressHash}.ToString();
+
+                in.pushKV("address", address);
+                isSender = isSender || address == walletAddress;
+
+                const auto maybe_referral = prefviewcache->GetReferral(spentInfo.addressHash);
+                if (maybe_referral) {
+                    in.pushKV("alias", maybe_referral->GetAlias());
+                }
+            } else {
+                debug("could not fetch spent info");
+            }
+
+            vin.push_back(in);
+        }
+
+        if (!isSender) {
+            auto firstInput = vin[0];
+            vin.setArray(); // Clear obj & set type to array
+            vin.push_back(firstInput); // Add only first input
+        }
+
+        entry.push_back(Pair("inputs", vin));
+    }
+
+    int64_t totalAmount = 0;
+    UniValue vout(UniValue::VARR);
+    bool couldBeGrowthReward = false;
+    bool isMarket = false;
+    bool isPoolReward = false;
+
+    for (unsigned int i = 0; i < tx.vout.size(); i++) {
+        const auto& txout = tx.vout[i];
+        UniValue out(UniValue::VOBJ);
+        txnouttype type;
+        std::vector<CTxDestination> addresses;
+        int required;
+
+        if (ExtractDestinations(txout.scriptPubKey, type, addresses, required)) {
+            assert(!addresses.empty());
+            const auto dest = addresses[0];
+            const auto stringDest = CMeritAddress{dest}.ToString();
+
+            if (!isSender && stringDest != walletAddress) {
+                continue;
+            } else if (isSender && stringDest == walletAddress) {
+                out.pushKV("isChange", true);
+            } else {
+                totalAmount += txout.nValue;
+            }
+
+            out.push_back(Pair("address", stringDest));
+
+            uint160 address;
+            if (GetUint160(dest, address)) {
+                const auto maybe_referral = prefviewcache->GetReferral(address);
+                if (maybe_referral) {
+                    out.push_back(Pair("alias", maybe_referral->alias));
+                }
+            }
+        } else {
+            if (type == TX_NULL_DATA && !(isMarket || isPoolReward || tx.IsCoinBase())) {
+                std::string data(txout.scriptPubKey.begin(), txout.scriptPubKey.end());
+                std::transform(data.begin(), data.end(), data.begin(), ::tolower);
+                isMarket = data.find("market") != std::string::npos;
+                isPoolReward = data.find("pool") != std::string::npos;
+            }
+            continue;
+        }
+
+        if (tx.IsInvite()) {
+            out.push_back(Pair("amount", txout.nValue));
+        } else {
+            out.push_back(Pair("amount", ValueFromAmount(txout.nValue)));
+            out.push_back(Pair("amountMicros", txout.nValue));
+        }
+
+        // Add spent information if spentindex is enabled
+        CSpentIndexValue spentInfo;
+        CSpentIndexKey spentKey(txid, i);
+        if (GetSpentIndex(spentKey, spentInfo)) {
+            out.push_back(Pair("spentTxId", spentInfo.txid.GetHex()));
+            out.push_back(Pair("spentIndex", (int)spentInfo.inputIndex));
+            out.push_back(Pair("spentHeight", spentInfo.blockHeight));
+        }
+
+        out.push_back(Pair("n", (int64_t)i));
+
+        couldBeGrowthReward = i > 0;
+
+        vout.push_back(out);
+    }
+
+    entry.push_back(Pair("outputs", vout));
+
+    std::string action;
+
+    if (!isSender) {
+        entry.pushKV("type", "credit");
+        if (tx.IsCoinBase()) {
+            if (couldBeGrowthReward) {
+                action = "growth_reward";
+            } else if (tx.IsInvite()) {
+                action = "mined_invite";
+            } else {
+                action = "mining_reward";
+            };
+        } else {
+            if (isMarket) {
+                action = "market";
+            } else if (isPoolReward) {
+                action = "pool_reward";
+            } else {
+                action = tx.IsInvite()? "invite" : "received";
+            }
+        }
+    } else {
+        entry.pushKV("type", "debit");
+        if (isMarket) {
+            action = "market";
+        } else {
+            action = tx.IsInvite()? "invite" : "sent";
+        }
+    }
+
+    entry.pushKV("action", action);
+
+    if (tx.IsInvite()) {
+        entry.pushKV("amount", totalAmount);
+    } else {
+        entry.pushKV("amountMicros", totalAmount);
+        entry.pushKV("amount", ValueFromAmount(totalAmount));
+    }
+
+    if (!hashBlock.IsNull()) {
+        entry.push_back(Pair("blockhash", hashBlock.GetHex()));
+
+        if (nConfirmations > 0) {
+            entry.push_back(Pair("height", nHeight));
+            entry.push_back(Pair("confirmations", nConfirmations));
+            entry.push_back(Pair("time", nBlockTime));
+        } else {
+            entry.push_back(Pair("height", -1));
+            entry.push_back(Pair("confirmations", 0));
+        }
+    }
+
+}
+
+bool HashesToJSONTransactions(UniValue& result, std::vector<uint256> hashes, std::string walletAddress)
 {
     CTransactionRef tx;
     uint256 hashBlock;
@@ -1985,14 +1957,15 @@ UniValue getAddressHistoryFromMempool(const JSONRPCRequest& request)
     }
 
     std::sort(indexes.begin(), indexes.end(), timestampSort);
-    std::set<uint256> txHashes;
+    std::vector<uint256> txHashes;
+    txHashes.reserve(indexes.size());
     UniValue result(UniValue::VARR);
 
     for (const auto& it : indexes) {
-        txHashes.insert(it.first.txhash);
+        txHashes.push_back(it.first.txhash);
     }
 
-    hashesToJSONTransactions(result, txHashes, walletAddress);
+    HashesToJSONTransactions(result, txHashes, walletAddress);
 
     return result;
 }
@@ -2033,14 +2006,16 @@ UniValue getAddressHistory(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
     }
 
-    std::set<uint256> txHashes;
+    std::vector<uint256> txHashes;
+    txHashes.reserve(addressIndex.size());
+
     UniValue result(UniValue::VARR);
 
     for (const auto& it : addressIndex) {
-        txHashes.insert(it.first.txhash);
+        txHashes.push_back(it.first.txhash);
     }
 
-    hashesToJSONTransactions(result, txHashes, walletAddress);
+    HashesToJSONTransactions(result, txHashes, walletAddress);
 
     return result;
 }
