@@ -1927,6 +1927,16 @@ bool HashesToJSONTransactions(UniValue& result, const std::set<uint256>& hashes,
 
 UniValue getaddressmempoolhistory(const JSONRPCRequest& request)
 {
+    if (request.fHelp || request.params.size() != 1) {
+        throw std::runtime_error(
+                "getaddressmempool\n"
+                "\nReturns formatted history for an address from mempool transactions.\n"
+                "\nArguments:\n"
+                "1. address (string, required) Wallet address\n"
+                "\nExamples:\n" +
+                HelpExampleCli("getaddressmempool", "12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX") + HelpExampleRpc("getaddressmempool", "12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX"));
+    }
+
     AddressPair addressPair;
     std::string walletAddress;
 
@@ -1971,6 +1981,18 @@ UniValue getaddressmempoolhistory(const JSONRPCRequest& request)
 
 UniValue getaddresshistory(const JSONRPCRequest& request)
 {
+    if (request.fHelp || request.params.size() != 1) {
+        throw std::runtime_error(
+                "getaddresshistory\n"
+                "\nReturns formatted history for an address.\n"
+                "\nArguments:\n"
+                "1. address (string, required) Wallet address\n"
+                "2. start (int, optional, default=0) Block number to fetch history starting from\n"
+                "3. end (int, optiona, default=current block height) Block number to fetch history until\n"
+                "\nExamples:\n" +
+                HelpExampleCli("getaddressreferrals", "12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX") + HelpExampleRpc("getaddressreferrals", "12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX"));
+    }
+
     int start = 0;
     int end = chainActive.Height();
     AddressPair addressPair;
