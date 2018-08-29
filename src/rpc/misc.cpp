@@ -1735,7 +1735,7 @@ void ProcessTxForHistory(const CTransaction& tx, const uint256& hashBlock, UniVa
                     in.push_back(Pair("amountMicros", spentInfo.satoshis));
                 }
 
-                auto address = CMeritAddress{(signed char)(spentInfo.addressType), spentInfo.addressHash}.ToString();
+                auto address = CMeritAddress{static_cast<char>(spentInfo.addressType), spentInfo.addressHash}.ToString();
 
                 in.pushKV("address", address);
                 isSender = isSender || address == walletAddress;
