@@ -1704,24 +1704,24 @@ void ProcessTxForHistory(const CTransaction& tx, const uint256& hashBlock, UniVa
                          const int nHeight = 0, const int nConfirmations = 0, const int nBlockTime = 0)
 {
     const auto& txid = tx.GetHash();
-    entry.pushKV("txid", txid.GetHex());
-    entry.pushKV("version", tx.nVersion);
+    entry.push_back(Pair("txid", txid.GetHex()));
+    entry.push_back(Pair("version", tx.nVersion));
 
     if (tx.IsInvite()) {
-        entry.pushKV("isInvite", true);
+        entry.push_back(Pair("isInvite", true));
     }
 
     UniValue vin(UniValue::VARR);
     bool isSender = false;
 
     if (tx.IsCoinBase()) {
-        entry.pushKV("isCoinbase", true);
+        entry.push_back(Pair("isCoinbase", true));
     } else {
         for (unsigned int i = 0; i < tx.vin.size(); i++) {
             const auto& txin = tx.vin[i];
             UniValue in(UniValue::VOBJ);
-            in.pushKV("txid", txin.prevout.hash.GetHex());
-            in.pushKV("vout", (int64_t)txin.prevout.n);
+            in.push_back(Pair("txid", txin.prevout.hash.GetHex()));
+            in.push_back(Pair("vout", (int64_t)txin.prevout.n));
 
             // Add address and value info if spentindex enabled
             CSpentIndexValue spentInfo;
@@ -1729,10 +1729,10 @@ void ProcessTxForHistory(const CTransaction& tx, const uint256& hashBlock, UniVa
             if (GetSpentIndex(spentKey, spentInfo)) {
                 if (tx.IsInvite()) {
                     //invites are not demoninated in sotoshi.
-                    in.pushKV("amount", spentInfo.satoshis);
+                    in.push_back(Pair("amount", spentInfo.satoshis));
                 } else {
-                    in.pushKV("amount", ValueFromAmount(spentInfo.satoshis));
-                    in.pushKV("amountMicros", spentInfo.satoshis);
+                    in.push_back(Pair("amount", ValueFromAmount(spentInfo.satoshis)));
+                    in.push_back(Pair("amountMicros", spentInfo.satoshis));
                 }
 
                 auto address = CMeritAddress{(signed char)(spentInfo.addressType), spentInfo.addressHash}.ToString();
@@ -1742,7 +1742,7 @@ void ProcessTxForHistory(const CTransaction& tx, const uint256& hashBlock, UniVa
 
                 const auto maybe_referral = prefviewcache->GetReferral(spentInfo.addressHash);
                 if (maybe_referral) {
-                    in.pushKV("alias", maybe_referral->GetAlias());
+                    in.push_back(Pair("alias", maybe_referral->GetAlias()));
                 }
             } else {
                 debug("could not fetch spent info");
@@ -1781,7 +1781,7 @@ void ProcessTxForHistory(const CTransaction& tx, const uint256& hashBlock, UniVa
             if (!isSender && stringDest != walletAddress) {
                 continue;
             } else if (isSender && stringDest == walletAddress) {
-                out.pushKV("isChange", true);
+                out.push_back(Pair("isChange", true));
             } else {
                 totalAmount += txout.nValue;
             }
@@ -1833,7 +1833,7 @@ void ProcessTxForHistory(const CTransaction& tx, const uint256& hashBlock, UniVa
     std::string action;
 
     if (!isSender) {
-        entry.pushKV("type", "credit");
+        entry.push_back(Pair("type", "credit"));
         if (tx.IsCoinBase()) {
             if (couldBeGrowthReward) {
                 action = "growth_reward";
@@ -1860,13 +1860,13 @@ void ProcessTxForHistory(const CTransaction& tx, const uint256& hashBlock, UniVa
         }
     }
 
-    entry.pushKV("action", action);
+    entry.push_back(Pair("action", action));
 
     if (tx.IsInvite()) {
-        entry.pushKV("amount", totalAmount);
+        entry.push_back(Pair("amount", totalAmount));
     } else {
-        entry.pushKV("amountMicros", totalAmount);
-        entry.pushKV("amount", ValueFromAmount(totalAmount));
+        entry.push_back(Pair("amountMicros", totalAmount));
+        entry.push_back(Pair("amount", ValueFromAmount(totalAmount)));
     }
 
     if (!hashBlock.IsNull()) {
