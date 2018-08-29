@@ -1925,7 +1925,7 @@ bool HashesToJSONTransactions(UniValue& result, const std::set<uint256>& hashes,
     return true;
 }
 
-UniValue getAddressHistoryFromMempool(const JSONRPCRequest& request)
+UniValue getaddressmempoolhistory(const JSONRPCRequest& request)
 {
     AddressPair addressPair;
     std::string walletAddress;
@@ -1969,7 +1969,7 @@ UniValue getAddressHistoryFromMempool(const JSONRPCRequest& request)
     return result;
 }
 
-UniValue getAddressHistory(const JSONRPCRequest& request)
+UniValue getaddresshistory(const JSONRPCRequest& request)
 {
     int start = 0;
     int end = chainActive.Height();
@@ -2385,8 +2385,8 @@ static const CRPCCommand commands[] =
         {"addressindex", "getaddressrewards", &getaddressrewards, {}},
         {"addressindex", "getaddressanv", &getaddressanv, {}},
         {"addressindex", "simulatelottery", &simulatelottery, {}},
-        {"addressindex", "getaddresshistory", &getAddressHistory, {"address", "start"}},
-        {"addressindex", "getaddressmempoolhistory", &getAddressHistoryFromMempool, {"address"}},
+        {"addressindex", "getaddresshistory", &getaddresshistory, {"address", "start"}},
+        {"addressindex", "getaddressmempoolhistory", &getaddressmempoolhistory, {"address"}},
 
         /* Blockchain */
         {"blockchain", "getspentinfo", &getspentinfo, {}},
