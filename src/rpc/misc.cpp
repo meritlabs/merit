@@ -1737,7 +1737,7 @@ void ProcessTxForHistory(const CTransaction& tx, const uint256& hashBlock, UniVa
 
                 auto address = CMeritAddress{static_cast<char>(spentInfo.addressType), spentInfo.addressHash}.ToString();
 
-                in.pushKV("address", address);
+                in.push_back(Pair("address", address));
                 isSender = isSender || address == walletAddress;
 
                 const auto maybe_referral = prefviewcache->GetReferral(spentInfo.addressHash);
@@ -1852,7 +1852,7 @@ void ProcessTxForHistory(const CTransaction& tx, const uint256& hashBlock, UniVa
             }
         }
     } else {
-        entry.pushKV("type", "debit");
+        entry.push_back(Pair("type", "debit"));
         if (isMarket) {
             action = "market";
         } else {
