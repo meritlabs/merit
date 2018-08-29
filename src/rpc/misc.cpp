@@ -1929,7 +1929,7 @@ UniValue getaddressmempoolhistory(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1) {
         throw std::runtime_error(
-                "getaddressmempool\n"
+                "getaddressmempool \"address\"\n"
                 "\nReturns formatted history for an address from mempool transactions.\n"
                 "\nArguments:\n"
                 "1. address (string, required) Wallet address\n"
@@ -1981,9 +1981,9 @@ UniValue getaddressmempoolhistory(const JSONRPCRequest& request)
 
 UniValue getaddresshistory(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() != 1) {
+    if (request.fHelp || request.params.size() == 0) {
         throw std::runtime_error(
-                "getaddresshistory\n"
+                "getaddresshistory \"address\" ( start end )\n"
                 "\nReturns formatted history for an address.\n"
                 "\nArguments:\n"
                 "1. address (string, required) Wallet address\n"
