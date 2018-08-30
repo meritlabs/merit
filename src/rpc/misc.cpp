@@ -20,6 +20,9 @@
 #include "consensus/validation.h"
 #include "validation.h"
 
+#include "policy/policy.h"
+#include "policy/rbf.h"
+
 #include "pog/anv.h"
 #include "pog2/cgs.h"
 #include "pog/select.h"
@@ -1320,7 +1323,7 @@ UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t tot
         UniValue o(UniValue::VOBJ);
 
         //percentile to two digits
-        double percentile = 
+        double percentile =
             (static_cast<double>(r.second) / static_cast<double>(total)) * 100.0;
 
         const auto cgs = sub ? r.first.sub_cgs : r.first.cgs;
@@ -1338,7 +1341,7 @@ UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t tot
         o.push_back(Pair("balance", r.first.balance));
         o.push_back(Pair("cgs", cgs));
 
-        double cgs_percent = 
+        double cgs_percent =
             (static_cast<double>(cgs) / static_cast<double>(lottery_cgs));
 
         o.push_back(Pair("cgspercent", cgs_percent));
@@ -1390,14 +1393,14 @@ UniValue getaddressrank(const JSONRPCRequest& request)
     LOCK(cs_main);
 
     const auto params = Params().GetConsensus();
-    
+
     pog2::Entrants all_entrants;
     pog2::CGSContext context;
     pog2::GetAllRewardableEntrants(context, *prefviewcache, params, chainActive.Height(), all_entrants);
 
     bool sub_linear = true;
 
-    std::vector<CAmount> cgs; 
+    std::vector<CAmount> cgs;
     for (const auto& a : addresses) {
      const auto& e = context.GetEntrant(a.first);
      auto node = pog2::ComputeCGS(context, e, *prefviewcache);
@@ -1519,7 +1522,7 @@ UniValue simulatelottery(const JSONRPCRequest& request)
         }
 
         auto b = chainActive[height];
-        if(b) { 
+        if(b) {
             seed = b->GetBlockHash();
         }
     }
@@ -1569,7 +1572,7 @@ UniValue simulatelottery(const JSONRPCRequest& request)
     UniValue ambassadors(UniValue::VARR);
     UniValue invites(UniValue::VARR);
 
-    for(const auto& r: rewards.first.winners) { 
+    for(const auto& r: rewards.first.winners) {
         UniValue o(UniValue::VOBJ);
         o.push_back(Pair("address", CMeritAddress{r.address_type, r.address}.ToString()));
         o.push_back(Pair("amount", r.amount));
@@ -1649,12 +1652,15 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
     }
 
     int start = 0;
-    int end = 0;
+    int end = (int)chainActive.Height();
     if (request.params[0].isObject()) {
         UniValue startValue = find_value(request.params[0].get_obj(), "start");
         UniValue endValue = find_value(request.params[0].get_obj(), "end");
-        if (startValue.isNum() && endValue.isNum()) {
+        if (startValue.isNum()) {
             start = startValue.get_int();
+        }
+
+        if (endValue.isNum()) {
             end = endValue.get_int();
         }
     }
@@ -1664,7 +1670,7 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
     std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
 
     for (const auto& it : addresses) {
-        if (start > 0 && end > 0) {
+        if (start > 0) {
             if (!GetAddressIndex(it.first, it.second, true, addressIndex, start, end) ||
                 !GetAddressIndex(it.first, it.second, false, addressIndex, start, end)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
@@ -1689,6 +1695,347 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
     for (const auto& it : txids) {
         result.push_back(get<2>(it));
     }
+
+    return result;
+}
+
+
+void ProcessTxForHistory(const CTransaction& tx, const uint256& hashBlock, UniValue& entry, const std::string& walletAddress,
+                         const int nHeight = 0, const int nConfirmations = 0, const int nBlockTime = 0)
+{
+    const auto& txid = tx.GetHash();
+    entry.push_back(Pair("txid", txid.GetHex()));
+    entry.push_back(Pair("version", tx.nVersion));
+
+    if (tx.IsInvite()) {
+        entry.push_back(Pair("isInvite", true));
+    }
+
+    UniValue vin(UniValue::VARR);
+    bool isSender = false;
+
+    if (tx.IsCoinBase()) {
+        entry.push_back(Pair("isCoinbase", true));
+    } else {
+        for (unsigned int i = 0; i < tx.vin.size(); i++) {
+            const auto& txin = tx.vin[i];
+            UniValue in(UniValue::VOBJ);
+            in.push_back(Pair("txid", txin.prevout.hash.GetHex()));
+            in.push_back(Pair("vout", (int64_t)txin.prevout.n));
+
+            // Add address and value info if spentindex enabled
+            CSpentIndexValue spentInfo;
+            CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
+            if (GetSpentIndex(spentKey, spentInfo)) {
+                if (tx.IsInvite()) {
+                    //invites are not demoninated in sotoshi.
+                    in.push_back(Pair("amount", spentInfo.satoshis));
+                } else {
+                    in.push_back(Pair("amount", ValueFromAmount(spentInfo.satoshis)));
+                    in.push_back(Pair("amountMicros", spentInfo.satoshis));
+                }
+
+                auto address = CMeritAddress{static_cast<char>(spentInfo.addressType), spentInfo.addressHash}.ToString();
+
+                in.push_back(Pair("address", address));
+                isSender = isSender || address == walletAddress;
+
+                const auto maybe_referral = prefviewcache->GetReferral(spentInfo.addressHash);
+                if (maybe_referral) {
+                    in.push_back(Pair("alias", maybe_referral->GetAlias()));
+                }
+            } else {
+                debug("could not fetch spent info");
+            }
+
+            vin.push_back(in);
+        }
+
+        if (!isSender) {
+            auto firstInput = vin[0];
+            vin.setArray(); // Clear obj & set type to array
+            vin.push_back(firstInput); // Add only first input
+        }
+
+        entry.push_back(Pair("inputs", vin));
+    }
+
+    int64_t totalAmount = 0;
+    UniValue vout(UniValue::VARR);
+    bool couldBeGrowthReward = false;
+    bool isMarket = false;
+    bool isPoolReward = false;
+
+    for (unsigned int i = 0; i < tx.vout.size(); i++) {
+        const auto& txout = tx.vout[i];
+        UniValue out(UniValue::VOBJ);
+        txnouttype type;
+        std::vector<CTxDestination> addresses;
+        int required;
+
+        if (ExtractDestinations(txout.scriptPubKey, type, addresses, required)) {
+            assert(!addresses.empty());
+            const auto dest = addresses[0];
+            const auto stringDest = CMeritAddress{dest}.ToString();
+
+            if (!isSender && stringDest != walletAddress) {
+                continue;
+            } else if (isSender && stringDest == walletAddress) {
+                out.push_back(Pair("isChange", true));
+            } else {
+                totalAmount += txout.nValue;
+            }
+
+            out.push_back(Pair("address", stringDest));
+
+            uint160 address;
+            if (GetUint160(dest, address)) {
+                const auto maybe_referral = prefviewcache->GetReferral(address);
+                if (maybe_referral) {
+                    out.push_back(Pair("alias", maybe_referral->alias));
+                }
+            }
+        } else {
+            if (type == TX_NULL_DATA && !(isMarket || isPoolReward || tx.IsCoinBase())) {
+                std::string data(txout.scriptPubKey.begin(), txout.scriptPubKey.end());
+                std::transform(data.begin(), data.end(), data.begin(), ::tolower);
+                isMarket = data.find("market") != std::string::npos;
+                isPoolReward = data.find("pool") != std::string::npos;
+            }
+            continue;
+        }
+
+        if (tx.IsInvite()) {
+            out.push_back(Pair("amount", txout.nValue));
+        } else {
+            out.push_back(Pair("amount", ValueFromAmount(txout.nValue)));
+            out.push_back(Pair("amountMicros", txout.nValue));
+        }
+
+        // Add spent information if spentindex is enabled
+        CSpentIndexValue spentInfo;
+        CSpentIndexKey spentKey(txid, i);
+        if (GetSpentIndex(spentKey, spentInfo)) {
+            out.push_back(Pair("spentTxId", spentInfo.txid.GetHex()));
+            out.push_back(Pair("spentIndex", (int)spentInfo.inputIndex));
+            out.push_back(Pair("spentHeight", spentInfo.blockHeight));
+        }
+
+        out.push_back(Pair("n", (int64_t)i));
+
+        couldBeGrowthReward = i > 0;
+
+        vout.push_back(out);
+    }
+
+    entry.push_back(Pair("outputs", vout));
+
+    std::string action;
+
+    if (!isSender) {
+        entry.push_back(Pair("type", "credit"));
+        if (tx.IsCoinBase()) {
+            if (couldBeGrowthReward) {
+                action = "growth_reward";
+            } else if (tx.IsInvite()) {
+                action = "mined_invite";
+            } else {
+                action = "mining_reward";
+            };
+        } else {
+            if (isMarket) {
+                action = "market";
+            } else if (isPoolReward) {
+                action = "pool_reward";
+            } else {
+                action = tx.IsInvite()? "invite" : "received";
+            }
+        }
+    } else {
+        entry.push_back(Pair("type", "debit"));
+        if (isMarket) {
+            action = "market";
+        } else {
+            action = tx.IsInvite()? "invite" : "sent";
+        }
+    }
+
+    entry.push_back(Pair("action", action));
+
+    if (tx.IsInvite()) {
+        entry.push_back(Pair("amount", totalAmount));
+    } else {
+        entry.push_back(Pair("amountMicros", totalAmount));
+        entry.push_back(Pair("amount", ValueFromAmount(totalAmount)));
+    }
+
+    if (!hashBlock.IsNull()) {
+        entry.push_back(Pair("blockhash", hashBlock.GetHex()));
+
+        if (nConfirmations > 0) {
+            entry.push_back(Pair("height", nHeight));
+            entry.push_back(Pair("confirmations", nConfirmations));
+            entry.push_back(Pair("time", nBlockTime));
+        } else {
+            entry.push_back(Pair("height", -1));
+            entry.push_back(Pair("confirmations", 0));
+        }
+    }
+
+}
+
+bool HashesToJSONTransactions(UniValue& result, const std::set<uint256>& hashes, const std::string& walletAddress)
+{
+    CTransactionRef tx;
+    uint256 hashBlock;
+    uint256 lastHashBlock;
+    int nHeight = 0;
+    int nConfirmations = 0;
+    int nBlockTime = 0;
+
+    for (const auto& hash : hashes) {
+        {
+            LOCK(cs_main);
+            if (!GetTransaction(hash, tx, Params().GetConsensus(), hashBlock, false))
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
+
+            if (hashBlock != lastHashBlock) {
+                lastHashBlock = hashBlock;
+                const auto mi = mapBlockIndex.find(hashBlock);
+                if (mi != mapBlockIndex.end() && (*mi).second) {
+                    auto const* pindex = (*mi).second;
+                    if (chainActive.Contains(pindex)) {
+                        nHeight = pindex->nHeight;
+                        nConfirmations = 1 + chainActive.Height() - pindex->nHeight;
+                        nBlockTime = pindex->GetBlockTime();
+                    } else {
+                        nHeight = -1;
+                        nConfirmations = 0;
+                        nBlockTime = pindex->GetBlockTime();
+                    }
+                }
+            }
+        }
+
+        UniValue txObj(UniValue::VOBJ);
+        ProcessTxForHistory(*tx, hashBlock, txObj, walletAddress, nHeight, nConfirmations, nBlockTime);
+        result.push_back(txObj);
+    }
+
+    return true;
+}
+
+UniValue getaddressmempoolhistory(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 1) {
+        throw std::runtime_error(
+                "getaddressmempool \"address\"\n"
+                "\nReturns formatted history for an address from mempool transactions.\n"
+                "\nArguments:\n"
+                "1. address (string, required) Wallet address\n"
+                "\nExamples:\n" +
+                HelpExampleCli("getaddressmempool", "12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX") + HelpExampleRpc("getaddressmempool", "12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX"));
+    }
+
+    AddressPair addressPair;
+    std::string walletAddress;
+
+    if (request.params[0].isStr()) {
+        walletAddress = request.params[0].get_str();
+        CMeritAddress address(walletAddress);
+        uint160 hashBytes;
+        int type = 0;
+        if (!address.GetIndexKey(hashBytes, type)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address: " + walletAddress);
+        }
+
+        if (address.GetType() != 1) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "This method does not support script addresses");
+        }
+
+        addressPair = std::make_pair(hashBytes, type);
+    } else {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "You must provide a valid address.");
+    }
+
+    std::vector<AddressPair> addresses(1, addressPair);
+
+    std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta>> indexes;
+
+    if (!mempool.getAddressIndex(addresses, indexes)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+    }
+
+    std::sort(indexes.begin(), indexes.end(), timestampSort);
+    std::set<uint256> txHashes;
+    UniValue result(UniValue::VARR);
+
+    for (const auto& it : indexes) {
+        txHashes.insert(it.first.txhash);
+    }
+
+    HashesToJSONTransactions(result, txHashes, walletAddress);
+
+    return result;
+}
+
+UniValue getaddresshistory(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() == 0) {
+        throw std::runtime_error(
+                "getaddresshistory \"address\" ( start end )\n"
+                "\nReturns formatted history for an address.\n"
+                "\nArguments:\n"
+                "1. address (string, required) Wallet address\n"
+                "2. start (int, optional, default=0) Block number to fetch history starting from\n"
+                "3. end (int, optiona, default=current block height) Block number to fetch history until\n"
+                "\nExamples:\n" +
+                HelpExampleCli("getaddressreferrals", "12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX") + HelpExampleRpc("getaddressreferrals", "12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX"));
+    }
+
+    int start = 0;
+    int end = chainActive.Height();
+    AddressPair addressPair;
+    std::string walletAddress;
+
+    if (request.params[0].isStr()) {
+        walletAddress = request.params[0].get_str();
+        CMeritAddress address(walletAddress);
+        uint160 hashBytes;
+        int type = 0;
+        if (!address.GetIndexKey(hashBytes, type)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address: " + walletAddress);
+        }
+
+        if (address.GetType() != 1) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "This method does not support script addresses");
+        }
+
+        addressPair = std::make_pair(hashBytes, type);
+    } else {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "You must provide a valid address.");
+    }
+
+    if (!request.params[1].isNull() && request.params[1].isNum()) {
+        start = request.params[1].get_int();
+    }
+
+    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
+
+    if (!GetAddressIndex(addressPair.first, addressPair.second, true, addressIndex, start, end) ||
+        !GetAddressIndex(addressPair.first, addressPair.second, false, addressIndex, start, end)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for address");
+    }
+
+    std::set<uint256> txHashes;
+
+    UniValue result(UniValue::VARR);
+
+    for (const auto& it : addressIndex) {
+        txHashes.insert(it.first.txhash);
+    }
+
+    HashesToJSONTransactions(result, txHashes, walletAddress);
 
     return result;
 }
@@ -2060,6 +2407,8 @@ static const CRPCCommand commands[] =
         {"addressindex", "getaddressrewards", &getaddressrewards, {}},
         {"addressindex", "getaddressanv", &getaddressanv, {}},
         {"addressindex", "simulatelottery", &simulatelottery, {}},
+        {"addressindex", "getaddresshistory", &getaddresshistory, {"address", "start"}},
+        {"addressindex", "getaddressmempoolhistory", &getaddressmempoolhistory, {"address"}},
 
         /* Blockchain */
         {"blockchain", "getspentinfo", &getspentinfo, {}},
