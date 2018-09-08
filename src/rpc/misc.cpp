@@ -1390,6 +1390,16 @@ UniValue getaddressrank(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
 
+    std::vector<AddressPair> validAddresses;
+
+    std::copy_if(addresses.begin(), addresses.end(), std::back_inserter(validAddresses), [](const AddressPair& addr) {
+        return CheckAddressConfirmed(addr.first, addr.second, false);
+    });
+
+    if (!validAddresses.size()) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or unconfirmed addresses were passed");
+    }
+
     LOCK(cs_main);
 
     const auto params = Params().GetConsensus();
@@ -1401,7 +1411,7 @@ UniValue getaddressrank(const JSONRPCRequest& request)
     bool sub_linear = true;
 
     std::vector<CAmount> cgs;
-    for (const auto& a : addresses) {
+    for (const auto& a : validAddresses) {
      const auto& e = context.GetEntrant(a.first);
      auto node = pog2::ComputeCGS(context, e, *prefviewcache);
         cgs.push_back(sub_linear ? node.sub_cgs : node.cgs);
@@ -1417,9 +1427,9 @@ UniValue getaddressrank(const JSONRPCRequest& request)
 
     //Hack to keep ANVRanks  (2nlog(n)) vs (nlogn + n) we rewrite the address
     //because among addresses of equal rank, ANVRAnks may return an entry with a different address.
-    for(size_t i = 0; i < addresses.size(); i++) {
-        cgs_ranks.first[i].first.address = addresses[i].first;
-        cgs_ranks.first[i].first.address_type = addresses[i].second;
+    for(size_t i = 0; i < validAddresses.size(); i++) {
+        cgs_ranks.first[i].first.address = validAddresses[i].first;
+        cgs_ranks.first[i].first.address_type = validAddresses[i].second;
     }
 
     UniValue result(UniValue::VOBJ);
