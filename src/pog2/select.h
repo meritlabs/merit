@@ -95,11 +95,6 @@ namespace pog2
             int max_outstanding_invites,
             referral::ConfirmedAddresses& confirmed_new_pool);
 
-    /**
-     * Returns true if the address type is valid for ambassador lottery.
-     */
-    bool IsValidAmbassadorDestination(char type);
-
 } // namespace pog2
 
 #endif //MERIT_POG2_SELECT_H

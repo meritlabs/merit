@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "pog2/select.h"
+#include "pog/select.h"
 #include "base58.h"
 #include "clientversion.h"
 #include "util.h"
@@ -36,7 +37,7 @@ namespace pog2
         };
     }
 
-    bool IsValidAmbassadorDestination(char type)
+    bool IsValidAmbassadorDestinationForInvites(char type)
     {
         //KeyID
         return type == 1;
@@ -192,7 +193,11 @@ namespace pog2
             const bool not_sampled = m_sampled.count(sampled->address) == 0;
             const bool meets_stake_minumum = sampled->balance >= m_stake_minumum;
 
-            if( not_sampled && meets_stake_minumum && referrals.IsConfirmed(sampled->address)) {
+            if (not_sampled &&
+                    meets_stake_minumum &&
+                    referrals.IsConfirmed(sampled->address) &&
+                    pog::IsValidAmbassadorDestination(sampled->address_type)) {
+
                 LogPrint(BCLog::POG, "%s: \tSelected %d: addr: %s cgs: %d abal: %d\n", __func__, 
                         n,
                         CMeritAddress{sampled->address_type, sampled->address}.ToString(),
@@ -260,7 +265,7 @@ namespace pog2
     {
         for(uint64_t i = 0; i < total_beacons; i++) {
             const auto c = db.GetConfirmation(i);
-            if (!c || c->invites > 1 || !IsValidAmbassadorDestination(c->address_type)) {
+            if (!c || c->invites > 1 || !IsValidAmbassadorDestinationForInvites(c->address_type)) {
                 continue;
             }
 
@@ -405,7 +410,7 @@ namespace pog2
                             __func__,
                             static_cast<int>(selected_pool.type));
                     n++;
-                } else if (!IsValidAmbassadorDestination(maybe_address->address_type)) {
+                } else if (!IsValidAmbassadorDestinationForInvites(maybe_address->address_type)) {
                     LogPrint(BCLog::POG, "%s: \tskipping invalid address: %d %s invites: %d\n",
                             __func__,
                             static_cast<int>(selected_pool.type),
