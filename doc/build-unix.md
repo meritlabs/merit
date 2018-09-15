@@ -36,7 +36,7 @@ Optional dependencies:
  libqrencode | QR codes in GUI  | Optional for generating QR codes (only needed when GUI enabled)
  univalue    | Utility          | JSON parsing and encoding (bundled version will be used unless --with-system-univalue passed to configure)
  libzmq3     | ZMQ notification | Optional, allows generating ZMQ notifications (requires ZMQ version >= 4.x)
- libarchive  | Archive suppoort | Optional, used by the quickstart feature to unpack blockchain stapshots.
+ libarchive  | Archive suppoort | Optional, used by the quickstart feature to unpack blockchain snapshots.
 
 
 For the versions used in the release, see [release-process.md](release-process.md) under *Fetch and build inputs*.
@@ -115,7 +115,7 @@ are installed. Either Qt 5 or Qt 4 are necessary to build the GUI.
 
 To build with Qt 5 (recommended) you need the following:
 
-    sudo apt-get install libqt5gui5 libqt5core5a libqt5dbus5 qttools5-dev qttools5-dev-tools libprotobuf-dev protobuf-compiler libarchive-dev libqrencode-dev
+    sudo apt-get install libqt5gui5 libqt5core5a libqt5dbus5 libqt5quickwidgets5 libqt5network5 qttools5-dev qttools5-dev-tools libprotobuf-dev protobuf-compiler libarchive-dev libqrencode-dev
 
 Alternatively, to build with Qt 4 you need the following:
 
