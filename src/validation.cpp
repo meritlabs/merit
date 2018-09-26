@@ -3730,17 +3730,6 @@ bool ValidateInvites(
                     "Invite transaction has wrong version");
         }
 
-        if (!CheckTransaction(*inv, state, false)) {
-            return state.Invalid(
-                    false,
-                    state.GetRejectCode(),
-                    state.GetRejectReason(),
-                    strprintf(
-                        "Invite check failed (inv hash %s) %s",
-                        inv->GetHash().ToString(),
-                        state.GetDebugMessage()));
-        }
-
         //Only the first invite can be a coinbase
         if (!first && inv->IsCoinBase()) {
             return state.DoS(
@@ -5722,13 +5711,13 @@ bool CheckBlock(
 
     // Check transactions
     for (const auto& tx : block.vtx)
-        if (!CheckTransaction(*tx, state, false))
+        if (!CheckTransaction(*tx, state))
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
                                  strprintf("Transaction check failed (tx hash %s) %s", tx->GetHash().ToString(), state.GetDebugMessage()));
 
     // Check invites
     for (const auto& invite_tx : block.invites)
-        if (!CheckTransaction(*invite_tx, state, false))
+        if (!CheckTransaction(*invite_tx, state))
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
                                  strprintf("Invite transaction check failed (tx hash %s) %s", invite_tx->GetHash().ToString(), state.GetDebugMessage()));
 
