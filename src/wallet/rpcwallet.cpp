@@ -1108,7 +1108,7 @@ UniValue easysendinvite(const JSONRPCRequest& request)
     if (request.fHelp || request.params.size() > 3)
         throw std::runtime_error(
             "easysend (amount \"password\", blocktimeout)\n"
-            "\nSend an amount to a given channel.\n"
+            "\nSend invites to a given channel.\n"
             + HelpRequiringPassphrase(pwallet) +
             "\nArguments:\n"
             "1. \"amount\"             (numeric or string) Optional amount of invites to send. eg 5\n"
@@ -1148,11 +1148,6 @@ UniValue easysendinvite(const JSONRPCRequest& request)
     if (max_blocks < 1) {
         throw JSONRPCError(RPC_INVALID_PARAMS, "maxblocks must be greater than 0");
     }
-
-    // Wallet comments
-    CWalletTx wtx;
-
-    CCoinControl coin_control;
 
     EnsureWalletIsUnlocked(pwallet);
 
