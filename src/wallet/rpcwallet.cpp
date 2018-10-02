@@ -545,7 +545,7 @@ static UniValue EasySend(
     CScriptID easy_send_address{script_referral->GetAddress()};
     CScript script_pub_key = GetScriptForDestination(easy_send_address);
 
-    if(pwallet.Daedalus()) {
+    if (pwallet.Daedalus()) {
         auto invite_transaction =
             pwallet.SendInviteTo(script_pub_key);
 
@@ -1097,6 +1097,142 @@ UniValue easyreceive(const JSONRPCRequest& request)
             coin_control);
 }
 
+UniValue easysendinvite(const JSONRPCRequest& request)
+{
+
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
+        return NullUniValue;
+    }
+
+    if (request.fHelp || request.params.size() > 3)
+        throw std::runtime_error(
+            "easysend (amount \"password\", blocktimeout)\n"
+            "\nSend an amount to a given channel.\n"
+            + HelpRequiringPassphrase(pwallet) +
+            "\nArguments:\n"
+            "1. \"amount\"             (numeric or string) Optional amount of invites to send. eg 5\n"
+            "2. \"password\"           (string) Optional password to further secure the transaction.\n"
+            "3. blocktimeout           (numeric) The amount of blocks the transaction can be buried until the receiver cannot accept funds\n"
+            "\nResult:\n"
+            "\"txid\"                  (string) The transaction id.\n"
+            "\"pub\"                   (string) Escrow public key in hex.\n"
+            "\nExamples:\n"
+            + HelpExampleCli("easysendinvite", "")
+            + HelpExampleCli("easysendinvite", "1 abc124 100")
+        );
+
+    ObserveSafeMode();
+    LOCK2(cs_main, pwallet->cs_wallet);
+
+
+    // Amount
+    int amount = 1;
+    if (!request.params[0].isNull()) {
+        amount = request.params[0].get_int();
+        if (amount < 0) {
+            throw JSONRPCError(RPC_INVALID_PARAMS, "Invalid amount for send");
+        }
+    }
+
+    std::string optional_password = "";
+    if (!request.params[1].isNull()) {
+        optional_password = request.params[1].get_str();
+    }
+
+    int max_blocks = 10080; // about a week.
+    if(!request.params[2].isNull()) {
+        max_blocks = request.params[2].get_int();
+    }
+
+    if (max_blocks < 1) {
+        throw JSONRPCError(RPC_INVALID_PARAMS, "maxblocks must be greater than 0");
+    }
+
+    // Wallet comments
+    CWalletTx wtx;
+
+    CCoinControl coin_control;
+
+    EnsureWalletIsUnlocked(pwallet);
+
+    CAmount balance = pwallet->GetBalance(true);
+
+    if (amount > balance) {
+        throw JSONRPCError(
+                RPC_WALLET_INSUFFICIENT_FUNDS,
+                "Insufficient funds");
+    }
+
+    if (pwallet->GetBroadcastTransactions() && !g_connman) {
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+    }
+
+    // Reserve a key that the sender can use to cancel the transaction and retrieve the funds.
+    CReserveKey reserve_key(pwallet);
+
+    CPubKey sender_pub;
+    if (!reserve_key.GetReservedKey(sender_pub)) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Keypool ran out, please call keypoolrefill first");
+    }
+
+    // Create a deterministic based on the secret that was computed.
+    CKey receiver_key;
+    std::string secret(RANDOM_BYTES_SIZE + optional_password.size(), ' ');
+    std::copy(
+            std::begin(optional_password),
+            std::end(optional_password),
+            std::begin(secret) + RANDOM_BYTES_SIZE);
+
+    while (!receiver_key.IsValid()) {
+        GetRandBytes(reinterpret_cast<unsigned char*>(&secret[0]), RANDOM_BYTES_SIZE);
+        receiver_key.MakeNewKey(std::begin(secret), std::end(secret), COMPRESSED_KEY);
+    }
+
+    auto receiver_pub = receiver_key.GetPubKey();
+
+    // Create the easy send script to be used to store the funds
+    auto easy_send_script = GetScriptForEasySend(max_blocks, sender_pub, receiver_pub);
+
+    CScriptID script_id = easy_send_script;
+
+    referral::ReferralRef script_referral=
+        pwallet->GenerateNewReferral(
+                    script_id,
+                    sender_pub.GetID(),
+                    sender_pub);
+
+    if (!script_referral) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to generate referral for easy send script");
+    }
+
+    CScriptID easy_send_address{script_referral->GetAddress()};
+    CScript script_pub_key = GetScriptForDestination(easy_send_address);
+
+    auto tx = pwallet->SendInviteTo(script_pub_key, amount);
+
+    if (!tx) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to confirm the easysend. easysend requires invites");
+    }
+
+    //add script to wallet so we can redeem it later if needed.
+    pwallet->AddCScript(easy_send_script, easy_send_address);
+    pwallet->SetAddressBook(script_id, "", "easysend");
+    pwallet->SetAddressBook(easy_send_address, "", "easysend");
+
+    UniValue ret(UniValue::VOBJ);
+
+    ret.push_back(Pair("txid", tx->GetHash().GetHex()));
+    ret.push_back(Pair("secret", HexStr(secret.substr(0, RANDOM_BYTES_SIZE))));
+    ret.push_back(Pair("address", EncodeDestination(easy_send_address)));
+    ret.push_back(Pair("senderaddress", EncodeDestination(sender_pub.GetID())));
+    ret.push_back(Pair("senderalias", pwallet->GetRootReferral()->alias));
+    ret.push_back(Pair("senderpubkey", HexStr(sender_pub)));
+    ret.push_back(Pair("maxblocks", max_blocks));
+
+    return ret;
+}
+
 void ExtractWhitelist(const UniValue& options, vault::Whitelist& whitelist)
 {
     const auto list = options["whitelist"].get_array();
@@ -1284,7 +1420,7 @@ UniValue createvault(const JSONRPCRequest& request)
                     ToByteVector(vault_tag),
                     0 /* simple is type 0 */);
 
-        if(pwallet->Daedalus()) {
+        if (pwallet->Daedalus()) {
             auto invite_transaction =
                 pwallet->SendInviteTo(script_pub_key);
 
@@ -5324,6 +5460,7 @@ static const CRPCCommand commands[] =
     { "wallet",             "sendtoaddress",            &sendtoaddress,            {"address","amount","comment","comment_to","subtractfeefromamount","replaceable","conf_target","estimate_mode"} },
     { "wallet",             "easysend",                 &easysend,                 {"amount", "password"} },
     { "wallet",             "easyreceive",              &easyreceive,              {"secret", "senderpubkey", "password"} },
+    { "wallet",             "easysendinvite",           &easysendinvite,           {"amount", "password"} },
     { "wallet",             "createvault",              &createvault,              {"amount", "options"} },
     { "wallet",             "renewvault",               &renewvault,               {"vaultaddress", "masterkey", "options"} },
     { "wallet",             "spendvault",               &spendvault,               {"vaultaddress", "amount", "destination"} },
