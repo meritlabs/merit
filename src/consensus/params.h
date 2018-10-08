@@ -118,6 +118,18 @@ struct Params {
     double pog2_convex_b;
     double pog2_convex_s;
 
+    /** PoG version 3 */
+    int pog3_blockheight;
+    int64_t pog3_total_winning_ambassadors;
+    int64_t pog3_ambassador_percent_cut;
+    int64_t pog3_pow_target_timespan;
+    CAmount pog3_initial_ambassador_stake;
+    int pog3_coin_maturity;
+    int pog3_new_coin_maturity;
+    int pog3_max_outstanding_invites_per_address;
+    double pog3_convex_b;
+    double pog3_convex_s;
+
 };
 } // namespace Consensus
 

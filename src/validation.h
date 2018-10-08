@@ -26,19 +26,21 @@
 #include "pog/reward.h"
 #include "pog2/cgs.h"
 #include "pog2/select.h"
+#include "pog3/cgs.h"
+#include "pog3/select.h"
 #include "txdb.h"
 #include "script/standard.h"
 
 #include <algorithm>
+#include <atomic>
 #include <exception>
 #include <map>
 #include <set>
 #include <stdint.h>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
-
-#include <atomic>
 
 class CBlockIndex;
 class CBlockPolicyEstimator;
@@ -356,7 +358,7 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& consensus_para
  * with part of the block subsidy based on a deterministic lottery. RewardAmbassadors
  * returns a vector of key -> reward pairs. Any remainder not allocated is returned.
  */
-std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> RewardAmbassadors(
+std::tuple<pog::AmbassadorLottery, pog2::AddressSelectorPtr, pog3::AddressSelectorPtr> RewardAmbassadors(
         int height,
         const uint256& previous_block_hash,
         CAmount total,
@@ -369,8 +371,16 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
         const Consensus::Params& params,
         bool force_pog2 = false);
 
+std::pair<pog::AmbassadorLottery, pog3::AddressSelectorPtr> Pog3RewardAmbassadors(
+        int height,
+        const uint256& previous_block_hash,
+        CAmount total,
+        const Consensus::Params& params,
+        bool force_pog3 = false);
+
 bool RewardInvites(
         pog2::AddressSelectorPtr,
+        pog3::AddressSelectorPtr,
         int height,
         CBlockIndex* pindexPrev,
         const uint256& previous_block_hash,
@@ -740,6 +750,9 @@ using Ranks = std::vector<Rank>;
 using Pog2Rank = std::pair<pog2::Entrant, size_t>;
 using Pog2Ranks = std::vector<Pog2Rank>;
 
+using Pog3Rank = std::pair<pog3::Entrant, size_t>;
+using Pog3Ranks = std::vector<Pog3Rank>;
+
 std::pair<Ranks, size_t> ANVRanks(
         const std::vector<CAmount>& anv,
         int height,
@@ -750,19 +763,17 @@ std::pair<Ranks, size_t> TopANVRanks(
         int height,
         const Consensus::Params& params);
 
-std::pair<Pog2Ranks, size_t> CGSRanks(
+std::pair<Pog3Ranks, size_t> CGSRanks(
         const std::vector<CAmount>& cgs,
         int height,
         const Consensus::Params& params,
-        CAmount& lottery_cgs,
-        bool sub = true);
+        CAmount& lottery_cgs);
 
-std::pair<Pog2Ranks, size_t> TopCGSRanks(
+std::pair<Pog3Ranks, size_t> TopCGSRanks(
         size_t total,
         int height,
         const Consensus::Params& params,
-        CAmount& lottery_cgs,
-        bool sub = true);
+        CAmount& lottery_cgs);
 
 template<class F>
     bool GetAllUnspent(

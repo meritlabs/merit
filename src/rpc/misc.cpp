@@ -24,7 +24,7 @@
 #include "policy/rbf.h"
 
 #include "pog/anv.h"
-#include "pog2/cgs.h"
+#include "pog3/cgs.h"
 #include "pog/select.h"
 #include "rpc/safemode.h"
 
@@ -1316,7 +1316,7 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
     return result;
 }
 
-UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t total, bool sub) {
+UniValue RanksToUniValue(CAmount lottery_cgs, const Pog3Ranks& ranks, size_t total, bool sub) {
 
     UniValue rankarr(UniValue::VARR);
     for(const auto& r : ranks) {
@@ -1326,7 +1326,7 @@ UniValue RanksToUniValue(CAmount lottery_cgs, const Pog2Ranks& ranks, size_t tot
         double percentile =
             (static_cast<double>(r.second) / static_cast<double>(total)) * 100.0;
 
-        const auto cgs = sub ? r.first.sub_cgs : r.first.cgs;
+        const auto cgs = r.first.cgs;
 
         auto alias = FindAliasForAddress(r.first.address);
         auto beacon_age = chainActive.Height() - r.first.beacon_height;
@@ -1404,17 +1404,15 @@ UniValue getaddressrank(const JSONRPCRequest& request)
 
     const auto params = Params().GetConsensus();
 
-    pog2::Entrants all_entrants;
-    pog2::CGSContext context;
-    pog2::GetAllRewardableEntrants(context, *prefviewcache, params, chainActive.Height(), all_entrants);
-
-    bool sub_linear = true;
+    pog3::Entrants all_entrants;
+    pog3::CGSContext context;
+    pog3::GetAllRewardableEntrants(context, *prefviewcache, params, chainActive.Height(), all_entrants);
 
     std::vector<CAmount> cgs;
     for (const auto& a : validAddresses) {
      const auto& e = context.GetEntrant(a.first);
-     auto node = pog2::ComputeCGS(context, e, *prefviewcache);
-        cgs.push_back(sub_linear ? node.sub_cgs : node.cgs);
+     auto node = pog3::ComputeCGS(context, e, *prefviewcache);
+     cgs.push_back(node.cgs);
     }
 
     CAmount lottery_cgs = 0;
@@ -1422,8 +1420,7 @@ UniValue getaddressrank(const JSONRPCRequest& request)
             cgs,
             chainActive.Height(),
             Params().GetConsensus(),
-            lottery_cgs,
-            sub_linear);
+            lottery_cgs);
 
     //Hack to keep ANVRanks  (2nlog(n)) vs (nlogn + n) we rewrite the address
     //because among addresses of equal rank, ANVRAnks may return an entry with a different address.
@@ -1546,15 +1543,14 @@ UniValue simulatelottery(const JSONRPCRequest& request)
 
     const auto& params = Params().GetConsensus();
 
-    const auto subsidy = GetSplitSubsidy(params.pog2_blockheight, params);
-    const bool FORCE_POG2 = true;
+    const auto subsidy = GetSplitSubsidy(params.pog3_blockheight, params);
+    const bool FORCE_POG3 = true;
 
-    auto rewards = Pog2RewardAmbassadors(
+    auto rewards = Pog3RewardAmbassadors(
             height,
             seed,
             subsidy.ambassador,
-            params,
-            FORCE_POG2);
+            params);
 
     CCoinsViewCache view(pcoinsTip);
     DebitsAndCredits dummy_debits_and_credits;
@@ -1563,6 +1559,7 @@ UniValue simulatelottery(const JSONRPCRequest& request)
     referral::ConfirmedAddresses selected_new_pool_addresses;
 
     if(!RewardInvites(
+        nullptr,
         rewards.second,
         height,
         chainActive[height],
@@ -1573,7 +1570,7 @@ UniValue simulatelottery(const JSONRPCRequest& request)
         dummy_state,
         invite_rewards,
         selected_new_pool_addresses,
-        FORCE_POG2)) {
+        FORCE_POG3)) {
 
         throw JSONRPCError(RPC_MISC_ERROR, "error running invite lottery");
     }
