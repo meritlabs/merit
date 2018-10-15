@@ -90,6 +90,8 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "easysend", 2, "blocktimeout" },
     { "easysend", 3, "subtractfeefromamount" },
     { "easyreceive", 3, "blocktime" },
+    { "easysendinvite", 0, "amount" },
+    { "easysendinvite", 2, "blocktimeout" },
     { "listunspent", 0, "minconf" },
     { "listunspent", 1, "maxconf" },
     { "listunspent", 2, "addresses" },
