@@ -529,7 +529,7 @@ public:
         // PoG v3 settings.
         consensus.pog3_blockheight = 12;
         consensus.pog3_total_winning_ambassadors = 20;
-        consensus.pog3_ambassador_percent_cut = 74;  //75%
+        consensus.pog3_ambassador_percent_cut = 75;  //75%
         consensus.pog3_pow_target_timespan = 30 * 60; // every 30 min
         consensus.pog3_initial_ambassador_stake = 20_merit;
         consensus.pog3_coin_maturity = blocks_per_minute * 20; //20 minutes for coin maturity
