@@ -194,7 +194,7 @@ public:
         consensus.pog2_convex_s = 0.05;
 
         // PoG v3 settings.
-        consensus.pog3_blockheight = 500000; //TDB
+        consensus.pog3_blockheight = 433333; //October 25th 2018
         consensus.pog3_total_winning_ambassadors = 20;
         consensus.pog3_ambassador_percent_cut = 75;  //75%
         consensus.pog3_pow_target_timespan = 5 * 60 * 60; // every 5 hours
@@ -371,7 +371,7 @@ public:
         consensus.pog2_convex_s = 0.05;
 
         // PoG v3 settings.
-        consensus.pog3_blockheight = 433333; //October 25th 2018
+        consensus.pog3_blockheight = 291500; //October 20th 2018
         consensus.pog3_total_winning_ambassadors = 20;
         consensus.pog3_ambassador_percent_cut = 75;  //75%
         consensus.pog3_pow_target_timespan = 5 * 60 * 60; // every 5 hours
