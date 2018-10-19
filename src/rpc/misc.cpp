@@ -1406,6 +1406,8 @@ UniValue getaddressrank(const JSONRPCRequest& request)
 
     pog3::Entrants all_entrants;
     pog3::CGSContext context;
+    context.cgs_pool = pog3::GetCgsThreadPool();
+
     pog3::GetAllRewardableEntrants(context, *prefviewcache, params, chainActive.Height(), all_entrants);
 
     std::vector<CAmount> cgs;
@@ -1550,7 +1552,8 @@ UniValue simulatelottery(const JSONRPCRequest& request)
             height,
             seed,
             subsidy.ambassador,
-            params);
+            params,
+            true);
 
     CCoinsViewCache view(pcoinsTip);
     DebitsAndCredits dummy_debits_and_credits;

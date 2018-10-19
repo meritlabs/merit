@@ -7,6 +7,7 @@
 
 #include "primitives/referral.h"
 #include "consensus/params.h"
+#include "ctpl/ctpl.h"
 #include "referrals.h"
 #include "pog/wrs.h"
 #include "coins.h"
@@ -98,6 +99,7 @@ namespace pog3
         CachedEntrant& GetEntrant(const referral::Address&);
         const CachedEntrant& GetEntrant(const referral::Address&) const;
 
+        ctpl::thread_pool* cgs_pool = nullptr;
     };
 
     using Entrants = std::vector<Entrant>;
@@ -117,6 +119,7 @@ namespace pog3
 
     void TestChain();
     void SetupCgsThreadPool(size_t threads);
+    ctpl::thread_pool* GetCgsThreadPool();
 
     CAmount GetAmbassadorMinumumStake(int height, const Consensus::Params& consensus_params);
 

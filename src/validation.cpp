@@ -1840,7 +1840,7 @@ SplitSubsidy GetSplitSubsidy(int height, const Consensus::Params& params)
     const auto ambassador_subsidy = (block_subsidy * percent_cut) / 100;
     const auto miner_subsidy = block_subsidy - ambassador_subsidy;
 
-    assert(ambassador_subsidy <= miner_subsidy);
+    assert(miner_subsidy > 0);
     assert(miner_subsidy + ambassador_subsidy == block_subsidy);
     return {miner_subsidy, ambassador_subsidy};
 }
@@ -1975,6 +1975,8 @@ std::pair<pog::AmbassadorLottery, pog2::AddressSelectorPtr> Pog2RewardAmbassador
     entrants.reserve(reserve_size);
 
     pog2::CGSContext context;
+    context.cgs_pool = pog3::GetCgsThreadPool();
+
     pog2::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
 
     max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
@@ -2075,6 +2077,8 @@ std::pair<pog::AmbassadorLottery, pog3::AddressSelectorPtr> Pog3RewardAmbassador
     entrants.reserve(reserve_size);
 
     pog3::CGSContext context;
+    context.cgs_pool = pog3::GetCgsThreadPool();
+
     pog3::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
 
     max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
@@ -7826,6 +7830,8 @@ std::pair<Pog3Ranks, size_t> CGSRanks(
     entrants.reserve(reserve_size);
 
     pog3::CGSContext context;
+    context.cgs_pool = pog3::GetCgsThreadPool();
+
     pog3::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
 
     max_ambassador_lottery = std::max(max_ambassador_lottery, entrants.size());
@@ -7873,6 +7879,8 @@ std::pair<Pog3Ranks, size_t> TopCGSRanks(
     entrants.reserve(reserve_size);
 
     pog3::CGSContext context;
+    context.cgs_pool = pog3::GetCgsThreadPool();
+
     pog3::GetAllRewardableEntrants(context, *prefviewcache, params, height, entrants);
 
     lottery_cgs = std::accumulate(entrants.begin(), entrants.end(), CAmount{0},

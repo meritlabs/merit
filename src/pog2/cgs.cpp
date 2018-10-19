@@ -23,7 +23,6 @@ namespace pog2
     {
         const size_t BATCH_SIZE = 100;
         const int NO_GENESIS = 13500;
-        ctpl::thread_pool cgs_pool;
     }
 
     CAmount GetAmbassadorMinumumStake(int height, const Consensus::Params& consensus_params)
@@ -31,11 +30,6 @@ namespace pog2
         const int halvings = height / consensus_params.nSubsidyHalvingInterval;
         return halvings < 64 ? 
             consensus_params.pog2_initial_ambassador_stake >> halvings : 0;
-    }
-
-    void SetupCgsThreadPool(size_t threads)
-    {
-        cgs_pool.resize(threads);
     }
 
     using UnspentPair = std::pair<CAddressUnspentKey, CAddressUnspentValue>;
@@ -470,11 +464,13 @@ namespace pog2
     }
 
     void ComputeAges(CGSContext& context) {
+        assert(context.cgs_pool != nullptr);
+
         std::vector<std::future<void>> jobs;
         jobs.reserve(context.entrants.size() / BATCH_SIZE);
         for(size_t b = 0; b < context.entrants.size(); b+=BATCH_SIZE) {
             jobs.push_back(
-                    cgs_pool.push([b, &context](int id) {
+                    context.cgs_pool->push([b, &context](int id) {
                         const auto end = std::min(context.entrants.size(), b + BATCH_SIZE);
                         for(size_t i = b; i < end; i++) {
                             auto& e = context.entrants[i];
@@ -526,12 +522,13 @@ namespace pog2
     void ComputeAllContributions(
             CGSContext& context,
             referral::ReferralsViewCache& db) {
+        assert(context.cgs_pool != nullptr);
 
         std::vector<std::future<void>> jobs;
         jobs.reserve(context.entrants.size() / BATCH_SIZE);
         for(size_t b = 0; b < context.entrants.size(); b+=BATCH_SIZE) {
             jobs.push_back(
-                    cgs_pool.push([b, &context, &db](int id) {
+                    context.cgs_pool->push([b, &context, &db](int id) {
                         const auto end = std::min(context.entrants.size(), b + BATCH_SIZE);
                         for(size_t i = b; i < end; i++) {
                             auto& e = context.entrants[i];
@@ -550,6 +547,7 @@ namespace pog2
             const Consensus::Params& params,
             Entrants& entrants)
     {
+        assert(context.cgs_pool != nullptr);
         const auto minimum_stake = GetAmbassadorMinumumStake(context.tip_height, params);
 
         std::vector<std::future<Entrants>> jobs;
@@ -561,7 +559,7 @@ namespace pog2
         //Important, 1 here to skip the genesis address
         for(size_t b = 1; b < context.entrants.size(); b+=BATCH_SIZE) {
             jobs.push_back(
-                    cgs_pool.push([b, minimum_stake , &context, &db](int id) {
+                    context.cgs_pool->push([b, minimum_stake , &context, &db](int id) {
                         const auto end = std::min(context.entrants.size(), b + BATCH_SIZE);
                         Entrants es;
                         es.reserve(end - b);

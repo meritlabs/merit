@@ -16,9 +16,11 @@ namespace pog3
         const int INVITES_PER_WINNER = 1;
     }
 
-    double LogCGS(const Entrant& e) 
+    double ScaledCGS(const Entrant& e) 
     {
-        return std::log1p(e.cgs);
+        const auto scaled = std::log1p(e.cgs / 1_merit);
+        assert(scaled >= 0);
+        return scaled;
     }
 
     double TotalCgs(const Entrants& winners)
@@ -26,7 +28,7 @@ namespace pog3
         return std::accumulate(std::begin(winners), std::end(winners), double{0.0},
                 [](double acc, const Entrant& e)
                 {
-                    return acc + LogCGS(e);
+                    return acc + ScaledCGS(e);
                 });
     }
 
@@ -39,7 +41,7 @@ namespace pog3
         std::transform(std::begin(winners), std::end(winners), std::back_inserter(unfiltered_rewards),
                 [total_reward, total_cgs](const Entrant& v)
                 {
-                    double percent = LogCGS(v) / total_cgs;
+                    double percent = ScaledCGS(v) / total_cgs;
                     double reward = total_reward * percent;
                     CAmount floor_reward = std::floor(reward);
 
