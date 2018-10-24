@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef MERIT_POG_ANV2_H
-#define MERIT_POG_ANV2_H
+#ifndef MERIT_POG3_CGS_H
+#define MERIT_POG3_CGS_H
 
 #include "primitives/referral.h"
 #include "consensus/params.h"
@@ -15,7 +15,7 @@
 #include <vector>
 #include <boost/optional.hpp>
 
-namespace pog2
+namespace pog3
 {
 
     struct Entrant
@@ -25,7 +25,6 @@ namespace pog2
         CAmount balance;
         CAmount aged_balance;
         CAmount cgs;
-        CAmount sub_cgs;
         int beacon_height;
         size_t children;
         size_t network_size;
@@ -37,13 +36,11 @@ namespace pog2
     struct Contribution
     {
         ContributionAmount value = 0.0;
-        ContributionAmount sub = 0.0;
     };
 
     struct SubtreeContribution
     {
         ContributionAmount value = 0.0;
-        ContributionAmount sub = 0.0;
         size_t tree_size = 0;
     };
 
@@ -121,9 +118,11 @@ namespace pog2
             referral::ReferralsViewCache& db);
 
     void TestChain();
+    void SetupCgsThreadPool(size_t threads);
+    ctpl::thread_pool* GetCgsThreadPool();
 
     CAmount GetAmbassadorMinumumStake(int height, const Consensus::Params& consensus_params);
 
-} // namespace pog2
+} // namespace pog3
 
 #endif //MERIT_POG2_ANV_H

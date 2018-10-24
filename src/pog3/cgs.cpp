@@ -2,11 +2,10 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "pog2/cgs.h"
+#include "pog3/cgs.h"
 #include "addressindex.h"
 #include "validation.h"
 #include "referrals.h"
-#include "ctpl/ctpl.h"
 #include "sync.h"
 
 #include <stack>
@@ -17,19 +16,30 @@
 #include <boost/multiprecision/cpp_int.hpp> 
 #include <boost/thread/thread.hpp>
 
-namespace pog2
+namespace pog3
 {
     namespace
     {
         const size_t BATCH_SIZE = 100;
         const int NO_GENESIS = 13500;
+        ctpl::thread_pool g_cgs_pool;
     }
 
     CAmount GetAmbassadorMinumumStake(int height, const Consensus::Params& consensus_params)
     {
         const int halvings = height / consensus_params.nSubsidyHalvingInterval;
         return halvings < 64 ? 
-            consensus_params.pog2_initial_ambassador_stake >> halvings : 0;
+            consensus_params.pog3_initial_ambassador_stake >> halvings : 0;
+    }
+
+    void SetupCgsThreadPool(size_t threads)
+    {
+        g_cgs_pool.resize(threads);
+    }
+
+    ctpl::thread_pool* GetCgsThreadPool()
+    {
+        return &g_cgs_pool;
     }
 
     using UnspentPair = std::pair<CAddressUnspentKey, CAddressUnspentValue>;
@@ -230,11 +240,9 @@ namespace pog2
         //This is done because there are two pools of selections evenly split
         //between stake oriented and growth oriented engagements.
         c.value = (beacon_age_scale * aged_balance.second) + aged_balance.first;
-        c.sub = boost::multiprecision::log(ContributionAmount{1.0} + c.value);
 
         assert(c.value >= 0);
         assert(c.value <= aged_balance.second);
-        assert(c.sub >= 0);
 
         return c;
     }
@@ -284,17 +292,14 @@ namespace pog2
         while (!ns.empty()) {
             auto& n = ns.top();
             n.contribution.value += contribution.value;
-            n.contribution.sub += contribution.sub;
             n.contribution.tree_size += contribution.tree_size;
 
             if (n.children.empty()) {
                 const auto& c = context.GetEntrant(n.address).contribution;
                 n.contribution.value += c.value;
-                n.contribution.sub += c.sub;
                 n.contribution.tree_size++;
 
                 assert(n.contribution.value >= 0);
-                assert(n.contribution.sub >= 0);
 
                 contribution = n.contribution;
                 context.subtree_contribution[n.address] = n.contribution;
@@ -306,7 +311,6 @@ namespace pog2
                 n.children.pop_back();
 
                 contribution.value = 0;
-                contribution.sub = 0;
                 contribution.tree_size = 0;
 
                 const auto& child_entrant = context.GetEntrant(child_address);
@@ -327,15 +331,9 @@ namespace pog2
         return t.value;
     }
 
-    ContributionAmount GetSubValue(const SubtreeContribution& t)
-    {
-        return t.sub;
-    }
-
     struct WeightedScores
     {
         ContributionAmount value;
-        ContributionAmount sub;
         size_t tree_size;
     };
 
@@ -346,7 +344,6 @@ namespace pog2
             referral::ReferralsViewCache& db)
     {
         assert(context.tree_contribution.value > 0);
-        assert(context.tree_contribution.sub > 0);
 
         const auto subtree_contribution =
                 ContributionSubtreeIter(
@@ -356,7 +353,6 @@ namespace pog2
                     db);
         assert(subtree_contribution.value >= 0);
         assert(subtree_contribution.value <= context.tree_contribution.value);
-        assert(subtree_contribution.sub <= context.tree_contribution.sub);
 
         WeightedScores score;
         score.value = ConvexF<ContributionAmount>(
@@ -364,15 +360,9 @@ namespace pog2
                 context.B,
                 context.S);
 
-        score.sub = ConvexF<ContributionAmount>(
-                subtree_contribution.sub / context.tree_contribution.sub,
-                context.B,
-                context.S);
-
         score.tree_size = subtree_contribution.tree_size;
         
         assert(score.value >= 0);
-        assert(score.sub >= 0);
         assert(score.tree_size > 0);
         return score;
     }
@@ -380,7 +370,6 @@ namespace pog2
     struct ExpectedValues
     {
         ContributionAmount value;
-        ContributionAmount sub;
         size_t tree_size;
     };
 
@@ -391,11 +380,10 @@ namespace pog2
     {
         //this case can occur on regtest if there is not enough data.
         if (context.tree_contribution.value == 0) {
-            return {0, 0, 0};
+            return {0, 0};
         }
 
         assert(context.tree_contribution.value > 0);
-        assert(context.tree_contribution.sub > 0);
 
         auto expected_value = WeightedScore(
                 context,
@@ -404,7 +392,6 @@ namespace pog2
                 db);
 
         assert(expected_value.value >= 0);
-        assert(expected_value.sub >= 0);
 
         for (const auto& c:  entrant.children) {
             const auto& child_entrant = context.GetEntrant(c);
@@ -415,18 +402,11 @@ namespace pog2
                     db);
 
             assert(child_score.value >= 0);
-            assert(child_score.sub >= 0);
             expected_value.value -= child_score.value;
-            expected_value.sub -= child_score.sub;
         }
 
         assert(expected_value.value >= 0);
-        assert(expected_value.sub >= 0);
-        return { 
-            expected_value.value,
-                expected_value.sub,
-                expected_value.tree_size
-        };
+        return { expected_value.value, expected_value.tree_size };
     }
 
     Entrant ComputeCGS(
@@ -440,13 +420,10 @@ namespace pog2
                 db);
 
         const ContributionAmount cgs = context.tree_contribution.value * expected_value.value;
-        const ContributionAmount sub_cgs = context.tree_contribution.sub * expected_value.sub;
 
         assert(cgs >= 0);
-        assert(sub_cgs >= 0);
 
         auto floored_cgs = cgs.convert_to<CAmount>();
-        auto floored_sub_cgs = sub_cgs.convert_to<CAmount>();
 
         const auto& balance = entrant.balances;
 
@@ -456,7 +433,6 @@ namespace pog2
                 balance.second,
                 balance.first,
                 floored_cgs,
-                floored_sub_cgs,
                 entrant.height,
                 entrant.children.size(),
                 expected_value.tree_size
@@ -468,6 +444,7 @@ namespace pog2
 
         std::vector<std::future<void>> jobs;
         jobs.reserve(context.entrants.size() / BATCH_SIZE);
+
         for(size_t b = 0; b < context.entrants.size(); b+=BATCH_SIZE) {
             jobs.push_back(
                     context.cgs_pool->push([b, &context](int id) {
@@ -548,6 +525,7 @@ namespace pog2
             Entrants& entrants)
     {
         assert(context.cgs_pool != nullptr);
+
         const auto minimum_stake = GetAmbassadorMinumumStake(context.tip_height, params);
 
         std::vector<std::future<Entrants>> jobs;
@@ -591,10 +569,10 @@ namespace pog2
         assert(height >= 0);
 
         context.tip_height = height;
-        context.coin_maturity = params.pog2_coin_maturity;
-        context.new_coin_maturity = params.pog2_new_coin_maturity;
-        context.B = params.pog2_convex_b;
-        context.S = params.pog2_convex_s;
+        context.coin_maturity = params.pog3_coin_maturity;
+        context.new_coin_maturity = params.pog3_new_coin_maturity;
+        context.B = params.pog3_convex_b;
+        context.S = params.pog3_convex_s;
         PrefillContributionsAndHeights(
                 context,
                 2,
@@ -642,4 +620,4 @@ namespace pog2
         return entrants[p->second];
     }
 
-} // namespace pog2
+} // namespace pog3

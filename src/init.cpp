@@ -1232,11 +1232,6 @@ bool AppInitLockDataDirectory()
     return true;
 }
 
-namespace pog2
-{
-    extern void SetupCgsThreadPool(size_t threads);
-}
-
 bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
 {
     const CChainParams& chainparams = Params();
@@ -1260,7 +1255,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     LogPrintf("Using config file %s\n", GetConfigFile(gArgs.GetArg("-conf", MERIT_CONF_FILENAME)).string());
     LogPrintf("Using at most %i automatic connections (%i file descriptors available)\n", nMaxConnections, nFD);
 
-    pog2::SetupCgsThreadPool(boost::thread::hardware_concurrency());
+    pog3::SetupCgsThreadPool(boost::thread::hardware_concurrency());
     InitSignatureCache();
     InitScriptExecutionCache();
 

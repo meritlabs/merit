@@ -193,6 +193,18 @@ public:
         consensus.pog2_convex_b = 0.2; 
         consensus.pog2_convex_s = 0.05;
 
+        // PoG v3 settings.
+        consensus.pog3_blockheight = 441700; //October 31th 2018
+        consensus.pog3_total_winning_ambassadors = 20;
+        consensus.pog3_ambassador_percent_cut = 75;  //75%
+        consensus.pog3_pow_target_timespan = 5 * 60 * 60; // every 5 hours
+        consensus.pog3_initial_ambassador_stake = 20_merit;
+        consensus.pog3_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
+        consensus.pog3_new_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
+        consensus.pog3_max_outstanding_invites_per_address = 20;
+        consensus.pog3_convex_b = 0.2;
+        consensus.pog3_convex_s = 0.05;
+
         // Fix invite lottery distribution amount.
         consensus.imp_fix_invites_blockheight = 348400;
 
@@ -358,6 +370,18 @@ public:
         consensus.pog2_convex_b = 0.2; 
         consensus.pog2_convex_s = 0.05;
 
+        // PoG v3 settings.
+        consensus.pog3_blockheight = 291500; //October 20th 2018
+        consensus.pog3_total_winning_ambassadors = 20;
+        consensus.pog3_ambassador_percent_cut = 75;  //75%
+        consensus.pog3_pow_target_timespan = 5 * 60 * 60; // every 5 hours
+        consensus.pog3_initial_ambassador_stake = 20_merit;
+        consensus.pog3_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
+        consensus.pog3_new_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
+        consensus.pog3_max_outstanding_invites_per_address = 20;
+        consensus.pog3_convex_b = 0.2; 
+        consensus.pog3_convex_s = 0.05;
+
         // Fix invite lottery distribution amount.
         consensus.imp_fix_invites_blockheight = 217450;
 
@@ -501,6 +525,18 @@ public:
         consensus.pog2_max_outstanding_invites_per_address = 50;
         consensus.pog2_convex_b = 0.2; 
         consensus.pog2_convex_s = 0.05;
+
+        // PoG v3 settings.
+        consensus.pog3_blockheight = 12;
+        consensus.pog3_total_winning_ambassadors = 20;
+        consensus.pog3_ambassador_percent_cut = 75;  //75%
+        consensus.pog3_pow_target_timespan = 30 * 60; // every 30 min
+        consensus.pog3_initial_ambassador_stake = 20_merit;
+        consensus.pog3_coin_maturity = blocks_per_minute * 20; //20 minutes for coin maturity
+        consensus.pog3_new_coin_maturity = blocks_per_minute * 10; //10 minutes for coin maturity
+        consensus.pog3_max_outstanding_invites_per_address = 20;
+        consensus.pog3_convex_b = 0.2; 
+        consensus.pog3_convex_s = 0.05;
 
         consensus.imp_fix_invites_blockheight = 20;
 
