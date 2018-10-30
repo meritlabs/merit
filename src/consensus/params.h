@@ -130,6 +130,10 @@ struct Params {
     double pog3_convex_b;
     double pog3_convex_s;
 
+    /** LMWA difficulty adjustment */
+    int lwma_blockheight;
+    int64_t lwma_target_timespan;
+
 };
 } // namespace Consensus
 

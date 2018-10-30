@@ -205,6 +205,10 @@ public:
         consensus.pog3_convex_b = 0.2;
         consensus.pog3_convex_s = 0.05;
 
+        //LWMA difficulty
+        consensus.lwma_blockheight = 441700; //October 31th 2018
+        consensus.lwma_target_timespan = 60*60; //every hour  
+
         // Fix invite lottery distribution amount.
         consensus.imp_fix_invites_blockheight = 348400;
 
@@ -382,6 +386,10 @@ public:
         consensus.pog3_convex_b = 0.2; 
         consensus.pog3_convex_s = 0.05;
 
+        // LWMA difficulty
+        consensus.lwma_blockheight = 441700; //TODO SET ME
+        consensus.lwma_target_timespan = 60*60; //every hour  
+
         // Fix invite lottery distribution amount.
         consensus.imp_fix_invites_blockheight = 217450;
 
@@ -537,6 +545,10 @@ public:
         consensus.pog3_max_outstanding_invites_per_address = 20;
         consensus.pog3_convex_b = 0.2; 
         consensus.pog3_convex_s = 0.05;
+
+        // LWMA difficulty
+        consensus.lwma_blockheight = 5; 
+        consensus.lwma_target_timespan = 10*60; //every ten minutes  
 
         consensus.imp_fix_invites_blockheight = 20;
 
