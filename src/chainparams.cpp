@@ -179,7 +179,7 @@ public:
         consensus.imp_block_window = blocks_per_minute  * 60 * 24 * 1; //1 days of blocks
         consensus.imp_min_one_invite_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
-        consensus.imp_weights = {60, 40}; 
+        consensus.imp_weights = {60, 40};
 
         // PoG v2 settings.
         consensus.pog2_blockheight = 334750; //Around Fri, 17 Aug 2018 09:14:38 +0000
@@ -190,7 +190,7 @@ public:
         consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog2_new_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog2_max_outstanding_invites_per_address = 50;
-        consensus.pog2_convex_b = 0.2; 
+        consensus.pog2_convex_b = 0.2;
         consensus.pog2_convex_s = 0.05;
 
         // PoG v3 settings.
@@ -207,7 +207,8 @@ public:
 
         //LWMA difficulty
         consensus.lwma_blockheight = 441700; //October 31th 2018
-        consensus.lwma_target_timespan = 60*60; //every hour  
+        consensus.lwma_target_timespan = 60*60; //every hour
+        consensus.lwma_sEdgeBitsAllowed = {26, 27};
 
         // Fix invite lottery distribution amount.
         consensus.imp_fix_invites_blockheight = 348400;
@@ -360,7 +361,7 @@ public:
         consensus.imp_block_window = 4;
         consensus.imp_min_one_invite_for_every_x_blocks = 2; //invite every minute
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
-        consensus.imp_weights = {60, 40}; 
+        consensus.imp_weights = {60, 40};
 
         // PoG v2 settings.
         consensus.pog2_blockheight = 216810;
@@ -371,7 +372,7 @@ public:
         consensus.pog2_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog2_new_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog2_max_outstanding_invites_per_address = 50;
-        consensus.pog2_convex_b = 0.2; 
+        consensus.pog2_convex_b = 0.2;
         consensus.pog2_convex_s = 0.05;
 
         // PoG v3 settings.
@@ -383,12 +384,13 @@ public:
         consensus.pog3_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog3_new_coin_maturity = blocks_per_minute * 60 * 24 * 30; //Month for coin maturity
         consensus.pog3_max_outstanding_invites_per_address = 20;
-        consensus.pog3_convex_b = 0.2; 
+        consensus.pog3_convex_b = 0.2;
         consensus.pog3_convex_s = 0.05;
 
         // LWMA difficulty
         consensus.lwma_blockheight = 441700; //TODO SET ME
-        consensus.lwma_target_timespan = 60*60; //every hour  
+        consensus.lwma_target_timespan = 60*60; //every hour
+        consensus.lwma_sEdgeBitsAllowed = {20, 21, 22, 23, 24, 25, 26};
 
         // Fix invite lottery distribution amount.
         consensus.imp_fix_invites_blockheight = 217450;
@@ -520,7 +522,7 @@ public:
         consensus.imp_block_window = 4;
         consensus.imp_min_one_invite_for_every_x_blocks = 1; //invite every minute
         consensus.imp_miner_reward_for_every_x_blocks = 10; //invite every 10 minutes at a minumum, 144 per day.
-        consensus.imp_weights = {60, 40}; 
+        consensus.imp_weights = {60, 40};
 
         // PoG v2 settings.
         consensus.pog2_blockheight = 10;
@@ -531,7 +533,7 @@ public:
         consensus.pog2_coin_maturity = blocks_per_minute * 20; //20 minutes for coin maturity
         consensus.pog2_new_coin_maturity = blocks_per_minute * 10; //10 minutes for coin maturity
         consensus.pog2_max_outstanding_invites_per_address = 50;
-        consensus.pog2_convex_b = 0.2; 
+        consensus.pog2_convex_b = 0.2;
         consensus.pog2_convex_s = 0.05;
 
         // PoG v3 settings.
@@ -543,12 +545,13 @@ public:
         consensus.pog3_coin_maturity = blocks_per_minute * 20; //20 minutes for coin maturity
         consensus.pog3_new_coin_maturity = blocks_per_minute * 10; //10 minutes for coin maturity
         consensus.pog3_max_outstanding_invites_per_address = 20;
-        consensus.pog3_convex_b = 0.2; 
+        consensus.pog3_convex_b = 0.2;
         consensus.pog3_convex_s = 0.05;
 
         // LWMA difficulty
-        consensus.lwma_blockheight = 5; 
-        consensus.lwma_target_timespan = 10*60; //every ten minutes  
+        consensus.lwma_blockheight = 5;
+        consensus.lwma_target_timespan = 10*60; //every ten minutes
+        consensus.lwma_sEdgeBitsAllowed = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26};
 
         consensus.imp_fix_invites_blockheight = 20;
 

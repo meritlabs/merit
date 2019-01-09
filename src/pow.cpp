@@ -27,7 +27,7 @@ PoW GetNextWorkRequired(
 
     if(pindexLast->nHeight >= params.lwma_blockheight) {
 
-    } 
+    }
 
     // Only change once per difficulty adjustment interval
     if ((pindexLast->nHeight + 1) % params.DifficultyAdjustmentInterval(pindexLast->nHeight) != 0) {
@@ -64,13 +64,13 @@ PoW CalculateNextWorkRequired(
 {
     assert(pindexLast);
 
-    if (params.fPowNoRetargeting) { 
+    if (params.fPowNoRetargeting) {
         return PoW{pindexLast->nBits, pindexLast->nEdgeBits};
     }
 
     int64_t nActualTimespan = pindexLast->GetBlockTime() - nFirstBlockTime;
 
-    auto pow_target_timespan = pindexLast->nHeight >= params.pog2_blockheight ? 
+    auto pow_target_timespan = pindexLast->nHeight >= params.pog2_blockheight ?
         params.pog2_pow_target_timespan : params.nPowTargetTimespan;
 
     // Check if we can adjust nEdgeBits value
@@ -84,7 +84,9 @@ PoW CalculateNextWorkRequired(
     }
 
     // Retarget nEdgeBits
-    if (edgeBitsAdjusted != pindexLast->nEdgeBits && params.sEdgeBitsAllowed.count(edgeBitsAdjusted)) {
+    const auto edgebitsAllowed = pindexLast->nHeight >= params.lwma_blockheight ?
+        params.lwma_sEdgeBitsAllowed : params.sEdgeBitsAllowed;
+    if (edgeBitsAdjusted != pindexLast->nEdgeBits && edgebitsAllowed.count(edgeBitsAdjusted)) {
         LogPrintf("%s: adjusted edge bits accepted. prev bits: %u new bits: %u\n", __func__, pindexLast->nEdgeBits, edgeBitsAdjusted);
         return PoW{pindexLast->nBits, static_cast<uint8_t>(edgeBitsAdjusted)};
     }
@@ -121,7 +123,7 @@ PoW CalculateLwmaNextWorkRequired(
     const int height = pindexLast->nHeight + 1;
     int64_t actual_time_span = pindexLast->GetBlockTime() - pindexLast->GetAncestor(height - params.lwma_target_timespan)->GetBlockTime();
 
-    auto pow_target_timespan = pindexLast->nHeight >= params.pog2_blockheight ? 
+    auto pow_target_timespan = pindexLast->nHeight >= params.pog2_blockheight ?
         params.pog2_pow_target_timespan : params.nPowTargetTimespan;
 
     // Check if we can adjust nEdgeBits value
@@ -135,7 +137,9 @@ PoW CalculateLwmaNextWorkRequired(
     }
 
     // Retarget nEdgeBits
-    if (new_edge_bits != pindexLast->nEdgeBits && params.sEdgeBitsAllowed.count(new_edge_bits)) {
+    const auto edgebitsAllowed = pindexLast->nHeight >= params.lwma_blockheight ?
+        params.lwma_sEdgeBitsAllowed : params.sEdgeBitsAllowed;
+    if (new_edge_bits != pindexLast->nEdgeBits && edgebitsAllowed.count(new_edge_bits)) {
         LogPrintf("%s: adjusted edge bits accepted. prev bits: %u new bits: %u\n", __func__, pindexLast->nEdgeBits, new_edge_bits);
         return PoW{pindexLast->nBits, static_cast<uint8_t>(new_edge_bits)};
     }
