@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Merit Foundation developers
+// Copyright (c) 2017-2019 The Merit Foundation developers
 #include "crypto/finite_field.h"
 #include "crypto/legendre.h"
 #include "crypto/shamir.h"
