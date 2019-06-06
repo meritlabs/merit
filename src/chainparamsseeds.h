@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2018 The Merit Foundation developers
+// Copyright (c) 2014-2019 The Merit Foundation
 
 #ifndef MERIT_CHAINPARAMSSEEDS_H
 #define MERIT_CHAINPARAMSSEEDS_H

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Merit Foundation developers
+// Copyright (c) 2017-2019 The Merit Foundation
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -84,7 +84,7 @@ namespace pog2
         int tip_height;
         int coin_maturity;
         int new_coin_maturity;
-        SubtreeContribution tree_contribution; 
+        SubtreeContribution tree_contribution;
 
         std::vector<CachedEntrant> entrants;
         std::map<referral::Address, size_t> entrant_idx;

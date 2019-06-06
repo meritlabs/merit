@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Merit Foundation developers
+// Copyright (c) 2017-2019 The Merit Foundation
 // This file contains source that originates from:
 // http://code.google.com/p/leveldbwin/source/browse/trunk/win32_impl_src/env_win32.h
 // http://code.google.com/p/leveldbwin/source/browse/trunk/win32_impl_src/port_win32.cc

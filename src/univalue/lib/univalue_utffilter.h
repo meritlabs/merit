@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Merit Foundation developers
+// Copyright (c) 2017-2019 The Merit Foundation
 // Copyright 2016 Wladimir J. van der Laan
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.

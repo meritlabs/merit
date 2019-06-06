@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Merit Foundation developers
+// Copyright (c) 2017-2019 The Merit Foundation
 // Automatically generated file. Do not modify.
 #ifndef MERIT_UNIVALUE_UNIVALUE_ESCAPES_H
 #define MERIT_UNIVALUE_UNIVALUE_ESCAPES_H

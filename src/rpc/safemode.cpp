@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Merit Foundation developers
+// Copyright (c) 2017-2019 The Merit Foundation
 #include "safemode.h"
 
 #include "rpc/protocol.h"
