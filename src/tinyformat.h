@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Merit Foundation
+// Copyright (c) 2017-2020 The Merit Foundation
 // tinyformat.h
 // Copyright (C) 2011, Chris Foster [chris42f (at) gmail (d0t) com]
 //
