@@ -1,0 +1,212 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  ubuntu-bionic:
+    runs-on: ubuntu-18.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - name: Extract branch name & commit
+        id: extract_branch
+        run: |
+          echo "::set-output name=git_hash::$(git rev-parse --short=7 "$GITHUB_SHA")"
+          echo "::set-output name=branch::$(echo ${GITHUB_REF#refs/heads/} | sed 's/\//\./g')"
+          echo "::set-output name=commits_ahead::$(git rev-list $(git describe --tags $(git rev-list --tags --max-count=1)).. --count)"
+          echo "::set-output name=last_tag::$(git describe --tags $(git rev-list --tags --max-count=1))"
+      - name: Prepare ccache timestamp
+        id: cache_timestamp
+        run: |
+          current_date=`date --utc +%Y%m%d_%H%M%SZ`
+          echo "::set-output name=timestamp::${current_date}"
+      - name: ccache cache files
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: actions/cache@v1.1.0
+        with:
+          path: ~/.ccache
+          key: linux-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
+          restore-keys: |
+            linux-ccache-
+      - name: add bitcoin ppa
+        run: sudo add-apt-repository ppa:bitcoin/bitcoin
+      - name: install build requirements
+        run: sudo apt-get install build-essential libtool autotools-dev automake pkg-config libssl-dev libevent-dev bsdmainutils ccache
+      - name: install dependencies
+        run: sudo apt-get install libboost-system-dev libboost-filesystem-dev libboost-chrono-dev libboost-program-options-dev libboost-test-dev libboost-thread-dev libdb4.8-dev libdb4.8++-dev libminiupnpc-dev libzmq3-dev libqt5gui5 libqt5core5a libqt5dbus5 libqt5quickwidgets5 libqt5network5 qttools5-dev qttools5-dev-tools libprotobuf-dev protobuf-compiler libarchive-dev libqrencode-dev
+      - name: autogen
+        run: ./autogen.sh
+      - name: configure
+        run: ./configure --with-gui
+      - name: build
+        run: cd src && make obj/build.h && cd .. && make -j2
+      - name: create artifacts
+        if: success()
+        run: |
+          mkdir -p ./release
+          mv ./src/meritd ./release/
+          mv ./src/merit-cli ./release/
+          mv ./src/qt/merit-qt ./release/
+          mv ./src/merit-tx ./release/
+          chmod +x ./release/merit*
+          strip ./release/merit*
+          mv ./release merit-${{ steps.extract_branch.outputs.last_tag }}-${{ steps.extract_branch.outputs.branch }}.${{ steps.extract_branch.outputs.commits_ahead }}-${{ steps.extract_branch.outputs.git_hash }}
+      - name: merit-${{ steps.extract_branch.outputs.last_tag }}-${{ steps.extract_branch.outputs.branch }}.${{ steps.extract_branch.outputs.commits_ahead }}-${{ steps.extract_branch.outputs.git_hash }}-x86_64-linux-gnu
+        if: success()
+        uses: actions/upload-artifact@v2
+        with:
+          name: merit-${{ steps.extract_branch.outputs.last_tag }}-${{ steps.extract_branch.outputs.branch }}.${{ steps.extract_branch.outputs.commits_ahead }}-${{ steps.extract_branch.outputs.git_hash }}-x86_64-linux-gnu
+          path: merit-${{ steps.extract_branch.outputs.last_tag }}-${{ steps.extract_branch.outputs.branch }}.${{ steps.extract_branch.outputs.commits_ahead }}-${{ steps.extract_branch.outputs.git_hash }}
+
+
+  catalina:
+    runs-on: macos-10.15
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - name: Extract branch name & commit
+        id: extract_branch
+        run: |
+          echo "::set-output name=git_hash::$(git rev-parse --short=7 "$GITHUB_SHA")"
+          echo "::set-output name=branch::$(echo ${GITHUB_REF#refs/heads/} | sed 's/\//\./g')"
+          echo "::set-output name=commits_ahead::$(git rev-list $(git describe --tags $(git rev-list --tags --max-count=1)).. --count)"
+          echo "::set-output name=last_tag::$(git describe --tags $(git rev-list --tags --max-count=1))"
+      - name: Prepare ccache timestamp
+        id: cache_timestamp
+        run: |
+          current_date=`date +%Y%m%d_%H%M%SZ`
+          echo "::set-output name=timestamp::${current_date}"
+      - name: ccache cache files
+        uses: actions/cache@v1.1.0
+        with:
+          path: ~/.ccache
+          key: macos-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
+          restore-keys: |
+            macos-ccache-
+      - name: install homebrew
+        run: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+      - name: install dependencies
+        run: |
+          brew install automake berkeley-db4 libtool boost miniupnpc openssl pkg-config protobuf python3 libevent librsvg ccache qrencode zeromq libarchive
+          brew install https://raw.githubusercontent.com/Homebrew/homebrew-core/d468bb8c4f5c34b18588e5d1b955021d58e1ff57/Formula/qt.rb
+      - name: autogen
+        run: ./autogen.sh
+      - name: configure
+        run: ./configure
+      - name: make
+        run: cd src && make obj/build.h && cd .. && make -j2
+      - name: create artifacts
+        if: success()
+        run: |
+          mkdir -p ./release
+          mv ./src/meritd ./release/
+          mv ./src/merit-cli ./release/
+          mv ./src/merit-tx ./release/
+          chmod +x ./release/merit*
+          mv ./release merit-${{ steps.extract_branch.outputs.last_tag }}-${{ steps.extract_branch.outputs.branch }}.${{ steps.extract_branch.outputs.commits_ahead }}-${{ steps.extract_branch.outputs.git_hash }}-osx64
+      - name: merit-${{ steps.extract_branch.outputs.last_tag }}-${{ steps.extract_branch.outputs.branch }}.${{ steps.extract_branch.outputs.commits_ahead }}-${{ steps.extract_branch.outputs.git_hash }}-osx64
+        if: success()
+        uses: actions/upload-artifact@v2
+        with:
+          name: merit-${{ steps.extract_branch.outputs.last_tag }}-${{ steps.extract_branch.outputs.branch }}.${{ steps.extract_branch.outputs.commits_ahead }}-${{ steps.extract_branch.outputs.git_hash }}-osx64
+          path: merit-${{ steps.extract_branch.outputs.last_tag }}-${{ steps.extract_branch.outputs.branch }}.${{ steps.extract_branch.outputs.commits_ahead }}-${{ steps.extract_branch.outputs.git_hash }}-osx64
+
+  CC:
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        host: [x86_64-pc-linux-gnu, x86_64-w64-mingw32]
+      fail-fast: false
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - name: Extract branch name & commit
+        id: extract_branch
+        run: |
+          echo "::set-output name=git_hash::$(git rev-parse --short=7 "$GITHUB_SHA")"
+          echo "::set-output name=branch::$(echo ${GITHUB_REF#refs/heads/} | sed 's/\//\./g')"
+          echo "::set-output name=commits_ahead::$(git rev-list $(git describe --tags $(git rev-list --tags --max-count=1)).. --count)"
+          echo "::set-output name=last_tag::$(git describe --tags $(git rev-list --tags --max-count=1))"
+          echo "::set-output name=version::$(cat configure.ac | head -n5 | tail -n3 | sed 's/[^[:digit:]]//g;' | sed ':a;N;$!ba;s/\n/./g')"
+      - name: Prepare ccache timestamp
+        id: cache_timestamp
+        run: |
+          current_date=`date --utc +%Y%m%d_%H%M%SZ`
+          echo "::set-output name=timestamp::${current_date}"
+      - name: depends cache files
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: actions/cache@v1.1.0
+        with:
+          path: ~/.depends_cache
+          key: ${{ matrix.host }}-depends-${{ steps.cache_timestamp.outputs.timestamp }}
+          restore-keys: |
+            ${{ matrix.host }}-depends-
+      - name: ccache cache files
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: actions/cache@v1.1.0
+        with:
+          path: ~/.ccache
+          key: ${{ matrix.host }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
+          restore-keys: |
+            ${{ matrix.host }}-ccache-
+      - name: run apt-get update
+        run: sudo apt-get update
+      - name: install build requirements
+        run: sudo apt-get install make automake cmake curl g++-multilib libtool binutils-gold bsdmainutils pkg-config python3 patch ccache
+      - name: install additional dependencies
+        if: matrix.host == 'x86_64-w64-mingw32'
+        run: sudo apt-get install g++-mingw-w64-x86-64 nsis
+      - name: set the default mingw32 g++ compiler option to posix
+        if: matrix.host == 'x86_64-w64-mingw32'
+        run: sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+      - name: strip out problematic Windows %PATH% imported var
+        if: matrix.host == 'x86_64-w64-mingw32'
+        run: PATH=$(echo "$PATH" | sed -e 's/:\/mnt.*//g')
+      - name: install additional dependencies
+        if: matrix.host == 'arm-linux-gnueabihf'
+        run: sudo apt-get install g++-arm-linux-gnueabihf binutils-arm-linux-gnueabihf
+      - name: install additional dependencies
+        if: matrix.host == 'aarch64-linux-gnu'
+        run: sudo apt-get install g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
+      - name: set variables and build dependencies for ${{ matrix.host }}
+        env:
+          HOST: ${{ matrix.host }}
+          BASE_CACHE: ~/.depends_cache
+        run: cd depends && make -j2
+      - name: autogen
+        run: ./autogen.sh
+      - name: configure
+        if: matrix.host == 'x86_64-w64-mingw32'
+        run: CONFIG_SITE=$PWD/depends/x86_64-w64-mingw32/share/config.site ./configure --prefix=/ --with-gui
+      - name: configure
+        if: matrix.host != 'x86_64-w64-mingw32'
+        run: ./configure --prefix=$PWD/depends/${{ matrix.host }}
+      - name: make
+        if: matrix.host == 'x86_64-w64-mingw32'
+        run: cd src && make obj/build.h && cd .. && make -j2 deploy
+      - name: make
+        if: matrix.host != 'x86_64-w64-mingw32'
+        run: cd src && make obj/build.h && cd .. && make -j2
+      - name: create artifacts
+        if: matrix.host == 'x86_64-w64-mingw32'
+        run: |
+          mv ./release merit-${{ steps.extract_branch.outputs.last_tag }}-${{ steps.extract_branch.outputs.branch }}.${{ steps.extract_branch.outputs.commits_ahead }}-${{ steps.extract_branch.outputs.git_hash }}
+      - name: upload artifacts
+        if: matrix.host == 'x86_64-w64-mingw32' && success()
+        uses: actions/upload-artifact@v2
+        with:
+          name: merit-${{ steps.extract_branch.outputs.last_tag }}-${{ steps.extract_branch.outputs.branch }}.${{ steps.extract_branch.outputs.commits_ahead }}-${{ steps.extract_branch.outputs.git_hash }}-win64
+          path: merit-${{ steps.extract_branch.outputs.last_tag }}-${{ steps.extract_branch.outputs.branch }}.${{ steps.extract_branch.outputs.commits_ahead }}-${{ steps.extract_branch.outputs.git_hash }}
+      - name: upload merit-${{ steps.extract_branch.outputs.version }}-win64-setup.exe
+        if: matrix.host == 'x86_64-w64-mingw32' && success()
+        uses: actions/upload-artifact@v2
+        with:
+          name: merit-${{ steps.extract_branch.outputs.last_tag }}-${{ steps.extract_branch.outputs.branch }}.${{ steps.extract_branch.outputs.commits_ahead }}-${{ steps.extract_branch.outputs.git_hash }}-win64-setup
+          path: merit-${{ steps.extract_branch.outputs.version }}-win64-setup.exe
