@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Merit Foundation
+// Copyright (c) 2017-2021 The Merit Foundation
 // Copyright 2014 BitPay Inc.
 // Copyright 2015 Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying

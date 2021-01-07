@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Merit Foundation
+// Copyright (c) 2017-2021 The Merit Foundation
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef DICTIONARY_H
