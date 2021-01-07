@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Merit Foundation
+// Copyright (c) 2017-2021 The Merit Foundation
 
 
 #include <QtGlobal>
