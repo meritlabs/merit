@@ -108,12 +108,14 @@ MutableReferral::MutableReferral(
         const CPubKey& pubkeyIn,
         const Address& parentAddressIn,
         std::string aliasIn,
-        int32_t versionIn) :
+        int32_t versionIn,
+        const std::string& msgToInviterIn) :
     version{versionIn},
     parentAddress{parentAddressIn},
     addressType{addressTypeIn},
     pubkey{pubkeyIn},
-    signature{valtype()}
+    signature{valtype()},
+    msgToInviter{msgToInviterIn}
     {
         assert(aliasIn.size() <= MAX_ALIAS_LENGTH);
         if (addressType == 1) {
@@ -136,7 +138,8 @@ MutableReferral::MutableReferral(const Referral& ref) :
     addressType{ref.addressType},
     pubkey{ref.pubkey},
     signature{ref.signature},
-    alias{ref.alias} {}
+    alias{ref.alias},
+    msgToInviter{ref.msgToInviter} {}
 
 Address MutableReferral::GetAddress() const
 {
@@ -168,6 +171,7 @@ Referral::Referral(const MutableReferral &ref) :
     signature{ref.signature},
     alias{ref.alias},
     address{ref.address},
+    msgToInviter{ref.msgToInviter},
     hash{ComputeHash()} {}
 
 Referral::Referral(MutableReferral &&ref) :
@@ -178,6 +182,7 @@ Referral::Referral(MutableReferral &&ref) :
     signature{std::move(ref.signature)},
     alias{std::move(ref.alias)},
     address{std::move(ref.address)},
+    msgToInviter{std::move(ref.msgToInviter)},
     hash{ComputeHash()} {}
 
 unsigned int Referral::GetTotalSize() const

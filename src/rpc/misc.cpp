@@ -891,6 +891,7 @@ UniValue processMempoolReferral(const referral::ReferralTxMemPool::RefIter entry
     }
     delta.push_back(Pair("timestamp", entryit->GetTime()));
     delta.push_back(Pair("raw", EncodeHexRef(*referral)));
+    delta.push_back(Pair("message", (*referral).GetMessage()));
 
     return delta;
 }
@@ -914,9 +915,10 @@ UniValue getaddressmempoolreferrals(const JSONRPCRequest& request)
             "  {\n"
             "    \"address\"        (string) The base58check encoded address\n"
             "    \"refid\"          (string) The related txid\n"
-            "    \"inviterrefid\"    (string) inviter referral id\n"
+            "    \"inviterrefid\"   (string) inviter referral id\n"
             "    \"timestamp\"      (number) The time the referral entered the mempool (seconds)\n"
             "    \"raw\"            (string) Raw encoded referral object\n"
+            "    \"message\"        (string) Message to referrer\n"
             "  }\n"
             "]\n"
             "\nExamples:\n" +
@@ -2069,6 +2071,7 @@ UniValue getaddressreferrals(const JSONRPCRequest& request)
             "  {\n"
             "    \"refid\"          (string) The related txid\n"
             "    \"raw\"            (string) Raw encoded referral object\n"
+            "    \"message\"        (string) Message to referrer\n"
             "  }\n"
             "]\n"
             "\nExamples:\n" +
@@ -2097,6 +2100,7 @@ UniValue getaddressreferrals(const JSONRPCRequest& request)
         UniValue item(UniValue::VOBJ);
         item.push_back(Pair("refid", referral->GetHash().GetHex()));
         item.push_back(Pair("raw", EncodeHexRef(*referral)));
+        item.push_back(Pair("message", referral->GetMessage().c_str()));
         result.push_back(item);
 
         for (const auto& child_address : children) {
@@ -2106,6 +2110,7 @@ UniValue getaddressreferrals(const JSONRPCRequest& request)
                 UniValue item(UniValue::VOBJ);
                 item.push_back(Pair("refid", child_referral->GetHash().GetHex()));
                 item.push_back(Pair("raw", EncodeHexRef(*child_referral)));
+                item.push_back(Pair("message", child_referral->GetMessage()));
                 result.push_back(item);
             }
         }

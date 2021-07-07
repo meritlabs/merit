@@ -5246,14 +5246,15 @@ UniValue unlockwallet(const JSONRPCRequest& request)
         return NullUniValue;
     }
 
-    if (request.fHelp || request.params.size() < 1 || request.params[0].get_str().empty() || request.params.size() > 2) {
+    if (request.fHelp || request.params.size() < 1 || request.params[0].get_str().empty() || request.params.size() > 3) {
         throw std::runtime_error(
-            "unlockwallet \"inviteraddress\" (\"alias\") \n"
+            "unlockwallet \"inviteraddress\" (\"alias\") (\"message\") \n"
             "Updates the wallet with referral code and beacons first key with associated referral.\n"
             "Returns an object containing various wallet state info.\n"
             "\nArguments:\n"
             "1. inviteraddress   (string, required) Inviter address needed to unlock the wallet.\n"
-            "2. alias            (stirng, optional) Alias people can use globally to send you Merit"
+            "2. alias            (string, optional) Alias people can use globally to send you Merit. \n"
+            "3. message          (string, optional) Private message to your inviter(referrer). \n"
             "\nResult:\n"
             "{\n"
             "  \"address\": xxxxx,                (string) The wallet's root address. Invite others with it or use your alias.\n"
@@ -5278,8 +5279,10 @@ UniValue unlockwallet(const JSONRPCRequest& request)
             "\nExamples:\n"
             + HelpExampleCli("unlockwallet", "\"inviteraddress\"")
             + HelpExampleCli("unlockwallet", "\"inviteraddress\" \"alias\"")
+            + HelpExampleCli("unlockwallet", "\"inviteraddress\" \"alias\" \"message\" ")
             + HelpExampleRpc("unlockwallet", "\"inviteraddress\"")
             + HelpExampleRpc("unlockwallet", "\"inviteraddress\", \"alias\"")
+            + HelpExampleRpc("unlockwallet", "\"inviteraddress\", \"alias\" \"message\"")
         );
     }
 
@@ -5298,7 +5301,13 @@ UniValue unlockwallet(const JSONRPCRequest& request)
 
     auto alias = request.params[1].isNull() ? "" : request.params[1].get_str();
 
-    referral::ReferralRef referral = pwallet->Unlock(parentAddressUint160, alias);
+    auto msg_to_inviter = request.params[2].isNull() ? "" : request.params[2].get_str();
+
+    if(msg_to_inviter.size() > referral::MAX_MESSAGE_LENGTH) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("You message is too long. It should be no longer than %d symbols", referral::MAX_MESSAGE_LENGTH));
+    }
+
+    referral::ReferralRef referral = pwallet->Unlock(parentAddressUint160, alias, msg_to_inviter);
 
     UniValue obj(UniValue::VOBJ);
 
@@ -5471,7 +5480,7 @@ static const CRPCCommand commands[] =
     { "generating",         "generate",                 &generate,                 {"nblocks","maxtries"} },
 
     // merit specific commands
-    { "referral",           "unlockwallet",             &unlockwallet,             {"inviteraddress", "alias"} },
+    { "referral",           "unlockwallet",             &unlockwallet,             {"inviteraddress", "alias", "message"} },
     { "referral",           "getanv",                   &getanv,                   {} },
     { "wallet",             "inviteaddress",            &inviteaddress,            {"address"} },
     { "wallet",             "listinvites",              &listinvites,              {"addresses"} },

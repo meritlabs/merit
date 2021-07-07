@@ -465,6 +465,13 @@ referral::ReferralRef WalletModel::Unlock(const referral::Address& parentAddress
     return wallet->Unlock(parentAddress, alias);
 }
 
+referral::ReferralRef WalletModel::Unlock(const referral::Address& parentAddress, const std::string alias, const std::string message)
+{
+    assert(wallet);
+    LOCK2(cs_main, wallet->cs_wallet);
+    return wallet->Unlock(parentAddress, alias, message);
+}
+
 bool WalletModel::AliasExists(const std::string& alias) const
 {
     assert(wallet);
