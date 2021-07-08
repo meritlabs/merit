@@ -74,9 +74,9 @@ struct Params {
     int64_t nPowTargetSpacing; // target time for a block
     int64_t nPowTargetTimespan; // target time for nBits adjustments
     int64_t nEdgeBitsTargetThreshold; // threshold for nEdgeBits adjustments
-    int64_t DifficultyAdjustmentInterval(int height) const { 
+    int64_t DifficultyAdjustmentInterval(int height) const {
         return (height >= pog2_blockheight ? pog2_pow_target_timespan : nPowTargetTimespan)
-            / nPowTargetSpacing; 
+            / nPowTargetSpacing;
     }
     int64_t ambassador_percent_cut;
     uint64_t total_winning_ambassadors;
@@ -92,7 +92,7 @@ struct Params {
     int daedalus_block_window;
     int daedalus_min_one_invite_for_every_x_blocks;
     int daedalus_max_outstanding_invites_per_address;
-    
+
     /** Bug Fix heights */
     int safer_alias_blockheight;
 
@@ -103,7 +103,7 @@ struct Params {
     int imp_miner_reward_for_every_x_blocks;
     std::vector<double> imp_weights;
 
-    /** Bug Fix height for invite lottery amount */ 
+    /** Bug Fix height for invite lottery amount */
     int imp_fix_invites_blockheight;
 
     /** PoG version 2 */
@@ -129,6 +129,11 @@ struct Params {
     int pog3_max_outstanding_invites_per_address;
     double pog3_convex_b;
     double pog3_convex_s;
+
+    /** LMWA difficulty adjustment */
+    int lwma_blockheight;
+    int64_t lwma_target_timespan;
+    std::set<uint8_t> lwma_sEdgeBitsAllowed;
 
 };
 } // namespace Consensus
