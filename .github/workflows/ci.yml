@@ -175,10 +175,17 @@ jobs:
       - name: install additional dependencies
         if: matrix.host == 'aarch64-linux-gnu'
         run: sudo apt-get install g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
-      - name: set variables and build dependencies for ${{ matrix.host }}
+      - name: set variables and build dependencies for x86_64-w64-mingw32
         env:
           HOST: ${{ matrix.host }}
           BASE_CACHE: ~/.depends_cache
+        if: matrix.host == 'x86_64-w64-mingw32'
+        run: cd depends && HOST=x86_64-w64-mingw32 make -j2
+      - name: set variables and build dependencies for x86_64-pc-linux-gnu
+        env:
+          HOST: ${{ matrix.host }}
+          BASE_CACHE: ~/.depends_cache
+        if: matrix.host == 'x86_64-pc-linux-gnu'
         run: cd depends && make -j2
       - name: autogen
         run: ./autogen.sh

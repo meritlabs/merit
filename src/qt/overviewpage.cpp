@@ -22,6 +22,7 @@
 #include <QGraphicsDropShadowEffect>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPropertyAnimation>
 #include <QTimer>
 
