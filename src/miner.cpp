@@ -949,13 +949,14 @@ struct MinerContext {
     int nonces_per_thread;
     const CChainParams& chainparams;
     std::shared_ptr<CReserveScript>& coinbase_script;
+    unsigned int extra_nonce;
     ctpl::thread_pool& pool;
 };
 
 void MinerWorker(int thread_id, MinerContext& ctx)
 {
     auto start_nonce = thread_id * ctx.nonces_per_thread;
-    unsigned int nExtraNonce = 0;
+    unsigned int nExtraNonce = ctx.extra_nonce;
 
     while (ctx.alive) {
         if (ctx.chainparams.MiningRequiresPeers()) {
@@ -1128,7 +1129,8 @@ void static MeritMiner(
         const CChainParams& chainparams,
         int pow_threads,
         int bucket_size,
-        int bucket_threads)
+        int bucket_threads,
+        unsigned int extra_nonce)
 {
     assert(coinbase_script);
     RenameThread("merit-miner");
@@ -1164,6 +1166,7 @@ void static MeritMiner(
                 bucket_size,
                 chainparams,
                 coinbase_script,
+                extra_nonce,
                 pool
             };
 
@@ -1188,7 +1191,31 @@ void static MeritMiner(
     }
 }
 
-void GenerateMerit(bool mine, int pow_threads, int bucket_size, int bucket_threads, const CChainParams& chainparams)
+void GenerateMerit(
+        bool mine,
+        int pow_threads,
+        int bucket_size,
+        int bucket_threads,
+        const CChainParams& chainparams)
+{
+    GenerateMerit(
+            mine,
+            pow_threads,
+            bucket_size,
+            bucket_threads,
+            CNoDestination{},
+            0, //extra nonce
+            chainparams);
+}
+
+void GenerateMerit(
+        bool mine,
+        int pow_threads,
+        int bucket_size,
+        int bucket_threads,
+        CTxDestination dest,
+        int extra_nonce,
+        const CChainParams& chainparams)
 {
     static boost::thread* minerThread = nullptr;
 
@@ -1211,7 +1238,18 @@ void GenerateMerit(bool mine, int pow_threads, int bucket_size, int bucket_threa
     }
 
     std::shared_ptr<CReserveScript> coinbase_script;
-    GetMainSignals().ScriptForMining(coinbase_script);
+    // if no destination is specified then we default to the wallet's address
+    if(!IsValidDestination(dest)) {
+        GetMainSignals().ScriptForMining(coinbase_script);
+    } else {
+        referral::Address address;
+        GetUint160(dest, address);
+        auto referral = prefviewcache->GetReferral(address);
+        if(referral) {
+            coinbase_script = std::make_shared<CReserveScript>();
+            coinbase_script->reserveScript = GetScriptForRawPubKey(referral->pubkey);
+        }
+    }
 
     if(!coinbase_script) {
         throw std::runtime_error("unable to generate a coinbase script for mining");
@@ -1223,5 +1261,6 @@ void GenerateMerit(bool mine, int pow_threads, int bucket_size, int bucket_threa
             chainparams,
             pow_threads,
             bucket_size,
-            bucket_threads);
+            bucket_threads,
+            extra_nonce);
 }

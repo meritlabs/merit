@@ -37,6 +37,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "setmining", 1, "minepowthreads" },
     { "setmining", 2, "minebucketthreads" },
     { "setmining", 3, "minebucketsize" },
+    { "setmining", 4, "opts" },
     { "generatetoaddress", 0, "nblocks" },
     { "generatetoaddress", 2, "maxtries" },
     { "generatetoaddress", 3, "nthreads" },

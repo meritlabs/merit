@@ -513,7 +513,7 @@ CScript GetParameterizedP2SH(const CParamScriptID& dest)
 
 CScript GetScriptForRawPubKey(const CPubKey& pubKey)
 {
-    return CScript() << std::vector<unsigned char>(pubKey.begin(), pubKey.end()) << OP_CHECKSIG;
+    return CScript() << ToByteVector(pubKey) << OP_CHECKSIG;
 }
 
 CScript GetScriptForMultisig(int nRequired, const std::vector<CPubKey>& keys)
