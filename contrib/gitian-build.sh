@@ -6,7 +6,6 @@
 sign=false
 verify=false
 build=false
-setupenv=false
 
 # Systems to build
 linux=true
@@ -22,7 +21,7 @@ proc=2
 mem=2000
 lxc=true
 osslTarUrl=http://downloads.sourceforge.net/project/osslsigncode/osslsigncode/osslsigncode-1.7.1.tar.gz
-osslPatchUrl=https://meritcore.org/cfields/osslsigncode-Backports-to-1.7.1.patch
+osslPatchUrl=https://bitcoincore.org/cfields/osslsigncode-Backports-to-1.7.1.patch
 scriptName=$(basename -- "$0")
 signProg="gpg --detach-sign"
 commitFiles=true
@@ -30,13 +29,10 @@ commitFiles=true
 # Help Message
 read -d '' usage <<- EOF
 Usage: $scriptName [-c|u|v|b|s|B|o|h|j|m|] signer version
-
 Run this script from the directory containing the merit, gitian-builder, gitian.sigs, and merit-detached-sigs.
-
 Arguments:
 signer          GPG signer to sign each build assert file
 version		Version number, commit, or branch to build. If building a commit or branch, the -c option must be specified
-
 Options:
 -c|--commit	Indicate that the version argument is for a commit or branch
 -u|--url	Specify the URL of the repository. Default is https://github.com/meritlabs/merit
@@ -48,7 +44,7 @@ Options:
 -j		Number of processes to use. Default 2
 -m		Memory to allocate in MiB. Default 2000
 --kvm           Use KVM instead of LXC
---setup         Set up the Gitian building environment. Uses KVM. If you want to use lxc, use the --lxc option. Only works on Debian-based systems (Ubuntu, Debian)
+--setup         Set up the Gitian building environment. Uses LXC. If you want to use KVM, use the --kvm option. Only works on Debian-based systems (Ubuntu, Debian)
 --detach-sign   Create the assert file for detached signing. Will not commit anything.
 --no-commit     Do not commit anything to git
 -h|--help	Print this help message
@@ -106,7 +102,7 @@ while :; do
 		fi
 		shift
 	    else
-		echo 'Error: "--os" requires an argument containing an l (for linux), w (for windows), or x (for Mac OSX)\n'
+		echo 'Error: "--os" requires an argument containing an l (for linux), w (for windows), or x (for Mac OSX)'
 		exit 1
 	    fi
 	    ;;
@@ -179,8 +175,6 @@ done
 if [[ $lxc = true ]]
 then
     export USE_LXC=1
-    export LXC_BRIDGE=lxcbr0
-    sudo ifconfig lxcbr0 up 10.0.2.2
 fi
 
 # Check for OSX SDK
@@ -191,7 +185,7 @@ then
 fi
 
 # Get signer
-if [[ -n"$1" ]]
+if [[ -n "$1" ]]
 then
     SIGNER=$1
     shift
@@ -224,7 +218,7 @@ fi
 # Add a "v" if no -c
 if [[ $commit = false ]]
 then
-	COMMIT="v${VERSION}"
+	COMMIT="m${VERSION}"
 fi
 echo ${COMMIT}
 
@@ -232,8 +226,8 @@ echo ${COMMIT}
 if [[ $setup = true ]]
 then
     sudo apt-get install ruby apache2 git apt-cacher-ng python-vm-builder qemu-kvm qemu-utils
-    git clone https://github.com/bitcoin-core/gitian.sigs.git
-    git clone https://github.com/bitcoin-core/merit-detached-sigs.git
+    git clone https://github.com/meritlabs/gitian.sigs.git
+    git clone https://github.com/meritlabs/merit-detached-sigs.git
     git clone https://github.com/devrandom/gitian-builder.git
     pushd ./gitian-builder
     if [[ -n "$USE_LXC" ]]
@@ -257,12 +251,12 @@ if [[ $build = true ]]
 then
 	# Make output folder
 	mkdir -p ./merit-binaries/${VERSION}
-	
+
 	# Build Dependencies
 	echo ""
 	echo "Building Dependencies"
 	echo ""
-	pushd ./gitian-builder	
+	pushd ./gitian-builder
 	mkdir -p inputs
 	wget -N -P inputs $osslPatchUrl
 	wget -N -P inputs $osslTarUrl
@@ -331,10 +325,10 @@ then
 	echo "Verifying v${VERSION} Windows"
 	echo ""
 	./bin/gverify -v -d ../gitian.sigs/ -r ${VERSION}-win-unsigned ../merit/contrib/gitian-descriptors/gitian-win.yml
-	# Mac OSX	
+	# Mac OSX
 	echo ""
 	echo "Verifying v${VERSION} Mac OSX"
-	echo ""	
+	echo ""
 	./bin/gverify -v -d ../gitian.sigs/ -r ${VERSION}-osx-unsigned ../merit/contrib/gitian-descriptors/gitian-osx.yml
 	# Signed Windows
 	echo ""
@@ -345,14 +339,14 @@ then
 	echo ""
 	echo "Verifying v${VERSION} Signed Mac OSX"
 	echo ""
-	./bin/gverify -v -d ../gitian.sigs/ -r ${VERSION}-osx-signed ../merit/contrib/gitian-descriptors/gitian-osx-signer.yml	
+	./bin/gverify -v -d ../gitian.sigs/ -r ${VERSION}-osx-signed ../merit/contrib/gitian-descriptors/gitian-osx-signer.yml
 	popd
 fi
 
 # Sign binaries
 if [[ $sign = true ]]
 then
-	
+
         pushd ./gitian-builder
 	# Sign Windows
 	if [[ $windows = true ]]

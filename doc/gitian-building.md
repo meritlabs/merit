@@ -152,7 +152,7 @@ To select a different button, press `Tab`.
 ![](gitian-building/debian_install_9_user_password.png)
 
 - The installer will set up the clock using a time server; this process should be automatic
-- Set up the clock: choose a time zone (depends on the locale settings that you picked earlier; specifics don't matter)  
+- Set up the clock: choose a time zone (depends on the locale settings that you picked earlier; specifics don't matter)
 
 ![](gitian-building/debian_install_10_configure_clock.png)
 
@@ -272,6 +272,8 @@ Then set up LXC and the rest with the following, which is a complex jumble of se
 # that the build script can execute it without providing a password
 echo "%sudo ALL=NOPASSWD: /usr/bin/lxc-start" > /etc/sudoers.d/gitian-lxc
 echo "%sudo ALL=NOPASSWD: /usr/bin/lxc-execute" >> /etc/sudoers.d/gitian-lxc
+# add debian to sudoers
+echo 'debian  ALL=(ALL:ALL) ALL' >> /etc/sudoers
 # make /etc/rc.local script that sets up bridge between guest and host
 echo '#!/bin/sh -e' > /etc/rc.local
 echo 'brctl addbr br0' >> /etc/rc.local
@@ -314,8 +316,8 @@ Clone the git repositories for merit and Gitian.
 
 ```bash
 git clone https://github.com/devrandom/gitian-builder.git
-git clone https://github.com/meritlabs/merit
-git clone https://github.com/bitcoin-core/gitian.sigs.git
+git clone https://github.com/meritlabs/merit.git
+git clone https://github.com/meritlabs/gitian.sigs.git
 ```
 
 Setting up the Gitian image

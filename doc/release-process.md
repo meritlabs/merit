@@ -33,8 +33,8 @@ If you're using the automated script (found in [contrib/gitian-build.sh](/contri
 Check out the source code in the following directory hierarchy.
 
     cd /path/to/your/toplevel/build
-    git clone https://github.com/bitcoin-core/gitian.sigs.git
-    git clone https://github.com/bitcoin-core/merit-detached-sigs.git
+    git clone https://github.com/meritlabs/gitian.sigs.git
+    git clone https://github.com/meritlabs/merit-detached-sigs.git
     git clone https://github.com/devrandom/gitian-builder.git
     git clone https://github.com/meritlabs/merit.git
 
@@ -65,7 +65,7 @@ Setup Gitian descriptors:
     export SIGNER=(your Gitian key, ie bluematt, sipa, etc)
     export VERSION=(new version, e.g. 0.8.0)
     git fetch
-    git checkout v${VERSION}
+    git checkout m${VERSION}
     popd
 
 Ensure your gitian.sigs are up-to-date if you wish to gverify your builds against other Gitian signatures.
@@ -84,7 +84,7 @@ Ensure gitian-builder is up-to-date:
 
     pushd ./gitian-builder
     mkdir -p inputs
-    wget -P inputs https://meritcore.org/cfields/osslsigncode-Backports-to-1.7.1.patch
+    wget -P inputs https://bitcoincore.org/cfields/osslsigncode-Backports-to-1.7.1.patch
     wget -P inputs http://downloads.sourceforge.net/project/osslsigncode/osslsigncode/osslsigncode-1.7.1.tar.gz
     popd
 
